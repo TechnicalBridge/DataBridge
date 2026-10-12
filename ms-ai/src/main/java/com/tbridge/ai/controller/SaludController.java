@@ -21,6 +21,6 @@ public class SaludController {
     @GetMapping("/api/health")
     @Operation(summary = "Estado del asistente")
     public Salud salud() {
-        return new Salud(true, "ms-ai", llm.configurado());
+        return new Salud(true, "ms-ai", llm.configurado(), llm.estado());
     }
 }

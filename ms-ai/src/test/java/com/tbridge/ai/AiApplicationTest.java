@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** El servicio arranca solo, sin base ni LLM, y publica lo que leen Docker y el gateway. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"app.llm.api-key=", "app.debt-url=http://ms-debt.invalid"})
+        properties = {"app.llm.orden=", "app.debt-url=http://ms-debt.invalid"})
 class AiApplicationTest {
 
     @Autowired

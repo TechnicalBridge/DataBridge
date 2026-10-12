@@ -42,10 +42,10 @@ public class AsistenteService {
                 .orElse("");
 
         Animo animo = MotorLocal.sentimiento(ultimo);
-        Optional<String> delLlm = llm.responder(historia, susDeudas, animo.etiqueta());
+        Optional<LlmService.Contestacion> delLlm = llm.responder(historia, susDeudas, animo.etiqueta());
         return new Respuesta(
-                delLlm.orElseGet(() -> MotorLocal.responder(ultimo, susDeudas)),
-                delLlm.isPresent() ? "spacexai" : "local-nlp",
+                delLlm.map(LlmService.Contestacion::texto).orElseGet(() -> MotorLocal.responder(ultimo, susDeudas)),
+                delLlm.map(LlmService.Contestacion::proveedor).orElse("local-nlp"),
                 susDeudas.size(),
                 animo);
     }
