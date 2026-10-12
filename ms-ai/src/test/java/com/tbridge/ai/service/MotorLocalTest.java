@@ -3,6 +3,7 @@ package com.tbridge.ai.service;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +22,17 @@ class MotorLocalTest {
                     "montoOriginal", 115.5, "saldo", 96.25, "estado", "repacted"),
             Map.of("acreedor", "Patrimonio Inmuebles", "concepto", "Arriendo mensual", "moneda", "CLP",
                     "montoOriginal", 410000, "saldo", 0, "estado", "paid"));
+
+    //  Una deuda con tasa, mora de hoy y descuento por pronto pago, como la entrega ms-debt.
+    static final Map<String, Object> CON_TASA = Map.ofEntries(
+            Map.entry("acreedor", "Patrimonio Inmuebles"), Map.entry("concepto", "Arriendo mensual"),
+            Map.entry("moneda", "CLP"), Map.entry("montoOriginal", 900000), Map.entry("saldo", 900000.0),
+            Map.entry("estado", "open"), Map.entry("tasaInteresMensual", 1.5), Map.entry("interesMora", 15900),
+            Map.entry("totalHoy", 915900.0), Map.entry("descuentoDisponible", 7950),
+            Map.entry("descuentoHasta", "2026-11-03"));
+    static final Map<String, Object> SIN_TASA = Map.of(
+            "acreedor", "Instituto Andes", "concepto", "Arancel", "moneda", "CLP",
+            "saldo", 350000, "totalHoy", 350000, "interesMora", 0, "estado", "open");
 
     @Nested
     class LosMontos {
@@ -94,6 +106,80 @@ class MotorLocalTest {
         void el_certificado_solo_para_lo_pagado() {
             assertTrue(MotorLocal.responder("quiero el certificado", DEUDAS).contains("1 deuda(s) pagada(s)"));
             assertTrue(MotorLocal.responder("certificado", DEUDAS.subList(0, 1)).contains("se emite cuando"));
+        }
+    }
+
+    /** Lo mismo que dice el portal: la tasa que pacto el acreedor, la mora de hoy y el descuento. */
+    @Nested
+    class LosIntereses {
+
+        @Test
+        void lo_que_debe_es_el_total_de_hoy_con_la_mora_y_el_descuento() {
+            String respuesta = MotorLocal.responder("¿cuánto debo?", List.of(CON_TASA));
+
+            assertTrue(respuesta.contains("por $915.900 en total"), respuesta);
+            assertTrue(respuesta.contains("- Patrimonio Inmuebles (Arriendo mensual): $915.900, pendiente. Incluye "
+                    + "$15.900 de intereses por mora (1,5% mensual). Si pagas todo antes del 3 de noviembre, te "
+                    + "descontamos $7.950 de intereses."), respuesta);
+        }
+
+        @Test
+        void las_cuotas_llevan_el_interes_que_pacto() {
+            String respuesta = MotorLocal.responder("puedo pagar en cuotas?", List.of(CON_TASA));
+
+            assertTrue(respuesta.contains("las cuotas llevan el interés que pactaste (1,5% mensual)"), respuesta);
+            assertFalse(respuesta.contains("No hay interés"), respuesta);
+        }
+
+        @Test
+        void sin_tasa_las_cuotas_siguen_sin_interes() {
+            assertTrue(MotorLocal.responder("puedo pagar en cuotas?", List.of(SIN_TASA)).contains("No hay interés"));
+        }
+
+        @Test
+        void con_deudas_con_y_sin_tasa_dice_cual_lleva_interes() {
+            String respuesta = MotorLocal.responder("quiero repactar", List.of(CON_TASA, SIN_TASA));
+
+            assertTrue(respuesta.contains("Las deudas con interés pactado (Patrimonio Inmuebles (Arriendo mensual), "
+                    + "1,5% mensual) lo llevan también en las cuotas; en las demás no hay interés"), respuesta);
+        }
+
+        @Test
+        void a_quien_no_puede_pagar_no_le_dice_sin_interes_si_hay_tasa() {
+            String respuesta = MotorLocal.responder("no tengo plata", List.of(CON_TASA));
+
+            assertTrue(respuesta.startsWith("Entiendo que es una situación difícil. Puedes dividir lo que debes en "
+                    + "3 a 24 cuotas. Tu deuda lleva el interés que pactaste (1,5% mensual), también en las cuotas"),
+                    respuesta);
+            assertFalse(respuesta.contains("sin interés"), respuesta);
+            assertTrue(respuesta.endsWith("Tu saldo vigente es $915.900."), respuesta);
+        }
+
+        @Test
+        void responde_por_los_intereses_y_el_descuento() {
+            String respuesta = MotorLocal.responder("¿me cobran intereses?", List.of(CON_TASA, SIN_TASA));
+
+            assertTrue(respuesta.contains("- Patrimonio Inmuebles (Arriendo mensual): 1,5% mensual, con $15.900 de "
+                    + "intereses por mora hoy."), respuesta);
+            assertTrue(respuesta.contains("Las demás no tienen interés."), respuesta);
+            assertTrue(respuesta.contains("nunca el capital"), respuesta);
+            assertTrue(respuesta.endsWith("de una vez:\n- Patrimonio Inmuebles (Arriendo mensual): si pagas todo "
+                    + "antes del 3 de noviembre, te descontamos $7.950 de intereses."), respuesta);
+        }
+
+        @Test
+        void sin_tasa_no_hay_intereses_ni_descuento() {
+            assertEquals("Tu deuda no tiene interés pactado: no se cobra nada extra, ni por atraso ni en cuotas.",
+                    MotorLocal.responder("hay descuento?", List.of(SIN_TASA)));
+        }
+
+        @Test
+        void al_pagar_le_ofrece_el_descuento_y_sin_fecha_es_ahora() {
+            Map<String, Object> sinFin = new HashMap<>(CON_TASA);
+            sinFin.remove("descuentoHasta");
+
+            assertTrue(MotorLocal.responder("quiero pagar", List.of(sinFin))
+                    .endsWith("la empresa queda avisada. Si pagas todo ahora, te descontamos $7.950 de intereses."));
         }
     }
 }
