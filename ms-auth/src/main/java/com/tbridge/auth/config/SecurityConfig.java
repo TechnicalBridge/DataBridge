@@ -34,10 +34,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        //  Sin CSRF, a proposito: la sesion viaja en el header Authorization, que
+        //  el navegador no agrega solo cuando otro sitio dispara una peticion.
+        //  La unica cookie, la llave de renovacion, es SameSite=Strict: otro sitio
+        //  no puede hacer que el navegador la mande.
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         //  Donde se consigue la sesion: no puede exigirla.
                         .requestMatchers("/api/auth/**").permitAll()

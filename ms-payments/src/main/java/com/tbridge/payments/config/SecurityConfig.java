@@ -30,10 +30,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        //  Sin CSRF, a proposito: la sesion viaja en el header Authorization, que
+        //  el navegador no agrega solo cuando otro sitio dispara una peticion.
+        //  Ademas, la vuelta de Webpay y los avisos de Khipu y Mercado Pago llegan
+        //  desde otro sitio por diseno: los protege la verificacion con la pasarela.
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         //  Los protege la firma HMAC del pago, no una sesion.
                         .requestMatchers("/api/payments/webhooks/**").permitAll()
