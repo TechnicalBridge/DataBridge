@@ -47,7 +47,7 @@ export default function AdminInicio() {
                   <b>{nombre}</b>
                   <span>{servicio} · {que}</span>
                 </div>
-                <Estado valor={estados[tramo]} />
+                <div className="fila-monto"><Estado valor={estados[tramo]} /></div>
               </div>
             ))}
           </div>
