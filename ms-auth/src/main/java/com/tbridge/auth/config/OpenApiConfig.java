@@ -16,9 +16,10 @@ import java.util.List;
 /**
  * La documentacion de ms-auth en Swagger.
  *
- * <p>Dos grupos, porque tienen publico distinto: el <b>portal</b>, lo que llama
- * el navegador a traves del gateway, y lo <b>interno</b>, lo que llaman los
- * otros servicios con la clave interna. El gateway no expone /internal, asi que
+ * <p>Tres grupos, porque tienen publico distinto: el <b>portal</b>, lo que llama
+ * el navegador a traves del gateway; el <b>panel</b> de administracion, que es
+ * solo del admin de DataBridge; y lo <b>interno</b>, lo que llaman los otros
+ * servicios con la clave interna. El gateway no expone /internal, asi que
  * ese grupo apunta directo al servicio.
  */
 @Configuration
@@ -40,7 +41,9 @@ public class OpenApiConfig {
                                 sin cuenta ni contrasena. El codigo le llega por correo o WhatsApp y el \
                                 entra escribiendo la direccion del portal: ningun mensaje trae un enlace \
                                 en el que tenga que confiar.
-                                - **El personal de una empresa** entra con un enlace de un solo uso a su correo.
+                                - **El usuario de una empresa** entra con un enlace de un solo uso a su correo.
+                                - **El admin de DataBridge** entra igual, con su enlace, y su sesion lleva el \
+                                rol `ADMIN`: es el unico que entra al panel de administracion (`/api/admin`).
 
                                 La sesion son dos piezas: un JWT de 15 minutos que va en el cuerpo, y una \
                                 llave de renovacion revocable en la cookie `tb_renovacion` (HttpOnly, \
@@ -61,6 +64,16 @@ public class OpenApiConfig {
                 .group("portal")
                 .displayName("Portal")
                 .pathsToMatch("/api/**")
+                .pathsToExclude("/api/admin/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi panel() {
+        return GroupedOpenApi.builder()
+                .group("panel")
+                .displayName("Panel de administracion")
+                .pathsToMatch("/api/admin/**")
                 .build();
     }
 

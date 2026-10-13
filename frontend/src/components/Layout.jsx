@@ -7,8 +7,8 @@ import Logo from "./Logo";
 import Chatbot from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
-  IconoAlerta, IconoAyuda, IconoCalendario, IconoCartera, IconoDocumento, IconoLlave, IconoMegafono, IconoRecibo, IconoSalir,
-  IconoSubir, IconoUsuario,
+  IconoAlerta, IconoAyuda, IconoCalendario, IconoCartera, IconoDocumento, IconoLlave, IconoMegafono, IconoPanel, IconoRecibo,
+  IconoSalir, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
 /** Cada enlace con su nombre largo (el menu) y el corto (la barra del telefono). */
@@ -30,6 +30,17 @@ const EMPRESA = [
   { to: "/databridge/como-funciona", label: "Cómo funciona", corto: "Ayuda", Icono: IconoAyuda, aparte: true },
 ];
 
+//  El panel de administracion de DataBridge: lo ve solo su admin.
+const ADMIN = [
+  { to: "/admin", label: "Inicio", corto: "Inicio", Icono: IconoPanel, end: true },
+];
+
+const PORTALES = {
+  debtor: { links: DEUDOR, marca: "Technical Bridge", sub: "Portal de pago" },
+  creditor: { links: EMPRESA, marca: "DataBridge", sub: "Portal de empresas" },
+  admin: { links: ADMIN, marca: "DataBridge", sub: "Panel de administración" },
+};
+
 /** Las iniciales para el circulo del usuario: "Camila Reyes" -> "CR". */
 function iniciales(nombre) {
   return String(nombre || "")
@@ -43,7 +54,9 @@ function iniciales(nombre) {
 export default function Layout({ variant }) {
   const { user, logout } = useAuth();
   const esEmpresa = variant === "creditor";
-  const links = esEmpresa ? EMPRESA : DEUDOR;
+  //  El usuario de una empresa y el admin tienen nombre y correo; el deudor, solo su RUT.
+  const conCuenta = variant !== "debtor";
+  const { links, marca, sub } = PORTALES[variant] || PORTALES.debtor;
   const [enRiesgo, setEnRiesgo] = useState(0);
 
   // Cuantos convenios estan atrasados: va como numero al lado del enlace.
@@ -52,8 +65,6 @@ export default function Layout({ variant }) {
     listarEnRiesgo().then((c) => setEnRiesgo(c.length)).catch(() => setEnRiesgo(0));
   }, [esEmpresa]);
 
-  const marca = esEmpresa ? "DataBridge" : "Technical Bridge";
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -61,7 +72,7 @@ export default function Layout({ variant }) {
           <Logo size={40} />
           <div>
             <div className="brand-name">{marca}</div>
-            <div className="brand-sub">{esEmpresa ? "Portal de empresas" : "Portal de pago"}</div>
+            <div className="brand-sub">{sub}</div>
           </div>
         </div>
         {links.map(({ to, label, end, Icono, aparte, riesgo }) => (
@@ -77,9 +88,9 @@ export default function Layout({ variant }) {
         <div className="sidebar-foot">
           <TemaToggle conTexto />
           <div className="user-chip">
-            <span className="avatar">{esEmpresa ? iniciales(user?.nombre) : "TB"}</span>
+            <span className="avatar">{conCuenta ? iniciales(user?.nombre) : "TB"}</span>
             <div>
-              {esEmpresa ? (
+              {conCuenta ? (
                 <>
                   <b>{user?.nombre}</b>
                   <span>{user?.correo}</span>
@@ -113,7 +124,8 @@ export default function Layout({ variant }) {
         </main>
       </div>
 
-      {esEmpresa ? null : <Chatbot />}
+      {/* El asistente responde sobre las deudas de quien pregunta: es solo del deudor. */}
+      {variant === "debtor" ? <Chatbot /> : null}
       <nav className="mobile-bar">
         {links.map(({ to, corto, end, Icono }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>

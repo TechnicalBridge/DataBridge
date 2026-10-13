@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -201,5 +202,17 @@ class DebtControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"resultado\":\"reanudar\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("open"));
+    }
+
+    /** #137: el admin de DataBridge ve totales en su panel, nunca la cartera de una empresa ni la deuda de alguien. */
+    @Test
+    void el_admin_de_databridge_no_entra_al_portal_de_las_empresas_ni_al_del_deudor() throws Exception {
+        String admin = "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
+
+        mvc.perform(get("/api/debts").header("Authorization", admin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("No tienes permiso para esto"));
+        mvc.perform(get("/api/debts/3").header("Authorization", admin)).andExpect(status().isForbidden());
+        verifyNoInteractions(debts);
     }
 }

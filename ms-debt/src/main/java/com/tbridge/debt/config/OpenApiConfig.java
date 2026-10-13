@@ -67,7 +67,16 @@ public class OpenApiConfig {
                 .group("portal")
                 .displayName("Portal")
                 .pathsToMatch("/api/**")
-                .pathsToExclude("/api/v1/**")
+                .pathsToExclude("/api/v1/**", "/api/admin/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi panel() {
+        return GroupedOpenApi.builder()
+                .group("panel")
+                .displayName("Panel de administracion")
+                .pathsToMatch("/api/admin/**")
                 .build();
     }
 
