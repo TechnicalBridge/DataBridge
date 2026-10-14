@@ -494,6 +494,29 @@ contraseña ni la clave de Brevo aparecen ahí ni en la respuesta de la prueba.
 Para volver al buzón de prueba, se dejan vacías `BREVO_API_KEY` y `SMTP_HOST`, y se reinicia
 ms-auth.
 
+**Lo que dice cada correo.** Las plantillas viven en
+[`ms-auth/src/main/resources/correos`](ms-auth/src/main/resources/correos), no en el código. Cada
+correo tiene su versión en HTML y su versión en texto, y salen juntas (`multipart/alternative`): un
+cliente que no muestra HTML muestra el texto, con el código.
+
+| Correo | Plantilla | A quién |
+| --- | --- | --- |
+| El código de acceso | `codigo` | Al deudor: en la invitación, en cada toque de la campaña y cuando la empresa se lo reenvía |
+| El recordatorio de cuota | `recordatorio` | Al deudor con convenio, antes de que venza una cuota, con un código nuevo |
+| El enlace para entrar | `enlace` | A quien lo pide en el portal: el deudor que no recibió su código o el personal de una empresa |
+| La invitación | `invitacion` | A quien un admin de DataBridge da de alta |
+| La prueba | `prueba` | A quien pide el correo de prueba |
+
+- **Con los colores del portal:** crema y verde, y carbón y morado en los clientes que siguen el
+  tema oscuro (Apple Mail, Outlook). Están escritas como se escriben los correos, con tablas y el
+  estilo en cada elemento, porque Gmail ignora parte del `<style>` y Outlook de escritorio dibuja
+  con Word. No llevan imágenes, que casi todos los clientes bloquean.
+- **El correo del deudor no trae el monto ni un enlace:** solo la dirección del portal, para que
+  la escriba él. El nombre del acreedor se escapa, así que una empresa no puede meter etiquetas ni
+  enlaces en el correo de un deudor.
+- **El adelanto que muestra el buzón** antes de abrir el correo, que también se ve en la pantalla
+  bloqueada del teléfono, nunca trae el código.
+
 **Si un correo no sale.** Con un servidor real o con Brevo pasa: una clave mala, el cupo del
 día, una dirección que no existe. Un correo que no sale **no cuenta como enviado**:
 
@@ -1731,12 +1754,12 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**754 pruebas**, todas en Java y sin fallos:
+**770 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 170 |
+| `ms-auth` | 186 |
 | `ms-debt` | 345 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |

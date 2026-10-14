@@ -1,0 +1,14 @@
+Hola,
+
+[(${acreedor})] te dejó un mensaje sobre un pago pendiente.
+
+Para verlo, entra a [(${portal})] y escribe tu RUT y este código:
+
+    [(${codigo})]
+
+Este correo no trae ningún enlace, a propósito. Escribe tú la dirección del portal: así compruebas dónde estás antes de poner cualquier dato. Nadie de DataBridge te va a pedir este código.
+
+DataBridge
+
+--
+Te llegó porque una empresa que cobra con DataBridge registró este correo para avisarte.

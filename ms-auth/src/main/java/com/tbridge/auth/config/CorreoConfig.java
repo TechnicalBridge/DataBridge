@@ -8,7 +8,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
-import org.springframework.mail.MailSender;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -26,7 +26,7 @@ public class CorreoConfig {
 
     @Bean
     @Conditional(ConClaveDeBrevo.class)
-    MailSender correoPorBrevo(@Value("${app.mail.brevo.url}") String url,
+    JavaMailSender correoPorBrevo(@Value("${app.mail.brevo.url}") String url,
                               @Value("${app.mail.brevo.api-key}") String clave,
                               @Value("${app.mail.timeout-ms:10000}") long espera,
                               ObjectMapper json) {

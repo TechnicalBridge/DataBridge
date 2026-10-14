@@ -3,6 +3,13 @@ package com.tbridge.auth.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.MailParseException;
@@ -20,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -177,5 +185,93 @@ class CorreoPorBrevoTest {
 
         MailSendException fallo = assertThrows(MailSendException.class, () -> brevo.send(mensaje));
         assertTrue(fallo.getMessage().contains("MAIL_FROM"));
+        //  Con la direccion mal escrita como causa, MailService culparia al deudor.
+        assertNull(fallo.getCause());
+    }
+
+    // ------------------------------------------------------------------
+    //  Un correo armado, como lo arma MailService: texto y HTML
+    // ------------------------------------------------------------------
+
+    /** Como lo arma MailService: remitente con nombre, asunto con tildes y las dos versiones. */
+    private static MimeMessage armado(CorreoPorBrevo brevo, String para, String responderA) throws MessagingException {
+        MimeMessage mensaje = brevo.createMimeMessage();
+        mensaje.setFrom(new InternetAddress("DataBridge <equipo@gmail.com>", true));
+        mensaje.setRecipient(Message.RecipientType.TO, new InternetAddress(para));
+        if (responderA != null) {
+            mensaje.setReplyTo(InternetAddress.parse(responderA));
+        }
+        mensaje.setSubject("Tu código de acceso", "UTF-8");
+        MimeBodyPart texto = new MimeBodyPart();
+        texto.setText("Hola,\n\nTu código es K7M2QX.\n", "UTF-8");
+        MimeBodyPart html = new MimeBodyPart();
+        html.setText("<p>Tu código es <strong>K7M2QX</strong>.</p>", "UTF-8", "html");
+        mensaje.setContent(new MimeMultipart("alternative", texto, html));
+        return mensaje;
+    }
+
+    @Test
+    void de_un_correo_armado_manda_su_texto_y_su_html_tal_cual() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+
+        brevo.send(armado(brevo, "felipe.rojas@correo.cl", "contacto@databridge.cl"));
+
+        JsonNode cuerpo = json.readTree(cuerpoRecibido.get());
+        assertEquals("equipo@gmail.com", cuerpo.at("/sender/email").asText());
+        assertEquals("DataBridge", cuerpo.at("/sender/name").asText());
+        assertEquals("felipe.rojas@correo.cl", cuerpo.at("/to/0/email").asText());
+        assertEquals("Tu código de acceso", cuerpo.get("subject").asText());
+        assertEquals("Hola,\n\nTu código es K7M2QX.\n", cuerpo.get("textContent").asText());
+        assertEquals("<p>Tu código es <strong>K7M2QX</strong>.</p>", cuerpo.get("htmlContent").asText(),
+                "el HTML del correo, no el texto escapado");
+        assertEquals("contacto@databridge.cl", cuerpo.at("/replyTo/email").asText());
+    }
+
+    @Test
+    void sin_responder_a_no_manda_uno_aunque_jakarta_mail_devuelva_el_remitente() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+
+        brevo.send(armado(brevo, "felipe.rojas@correo.cl", null));
+
+        assertFalse(json.readTree(cuerpoRecibido.get()).has("replyTo"));
+    }
+
+    @Test
+    void un_correo_armado_de_solo_texto_lleva_igual_su_html() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+        MimeMessage mensaje = brevo.createMimeMessage();
+        mensaje.setFrom(new InternetAddress("equipo@gmail.com"));
+        mensaje.setRecipient(Message.RecipientType.TO, new InternetAddress("felipe.rojas@correo.cl"));
+        mensaje.setSubject("Hola");
+        mensaje.setText("Uno < dos", "UTF-8");
+
+        brevo.send(mensaje);
+
+        JsonNode cuerpo = json.readTree(cuerpoRecibido.get());
+        assertEquals("Uno < dos", cuerpo.get("textContent").asText());
+        assertTrue(cuerpo.get("htmlContent").asText().contains("Uno &lt; dos"));
+    }
+
+    @Test
+    void un_correo_armado_con_un_remitente_malo_no_culpa_al_deudor_ni_llega_a_brevo() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+        MimeMessage mensaje = armado(brevo, "felipe.rojas@correo.cl", null);
+        mensaje.setHeader("From", "no es un correo");
+
+        MailSendException fallo = assertThrows(MailSendException.class, () -> brevo.send(mensaje));
+
+        assertTrue(fallo.getMessage().contains("MAIL_FROM"), fallo.getMessage());
+        assertFalse(fallo.getCause() instanceof AddressException);
+        assertEquals(0, pedidos.get());
+    }
+
+    @Test
+    void un_correo_armado_con_un_destinatario_malo_es_de_la_direccion() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+        MimeMessage mensaje = armado(brevo, "felipe.rojas@correo.cl", null);
+        mensaje.setHeader("To", "felipe.rojas@@correo");
+
+        assertThrows(MailParseException.class, () -> brevo.send(mensaje));
+        assertEquals(0, pedidos.get());
     }
 }
