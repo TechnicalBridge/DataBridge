@@ -163,6 +163,7 @@ services:
       #  directo, y a donde se desvia lo demas. Vacias, se le escribe a todos.
       CORREO_SOLO_A:    ${CORREO_SOLO_A:-}
       CORREO_DESVIAR_A: ${CORREO_DESVIAR_A:-}
+      DEMO_DATOS:       ${DEMO_DATOS:-false}
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8081/actuator/health || exit 1"]
       interval: 10s
@@ -197,7 +198,7 @@ services:
       CONTACTO_FERIADOS: ${CONTACTO_FERIADOS:-}
       #  Cifra en la base el secreto de las suscripciones a los avisos.
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
-      DEMO_DATOS: ${DEMO_DATOS:-true}
+      DEMO_DATOS: ${DEMO_DATOS:-false}
       EVENTS_RABBIT: "true"
       RABBIT_HOST: rabbitmq
       RABBIT_USER: ${RABBIT_USER:-guest}

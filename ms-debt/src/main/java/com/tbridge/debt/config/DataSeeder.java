@@ -118,7 +118,7 @@ public class DataSeeder implements CommandLineRunner {
             DebtEventRepository events,
             ContactRepository contactos,
             ObjectMapper json,
-            @Value("${app.demo.datos:true}") boolean historia
+            @Value("${app.demo.datos:false}") boolean historia
     ) {
         this.organizations = organizations;
         this.debtors = debtors;
@@ -136,10 +136,10 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        apofyx = organizacion("77305118-6", "APOFYX SpA", "APOFYX", Organization.Kind.agency);
         if (!historia) {
             return;
         }
+        apofyx = organizacion("77305118-6", "APOFYX SpA", "APOFYX", Organization.Kind.agency);
         patrimonio = organizacion("76418902-7", "Patrimonio Inmuebles SpA", "Patrimonio Inmuebles",
                 Organization.Kind.creditor);
         agosto = lote(patrimonio, "APX-2026-08-19-003", LocalDate.of(2026, 8, 18), cl("2026-08-19T10:12"), 8, 6);
@@ -164,7 +164,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void felipe() {
         Debt deuda = arriendo("CTR-2025-014", deudor("16482337-7", Debtor.Kind.person, "Felipe Rojas Muñoz",
-                        "felipe.rojas@correo.cl", "+56987654321"),
+                        "felipe.rojas@example.com", "+56987654321"),
                 Debt.Currency.CLP, "Arriendo mensual", "Depto 1204, Av. Irarrázaval 2450, Ñuñoa",
                 septiembre, septiembre, List.of(
                         cargo("Arriendo agosto", "2026-08", "520000"),
@@ -173,7 +173,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         cuota(deuda, 1, "2026-09-05", "1040000", Installment.Status.void_, null, null);
-        reenvio(deuda, "2026-09-19T16:20", "fe**********@correo.cl");
+        reenvio(deuda, "2026-09-19T16:20", "fe**********@example.com");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-20T11:31", null, null);
         List<Installment> plan = convenio(deuda, "2026-09-20T11:40", 6, "173333", "173335", "2026-10-20");
         pago(deuda, plan, List.of(0), "2026-09-21T20:14", "webpay", "wp-3f8a21", null, null);
@@ -183,7 +183,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void nandu() {
         Debt deuda = arriendo("CTR-2024-007", deudor("76991245-2", Debtor.Kind.company, "Comercial Ñandú SpA",
-                        "administracion@nandu.cl", null),
+                        "administracion@nandu.example.com", null),
                 Debt.Currency.UF, "Arriendo local comercial", "Local 3, Av. Italia 1320, Providencia",
                 agosto, septiembre, List.of(
                         cargo("Arriendo julio", "2026-07", "38.5"),
@@ -197,15 +197,15 @@ public class DataSeeder implements CommandLineRunner {
         debts.save(deuda);
         cuota(deuda, 1, "2026-08-05", "77.00", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "115.50", Installment.Status.pending, null, null);
-        reenvio(deuda, "2026-08-19T16:05", "ad*************@nandu.cl");
+        reenvio(deuda, "2026-08-19T16:05", "ad*************@nandu.example.com");
         actualizada(deuda, "2026-09-19T10:05", "115.50");
-        reenvio(deuda, "2026-09-22T09:40", "ad*************@nandu.cl");
+        reenvio(deuda, "2026-09-22T09:40", "ad*************@nandu.example.com");
         cerrar(deuda, Debt.Status.open, "2026-09-22T09:40");
     }
 
     private void tomas() {
         Debt deuda = arriendo("CTR-2025-022", deudor("15227640-0", Debtor.Kind.person, "Tomás Fuentes Leiva",
-                        "tomas.fuentes@correo.cl", "+56955512340"),
+                        "tomas.fuentes@example.com", "+56955512340"),
                 Debt.Currency.CLP, "Arriendo mensual", "Los Castaños 455, La Florida",
                 agosto, septiembre, List.of(
                         cargo("Arriendo julio", "2026-07", "680000"),
@@ -214,7 +214,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         cuota(deuda, 1, "2026-08-05", "1360000", Installment.Status.void_, null, null);
-        reenvio(deuda, "2026-08-19T16:10", "to***********@correo.cl");
+        reenvio(deuda, "2026-08-19T16:10", "to***********@example.com");
         //  Pago en la oficina el 10 de septiembre, y la cartera siguiente lo retiro.
         evento(deuda, DebtEvent.Type.withdrawn, DebtEvent.Actor.creditor, "2026-09-19T10:05", null, "pago_directo");
         deuda.setWithdrawnReason("pago_directo");
@@ -223,7 +223,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void rodrigo() {
         Debt deuda = arriendo("CTR-2025-019", deudor("14583206-3", Debtor.Kind.person, "Rodrigo Pérez Contreras",
-                        "rodrigo.perez@correo.cl", "+56961238890"),
+                        "rodrigo.perez@example.com", "+56961238890"),
                 Debt.Currency.CLP, "Arriendo mensual", "Depto 1507, Santa Isabel 470, Santiago",
                 agosto, septiembre, List.of(
                         cargo("Arriendo junio", "2026-06", "450000"),
@@ -235,15 +235,15 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "1350000", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "1800000", Installment.Status.pending, null, null);
-        reenvio(deuda, "2026-08-19T16:15", "ro************@correo.cl");
+        reenvio(deuda, "2026-08-19T16:15", "ro************@example.com");
         actualizada(deuda, "2026-09-19T10:05", "1800000");
-        reenvio(deuda, "2026-09-24T10:00", "ro************@correo.cl");
+        reenvio(deuda, "2026-09-24T10:00", "ro************@example.com");
         cerrar(deuda, Debt.Status.open, "2026-09-24T10:00");
     }
 
     private void carolina() {
         Debt deuda = arriendo("CTR-2026-012", deudor("19230418-0", Debtor.Kind.person, "Carolina Muñoz Vera",
-                        "carolina.munoz@correo.cl", "+56978812034"),
+                        "carolina.munoz@example.com", "+56978812034"),
                 Debt.Currency.CLP, "Arriendo mensual", "Depto 42, Av. Pajaritos 2810, Maipú",
                 septiembre, septiembre, List.of(
                         cargo("Arriendo agosto", "2026-08", "380000"),
@@ -252,7 +252,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         List<Installment> total = List.of(cuota(deuda, 1, "2026-09-05", "760000", Installment.Status.pending, null, null));
-        reenvio(deuda, "2026-09-19T16:30", "ca*************@correo.cl");
+        reenvio(deuda, "2026-09-19T16:30", "ca*************@example.com");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-21T18:39", null, null);
         pago(deuda, total, List.of(0), "2026-09-21T18:45", "khipu", "kh-4452-0917", null, null);
         evento(deuda, DebtEvent.Type.settled, DebtEvent.Actor.system, "2026-09-21T18:45", null, null);
@@ -261,7 +261,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void laEspiga() {
         Debt deuda = arriendo("CTR-2024-019", deudor("76284519-9", Debtor.Kind.company, "Panadería La Espiga Ltda.",
-                        "contacto@laespiga.cl", "+56229876543"),
+                        "contacto@laespiga.example.com", "+56229876543"),
                 Debt.Currency.UF, "Arriendo local comercial",
                 "Local 12, Gran Avenida José Miguel Carrera 5540, San Miguel",
                 agosto, septiembre, List.of(
@@ -273,7 +273,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "48.00", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "72.00", Installment.Status.void_, null, null);
-        reenvio(deuda, "2026-08-19T16:20", "co**********@laespiga.cl");
+        reenvio(deuda, "2026-08-19T16:20", "co**********@laespiga.example.com");
         actualizada(deuda, "2026-09-19T10:05", "72.00");
         List<Installment> plan = convenio(deuda, "2026-09-22T10:15", 3, "24.00", "24.00", "2026-10-22");
         //  En UF: se cobro en pesos, con la UF de ese dia.
@@ -284,7 +284,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void ignacio() {
         Debt deuda = arriendo("CTR-2025-027", deudor("17893456-2", Debtor.Kind.person, "Ignacio Tapia Rojas",
-                        "ignacio.tapia@correo.cl", "+56987120045"),
+                        "ignacio.tapia@example.com", "+56987120045"),
                 Debt.Currency.CLP, "Arriendo mensual", "Depto 204, Portugal 48, Santiago",
                 agosto, agosto, List.of(
                         cargo("Arriendo junio", "2026-06", "350000"),
@@ -296,7 +296,7 @@ public class DataSeeder implements CommandLineRunner {
         //  Dejo el departamento el 31 de agosto: su contrato termino, y por eso
         //  no volvio en la cartera de septiembre y el convenio sigue intacto.
         cuota(deuda, 1, "2026-08-05", "1050000", Installment.Status.void_, null, null);
-        reenvio(deuda, "2026-08-19T16:25", "ig***********@correo.cl");
+        reenvio(deuda, "2026-08-19T16:25", "ig***********@example.com");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-08-20T17:01", null, null);
         convenio(deuda, "2026-08-20T17:05", 6, "175000", "175000", "2026-09-20");
         cerrar(deuda, Debt.Status.repacted, "2026-08-20T17:05");
@@ -304,7 +304,7 @@ public class DataSeeder implements CommandLineRunner {
 
     private void daniela() {
         Debt deuda = arriendo("CTR-2026-015", deudor("18642975-3", Debtor.Kind.person, "Daniela Cáceres Flores",
-                        "daniela.caceres@correo.cl", "+56954410987"),
+                        "daniela.caceres@example.com", "+56954410987"),
                 Debt.Currency.CLP, "Arriendo mensual", "Depto 713, Av. Vicuña Mackenna 4860, Macul",
                 agosto, septiembre, List.of(
                         cargo("Arriendo julio", "2026-07", "300000"),
@@ -315,7 +315,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "600000", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "900000", Installment.Status.void_, null, null);
-        reenvio(deuda, "2026-08-19T16:30", "da*************@correo.cl");
+        reenvio(deuda, "2026-08-19T16:30", "da*************@example.com");
         actualizada(deuda, "2026-09-19T10:05", "900000");
         List<Installment> plan = convenio(deuda, "2026-09-20T09:10", 3, "300000", "300000", "2026-10-20");
         pago(deuda, plan, List.of(0, 1, 2), "2026-09-24T21:05", "webpay", "wp-8c21d4", null, null);
@@ -334,7 +334,7 @@ public class DataSeeder implements CommandLineRunner {
         Batch lote = lote(andes, "APX-2026-09-19-005", LocalDate.of(2026, 9, 18), cl("2026-09-19T10:20"), 3, 2);
 
         Debt benjamin = deuda(andes, "AND-2025-0412", deudor("21345678-4", Debtor.Kind.person, "Benjamín Araya Toro",
-                        "benjamin.araya@correo.cl", "+56944120387"),
+                        "benjamin.araya@example.com", "+56944120387"),
                 Debt.Currency.CLP, "Arancel Técnico en Enfermería",
                 referencias("matricula", "AND-2025-0412", "carrera", "Técnico en Enfermería"), lote, List.of(
                         cargo("Arancel julio", "2026-07", "185000", "2026-07-10"),
@@ -342,12 +342,12 @@ public class DataSeeder implements CommandLineRunner {
                         cargo("Arancel septiembre", "2026-09", "185000", "2026-09-10")));
         if (benjamin != null) {
             cuota(benjamin, 1, "2026-09-10", "555000", Installment.Status.pending, null, null);
-            invitacion(benjamin, "2026-09-19T10:20", "be************@correo.cl");
+            invitacion(benjamin, "2026-09-19T10:20", "be************@example.com");
             cerrar(benjamin, Debt.Status.open, "2026-09-19T10:20");
         }
 
         Debt josefina = deuda(andes, "AND-2024-0931", deudor("20876543-4", Debtor.Kind.person, "Josefina Vidal Cortés",
-                        "josefina.vidal@correo.cl", "+56977345120"),
+                        "josefina.vidal@example.com", "+56977345120"),
                 Debt.Currency.CLP, "Arancel Ingeniería en Informática",
                 referencias("matricula", "AND-2024-0931", "carrera", "Ingeniería en Informática"), lote, List.of(
                         cargo("Arancel agosto", "2026-08", "185000", "2026-08-10"),
@@ -355,7 +355,7 @@ public class DataSeeder implements CommandLineRunner {
         if (josefina != null) {
             List<Installment> total = List.of(cuota(josefina, 1, "2026-09-10", "370000",
                     Installment.Status.pending, null, null));
-            invitacion(josefina, "2026-09-19T10:20", "jo************@correo.cl");
+            invitacion(josefina, "2026-09-19T10:20", "jo************@example.com");
             evento(josefina, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-22T20:02", null, null);
             pago(josefina, total, List.of(0), "2026-09-22T20:10", "webpay", "wp-91ce07", null, null);
             evento(josefina, DebtEvent.Type.settled, DebtEvent.Actor.system, "2026-09-22T20:10", null, null);
@@ -373,24 +373,24 @@ public class DataSeeder implements CommandLineRunner {
         Batch lote = lote(sonrisa, "APX-2026-09-19-006", LocalDate.of(2026, 9, 18), cl("2026-09-19T10:25"), 2, 2);
 
         Debt patricio = deuda(sonrisa, "SN-2026-118", deudor("13579246-2", Debtor.Kind.person, "Patricio Muñoz Salas",
-                        "patricio.munoz@correo.cl", "+56951287734"),
+                        "patricio.munoz@example.com", "+56951287734"),
                 Debt.Currency.CLP, "Tratamiento de ortodoncia",
                 referencias("presupuesto", "SN-2026-118", "tratamiento", "Ortodoncia"), lote, List.of(
                         cargo("Ortodoncia, saldo del presupuesto", null, "890000", "2026-07-05")));
         if (patricio != null) {
             cuota(patricio, 1, "2026-07-05", "890000", Installment.Status.pending, null, null);
-            invitacion(patricio, "2026-09-19T10:25", "pa************@correo.cl");
+            invitacion(patricio, "2026-09-19T10:25", "pa************@example.com");
             cerrar(patricio, Debt.Status.open, "2026-09-19T10:25");
         }
 
         Debt fernanda = deuda(sonrisa, "SN-2026-093", deudor("16789012-1", Debtor.Kind.person, "Fernanda Silva Rojas",
-                        "fernanda.silva@correo.cl", "+56962054418"),
+                        "fernanda.silva@example.com", "+56962054418"),
                 Debt.Currency.CLP, "Implante dental",
                 referencias("presupuesto", "SN-2026-093", "tratamiento", "Implante dental"), lote, List.of(
                         cargo("Implante dental", null, "1450000", "2026-06-20")));
         if (fernanda != null) {
             cuota(fernanda, 1, "2026-06-20", "1450000", Installment.Status.void_, null, null);
-            invitacion(fernanda, "2026-09-19T10:25", "fe************@correo.cl");
+            invitacion(fernanda, "2026-09-19T10:25", "fe************@example.com");
             evento(fernanda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-21T10:52", null, null);
             List<Installment> plan = convenio(fernanda, "2026-09-21T11:00", 6, "241666", "241670", "2026-10-21");
             pago(fernanda, plan, List.of(0), "2026-09-21T11:05", "khipu", "kh-5108-0921", null, null);
