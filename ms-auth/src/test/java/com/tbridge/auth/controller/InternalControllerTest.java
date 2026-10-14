@@ -2,6 +2,7 @@ package com.tbridge.auth.controller;
 
 import com.tbridge.auth.config.SecurityConfig;
 import com.tbridge.auth.dto.response.CodigoEmitidoResponse;
+import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import com.tbridge.auth.service.AuthService;
 import com.tbridge.auth.service.MailService;
 import com.tbridge.auth.security.JwtService;
@@ -42,6 +43,47 @@ class InternalControllerTest {
 
     @MockitoBean
     private MailService correo;
+
+    @Test
+    void el_correo_de_prueba_pide_la_clave_interna_y_una_direccion_valida() throws Exception {
+        mvc.perform(post("/internal/correo/prueba").param("para", "equipo@gmail.com"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/internal/correo/prueba").param("para", "equipo@gmail")
+                        .header("X-Internal-Key", "clave-interna-de-prueba"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Esa direccion no es un correo valido"));
+
+        verify(correo, never()).probar(any());
+    }
+
+    @Test
+    void el_correo_de_prueba_responde_como_le_fue_y_nunca_la_clave() throws Exception {
+        when(correo.probar("equipo@gmail.com")).thenReturn(new PruebaDeCorreoResponse(false, "equipo@gmail.com", null,
+                "smtp.gmail.com:587", "DataBridge <equipo@gmail.com>", "sin modo de prueba: se le escribe a cualquier direccion",
+                "535-5.7.8 Username and Password not accepted"));
+
+        mvc.perform(post("/internal/correo/prueba").param("para", " Equipo@Gmail.com ")
+                        .header("X-Internal-Key", "clave-interna-de-prueba"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enviado").value(false))
+                .andExpect(jsonPath("$.servidor").value("smtp.gmail.com:587"))
+                .andExpect(jsonPath("$.error").value("535-5.7.8 Username and Password not accepted"))
+                .andExpect(jsonPath("$.clave").doesNotExist())
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void el_correo_de_prueba_acepta_un_alias_con_mas_escrito_tal_cual_en_la_url() throws Exception {
+        when(correo.probar("equipo+deudor1@gmail.com")).thenReturn(new PruebaDeCorreoResponse(true,
+                "equipo+deudor1@gmail.com", "equipo+deudor1@gmail.com", "smtp.gmail.com:587",
+                "DataBridge <equipo@gmail.com>", "modo de prueba: directo solo a equipo@gmail.com; lo demas no sale", null));
+
+        //  Sin codificar, el "+" de la URL llega como un espacio.
+        mvc.perform(post("/internal/correo/prueba?para=equipo+deudor1@gmail.com")
+                        .header("X-Internal-Key", "clave-interna-de-prueba"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.llegaA").value("equipo+deudor1@gmail.com"));
+    }
 
     @Test
     void sin_la_clave_interna_nadie_emite_codigos() throws Exception {

@@ -1,5 +1,6 @@
 package com.tbridge.auth.service;
 
+import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -13,7 +14,9 @@ import org.springframework.mail.javamail.JavaMailSender;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -34,6 +37,122 @@ class MailServiceTest {
     private MailService correo(String host) {
         when(proveedor.getIfAvailable()).thenReturn(smtp);
         return new MailService(proveedor, "noreply@technicalbridge.local", "http://localhost:8080/", host);
+    }
+
+    /** Con un servidor real: una cuenta que manda, su nombre, y el modo de prueba que se pida. */
+    private MailService real(String soloA, String desviarA) {
+        when(proveedor.getIfAvailable()).thenReturn(smtp);
+        return new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/", "smtp.gmail.com", 587,
+                "abcd efgh ijkl mnop", "DataBridge", "", soloA, desviarA, "mailpit:1025");
+    }
+
+    private SimpleMailMessage enviado() {
+        ArgumentCaptor<SimpleMailMessage> mensaje = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(smtp).send(mensaje.capture());
+        return mensaje.getValue();
+    }
+
+    // ------------------------------------------------------------------
+    //  Un servidor real
+    // ------------------------------------------------------------------
+
+    @Test
+    void el_remitente_sale_con_su_nombre_para_que_el_buzon_diga_quien_escribe() {
+        real("", "").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        assertEquals("DataBridge <equipo@gmail.com>", enviado().getFrom());
+    }
+
+    @Test
+    void con_responder_a_las_respuestas_no_van_a_la_cuenta_que_manda() {
+        when(proveedor.getIfAvailable()).thenReturn(smtp);
+        MailService servicio = new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/",
+                "smtp.gmail.com", 587, "", "DataBridge", " contacto@databridge.cl ", "", "", "");
+
+        servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        assertEquals("contacto@databridge.cl", enviado().getReplyTo());
+    }
+
+    @Test
+    void en_modo_de_prueba_el_correo_de_un_deudor_de_la_demostracion_va_al_buzon_de_desvio() {
+        real("equipo@gmail.com", "equipo@gmail.com").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        SimpleMailMessage mensaje = enviado();
+        assertEquals("equipo@gmail.com", mensaje.getTo()[0]);
+        assertEquals(1, mensaje.getTo().length, "a Felipe no le llega nada");
+        assertEquals("[para felipe.rojas@correo.cl] Tu codigo de acceso", mensaje.getSubject());
+        assertTrue(mensaje.getText().contains("K7M2QX"), "el correo llega entero, para poder probar con el");
+    }
+
+    @Test
+    void en_modo_de_prueba_un_alias_de_la_cuenta_del_equipo_recibe_directo() {
+        real("equipo@gmail.com", "equipo@gmail.com").enviarEnlace("equipo+empresatest@gmail.com",
+                "http://localhost:8080/magic?token=x", 15);
+
+        SimpleMailMessage mensaje = enviado();
+        assertEquals("equipo+empresatest@gmail.com", mensaje.getTo()[0]);
+        assertEquals("Tu acceso a Technical Bridge", mensaje.getSubject());
+    }
+
+    @Test
+    void con_lista_y_sin_desvio_lo_que_esta_fuera_de_la_lista_no_sale() {
+        real("equipo@gmail.com", "").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        verify(smtp, never()).send(any(SimpleMailMessage.class));
+    }
+
+    // ------------------------------------------------------------------
+    //  El correo de prueba
+    // ------------------------------------------------------------------
+
+    @Test
+    void la_prueba_dice_que_salio_a_donde_llego_y_con_que_servidor() {
+        PruebaDeCorreoResponse prueba = real("equipo@gmail.com", "equipo@gmail.com").probar("camila.reyes@apofyx.cl");
+
+        assertTrue(prueba.enviado());
+        assertEquals("camila.reyes@apofyx.cl", prueba.para());
+        assertEquals("equipo@gmail.com", prueba.llegaA(), "en modo de prueba llega al buzon de desvio");
+        assertEquals("smtp.gmail.com:587", prueba.servidor());
+        assertEquals("DataBridge <equipo@gmail.com>", prueba.remitente());
+        assertTrue(prueba.modo().startsWith("modo de prueba"));
+        assertNull(prueba.error());
+        assertEquals("[para camila.reyes@apofyx.cl] Prueba de correo de DataBridge", enviado().getSubject());
+    }
+
+    @Test
+    void si_el_servidor_rechaza_la_prueba_dice_por_que_y_nunca_muestra_la_clave() {
+        MailService servicio = real("", "");
+        doThrow(new MailSendException("Fallo", new IllegalStateException(
+                "535-5.7.8 Username and Password not accepted\n para abcd efgh ijkl mnop")))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        PruebaDeCorreoResponse prueba = servicio.probar("equipo@gmail.com");
+
+        assertFalse(prueba.enviado());
+        assertNull(prueba.llegaA());
+        assertTrue(prueba.error().startsWith("535-5.7.8 Username and Password not accepted"), prueba.error());
+        assertFalse(prueba.error().contains("abcd efgh ijkl mnop"), "la clave no sale ni aunque el servidor la repita");
+        assertFalse(prueba.error().contains("\n"), "en una sola linea");
+        assertFalse(prueba.toString().contains("abcd efgh ijkl mnop"));
+    }
+
+    @Test
+    void sin_servidor_configurado_la_prueba_lo_dice_en_vez_de_fingir_que_salio() {
+        PruebaDeCorreoResponse prueba = correo("").probar("equipo@gmail.com");
+
+        assertFalse(prueba.enviado());
+        assertTrue(prueba.error().contains("SMTP_HOST"));
+        verify(smtp, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void si_el_modo_de_prueba_no_deja_salir_el_correo_la_prueba_lo_explica() {
+        PruebaDeCorreoResponse prueba = real("equipo@gmail.com", "").probar("camila.reyes@apofyx.cl");
+
+        assertFalse(prueba.enviado());
+        assertTrue(prueba.error().contains("CORREO_SOLO_A"));
+        verify(smtp, never()).send(any(SimpleMailMessage.class));
     }
 
     @Test

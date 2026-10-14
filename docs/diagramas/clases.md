@@ -2,11 +2,11 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **267 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **270 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 48 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-auth](#ms-auth--el-acceso) | 51 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
 | [ms-debt](#ms-debt--la-cartera) | 147 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
@@ -258,6 +258,7 @@ classDiagram
         class InternalController {
             <<controller>>
             +emitir(String, EmitirCodigoRequest) CodigoEmitidoResponse
+            +probarCorreo(String, String) PruebaDeCorreoResponse
         }
     }
     namespace assembler {
@@ -321,6 +322,19 @@ classDiagram
             +enviarRecordatorio(String, String, String, LocalDate) void
             +enviarEnlace(String, String, long) void
             +enviarInvitacion(String, String, String, String, long, String) void
+            +probar(String) PruebaDeCorreoResponse
+        }
+        class ModoDePrueba {
+            <<utility>>
+            +activo() boolean
+            +para(String, String) Optional~Destino~
+            +descripcion() String
+        }
+        class ModoDePrueba_Destino["ModoDePrueba.Destino"] {
+            <<record>>
+            +a : String
+            +asunto : String
+            +desviado : boolean
         }
     }
     namespace client {
@@ -386,6 +400,7 @@ classDiagram
     AuthService ..> AuthService_Sesion
     SessionService ..> SessionService_Llave
     SessionService ..> SessionService_Renovada
+    ModoDePrueba ..> ModoDePrueba_Destino
     DeudasClient ..> DeudasClient_Empresa
     DeudasClient ..> DeudasClient_Correo
     AuthController --> AuthService
@@ -409,18 +424,20 @@ classDiagram
     PersonalService --> DeudasClient
     PersonalService --> MailService
     SessionService --> SessionRepository
+    MailService ..> ModoDePrueba : pregunta a quién
 ```
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
 | `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta. Solo para el admin. |
-| `InternalController` | `controller` | Emitir un código de acceso, para ms-debt. Con la clave interna. |
+| `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
-| `MailService` | `service` | Los correos: el código, el recordatorio de cuota y el enlace. |
+| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, por cualquier servidor SMTP. También manda el correo de prueba. |
+| `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
 | `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `AccessCodeRepository` | `repository` | Los códigos. |
@@ -449,6 +466,11 @@ classDiagram
         class DataSeeder {
             <<component>>
             +run(String[]) void
+        }
+        class BuzonDePrueba {
+            <<component>>
+            +postProcessEnvironment(ConfigurableEnvironment, SpringApplication) void
+            +getOrder() int
         }
         class OpenApiConfig {
             <<configuration>>
@@ -539,6 +561,7 @@ classDiagram
 | `JwtPrincipal` | `security` | Quién viene en el token: id, correo, rol, nombre y RUT. |
 | `PrimerAdmin` | `config` | Al arrancar, crea el primer admin con `ADMIN_CORREO`, si todavía no hay ninguno. |
 | `DataSeeder` | `config` | El personal de la demo. |
+| `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |
@@ -550,7 +573,7 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 

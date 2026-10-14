@@ -69,7 +69,7 @@ flowchart LR
 | `ms-ai` | `tbridge/ms-ai`, sobre `eclipse-temurin:25-jre` | 8085 | — | 640 MB | El asistente |
 | `mysql` | `mysql:8.4` | 3306 | 3308 (`MYSQL_PORT`) | — | Las tres bases. Se publica solo para revisarlas desde el equipo |
 | `rabbitmq` | `rabbitmq:3.13-management` | 5672 y 15672 | 5672 y 15672 | — | La cola del aviso de pago, y su consola |
-| `mailpit` | `axllent/mailpit` | 1025 y 8025 | 1025 y 8025 | — | El buzón de prueba: recibe los correos y los muestra en una página |
+| `mailpit` | `axllent/mailpit` | 1025 y 8025 | 1025 y 8025 | — | El buzón de prueba: recibe los correos y los muestra en una página. Es adonde van mientras el `.env` no traiga un `SMTP_HOST` |
 
 Los cinco servicios de Java se construyen igual, en dos etapas: se compilan con `maven:3.9-eclipse-temurin-25`
 y la imagen final lleva solo el JRE y el `.jar`. Corren con un usuario sin privilegios (`tbridge`), no como
@@ -136,9 +136,15 @@ falta uno, el servicio no arranca y dice cuál.
 | `WEBHOOK_SECRET` | ms-payments | Firmar los enlaces de pago y verificar los avisos de la pasarela simulada |
 | `CIFRADO_LLAVE` | ms-debt | Cifrar el secreto de cada suscripción |
 
-Las credenciales de las pasarelas (`TRANSBANK_*`, `KHIPU_*`, `MERCADOPAGO_*`), del Banco Central (`BCENTRAL_*`)
-y del LLM (`XAI_*`) son opcionales: sin ellas, cada pasarela se simula, la UF se carga a mano y el asistente
-responde con reglas.
+Las credenciales de las pasarelas (`TRANSBANK_*`, `KHIPU_*`, `MERCADOPAGO_*`), del Banco Central (`BCENTRAL_*`),
+del LLM (`XAI_*`) y del servidor de correo (`SMTP_*`) son opcionales: sin ellas, cada pasarela se simula, la UF
+se carga a mano, el asistente responde con reglas y los correos van al buzón de prueba.
+
+**El correo, con un servidor real.** Con `SMTP_HOST` en el `.env`, ms-auth deja de usar `mailpit` y le entrega
+a ese servidor (una cuenta de Gmail para probar, o un proveedor de correo), sin tocar el compose. Ahí entra el
+**modo de prueba**: `CORREO_SOLO_A` dice a qué direcciones se les escribe directo y `CORREO_DESVIAR_A`, adónde
+va todo lo demás. Sin las dos se le escribe a cualquier dirección, que es lo que corresponde en producción y lo
+que no puede pasar con los datos de la demo, que traen correos inventados.
 
 ## Los sistemas de afuera
 
@@ -149,7 +155,7 @@ responde con reglas.
 | Mercado Pago | ms-payments | HTTPS, con el token de acceso | Lo mismo |
 | Banco Central | ms-payments | HTTPS | La UF del día se puede cargar a mano. Sin UF, un cobro en UF responde `503`; los cobros en pesos siguen |
 | LLM | ms-ai | HTTPS, con el SDK de OpenAI | El asistente responde con reglas |
-| Servidor de correo | ms-auth | SMTP | El envío falla y queda en el registro; el servicio no se cae |
+| Servidor de correo | ms-auth | SMTP, con STARTTLS o SSL | El envío falla a los 10 segundos (`SMTP_TIMEOUT_MS`) y queda en el registro; el servicio no se cae |
 | Sistema de cada empresa | ms-debt | HTTPS, con cada evento firmado | El evento espera en la bandeja de salida y se reintenta |
 
 Las pasarelas también le hablan a DataBridge: devuelven al deudor al portal, y Khipu y Mercado Pago pueden

@@ -590,6 +590,12 @@ pregunta: las cuotas pendientes que vencen en los próximos 3 días, de deudores
 Pasa por el mismo `LimiteDeContacto` y por el mismo `POST /internal/codigos`, que en ese caso manda el correo
 del recordatorio con la fecha de la cuota.
 
+**A quién le llega de verdad.** En ms-auth, cada correo pasa por `ModoDePrueba` antes de salir. Con el buzón de
+prueba de Docker, o en producción, llega a su destinatario. Con un servidor real y el modo de prueba activo,
+llega directo solo si la dirección está en `CORREO_SOLO_A`; si no, va al buzón de `CORREO_DESVIAR_A` con el
+destinatario original en el asunto, o no sale. Así la campaña no les escribe a los correos inventados de la
+demo.
+
 ---
 
 ## 11. Reclamar una deuda y resolver el reclamo

@@ -397,6 +397,70 @@ Responde con el `codigo`. Con él se entra al portal en **Tengo un código de ac
 > del contenedor porque los endpoints internos **no** están publicados hacia afuera
 > ([§9](#9-requisitos-no-funcionales)).
 
+### Para mandar correos de verdad
+
+Sin tocar nada, los correos van al **buzón de prueba** (http://localhost:8025) y no le llegan a
+nadie. Para que lleguen a un buzón real basta el `.env`: no hay que editar el compose ni el
+código. Sirve cualquier servidor SMTP; para probar, una cuenta de Gmail.
+
+**1. En la cuenta de Google.** Activar la verificación en dos pasos y crear una **contraseña de
+aplicación** (16 letras). Esa es la que usa DataBridge: la clave de la cuenta no se escribe en
+ningún sistema.
+
+**2. En el `.env`:**
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tucuenta@gmail.com
+SMTP_PASSWORD=la contraseña de aplicación
+SMTP_AUTH=true
+SMTP_STARTTLS=true
+MAIL_FROM=tucuenta@gmail.com
+MAIL_FROM_NAME=DataBridge
+CORREO_SOLO_A=tucuenta@gmail.com
+CORREO_DESVIAR_A=tucuenta@gmail.com
+```
+
+Con Gmail, `MAIL_FROM` tiene que ser la misma cuenta. Para otro proveedor cambian el servidor, el
+puerto y las credenciales; con uno que pide SSL desde el principio (puerto 465), `SMTP_SSL=true` y
+`SMTP_STARTTLS=false`. El `.env` no se sube al repositorio.
+
+**3. El modo de prueba, que no es opcional con los datos de la demo.** Los deudores de ejemplo
+tienen correos inventados, con dominios que pueden ser de alguien, y la campaña corre sola cada 15
+minutos. Con un servidor real y sin modo de prueba, les escribiría cobranzas a personas que no
+tienen nada que ver.
+
+| Variable | Qué hace |
+| --- | --- |
+| `CORREO_SOLO_A` | Las direcciones o dominios a los que **sí** se les escribe directo, separados por coma. Una dirección incluye sus alias con `+` (`tucuenta+deudor1@gmail.com`); un dominio va con arroba (`@empresa-prueba.cl`) |
+| `CORREO_DESVIAR_A` | Adonde va **todo lo demás**. Llega con el destinatario original en el asunto: *[para felipe.rojas@correo.cl] Tu código de acceso* |
+
+Con la lista y sin el desvío, lo que está fuera de la lista no sale. Sin ninguna de las dos se le
+escribe a cualquier dirección: eso es producción, y ms-auth lo avisa al arrancar.
+
+Con una sola cuenta de Gmail alcanza para probar todos los papeles, porque `tucuenta+algo@gmail.com`
+llega al mismo buzón y para DataBridge es otra dirección: `tucuenta+admin@gmail.com` para un admin,
+`tucuenta+empresa@gmail.com` para la persona de una empresa y `tucuenta+deudor1@gmail.com` para un
+deudor.
+
+**4. Reiniciar ms-auth y probar.** `docker compose --profile app up -d ms-auth`, y después un
+correo de prueba, que dice si salió, adónde llegó de verdad y con qué remitente, o lo que respondió
+el servidor si no salió:
+
+```powershell
+docker compose --profile app exec -T ms-auth sh -c 'curl -s -X POST "http://127.0.0.1:8081/internal/correo/prueba?para=tucuenta@gmail.com" -H X-Internal-Key:$INTERNAL_KEY'
+```
+
+Al arrancar, ms-auth deja dicho en su registro a qué servidor le entrega y en qué modo está. La
+contraseña no aparece ni ahí ni en la respuesta de la prueba.
+
+Para volver al buzón de prueba, se deja `SMTP_HOST` vacío y se reinicia ms-auth.
+
+> Una cuenta de Gmail deja mandar unos cientos de correos al día y es para probar. Los enlaces de
+> los correos apuntan a `PUBLIC_URL` (`http://localhost:8080`), así que se abren en el equipo donde
+> corre DataBridge, no desde un teléfono.
+
 ### Para pagar con Webpay
 
 Webpay abre la página real de Transbank, en su ambiente de **integración**: no se mueve plata.
@@ -1521,7 +1585,10 @@ no es secreto sí tiene un valor de desarrollo.
 | `COOKIE_SECURE` | `false` | **Encender detrás de HTTPS.** Una cookie `Secure` sobre HTTP el navegador la descarta sin avisar |
 | `CODE_TTL_HOURS`, `MAGIC_TTL_MINUTES` | `24`, `15` | Cuánto dura el código de acceso del deudor, y el enlace de respaldo |
 | `INVITACION_TTL_HORAS` | `24` | Cuánto dura el enlace de la invitación que le llega a una persona recién dada de alta desde el panel |
-| `MAIL_FROM` | `noreply@technicalbridge.local` | El remitente de los correos. En Docker los correos van al buzón de prueba; `SMTP_*` son solo para correr ms-auth con Maven |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | vacía, `587`, vacías, `true`, `true`, `false` | El servidor de correo ([cómo](#para-mandar-correos-de-verdad)). Sin `SMTP_HOST`, en Docker los correos van al buzón de prueba y lo demás se ignora |
+| `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo antes de darlo por caído |
+| `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `noreply@technicalbridge.local`, `DataBridge`, vacía | El remitente, el nombre que muestra el buzón a su lado, y a quién se le responde si no es al remitente. Con Gmail, el remitente tiene que ser la propia cuenta |
+| `CORREO_SOLO_A`, `CORREO_DESVIAR_A` | vacías | El modo de prueba: a quién se le escribe directo, y adónde se desvía lo demás. Vacías, se le escribe a cualquier dirección |
 | `CORS_ORIGINS` | los del portal | Qué orígenes pueden hacer peticiones con credenciales al gateway |
 | `TRUSTED_PROXIES` | local y las redes privadas (`10.x`, `172.16–31`, `192.168.x`) | En qué proxies confía el gateway para saber la IP del cliente. No puede quedar vacía |
 | `WEBHOOK_SECRET` | el `.env` | Firma los enlaces de pago y verifica los avisos de las pasarelas simuladas |
@@ -1595,12 +1662,12 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**659 pruebas**, todas en Java y sin fallos:
+**684 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 17 |
-| `ms-auth` | 118 |
+| `ms-auth` | 143 |
 | `ms-debt` | 304 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |
