@@ -2,18 +2,24 @@ package com.tbridge.auth.service;
 
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import com.tbridge.auth.exception.CorreoNoSalio;
+import com.tbridge.auth.service.PlantillasDeCorreo.Carta;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
 import jakarta.mail.SendFailedException;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailParseException;
+import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.MailSendException;
-import org.springframework.mail.MailSender;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,8 +29,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -34,6 +42,10 @@ import java.util.Optional;
  * cuenta de Gmail, un proveedor de correo transaccional) o con la API de Brevo,
  * que va por HTTPS y es lo que funciona en Railway. Pasar de uno a otro es
  * cambiar variables del {@code .env}, no codigo.
+ *
+ * <p>Lo que dice cada correo esta en {@code resources/correos}
+ * ({@link PlantillasDeCorreo}). Sale en HTML y en texto, juntos: el cliente que
+ * no muestra HTML muestra el texto.
  *
  * <p>Sin SMTP configurado no falla: registra el contenido en el log, que es lo
  * que permite trabajar y demostrar el flujo sin depender de un servidor de
@@ -53,13 +65,15 @@ public class MailService {
 
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
     private static final Locale ES_CL = Locale.forLanguageTag("es-CL");
+    private static final PlantillasDeCorreo PLANTILLAS = new PlantillasDeCorreo();
 
-    private final MailSender mailSender;
+    private final JavaMailSender mailSender;
     private final String from;
     private final String remitente;
     private final String responderA;
     private final boolean conServidor;
-    private final String publicUrl;
+    /** La direccion del portal como se escribe en el navegador, sin {@code https://}. */
+    private final String portal;
     private final String servidor;
     private final String clave;
     private final String claveDeBrevo;
@@ -68,7 +82,7 @@ public class MailService {
 
     @Autowired
     public MailService(
-            ObjectProvider<MailSender> mailSender,
+            ObjectProvider<JavaMailSender> mailSender,
             @Value("${app.from-email}") String from,
             @Value("${app.public-url}") String publicUrl,
             @Value("${spring.mail.host:}") String host,
@@ -85,7 +99,7 @@ public class MailService {
         this.from = from;
         this.remitente = conNombre(from, nombre);
         this.responderA = StringUtils.hasText(responderA) ? responderA.strip() : null;
-        this.publicUrl = publicUrl.replaceAll("/$", "");
+        this.portal = publicUrl.strip().replaceFirst("^https?://", "").replaceAll("/$", "");
         this.porBrevo = this.mailSender != null && StringUtils.hasText(claveDeBrevo);
         this.conServidor = this.mailSender != null && (porBrevo || StringUtils.hasText(host));
         this.servidor = porBrevo ? "Brevo (API)" : conServidor ? host.strip() + ":" + puerto : null;
@@ -96,13 +110,13 @@ public class MailService {
     }
 
     /** Por SMTP, sin Brevo. Para las pruebas. */
-    MailService(ObjectProvider<MailSender> mailSender, String from, String publicUrl, String host, int puerto,
+    MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
                 String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba) {
         this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba, "");
     }
 
     /** Sin nombre de remitente, sin responder-a y sin modo de prueba: como antes. Para las pruebas. */
-    MailService(ObjectProvider<MailSender> mailSender, String from, String publicUrl, String host) {
+    MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host) {
         this(mailSender, from, publicUrl, host, 587, "", "", "", "", "", "", "");
     }
 
@@ -158,21 +172,10 @@ public class MailService {
             //  log: quien leyera los logs podria entrar como cualquier deudor.
             log.info("Sin SMTP: codigo de acceso para {}: {}", to, codigo);
         }
-        enviarODecirlo(to, "Tu codigo de acceso", """
-                Hola,
-
-                %s te dejo un mensaje sobre un pago pendiente.
-
-                Para verlo, entra a %s y escribe tu RUT y este codigo:
-
-                    %s
-
-                No hay ningun enlace en este correo a proposito: entra
-                escribiendo la direccion tu mismo. Asi puedes verificar donde
-                estas antes de poner cualquier dato.
-
-                Technical Bridge
-                """.formatted(acreedor == null ? "Una empresa" : acreedor, publicUrl, codigo));
+        enviarODecirlo(to, "Tu código de acceso", "codigo", datos(
+                "acreedor", acreedor == null ? "Una empresa" : acreedor,
+                "portal", portal,
+                "codigo", codigo));
     }
 
     /**
@@ -189,23 +192,11 @@ public class MailService {
         if (!conServidor) {
             log.info("Sin SMTP: recordatorio para {}, cuota del {}, codigo {}", to, vence, codigo);
         }
-        enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", """
-                Hola,
-
-                El %s vence una cuota de tu convenio con %s.
-
-                Si quieres pagarla ahora, entra a %s y escribe tu RUT y este codigo:
-
-                    %s
-
-                Como siempre, este correo no trae ningun enlace: entra escribiendo
-                la direccion tu mismo.
-
-                Si ya la pagaste, no tienes que hacer nada.
-
-                Technical Bridge
-                """.formatted(vence.format(DateTimeFormatter.ofPattern("d 'de' MMMM", ES_CL)),
-                acreedor == null ? "tu acreedor" : acreedor, publicUrl, codigo));
+        enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", "recordatorio", datos(
+                "vence", vence.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", ES_CL)),
+                "acreedor", acreedor,
+                "portal", portal,
+                "codigo", codigo));
     }
 
     /**
@@ -218,17 +209,9 @@ public class MailService {
         if (!conServidor) {
             log.info("Sin SMTP: enlace de acceso para {}: {}", to, url);
         }
-        enviar(to, "Tu acceso a Technical Bridge", """
-                Hola,
-
-                Entra con este enlace de un solo uso, valido %d minutos:
-
-                %s
-
-                Si no lo pediste, ignora este correo.
-
-                Technical Bridge
-                """.formatted(minutos, url));
+        enviar(to, "Tu enlace para entrar a DataBridge", "enlace", datos(
+                "url", url,
+                "dura", cuanto(minutos, "minuto", "minutos")));
     }
 
     /**
@@ -249,23 +232,30 @@ public class MailService {
         if (!conServidor) {
             log.info("Sin SMTP: invitacion para {}: {}", to, url);
         }
-        enviar(to, "Tu acceso a DataBridge", """
-                Hola %s,
+        String direccion = entrada.strip().replaceFirst("^https?://", "");
+        enviar(to, "Tu acceso a DataBridge", "invitacion", datos(
+                "nombre", nombre == null ? "" : nombre.strip(),
+                "aQue", aQue,
+                "url", url,
+                "dura", cuanto(horas, "hora", "horas"),
+                "entrada", direccion,
+                //  En el HTML, la direccion se puede cortar antes de cada "/":
+                //  en un telefono no cabe en una linea.
+                "entradaEnTrozos", List.of(direccion.split("(?=/)"))));
+    }
 
-                DataBridge te dio acceso %s.
+    /** {@code 1 hora}, {@code 24 horas}. */
+    private static String cuanto(long cantidad, String una, String varias) {
+        return cantidad + " " + (cantidad == 1 ? una : varias);
+    }
 
-                Entra con este enlace de un solo uso, valido %d horas:
-
-                %s
-
-                Las veces siguientes, o si el enlace ya vencio, entra a %s
-                y escribe este correo: te llegara un enlace nuevo. No hay
-                contrasena.
-
-                Si no esperabas este correo, ignoralo.
-
-                Technical Bridge
-                """.formatted(nombre, aQue, horas, url, entrada));
+    /** Los datos de una plantilla, en pares nombre y valor. Un valor puede ser null: la plantilla decide. */
+    private static Map<String, Object> datos(Object... pares) {
+        Map<String, Object> datos = new HashMap<>();
+        for (int i = 0; i < pares.length; i += 2) {
+            datos.put((String) pares[i], pares[i + 1]);
+        }
+        return datos;
     }
 
     /**
@@ -279,16 +269,7 @@ public class MailService {
             return resultado(false, para, null, "No hay por donde mandar correos: falta SMTP_HOST o BREVO_API_KEY");
         }
         try {
-            Optional<String> llego = entregar(para, "Prueba de correo de DataBridge", """
-                    Hola,
-
-                    Este es un correo de prueba de DataBridge: si lo estas leyendo, el
-                    servidor de correo quedo bien configurado.
-
-                    No tienes que hacer nada.
-
-                    Technical Bridge
-                    """);
+            Optional<String> llego = entregar(para, "Prueba de correo de DataBridge", "prueba", Map.of());
             return llego.map(destino -> resultado(true, para, destino, null))
                     .orElseGet(() -> resultado(false, para, null,
                             "El modo de prueba no dejo salir este correo: " + para
@@ -356,12 +337,12 @@ public class MailService {
     }
 
     /** Para un correo que nadie espera saber si salio: el fallo queda en el log. */
-    private void enviar(String to, String asunto, String cuerpo) {
+    private void enviar(String to, String asunto, String plantilla, Map<String, ?> datos) {
         if (!conServidor) {
             return;
         }
         try {
-            entregar(to, asunto, cuerpo);
+            entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
             log.warn("No se pudo enviar SMTP a {}: {}", to, motivo(e));
         }
@@ -372,12 +353,12 @@ public class MailService {
      * nada que pueda fallar, y lo que el modo de prueba no deja salir tampoco
      * es un fallo: asi se pidio que fuera.
      */
-    private void enviarODecirlo(String to, String asunto, String cuerpo) {
+    private void enviarODecirlo(String to, String asunto, String plantilla, Map<String, ?> datos) {
         if (!conServidor) {
             return;
         }
         try {
-            entregar(to, asunto, cuerpo);
+            entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
             String motivo = motivo(e);
             log.warn("No se pudo enviar SMTP a {}: {}", to, motivo);
@@ -386,29 +367,65 @@ public class MailService {
     }
 
     /**
-     * Le entrega el correo al servidor, o lanza si el servidor no lo acepta.
+     * Escribe el correo con su plantilla y se lo entrega al servidor, o lanza
+     * si el servidor no lo acepta.
      *
      * @return a donde salio de verdad, que en modo de prueba puede ser el buzon
      *         de desvio. Vacio si el modo de prueba no lo dejo salir.
      */
-    private Optional<String> entregar(String to, String asunto, String cuerpo) {
+    private Optional<String> entregar(String to, String asunto, String plantilla, Map<String, ?> datos) {
         Optional<ModoDePrueba.Destino> destino = modo.para(to, asunto);
         if (destino.isEmpty()) {
             log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)", to);
             return Optional.empty();
         }
-        SimpleMailMessage mensaje = new SimpleMailMessage();
-        mensaje.setFrom(remitente);
-        mensaje.setTo(destino.get().a());
-        mensaje.setSubject(destino.get().asunto());
-        mensaje.setText(cuerpo);
-        if (responderA != null) {
-            mensaje.setReplyTo(responderA);
-        }
-        mailSender.send(mensaje);
+        mailSender.send(armar(destino.get(), PLANTILLAS.escribir(plantilla, datos)));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
         }
         return Optional.of(destino.get().a());
+    }
+
+    /**
+     * El correo en sus dos versiones ({@code multipart/alternative}): primero
+     * el texto y despues el HTML, que es la que muestra quien puede.
+     *
+     * <p>Un remitente mal escrito es de la configuracion de DataBridge y se
+     * informa sin su causa: si la llevara, {@link #esDeLaDireccion} culparia a
+     * la direccion del deudor. Un destinatario mal escrito, en cambio, si es de
+     * la direccion.
+     */
+    private MimeMessage armar(ModoDePrueba.Destino destino, Carta carta) {
+        InternetAddress de;
+        InternetAddress[] responder;
+        try {
+            de = new InternetAddress(remitente, true);
+            responder = responderA == null ? null : InternetAddress.parse(responderA, true);
+        } catch (AddressException e) {
+            throw new MailSendException("MAIL_FROM o MAIL_REPLY_TO no es una direccion valida: " + e.getMessage());
+        }
+        InternetAddress para;
+        try {
+            para = new InternetAddress(destino.a(), true);
+        } catch (AddressException e) {
+            throw new MailParseException("La direccion del destinatario no es valida", e);
+        }
+        try {
+            MimeMessage mensaje = mailSender.createMimeMessage();
+            mensaje.setFrom(de);
+            mensaje.setRecipient(Message.RecipientType.TO, para);
+            if (responder != null) {
+                mensaje.setReplyTo(responder);
+            }
+            mensaje.setSubject(destino.asunto(), StandardCharsets.UTF_8.name());
+            MimeBodyPart texto = new MimeBodyPart();
+            texto.setText(carta.texto(), StandardCharsets.UTF_8.name());
+            MimeBodyPart html = new MimeBodyPart();
+            html.setText(carta.html(), StandardCharsets.UTF_8.name(), "html");
+            mensaje.setContent(new MimeMultipart("alternative", texto, html));
+            return mensaje;
+        } catch (MessagingException e) {
+            throw new MailPreparationException("No se pudo armar el correo", e);
+        }
     }
 }

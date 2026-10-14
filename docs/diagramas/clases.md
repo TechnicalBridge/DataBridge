@@ -2,11 +2,11 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **279 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **280 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 55 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-auth](#ms-auth--el-acceso) | 56 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
 | [ms-debt](#ms-debt--la-cartera) | 152 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
@@ -341,6 +341,14 @@ classDiagram
             +asunto : String
             +desviado : boolean
         }
+        class PlantillasDeCorreo {
+            <<utility>>
+        }
+        class PlantillasDeCorreo_Carta["PlantillasDeCorreo.Carta"] {
+            <<record>>
+            +texto : String
+            +html : String
+        }
     }
     namespace client {
         class DeudasClient {
@@ -407,6 +415,7 @@ classDiagram
     SessionService ..> SessionService_Llave
     SessionService ..> SessionService_Renovada
     ModoDePrueba ..> ModoDePrueba_Destino
+    PlantillasDeCorreo ..> PlantillasDeCorreo_Carta
     DeudasClient ..> DeudasClient_Empresa
     DeudasClient ..> DeudasClient_Correo
     AuthController --> AuthService
@@ -431,6 +440,7 @@ classDiagram
     PersonalService --> MailService
     SessionService --> SessionRepository
     MailService ..> ModoDePrueba : pregunta a quién
+    MailService ..> PlantillasDeCorreo : escribe con
 ```
 
 | Clase | Paquete | Qué es |
@@ -442,8 +452,9 @@ classDiagram
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
-| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, por cualquier servidor SMTP. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
+| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
 | `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
+| `PlantillasDeCorreo` | `service` | Lo que dice cada correo: las plantillas de `resources/correos`, una en HTML y otra en texto por correo, con Thymeleaf. |
 | `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `AccessCodeRepository` | `repository` | Los códigos. |
@@ -483,7 +494,9 @@ classDiagram
         }
         class CorreoPorBrevo {
             <<component>>
-            +send(SimpleMailMessage) void
+            +createMimeMessage() MimeMessage
+            +createMimeMessage(InputStream) MimeMessage
+            +send(MimeMessage[]) void
             +send(SimpleMailMessage[]) void
         }
         class OpenApiConfig {
@@ -583,7 +596,7 @@ classDiagram
 | `DataSeeder` | `config` | El personal de la demo. |
 | `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
 | `CorreoConfig` | `config` | Por dónde salen los correos: con `BREVO_API_KEY`, por Brevo; sin ella, por SMTP o al buzón de prueba. |
-| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
+| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway, con su texto y su HTML. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |

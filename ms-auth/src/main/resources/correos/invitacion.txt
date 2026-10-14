@@ -1,0 +1,16 @@
+[# th:if="${#strings.isEmpty(nombre)}"]Hola:[/][# th:unless="${#strings.isEmpty(nombre)}"]Hola, [(${nombre})]:[/]
+
+DataBridge te dio acceso [(${aQue})].
+
+Para entrar por primera vez, usa este enlace. Sirve una sola vez, por [(${dura})]:
+
+[(${url})]
+
+Las veces siguientes, o si el enlace ya venció, entra a [(${entrada})] y escribe este correo: te llegará un enlace nuevo. No hay contraseña.
+
+Si no esperabas este correo, ignóralo.
+
+DataBridge
+
+--
+Te llegó porque un administrador de DataBridge te dio de alta con este correo.

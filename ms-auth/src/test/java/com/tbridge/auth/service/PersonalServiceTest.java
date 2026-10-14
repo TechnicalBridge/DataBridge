@@ -242,7 +242,7 @@ class PersonalServiceTest {
         assertEquals("admin", creado.rol());
         assertNull(creado.empresaRut());
         verify(correo).enviarInvitacion(eq("otra@databridge.cl"), eq("Otra Persona"),
-                eq("al panel de administracion"), anyString(), eq(24L), eq("http://localhost:8080/admin/login"));
+                eq("al panel de administración"), anyString(), eq(24L), eq("http://localhost:8080/admin/login"));
         assertEquals(AdminLog.Action.admin_creado, anotado.getFirst().getAction());
         assertNull(anotado.getFirst().getOrgRut());
         //  Un admin no es de ninguna empresa: no hay nada que preguntarle a ms-debt.
