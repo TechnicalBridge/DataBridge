@@ -127,7 +127,7 @@ utilidades se usan desde todas las capas.
 
 ### ms-auth
 
-`com.tbridge.auth` · 53 tipos en 11 paquetes.
+`com.tbridge.auth` · 55 tipos en 11 paquetes.
 
 ```mermaid
 flowchart LR
@@ -141,7 +141,7 @@ flowchart LR
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
-        config["config<br/>5 clases"]
+        config["config<br/>7 clases"]
         exception["exception<br/>4 clases"]
         util["util<br/>3 clases"]
     end
@@ -282,11 +282,11 @@ flowchart LR
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
 | `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 15 | 52 | 12 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
-| `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 5 | 6 | 3 | 1 | 1 |
+| `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 7 | 6 | 3 | 1 | 1 |
 | `exception` | Los errores propios y su forma de respuesta | 4 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **53** | **152** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **55** | **152** | **51** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 

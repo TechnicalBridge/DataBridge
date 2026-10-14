@@ -68,6 +68,17 @@ class BuzonDePruebaTest {
     }
 
     @Test
+    void con_la_clave_de_brevo_el_buzon_de_prueba_no_se_usa() {
+        //  En Docker, el compose anuncia el buzon de prueba siempre; con Brevo no corresponde.
+        StandardEnvironment entorno = entorno(Map.of(
+                "app.mail.buzon-de-prueba", "mailpit:1025",
+                "app.mail.brevo.api-key", "xkeysib-de-prueba"));
+
+        assertEquals("", entorno.getProperty("spring.mail.host"));
+        assertFalse(entorno.getPropertySources().contains(BuzonDePrueba.FUENTE));
+    }
+
+    @Test
     void un_buzon_sin_puerto_usa_el_de_mailpit() {
         assertEquals("1025", entorno(Map.of("app.mail.buzon-de-prueba", "mailpit")).getProperty("spring.mail.port"));
     }

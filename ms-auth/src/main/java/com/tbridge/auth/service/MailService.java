@@ -12,9 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
+import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -30,9 +30,10 @@ import java.util.Optional;
 /**
  * El envio por correo.
  *
- * <p>Sirve con cualquier servidor SMTP: el buzon de prueba de Docker, una
- * cuenta de Gmail para probar, o un proveedor de correo transaccional. Pasar de
- * uno a otro es cambiar variables del {@code .env}, no codigo.
+ * <p>Sirve con cualquier servidor SMTP (el buzon de prueba de Docker, una
+ * cuenta de Gmail, un proveedor de correo transaccional) o con la API de Brevo,
+ * que va por HTTPS y es lo que funciona en Railway. Pasar de uno a otro es
+ * cambiar variables del {@code .env}, no codigo.
  *
  * <p>Sin SMTP configurado no falla: registra el contenido en el log, que es lo
  * que permite trabajar y demostrar el flujo sin depender de un servidor de
@@ -53,19 +54,21 @@ public class MailService {
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
     private static final Locale ES_CL = Locale.forLanguageTag("es-CL");
 
-    private final JavaMailSender mailSender;
+    private final MailSender mailSender;
     private final String from;
     private final String remitente;
     private final String responderA;
-    private final boolean smtpEnabled;
+    private final boolean conServidor;
     private final String publicUrl;
     private final String servidor;
     private final String clave;
+    private final String claveDeBrevo;
+    private final boolean porBrevo;
     private final ModoDePrueba modo;
 
     @Autowired
     public MailService(
-            ObjectProvider<JavaMailSender> mailSender,
+            ObjectProvider<MailSender> mailSender,
             @Value("${app.from-email}") String from,
             @Value("${app.public-url}") String publicUrl,
             @Value("${spring.mail.host:}") String host,
@@ -75,23 +78,32 @@ public class MailService {
             @Value("${app.mail.reply-to:}") String responderA,
             @Value("${app.mail.solo-a:}") String soloA,
             @Value("${app.mail.desviar-a:}") String desviarA,
-            @Value("${app.mail.buzon-de-prueba:}") String buzonDePrueba
+            @Value("${app.mail.buzon-de-prueba:}") String buzonDePrueba,
+            @Value("${app.mail.brevo.api-key:}") String claveDeBrevo
     ) {
         this.mailSender = mailSender.getIfAvailable();
         this.from = from;
         this.remitente = conNombre(from, nombre);
         this.responderA = StringUtils.hasText(responderA) ? responderA.strip() : null;
         this.publicUrl = publicUrl.replaceAll("/$", "");
-        this.smtpEnabled = this.mailSender != null && StringUtils.hasText(host);
-        this.servidor = smtpEnabled ? host.strip() + ":" + puerto : null;
+        this.porBrevo = this.mailSender != null && StringUtils.hasText(claveDeBrevo);
+        this.conServidor = this.mailSender != null && (porBrevo || StringUtils.hasText(host));
+        this.servidor = porBrevo ? "Brevo (API)" : conServidor ? host.strip() + ":" + puerto : null;
         this.clave = clave;
+        this.claveDeBrevo = claveDeBrevo;
         this.modo = new ModoDePrueba(soloA, desviarA);
         decirComoQuedo(host, buzonDePrueba);
     }
 
+    /** Por SMTP, sin Brevo. Para las pruebas. */
+    MailService(ObjectProvider<MailSender> mailSender, String from, String publicUrl, String host, int puerto,
+                String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba) {
+        this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba, "");
+    }
+
     /** Sin nombre de remitente, sin responder-a y sin modo de prueba: como antes. Para las pruebas. */
-    MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host) {
-        this(mailSender, from, publicUrl, host, 587, "", "", "", "", "", "");
+    MailService(ObjectProvider<MailSender> mailSender, String from, String publicUrl, String host) {
+        this(mailSender, from, publicUrl, host, 587, "", "", "", "", "", "", "");
     }
 
     /**
@@ -100,8 +112,13 @@ public class MailService {
      * demostracion termina escribiendole a alguien de verdad.
      */
     private void decirComoQuedo(String host, String buzonDePrueba) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             log.info("Correo: sin servidor. Los codigos y los enlaces quedan en el log");
+        } else if (porBrevo && modo.activo()) {
+            log.info("Correo: por la API de Brevo, remitente {}; {}", from, modo.descripcion());
+        } else if (porBrevo) {
+            log.warn("Correo: por la API de Brevo, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
+                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", from);
         } else if (StringUtils.hasText(buzonDePrueba) && buzonDePrueba.strip().startsWith(host.strip())) {
             log.info("Correo: al buzon de prueba ({}). Nada sale hacia afuera", servidor);
         } else if (modo.activo()) {
@@ -136,7 +153,7 @@ public class MailService {
      * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarCodigo(String to, String codigo, String acreedor) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             //  Solo sin SMTP, que es desarrollo. Con SMTP el codigo NO va al
             //  log: quien leyera los logs podria entrar como cualquier deudor.
             log.info("Sin SMTP: codigo de acceso para {}: {}", to, codigo);
@@ -169,7 +186,7 @@ public class MailService {
      * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarRecordatorio(String to, String codigo, String acreedor, LocalDate vence) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             log.info("Sin SMTP: recordatorio para {}, cuota del {}, codigo {}", to, vence, codigo);
         }
         enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", """
@@ -198,7 +215,7 @@ public class MailService {
      */
     @Async
     public void enviarEnlace(String to, String url, long minutos) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             log.info("Sin SMTP: enlace de acceso para {}: {}", to, url);
         }
         enviar(to, "Tu acceso a Technical Bridge", """
@@ -229,7 +246,7 @@ public class MailService {
      */
     @Async
     public void enviarInvitacion(String to, String nombre, String aQue, String url, long horas, String entrada) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             log.info("Sin SMTP: invitacion para {}: {}", to, url);
         }
         enviar(to, "Tu acceso a DataBridge", """
@@ -258,8 +275,8 @@ public class MailService {
      * cualquier otro correo.
      */
     public PruebaDeCorreoResponse probar(String para) {
-        if (!smtpEnabled) {
-            return resultado(false, para, null, "No hay servidor de correo configurado: falta SMTP_HOST");
+        if (!conServidor) {
+            return resultado(false, para, null, "No hay por donde mandar correos: falta SMTP_HOST o BREVO_API_KEY");
         }
         try {
             Optional<String> llego = entregar(para, "Prueba de correo de DataBridge", """
@@ -292,8 +309,10 @@ public class MailService {
         Throwable causa = cadena(e).getLast();
         String texto = causa.getMessage() == null ? causa.getClass().getSimpleName() : causa.getMessage();
         texto = texto.replaceAll("\\s+", " ").strip();
-        if (StringUtils.hasText(clave)) {
-            texto = texto.replace(clave, "***");
+        for (String secreto : new String[]{clave, claveDeBrevo}) {
+            if (StringUtils.hasText(secreto)) {
+                texto = texto.replace(secreto, "***");
+            }
         }
         return texto.length() > 300 ? texto.substring(0, 300) : texto;
     }
@@ -338,7 +357,7 @@ public class MailService {
 
     /** Para un correo que nadie espera saber si salio: el fallo queda en el log. */
     private void enviar(String to, String asunto, String cuerpo) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             return;
         }
         try {
@@ -354,7 +373,7 @@ public class MailService {
      * es un fallo: asi se pidio que fuera.
      */
     private void enviarODecirlo(String to, String asunto, String cuerpo) {
-        if (!smtpEnabled) {
+        if (!conServidor) {
             return;
         }
         try {
