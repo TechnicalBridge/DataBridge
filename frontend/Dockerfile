@@ -23,6 +23,16 @@ RUN npm run build
 #  en el 8080, porque un proceso sin privilegios no puede tomar el puerto 80.
 FROM nginxinc/nginx-unprivileged:alpine
 COPY --from=construccion /obra/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+#  nginx.conf es una plantilla: al arrancar, la imagen sustituye las variables
+#  con envsubst y escribe el resultado en /etc/nginx/conf.d/. Los valores por
+#  defecto son los de docker compose; en otras plataformas (Railway) se
+#  sobreescriben con variables de entorno. El filtro hace que envsubst toque
+#  solo estas tres y deje en paz las variables propias de nginx ($uri, $host...).
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV NGINX_RESOLVER=127.0.0.11 \
+    GATEWAY_HOST=gateway \
+    GATEWAY_PORT=8082 \
+    NGINX_ENVSUBST_FILTER=^(NGINX_RESOLVER|GATEWAY_HOST|GATEWAY_PORT)\$
 
 EXPOSE 8080

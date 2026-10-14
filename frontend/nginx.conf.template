@@ -5,7 +5,7 @@
 #  El DNS interno de Docker. Con el, si el gateway se reinicia y cambia de IP,
 #  nginx lo vuelve a encontrar en diez segundos en vez de seguir tocando la
 #  puerta vieja hasta que alguien lo reinicie a el tambien.
-resolver 127.0.0.11 valid=10s ipv6=off;
+resolver ${NGINX_RESOLVER} valid=10s ipv6=on;
 
 #  Las conexiones hacia el gateway se REUTILIZAN.
 #
@@ -17,7 +17,7 @@ resolver 127.0.0.11 valid=10s ipv6=off;
 #  perfectamente. Lo encontro la prueba de estres (rendimiento/estres.js).
 upstream gateway {
     zone gateway 64k;
-    server gateway:8082 resolve;
+    server ${GATEWAY_HOST}:${GATEWAY_PORT} resolve;
     keepalive 64;
 }
 
