@@ -46,7 +46,7 @@ datos y lo que los conecta.
 | [estados.md](estados.md) | 8 | La deuda, la cuota, el pago, la campaña, el aviso por entregar, el código de acceso, la llave de renovación y la persona con cuenta |
 | [secuencia.md](secuencia.md) | 16 | Entrar, renovar la sesión, entregar una cartera, repactar, pagar con cada pasarela, el aviso del pago, la campaña, el reclamo, el asistente, el panel, la UF y el alta de una empresa con su gente |
 | [componentes.md](componentes.md) | 8 | Los componentes y lo que se dicen, las rutas del gateway, los paquetes de cada servicio, el portal por dentro y el repositorio |
-| [despliegue.md](despliegue.md) | 2 | Los contenedores, sus puertos, el orden de arranque, lo que queda guardado y con qué se configura |
+| [despliegue.md](despliegue.md) | 3 | Los contenedores, sus puertos, el orden de arranque, lo que queda guardado, con qué se configura y cómo queda en Railway |
 
 ## Cómo seguir un escenario por las cuatro vistas
 

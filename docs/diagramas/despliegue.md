@@ -155,9 +155,43 @@ que no puede pasar con los datos de la demo, que traen correos inventados.
 | Mercado Pago | ms-payments | HTTPS, con el token de acceso | Lo mismo |
 | Banco Central | ms-payments | HTTPS | La UF del día se puede cargar a mano. Sin UF, un cobro en UF responde `503`; los cobros en pesos siguen |
 | LLM | ms-ai | HTTPS, con el SDK de OpenAI | El asistente responde con reglas |
-| Servidor de correo | ms-auth | SMTP, con STARTTLS o SSL | El envío falla a los 10 segundos (`SMTP_TIMEOUT_MS`) y queda en el registro; el servicio no se cae |
+| Servidor de correo | ms-auth | SMTP, con STARTTLS o SSL | Falla a los 10 segundos (`SMTP_TIMEOUT_MS`). El correo no cuenta como enviado: la empresa ve el motivo y sale solo en la pasada siguiente |
 | Sistema de cada empresa | ms-debt | HTTPS, con cada evento firmado | El evento espera en la bandeja de salida y se reintenta |
 
 Las pasarelas también le hablan a DataBridge: devuelven al deudor al portal, y Khipu y Mercado Pago pueden
 avisar un pago. Para eso DataBridge necesita una dirección pública; en un equipo local no la tiene, y por eso
 ms-payments no depende de esos avisos: les pregunta a las pasarelas cada 10 segundos.
+
+## En Railway
+
+Las mismas imágenes, una por servicio, cada una desde su carpeta y con su `railway.json`. La guía, con las
+variables de cada servicio, está en [`docs/railway`](../railway/README.md), y lo que falta decidir, en #173.
+
+```mermaid
+flowchart LR
+    V(("Visitante")) -->|"HTTPS"| PX["Proxy de Railway"]
+    PX -->|"X-Real-IP"| POR["portal<br/>nginx :8080"]
+    subgraph PRIV["Red privada · *.railway.internal"]
+        POR --> GW["gateway :8082"]
+        GW --> AUTH["ms-auth :8081"]
+        GW --> DEBT["ms-debt :8083"]
+        GW --> PAY["ms-payments :8084"]
+        GW --> AI["ms-ai :8085"]
+        AUTH <--> DEBT
+        PAY -->|"aviso de pago, por HTTP"| DEBT
+        AI --> DEBT
+        AUTH & DEBT & PAY --> MY[("MySQL 8.4<br/>con su volumen")]
+        AUTH -.->|"si se elige el buzón de prueba"| MP["mailpit"]
+    end
+    AUTH -.->|"si se elige Gmail, en Pro"| SMTP{{"Gmail"}}
+    PAY --> PAS{{"Pasarelas"}}
+```
+
+| Lo distinto de Docker Compose | Por qué |
+| --- | --- |
+| Solo el portal tiene dirección pública | El gateway y los servicios se hablan por la red privada; ninguno se publica |
+| No hay RabbitMQ | El aviso de un pago va de ms-payments a ms-debt por HTTP, con sus reintentos: un servicio menos que pagar |
+| Las bases las crea cada servicio | `db/init` no corre fuera de Docker Compose: cada servicio se conecta con `createDatabaseIfNotExist` |
+| Cada servicio escucha también en IPv6 (`SERVER_ADDRESS=::`) | La red privada de los ambientes antiguos de Railway es solo IPv6 |
+| nginx le cree al proxy de Railway la IP del visitante | Sin eso, el límite de peticiones contaría a todos como uno solo |
+| La memoria de cada JVM tiene techo (`JAVA_TOOL_OPTIONS`) | En Railway se cobra la que se usa, y no hay un límite de contenedor tan bajo como el del compose |

@@ -325,7 +325,7 @@ services:
       #  una lista vacia hace que el gateway vuelva a borrar la IP del cliente,
       #  y todos los intentos fallidos se cuentan como si fueran de una sola
       #  persona.
-      TRUSTED_PROXIES: '${TRUSTED_PROXIES:-127\.0\.0\.1|0:0:0:0:0:0:0:1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*}'
+      TRUSTED_PROXIES: '${TRUSTED_PROXIES:-127\.0\.0\.1|0:0:0:0:0:0:0:1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*|f[cd][0-9a-f]{2}:.*}'
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8082/actuator/health || exit 1"]
       interval: 10s
