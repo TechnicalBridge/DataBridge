@@ -112,6 +112,12 @@ contrato, y DataBridge detecta al moroso. El que está al día viene con `cargos
 código por correo, sin monto ni enlace. Si el envío falla, la cartera entra igual, y desde el
 portal se reenvía.
 
+#### Cuándo entra un moroso
+
+- **Entrada a los 30 días:** Un deudor entra a cobranza extrajudicial el día exacto en que su cargo impago más antiguo cumple **30 días de mora** (`MIN_DIAS_MORA`, por omisión 30 días en DataBridge), y sale a los **120 días** (`fuera_de_mandato`, devuelta al acreedor).
+- **Deudas de 1 a 29 días (por entrar):** APOFYX acepta deudas desde el día 1 de mora, pero no se las entrega a DataBridge antes de tiempo. Quedan retenidas en estado **por entrar**, con la fecha exacta en que cumplen 30 días. Si viajan antes a DataBridge, se rechazan solas con el código `bajo_umbral_mora`.
+- **Despacho automático al día 30:** El despachador automático de reenvíos de APOFYX revisa diariamente las deudas *por entrar* cuya fecha ya llegó y emite una entrega automática a DataBridge con la fecha de corte de ese día. Al aceptarse, pasan a *en gestión* e invitan al deudor.
+
 El detalle está en las [reglas del contrato](docs/integracion/README.md#64-reglas-de-validación).
 
 ### Los intereses

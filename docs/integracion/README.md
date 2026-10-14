@@ -335,7 +335,17 @@ no deshace lo que el deudor ya acordó:
 solo su código de acceso por correo, sin monto ni enlace. La agencia lo puede reenviar desde su
 portal.
 
-### 6.5 Respuesta
+### 6.5 Cuándo entra un moroso
+
+La regla que define cuándo un deudor entra a cobranza y cuándo sale está coordinada entre APOFYX y DataBridge:
+
+- **La regla:** un deudor entra a cobranza extrajudicial el día exacto en que su cargo impago más antiguo cumple **30 días de mora** (`MIN_DIAS_MORA`, en DataBridge), y sale a los **120 días** (`fuera_de_mandato`, en APOFYX).
+- **Deudas de 1 a 29 días (por entrar):** APOFYX acepta deudas desde el día 1 de mora, pero no se las envía a DataBridge antes de tiempo. Quedan en estado **por entrar**, con la fecha exacta en que cumplen 30 días de mora. Si viajan antes a DataBridge, se rechazan solas con el código `bajo_umbral_mora`.
+- **Despacho al cumplir 30 días:** El despachador automático de reenvíos de APOFYX busca las deudas *por entrar* cuya fecha de entrada ya llegó y arma una entrega propia a DataBridge con la **fecha de corte de ese día**. DataBridge las acepta y pasan a *en gestión*.
+- **La invitación:** El día en que la deuda entra a DataBridge, el deudor recibe su código de invitación por correo (o al siguiente día y hora que permita la ley).
+- **Salida:** A los 120 días de mora, la deuda se retira con motivo `fuera_de_mandato`.
+
+### 6.6 Respuesta
 
 Para el lote de ejemplo, **suponiendo que el RUT de `CTR-2024-007` viniera mal escrito**
 (en el archivo de ejemplo es válido):
