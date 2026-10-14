@@ -140,6 +140,7 @@ class MandatoServiceTest {
         when(mandates.findByAgencyAndCreditorAndStatus(apofyx, patrimonio, Mandate.Status.active))
                 .thenReturn(java.util.List.of(new Mandate()));
         Campaign existente = new Campaign();
+        existente.setId(10L);
         when(campaigns.findByAgencyAndExternalId(apofyx, "APX-CMP-9")).thenReturn(Optional.of(existente));
         return existente;
     }
@@ -159,8 +160,31 @@ class MandatoServiceTest {
         servicio.registrarCampana(apofyx, conEstado("terminada"));
         assertEquals(Campaign.Status.finished, campana.getStatus());
 
-        servicio.registrarCampana(apofyx, conEstado("en_curso"));
-        assertEquals(Campaign.Status.running, campana.getStatus());
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
+                () -> servicio.registrarCampana(apofyx, conEstado("en_curso")));
+        assertEquals("campana_terminada", fallo.getCodigo());
+        assertEquals(409, fallo.getStatus());
+        assertEquals(Campaign.Status.finished, campana.getStatus());
+    }
+
+    @Test
+    void una_campana_terminada_no_se_puede_pausar() {
+        Campaign campana = campanaRegistrada();
+        servicio.registrarCampana(apofyx, conEstado("terminada"));
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
+                () -> servicio.registrarCampana(apofyx, conEstado("pausada")));
+        assertEquals("campana_terminada", fallo.getCodigo());
+        assertEquals(409, fallo.getStatus());
+    }
+
+    @Test
+    void mandar_terminada_de_nuevo_es_idempotente() {
+        Campaign campana = campanaRegistrada();
+        servicio.registrarCampana(apofyx, conEstado("terminada"));
+
+        servicio.registrarCampana(apofyx, conEstado("terminada"));
+        assertEquals(Campaign.Status.finished, campana.getStatus());
     }
 
     @Test
