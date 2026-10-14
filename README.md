@@ -654,9 +654,29 @@ portal del deudor con su RUT y su código de acceso.
   panel. La regla es de la ruta entera, no de cada endpoint, así que uno nuevo no puede quedar
   abierto por olvido.
 
-El panel está en `/admin`, y se entra por `/admin/login` con el correo del `admin`. Hoy tiene la
-portada, que muestra si cada servicio responde con esa sesión (`/api/admin/<servicio>/estado`). El
-resto se está construyendo ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)).
+El panel está en `/admin`, y se entra por `/admin/login` con el correo del `admin`. Hoy tiene:
+
+- **Inicio**, que muestra si cada servicio responde con esa sesión (`/api/admin/<servicio>/estado`).
+- **Empresas**, para dar de alta una empresa usuaria (una agencia, o un acreedor que cobra directo)
+  con su primera persona, y ver las que hay. De cada una se ven totales (cuántas deudas y cuánto
+  falta por cobrar), sus mandatos y quiénes entran en su nombre. Nunca una deuda ni un deudor.
+- **Equipo de DataBridge**, para dar de alta a otro `admin`.
+
+Dar de alta a una persona es darle acceso: le llega una **invitación** a su correo, con un enlace de
+un solo uso que dura 24 horas (`INVITACION_TTL_HORAS`) y que dice por dónde entrar las veces
+siguientes. A cualquiera se le puede **quitar el acceso** y devolvérselo: al quitarlo no le llegan
+más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un `admin` no se
+puede quitar el acceso a sí mismo, así que siempre queda uno que puede entrar.
+
+- **El rol lo decide por dónde se da de alta, no un campo.** Una persona creada bajo una empresa
+  es `usuario` de esa empresa; un `admin` se crea aparte y sin empresa. Un correo que ya es de una
+  empresa no puede pasar a ser `admin`.
+- **La empresa vive en ms-debt y su gente en ms-auth**, unidas por el RUT. Antes de darle una
+  persona a una empresa, ms-auth le pregunta a ms-debt si existe.
+- **Todo queda anotado**, con el `admin` que lo hizo y cuándo, en la tabla `admin_log` de cada
+  servicio, y se ve en la ficha de la empresa.
+
+Lo que falta del panel está en [#136](https://github.com/TechnicalBridge/TB_web/issues/136).
 
 ### Cómo está organizado cada servicio
 
@@ -756,9 +776,9 @@ las entidades con las tablas y se niega a partir si no calzan.
 
 | Base | Migraciones |
 | --- | --- |
-| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado |
-| `tb_auth` | `V1` esquema inicial · `V2` sesiones |
-| `tb_payments` | `V1` esquema inicial |
+| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel |
+| `tb_auth` | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel |
+| `tb_payments` | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 ### `tb_debt` — la cartera
 
@@ -1500,6 +1520,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `REFRESH_TTL_HOURS` | `168` | Cuánto dura una sesión desde que se entra. Renovar no la alarga |
 | `COOKIE_SECURE` | `false` | **Encender detrás de HTTPS.** Una cookie `Secure` sobre HTTP el navegador la descarta sin avisar |
 | `CODE_TTL_HOURS`, `MAGIC_TTL_MINUTES` | `24`, `15` | Cuánto dura el código de acceso del deudor, y el enlace de respaldo |
+| `INVITACION_TTL_HORAS` | `24` | Cuánto dura el enlace de la invitación que le llega a una persona recién dada de alta desde el panel |
 | `MAIL_FROM` | `noreply@technicalbridge.local` | El remitente de los correos. En Docker los correos van al buzón de prueba; `SMTP_*` son solo para correr ms-auth con Maven |
 | `CORS_ORIGINS` | los del portal | Qué orígenes pueden hacer peticiones con credenciales al gateway |
 | `TRUSTED_PROXIES` | local y las redes privadas (`10.x`, `172.16–31`, `192.168.x`) | En qué proxies confía el gateway para saber la IP del cliente. No puede quedar vacía |
@@ -1568,18 +1589,19 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **Del descuento por pronto pago** | El tramo por los días del cargo impago más antiguo (30, 31, 62, 100 y 150 días); el % de la campaña recortado al máximo vigente del mandato, que baja si el acreedor lo baja; sin máximo, con el mandato vencido, con la campaña pausada o fuera de sus fechas, nada; el acreedor sin agencia se autoriza hasta 100. El mandato guarda su máximo y lo cambia al reenviarse; la campaña rechaza un tramo que no existe o un valor fuera de 0 a 100 (`descuento_invalido`) y uno sobre el máximo (`descuento_sobre_tope`), y `{}` le quita el descuento. Al cobrar: el ejemplo del contrato ($900.000 + $18.800 − $9.400 = $909.400), sin descuento en un pago de parte de la deuda ni en convenio, la oferta que ve el deudor con su fecha, el descuento fijo en ms-payments desde que se abre el cobro, y el aviso que lo lleva hasta el acreedor, también cuando se condona toda la mora |
 | **Del asistente** | Las reglas: los montos en pesos y en UF sin sumarlos entre sí, el ánimo (la desconfianza pesa más que la cortesía) y el tono de cada respuesta. Lo que dice de la plata, igual que el portal: el total de hoy con la mora, la tasa que pactó el acreedor (también en las cuotas), que sin tasa no hay interés, y el descuento por pronto pago con su fecha. El LLM contra un servidor falso con la forma de la API de xAI: responde con la API de Responses, usa la de chat si no la hay, y si falla o contesta en blanco responde con las reglas; viajan los últimos doce mensajes. Las deudas se piden con la sesión del deudor, y si ms-debt dice que no o no responde, el asistente sigue sin deudas. Arranca solo y publica su salud y su Swagger |
 | **De los roles** | El `admin` de DataBridge entra con su propio rol y sin empresa, y el usuario de una empresa sigue entrando como antes; una llave de empresa no renueva como `admin`. El primer `admin` sale de `ADMIN_CORREO` una sola vez, y a una persona de una empresa no se le da ese rol. En los tres servicios, el panel responde al `admin`, `403` a una empresa y a un deudor, y `401` sin sesión, también en una ruta que todavía no existe; y el `admin` recibe `403` en las deudas y en los pagos. En el gateway, cada tramo del panel llega a su servicio y `/internal` sigue sin puerta |
+| **Del alta de empresas y personas** | Los totales de una empresa cuentan lo suyo como acreedora y lo que entregó como agencia, sin mezclar pesos con UF y sin leer una deuda. Una empresa nueva pide un RUT válido y que no exista. Una persona creada bajo una empresa queda como `usuario`, aunque el cuerpo pida otro rol, y un correo de una empresa no puede pasar a `admin`. Sin la empresa en ms-debt, o si ms-debt no responde, no se crea a nadie. Quitar el acceso cierra las sesiones de esa persona y anula sus enlaces sin abrir, y un `admin` no se lo puede quitar a sí mismo. Cada alta y cada cambio quedan anotados con quién los hizo |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo de [`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**600 pruebas**, todas en Java y sin fallos:
+**659 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 17 |
-| `ms-auth` | 82 |
-| `ms-debt` | 281 |
+| `ms-auth` | 118 |
+| `ms-debt` | 304 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |
 

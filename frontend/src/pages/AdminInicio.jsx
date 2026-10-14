@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { SERVICIOS, estadoDe } from "../api/admin";
 import { useAuth } from "../store/authStore";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
@@ -72,6 +73,10 @@ export default function AdminInicio() {
           <p className="hint">
             Desde aquí no se ven los datos de ningún deudor.
           </p>
+          <div className="acciones-fila">
+            <Link className="btn btn-primary btn-sm" to="/admin/empresas">Ver las empresas</Link>
+            <Link className="btn btn-ghost btn-sm" to="/admin/equipo">Equipo de DataBridge</Link>
+          </div>
         </div>
       </div>
     </div>

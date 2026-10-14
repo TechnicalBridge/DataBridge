@@ -53,6 +53,7 @@ flowchart LR
         G9(["Entregar cartera, mandatos<br/>y campañas por la API"])
         G10(["Avisar lo que pasa con cada deuda"])
         G11(["Ver si la plataforma responde"])
+        G15(["Dar de alta empresas y personas,<br/>y quitarles el acceso"])
         G12(["Escribirle al deudor y<br/>recordarle sus cuotas"])
         G13(["Conciliar los cobros<br/>con las pasarelas"])
         G14(["Mantener la UF del día"])
@@ -65,7 +66,8 @@ flowchart LR
 
     DEU --> G1 & G2 & G3 & G4 & G5
     USU --> G1 & G6 & G7 & G8
-    ADM --> G1 & G11
+    ADM --> G1 & G11 & G15
+    G15 --- COR
     SIS --> G9
     G10 --> SIS
     REL --> G10 & G12 & G13 & G14
@@ -186,9 +188,9 @@ flowchart LR
 
 ## El admin de DataBridge
 
-El panel de administración es de DataBridge y de nadie más. Hoy tiene la portada; el resto se está
-construyendo ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)), y sus casos de uso se agregan aquí
-cuando lleguen.
+El panel de administración es de DataBridge y de nadie más. Desde ahí se da de alta a las empresas que van a
+usar DataBridge y a su gente. Lo que falta del panel está en
+[#136](https://github.com/TechnicalBridge/TB_web/issues/136), y sus casos de uso se agregan aquí cuando lleguen.
 
 ```mermaid
 flowchart LR
@@ -197,17 +199,34 @@ flowchart LR
         direction TB
         A1(["Entrar con un enlace a su correo"])
         A2(["Ver si cada servicio<br/>responde con su sesión"])
+        A3(["Ver las empresas y los<br/>totales de su cartera"])
+        A4(["Dar de alta una empresa usuaria<br/>con su primera persona"])
+        A5(["Darle acceso a otra<br/>persona de una empresa"])
+        A6(["Quitarle o devolverle<br/>el acceso a una persona"])
+        A7(["Dar de alta a otro admin"])
+        A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2
-    A2 -. "«include»" .-> A1
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8
+    A4 -. "«include»" .-> A5
+    A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
+    A6 -. "«extend»" .-> A3
+    A8 -. "«extend»" .-> A3
     A1 --- COR
+    A5 --- COR
+    A7 --- COR
 ```
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
 | Entrar con un enlace a su correo | `Login` (`/admin/login`), `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El primer admin nace de `ADMIN_CORREO` al arrancar. Sin esa variable no hay admin y nadie entra al panel |
 | Ver si cada servicio responde | `AdminInicio` | `GET /api/admin/auth/estado`, `/api/admin/debt/estado`, `/api/admin/payments/estado` | Todo `/api/admin/**` exige una sesión `ADMIN`: a un usuario o a un deudor les responde `403`. Y al revés: el admin no entra a los otros portales |
+| Ver las empresas y sus totales | `AdminEmpresas`, `AdminEmpresa` | `GET /api/admin/debt/empresas`, `GET /api/admin/debt/empresas/{rut}` | De cada empresa se ven totales: cuántas deudas y cuánto falta por cobrar. Nunca una deuda ni un deudor |
+| Dar de alta una empresa usuaria | `AdminEmpresas` | `POST /api/admin/debt/empresas`, y después `POST /api/admin/auth/empresas/{rut}/personal` | Una agencia, o un acreedor que cobra directo. El RUT tiene que ser válido y no existir. Son dos pasos, uno en cada servicio: si el segundo falla, la empresa ya quedó y la persona se agrega desde su ficha |
+| Darle acceso a una persona de una empresa | `AdminEmpresa` | `POST /api/admin/auth/empresas/{rut}/personal` | Queda como `usuario` de esa empresa: el rol lo decide la ruta, no un campo. Le llega una invitación con un enlace de un solo uso, que dura 24 horas |
+| Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
+| Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
+| Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
 
 ---
 
@@ -320,13 +339,21 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **66 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **79 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
 
 ### ms-auth
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/auth/estado` | Si ms-auth responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/auth/empresas/{rut}/personal` | Las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.personalDeEmpresa` |
+| `POST /api/admin/auth/empresas/{rut}/personal` | Dar de alta a una persona de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.crearUsuario` |
+| `GET /api/admin/auth/empresas/{rut}/historial` | Lo que se hizo con las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.historialDeEmpresa` |
+| `GET /api/admin/auth/admins` | Los admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.admins` |
+| `POST /api/admin/auth/admins` | Dar de alta a otro admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.crearAdmin` |
+| `GET /api/admin/auth/admins/historial` | Lo que se hizo con los admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.historialDeAdmins` |
+| `POST /api/admin/auth/personal/{id}/deshabilitar` | Quitarle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.deshabilitar` |
+| `POST /api/admin/auth/personal/{id}/habilitar` | Devolverle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.habilitar` |
 | `POST /api/auth/acceso` | Entrar con RUT y código | Deudor | Ninguna | Sí | `AuthController.acceso` |
 | `POST /api/auth/enlace` | Pedir un enlace de acceso al correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
 | `POST /api/auth/verify` | Canjear el enlace del correo por una sesión | Deudor, usuario o admin | Ninguna | Sí | `AuthController.verify` |
@@ -340,6 +367,10 @@ Cada caso de uso de arriba termina en uno o más de estos **66 endpoints**. La l
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/debt/estado` | Si ms-debt responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/debt/empresas` | Las empresas registradas | Admin de DataBridge | JWT | Sí | `AdminController.empresas` |
+| `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
+| `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
+| `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
 | `GET /api/analytics/summary` | El resumen de mi cartera | Usuario de una empresa | JWT | Sí | `AnalyticsController.summary` |
 | `GET /api/debts/campanas` | Las campañas de la empresa | Usuario de una empresa | JWT | Sí | `CampanaController.listar` |
 | `POST /api/debts/campanas` | Crear o cambiar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.guardar` |
@@ -375,6 +406,7 @@ Cada caso de uso de arriba termina en uno o más de estos **66 endpoints**. La l
 | `POST /internal/campanas/contactos` | Mandar ahora los toques de las campañas | Operación de DataBridge | Clave interna | No | `InternalController.contactar` |
 | `POST /internal/recordatorios` | Mandar ahora los recordatorios de cuota | Operación de DataBridge | Clave interna | No | `InternalController.recordar` |
 | `POST /internal/events/pago-confirmado` | El aviso de un pago concretado (desde ms-payments) | ms-payments | Clave interna | No | `InternalController.pagoConfirmado` |
+| `GET /internal/organizaciones/{rut}` | Si hay una empresa con ese RUT (para ms-auth) | ms-auth | Clave interna | No | `InternalController.organizacion` |
 | `GET /api/debts/mis-datos` | Los datos del deudor | Deudor | JWT | Sí | `MisDatosController.ver` |
 | `PATCH /api/debts/mis-datos` | Encender o apagar los recordatorios | Deudor | JWT | Sí | `MisDatosController.cambiar` |
 

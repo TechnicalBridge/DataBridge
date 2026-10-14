@@ -7,8 +7,8 @@ import Logo from "./Logo";
 import Chatbot from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
-  IconoAlerta, IconoAyuda, IconoCalendario, IconoCartera, IconoDocumento, IconoLlave, IconoMegafono, IconoPanel, IconoRecibo,
-  IconoSalir, IconoSubir, IconoUsuario,
+  IconoAlerta, IconoAyuda, IconoCalendario, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo, IconoLlave,
+  IconoMegafono, IconoPanel, IconoRecibo, IconoSalir, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
 /** Cada enlace con su nombre largo (el menu) y el corto (la barra del telefono). */
@@ -33,6 +33,8 @@ const EMPRESA = [
 //  El panel de administracion de DataBridge: lo ve solo su admin.
 const ADMIN = [
   { to: "/admin", label: "Inicio", corto: "Inicio", Icono: IconoPanel, end: true },
+  { to: "/admin/empresas", label: "Empresas", corto: "Empresas", Icono: IconoEmpresa },
+  { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
 ];
 
 const PORTALES = {

@@ -99,6 +99,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .hint { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
 .hint.centro { text-align: center; }
 .sub { display: block; color: var(--muted); font-size: 13.5px; }
+/* Lo que no se parte en dos lineas: un RUT, una fecha corta. */
+.sin-corte { white-space: nowrap; }
 .num { font-variant-numeric: tabular-nums; }
 .oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .icono { flex: none; }
@@ -411,6 +413,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .grid-3, .grid-2 { display: grid; gap: 16px; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-2 { grid-template-columns: 1.15fr 0.85fr; align-items: start; }
+/* Una columna puede ser mas angosta que lo que trae adentro: asi una tabla ancha se desplaza dentro de su
+   tarjeta (.tabla-scroll) en vez de ensanchar la pagina entera en el telefono. */
+.grid-3 > *, .grid-2 > * { min-width: 0; }
 .bloque { margin-bottom: 18px; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat > span { color: var(--muted); font-size: 15px; }

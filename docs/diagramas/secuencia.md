@@ -27,6 +27,7 @@ está cada clase lo dicen los [diagramas de clases](clases.md).
 | 13 | [El admin abre su panel](#13-el-admin-abre-su-panel) | El admin | gateway, ms-auth, ms-debt, ms-payments |
 | 14 | [Una empresa conecta su sistema](#14-una-empresa-conecta-su-sistema) | Un usuario y su sistema | ms-debt |
 | 15 | [La UF del día](#15-la-uf-del-día) | El reloj | ms-payments |
+| 16 | [El admin da de alta una empresa y a su gente](#16-el-admin-da-de-alta-una-empresa-y-a-su-gente) | El admin | ms-debt, ms-auth |
 
 En todos, el navegador solo habla con el **portal** (nginx), que manda lo que empieza con `/api` al **gateway**,
 y el gateway lo enruta al servicio. Para no repetirlo en cada diagrama, esa parte se dibuja completa solo en
@@ -818,3 +819,73 @@ sequenceDiagram
         US-->>PS: 503: el cobro en UF no puede continuar
     end
 ```
+
+---
+
+## 16. El admin da de alta una empresa y a su gente
+
+Una empresa vive en ms-debt y sus personas en ms-auth, unidas por el RUT. Por eso dar de alta son **dos pasos**,
+uno en cada servicio, y ms-auth le pregunta a ms-debt si la empresa existe antes de darle una persona.
+
+```mermaid
+sequenceDiagram
+    actor A as Admin de DataBridge
+    participant P as Portal (AdminEmpresas)
+    participant DC as AdminController (ms-debt)
+    participant ES as EmpresaService
+    participant BD as tb_debt
+    participant AC as AdminController (ms-auth)
+    participant PS as PersonalService
+    participant BA as tb_auth
+    participant M as MailService
+    actor U as La persona nueva
+
+    A->>P: los datos de la empresa y de su primera persona
+    P->>DC: POST /api/admin/debt/empresas {rut, razonSocial, nombre, tipo}
+    DC->>ES: crear(pedido, el correo del admin de la sesión)
+    Note over ES: el RUT tiene que tener su dígito verificador
+    ES->>BD: ¿ya hay una empresa con ese RUT?
+    alt el RUT no es válido, o ya existe
+        ES-->>P: 400 o 409, con el motivo
+    else es nueva
+        ES->>BD: organizations: la empresa, como agencia o como acreedor
+        ES->>BD: admin_log: empresa_creada, quién y cuándo
+        ES-->>P: 201 con la empresa
+        P->>AC: POST /api/admin/auth/empresas/{rut}/personal {correo, nombre}
+        AC->>PS: crearUsuario(rut, pedido, admin)
+        PS->>DC: GET /internal/organizaciones/{rut}, con la clave interna
+        DC-->>PS: la empresa, o 404
+        Note over PS: sin la empresa en ms-debt, o si ms-debt<br/>no responde, no se crea a nadie
+        PS->>BA: staff_users por correo: que no tenga ya una cuenta
+        PS->>BA: staff_users: la persona, como usuario de esa empresa
+        Note over PS: el rol lo decide la ruta: bajo una empresa<br/>siempre es usuario, nunca admin
+        PS->>BA: admin_log: persona_creada, quién y cuándo
+        PS->>BA: magic_links: la huella de su enlace, vigente 24 horas
+        PS-)M: enviarInvitacion(correo, nombre, a qué, enlace), en segundo plano
+        M-)U: correo con su enlace, y por dónde entrar las veces siguientes
+        PS-->>P: 201 con la persona
+        P-->>A: la ficha de la empresa, con su gente y su historia
+    end
+
+    U->>P: abre el enlace de la invitación
+    Note over P,BA: sigue como en la secuencia 2: entra al portal de empresas,<br/>con la cartera vacía, y puede emitir la clave de API de su sistema
+
+    Note over A,BA: quitarle el acceso a una persona
+    A->>P: Quitar acceso
+    P->>AC: POST /api/admin/auth/personal/{id}/deshabilitar
+    AC->>PS: deshabilitar(id, admin)
+    Note over PS: un admin no se lo puede quitar a sí mismo
+    PS->>BA: staff_users: disabled_at
+    PS->>BA: magic_links: sus enlaces sin abrir quedan usados
+    PS->>BA: sessions: todas sus llaves quedan revocadas
+    PS->>BA: admin_log: persona_deshabilitada
+    PS-->>P: la persona, sin acceso
+```
+
+Si el segundo paso falla (el correo ya tenía una cuenta, o ms-debt no respondió), la empresa ya quedó
+registrada: el portal lleva al admin a su ficha, que dice qué pasó, y desde ahí se le da acceso a la persona.
+Quitarle el acceso a alguien no espera a que su sesión venza: sus llaves de renovación se revocan en el acto, y
+lo único que le queda es el JWT vigente, que dura a lo más quince minutos.
+
+Otro admin se da de alta igual, por `POST /api/admin/auth/admins`, sin el paso de ms-debt: un admin no es de
+ninguna empresa.

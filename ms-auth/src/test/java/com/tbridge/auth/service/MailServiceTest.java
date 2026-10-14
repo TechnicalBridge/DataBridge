@@ -66,6 +66,24 @@ class MailServiceTest {
     }
 
     @Test
+    void la_invitacion_trae_el_enlace_cuanto_dura_y_por_donde_entrar_despues() {
+        correo("mailpit").enviarInvitacion("ana.soto@empresatest.cl", "Ana Soto",
+                "al portal de empresas, como parte de Empresa Test", "http://localhost:8080/magic?token=abc", 24,
+                "http://localhost:8080/databridge/login");
+
+        ArgumentCaptor<SimpleMailMessage> enviado = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(smtp).send(enviado.capture());
+        String texto = enviado.getValue().getText();
+        assertTrue(texto.contains("Hola Ana Soto"), texto);
+        assertTrue(texto.contains("como parte de Empresa Test"));
+        assertTrue(texto.contains("http://localhost:8080/magic?token=abc"));
+        assertTrue(texto.contains("24 horas"));
+        //  Si el enlace vencio, la persona sabe por donde pedir otro.
+        assertTrue(texto.contains("http://localhost:8080/databridge/login"));
+        assertTrue(texto.contains("No hay") && texto.contains("contrasena"));
+    }
+
+    @Test
     void sin_smtp_no_intenta_mandar_nada() {
         correo("").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", null);
         verify(smtp, never()).send(any(SimpleMailMessage.class));

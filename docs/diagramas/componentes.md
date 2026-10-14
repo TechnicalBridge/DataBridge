@@ -51,7 +51,7 @@ flowchart LR
     GW -->|"/api/ai/**"| AI
 
     DEBT -->|"POST /internal/codigos"| AUTH
-    AUTH -->|"GET /internal/deudores/{rut}/correo"| DEBT
+    AUTH -->|"GET /internal/deudores/{rut}/correo<br/>GET /internal/organizaciones/{rut}"| DEBT
     PAY -->|"GET /internal/debts/{id}<br/>GET /internal/cartera/{rut}"| DEBT
     PAY -.->|"pago.confirmado"| MQ
     MQ -.->|"cola ms-debt.pagos-confirmados"| DEBT
@@ -72,7 +72,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | **portal** | Las páginas de los tres portales (`/app`, `/databridge`, `/admin`), y de paso la única puerta: reenvía `/api` al gateway | El gateway | React 18, Vite, Zustand, axios y recharts; nginx para servirlo |
 | **gateway** | Una sola entrada a todos los servicios, el límite de peticiones por origen, CORS y la página de Swagger que junta la documentación de todos | Los cuatro servicios | Java 25, Spring Boot 3.5, Spring Cloud Gateway, Bucket4j |
-| **ms-auth** | Entrar con código o con enlace, renovar y cerrar la sesión, «quién soy», y emitir códigos para ms-debt | `tb_auth`, ms-debt (el correo de un deudor) y un servidor de correo | Java 25, Spring Boot 3.5, Spring Security, JJWT, Flyway |
+| **ms-auth** | Entrar con código o con enlace, renovar y cerrar la sesión, «quién soy», emitir códigos para ms-debt, y las personas con cuenta para el panel | `tb_auth`, ms-debt (el correo de un deudor, y si una empresa existe) y un servidor de correo | Java 25, Spring Boot 3.5, Spring Security, JJWT, Flyway |
 | **ms-debt** | Las deudas y todo lo que se hace con ellas, el contrato de integración `/api/v1`, y lo que le preguntan los otros servicios | `tb_debt`, ms-auth (mandar un código), RabbitMQ y el sistema de cada empresa suscrita | Java 25, Spring Boot 3.5, Spring Data JPA, Spring HATEOAS, Flyway |
 | **ms-payments** | Abrir, confirmar y consultar cobros, las vueltas y avisos de las pasarelas, y la UF | `tb_payments`, ms-debt (el monto), RabbitMQ, las tres pasarelas y el Banco Central | Java 25, Spring Boot 3.5, Spring Data JPA, Flyway |
 | **ms-ai** | El chat del asistente | ms-debt (las deudas, con la sesión del deudor) y, si está configurado, un LLM | Java 25, Spring Boot 3.5, el SDK de OpenAI para Java |
@@ -127,23 +127,23 @@ utilidades se usan desde todas las capas.
 
 ### ms-auth
 
-`com.tbridge.auth` · 41 tipos en 11 paquetes.
+`com.tbridge.auth` · 48 tipos en 11 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>3 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>3 clases"]
+    service["service<br/>4 clases"]
     client["client<br/>1 clase"]
-    repository["repository<br/>5 clases"]
-    model["model<br/>5 clases"]
-    dto["dto<br/>10 clases"]
+    repository["repository<br/>6 clases"]
+    model["model<br/>6 clases"]
+    dto["dto<br/>13 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
         config["config<br/>4 clases"]
         exception["exception<br/>3 clases"]
-        util["util<br/>2 clases"]
+        util["util<br/>3 clases"]
     end
     controller --> assembler
     controller --> service
@@ -160,18 +160,18 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 138 tipos en 12 paquetes.
+`com.tbridge.debt` · 147 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>11 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>28 clases"]
+    service["service<br/>29 clases"]
     client["client<br/>1 clase"]
-    repository["repository<br/>13 clases"]
-    model["model<br/>15 clases"]
+    repository["repository<br/>16 clases"]
+    model["model<br/>16 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>48 clases"]
+    dto["dto<br/>52 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>4 clases"]
@@ -275,18 +275,18 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `controller` | Los endpoints. Traducen HTTP y delegan: no tienen reglas de negocio | 3 | 11 | 4 | 2 | — |
 | `assembler` | Los enlaces HATEOAS de cada respuesta | 1 | 1 | 1 | — | — |
-| `service` | Las reglas de negocio, y las tareas programadas | 3 | 28 | 8 | 3 | — |
+| `service` | Las reglas de negocio, y las tareas programadas | 4 | 29 | 8 | 3 | — |
 | `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 1 | 6 | 1 | — |
-| `repository` | El acceso a la base, con Spring Data JPA | 5 | 13 | 4 | — | — |
-| `model` | Las entidades, una por tabla | 5 | 15 | 4 | — | — |
+| `repository` | El acceso a la base, con Spring Data JPA | 6 | 16 | 4 | — | — |
+| `model` | Las entidades, una por tabla | 6 | 16 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
-| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 10 | 48 | 12 | 4 | — |
+| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 13 | 52 | 12 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
 | `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 4 | 6 | 3 | 1 | 1 |
 | `exception` | Los errores propios y su forma de respuesta | 3 | 6 | 3 | 2 | — |
-| `util` | El RUT, el correo y las huellas | 2 | 3 | 1 | 1 | — |
+| `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **41** | **138** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **48** | **147** | **51** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 
@@ -326,6 +326,9 @@ flowchart LR
         end
         subgraph ADM["/admin · DataBridge"]
             AdminInicio
+            AdminEmpresas
+            AdminEmpresa
+            AdminEquipo
         end
     end
 
@@ -334,6 +337,7 @@ flowchart LR
         Layout
         Chatbot
         CargaCsv
+        AdminPersonas
     end
 
     subgraph STO["store"]
@@ -365,7 +369,9 @@ flowchart LR
     Cargar --> CargaCsv --> deudas
     Campanas --> campanas & deudas
     Claves --> claves
-    AdminInicio --> admin
+    AdminInicio & AdminEmpresas --> admin
+    AdminEmpresa & AdminEquipo --> admin
+    AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
     Chatbot --> asistente
 
@@ -375,8 +381,8 @@ flowchart LR
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 18 pantallas |
-| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `CargaCsv`, `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
+| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `CargaCsv`, `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
 | `utils/` | Cómo se escriben montos, RUT y fechas en Chile, y las descargas | `formato.js`, `calendario.js`, `exportar.js` |
@@ -393,7 +399,7 @@ Qué módulo de `api/` habla con qué servicio:
 | `claves.js` | `/api/claves/**` | ms-debt |
 | `pagos.js` | `/api/payments/**`, y `/api/debts/pagos/**` para el historial y el comprobante | ms-payments y ms-debt |
 | `asistente.js` | `/api/ai/chat` | ms-ai |
-| `admin.js` | `/api/admin/<servicio>/estado` | ms-auth, ms-debt y ms-payments |
+| `admin.js` | `/api/admin/<servicio>/estado`, `/api/admin/debt/empresas/**` y `/api/admin/auth/**` | ms-auth, ms-debt y ms-payments |
 
 La pantalla del portal de empresas trae los gráficos (recharts), que pesan más que todo lo demás junto: se
 descarga solo al entrar ahí, y el deudor nunca la baja.
