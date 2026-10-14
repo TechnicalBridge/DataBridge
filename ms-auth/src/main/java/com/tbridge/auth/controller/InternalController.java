@@ -3,11 +3,13 @@ package com.tbridge.auth.controller;
 import com.tbridge.auth.config.OpenApiConfig;
 import com.tbridge.auth.dto.request.EmitirCodigoRequest;
 import com.tbridge.auth.dto.response.CodigoEmitidoResponse;
+import com.tbridge.auth.dto.response.CorreoNoEnviadoResponse;
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import com.tbridge.auth.service.AuthService;
 import com.tbridge.auth.service.MailService;
 import com.tbridge.auth.exception.ApiError;
 import com.tbridge.auth.exception.ApiException;
+import com.tbridge.auth.exception.CorreoNoSalio;
 import com.tbridge.auth.util.Correo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -54,12 +56,16 @@ public class InternalController {
     @Operation(summary = "Emitir un codigo de acceso",
             description = """
                     Genera el codigo para un RUT y lo devuelve una sola vez: en la base queda solo su huella. \
-                    Si entre los canales esta el correo y viene la direccion, el correo sale desde aqui.""")
-    @ApiResponse(responseCode = "200", description = "Codigo emitido")
+                    Si entre los canales esta el correo y viene la direccion, el correo sale desde aqui, y la \
+                    respuesta espera a saber si salio: si el servidor de correo no lo acepta responde `502`, y el \
+                    codigo se anula, porque nadie lo recibio. El codigo anterior del deudor sigue sirviendo.""")
+    @ApiResponse(responseCode = "200", description = "Codigo emitido y, si iba por correo, entregado al servidor")
     @ApiResponse(responseCode = "400", description = "RUT no valido",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "401", description = "Clave interna invalida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "El correo no salio: lo que dijo el servidor, y de quien es la culpa",
+            content = @Content(schema = @Schema(implementation = CorreoNoEnviadoResponse.class)))
     public CodigoEmitidoResponse emitir(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
             @Valid @RequestBody EmitirCodigoRequest pedido
@@ -71,10 +77,17 @@ public class InternalController {
         //  El envio por correo sale de aqui; el de WhatsApp lo hara el motor
         //  de campana cuando exista, con el mismo codigo.
         if (canales.contains("correo") && pedido.correo() != null) {
-            if (pedido.vence() != null) {
-                correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
-            } else {
-                correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
+            try {
+                if (pedido.vence() != null) {
+                    correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
+                } else {
+                    correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
+                }
+            } catch (CorreoNoSalio noSalio) {
+                //  Nadie recibio ese codigo: se anula, y el que el deudor ya
+                //  tenia sigue sirviendo. Quien lo pidio se entera con un 502.
+                auth.anularCodigo(emitido.rut(), emitido.codigo());
+                throw noSalio;
             }
         }
         return emitido;

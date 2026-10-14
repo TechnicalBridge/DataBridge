@@ -16,4 +16,7 @@ public interface AccessCodeRepository extends JpaRepository<AccessCode, Long> {
      * gratis.
      */
     Optional<AccessCode> findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(String debtorRut);
+
+    /** Saca un codigo recien emitido que nadie recibio. Dice cuantos saco. */
+    long deleteByCodeHash(String codeHash);
 }

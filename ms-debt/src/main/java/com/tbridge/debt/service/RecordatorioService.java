@@ -2,6 +2,7 @@ package com.tbridge.debt.service;
 
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
@@ -19,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 /**
  * El correo que le recuerda al deudor una cuota por vencer.
@@ -31,8 +35,9 @@ import java.util.List;
  * cuanto debe alguien ni a quien, ni llevarlo a ninguna parte.
  *
  * <p>Cada cuota se avisa una sola vez: que ya se aviso es que existe su
- * contacto, y la base no deja que haya dos. Si ms-auth no responde, no queda
- * ninguno y el aviso sale en la pasada siguiente.
+ * contacto, y la base no deja que haya dos. Si ms-auth no responde, o el
+ * correo no sale, no queda ninguno y el aviso sale en la pasada siguiente, al
+ * otro dia. Si la culpa es del servidor de correo, la pasada se corta ahi.
  */
 @Service
 public class RecordatorioService {
@@ -71,11 +76,13 @@ public class RecordatorioService {
     public RecordatoriosResponse enviar(LocalDate hoy) {
         int enviados = 0;
         int omitidos = 0;
+        Set<Debtor> fallaron = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Installment cuota : installments.porRecordar(Installment.Status.pending, hoy, hoy.plusDays(diasAntes),
                 EN_COBRANZA)) {
             Debt deuda = cuota.getDebt();
             Debtor deudor = deuda.getDebtor();
-            if (!deudor.isReminders() || deudor.getEmail() == null || deudor.getEmail().isBlank()) {
+            if (!deudor.isReminders() || deudor.getEmail() == null || deudor.getEmail().isBlank()
+                    || deudor.correoConProblemas() || fallaron.contains(deudor)) {
                 omitidos++;
                 continue;
             }
@@ -89,6 +96,15 @@ public class RecordatorioService {
                 auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
                         deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId(),
                         cuota.getDueDate()));
+            } catch (CorreoNoSalio noSalio) {
+                deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), Instant.now());
+                omitidos++;
+                if (!noSalio.deLaDireccion()) {
+                    log.warn("Recordatorios: la pasada se corta, el correo no sale: {}", noSalio.motivo());
+                    return new RecordatoriosResponse(enviados, omitidos);
+                }
+                fallaron.add(deudor);
+                continue;
             } catch (ApiException e) {
                 log.warn("No se pudo recordar la cuota {} de {}: {}", cuota.getId(), deuda.getExternalId(),
                         e.getMessage());
@@ -96,6 +112,7 @@ public class RecordatorioService {
                 continue;
             }
             contactos.save(Contact.recordatorio(cuota, AccesoService.enmascarar(deudor.getEmail())));
+            deudor.correoSalio();
             enviados++;
         }
         return new RecordatoriosResponse(enviados, omitidos);

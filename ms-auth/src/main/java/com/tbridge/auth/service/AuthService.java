@@ -137,6 +137,19 @@ public class AuthService {
                 "Entra a " + publicUrl + " y escribe tu RUT y el codigo");
     }
 
+    /**
+     * Anula un codigo recien emitido que nadie recibio, porque su correo no
+     * salio.
+     *
+     * <p>No es solo orden. Para entrar vale el ultimo codigo sin usar del RUT:
+     * si este quedara, el que el deudor si recibio la vez anterior dejaria de
+     * servirle, por culpa de un correo que nunca vio.
+     */
+    @Transactional
+    public void anularCodigo(String rut, String codigo) {
+        codigos.deleteByCodeHash(huella(rut, codigo));
+    }
+
     // ------------------------------------------------------------------
     //  Entrar con el codigo
     // ------------------------------------------------------------------

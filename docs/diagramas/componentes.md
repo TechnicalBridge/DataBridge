@@ -127,7 +127,7 @@ utilidades se usan desde todas las capas.
 
 ### ms-auth
 
-`com.tbridge.auth` · 51 tipos en 11 paquetes.
+`com.tbridge.auth` · 53 tipos en 11 paquetes.
 
 ```mermaid
 flowchart LR
@@ -137,12 +137,12 @@ flowchart LR
     client["client<br/>1 clase"]
     repository["repository<br/>6 clases"]
     model["model<br/>6 clases"]
-    dto["dto<br/>14 clases"]
+    dto["dto<br/>15 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
         config["config<br/>5 clases"]
-        exception["exception<br/>3 clases"]
+        exception["exception<br/>4 clases"]
         util["util<br/>3 clases"]
     end
     controller --> assembler
@@ -160,14 +160,14 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 151 tipos en 12 paquetes.
+`com.tbridge.debt` · 152 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>11 clases"]
     assembler["assembler<br/>1 clase"]
     service["service<br/>29 clases"]
-    client["client<br/>1 clase"]
+    client["client<br/>2 clases"]
     repository["repository<br/>19 clases"]
     model["model<br/>17 clases"]
     events["events<br/>1 clase"]
@@ -276,17 +276,17 @@ flowchart LR
 | `controller` | Los endpoints. Traducen HTTP y delegan: no tienen reglas de negocio | 3 | 11 | 4 | 2 | — |
 | `assembler` | Los enlaces HATEOAS de cada respuesta | 1 | 1 | 1 | — | — |
 | `service` | Las reglas de negocio, y las tareas programadas | 5 | 29 | 8 | 3 | — |
-| `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 1 | 6 | 1 | — |
+| `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 2 | 6 | 1 | — |
 | `repository` | El acceso a la base, con Spring Data JPA | 6 | 19 | 4 | — | — |
 | `model` | Las entidades, una por tabla | 6 | 17 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
-| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 14 | 52 | 12 | 4 | — |
+| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 15 | 52 | 12 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
 | `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 5 | 6 | 3 | 1 | 1 |
-| `exception` | Los errores propios y su forma de respuesta | 3 | 6 | 3 | 2 | — |
+| `exception` | Los errores propios y su forma de respuesta | 4 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **51** | **151** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **53** | **152** | **51** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 

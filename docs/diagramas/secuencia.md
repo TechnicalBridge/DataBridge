@@ -242,13 +242,23 @@ sequenceDiagram
     Note over IV: después de confirmar la transacción, en segundo plano
     IV->>B: la deuda sigue abierta y el deudor tiene correo
     IV->>B: LimiteDeContacto: gestiones de los últimos 7 días
-    opt la ley deja escribirle
+    opt la ley deja escribirle, y su dirección no tiene problemas
         IV->>AU: POST /internal/codigos, con la clave interna
         AU->>AU: guarda la huella del código, vigente 24 horas
-        AU-)C: correo con el código: sin monto y sin enlace
-        IV->>B: contacts: la invitación, con el destino tapado
+        AU->>C: correo con el código: sin monto y sin enlace
+        alt el servidor de correo lo acepta
+            AU-->>IV: 200
+            IV->>B: contacts: la invitación, con el destino tapado
+        else no lo acepta
+            AU->>AU: anula el código: nadie lo recibió
+            AU-->>IV: 502, con el motivo y de quién es la culpa
+            IV->>B: debtors: el motivo, y un rechazo más si fue la dirección
+        end
     end
 ```
+
+Una invitación que no salió la vuelve a intentar la pasada de contacto ([10](#10-la-campaña-le-escribe-al-deudor)),
+que antes de las campañas invita a toda deuda en cobranza que todavía no recibió ningún correo.
 
 Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`) hace el mismo recorrido:
 `CargaService` convierte la planilla con `CarteraCsv` y llama al mismo `CarteraIntakeService.recibir`.
@@ -570,11 +580,18 @@ sequenceDiagram
                     CS->>LC: permite(deudor, ahora)
                     LC->>B: gestiones al deudor en los últimos 7 días
                     LC-->>CS: sí, si lleva menos de 2 y pasaron 2 días desde la última
-                    opt le toca y la ley lo deja
+                    opt le toca, la ley lo deja y su dirección no tiene problemas
                         CS->>AC: emitirCodigo(rut, correo, acreedor)
                         AC->>AU: POST /internal/codigos, con la clave interna
-                        AU-)C: correo con el código: sin monto y sin enlace
-                        CS->>B: contacts: el toque, con su campaña y su número
+                        AU->>C: correo con el código: sin monto y sin enlace
+                        alt sale
+                            CS->>B: contacts: el toque, con su campaña y su número
+                        else el servidor rechazó la dirección
+                            CS->>B: debtors: el motivo y un rechazo más
+                        else falló el servidor de correo
+                            CS->>B: debtors: el motivo
+                            Note over CS: la pasada se corta: lo que falta,<br/>en la siguiente
+                        end
                     end
                 end
             end
@@ -582,8 +599,14 @@ sequenceDiagram
     end
 ```
 
-Un correo que no pudo salir no se pierde: en la pasada siguiente se vuelve a preguntar, y sale en cuanto la ley
-lo deja. Una deuda repactada, pagada, en reclamo o retirada deja de recibir los correos de la campaña.
+Un correo que no pudo salir no se pierde: no queda como toque, así que en la pasada siguiente se vuelve a
+preguntar, y sale en cuanto la ley lo deja. Si el servidor rechazó tres veces seguidas la dirección del deudor,
+deja de intentarse hasta que una cartera traiga otra. Una deuda repactada, pagada, en reclamo o retirada deja de
+recibir los correos de la campaña.
+
+Antes de las campañas, la misma pasada invita a las deudas en cobranza que todavía no recibieron ningún correo
+(`InvitacionService.invitarPendientes`): las que fallaron, las que la ley dejó para después y las de un deudor
+que recién trajo correo.
 
 El **recordatorio de cuotas** (`RecordatorioService`, todos los días a las 9:00) sigue el mismo camino con otra
 pregunta: las cuotas pendientes que vencen en los próximos 3 días, de deudores que no apagaron el recordatorio.

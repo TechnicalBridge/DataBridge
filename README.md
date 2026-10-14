@@ -457,6 +457,22 @@ contraseña no aparece ni ahí ni en la respuesta de la prueba.
 
 Para volver al buzón de prueba, se deja `SMTP_HOST` vacío y se reinicia ms-auth.
 
+**Si un correo no sale.** Con un servidor real pasa: una contraseña mala, el cupo del día, una
+dirección que no existe. Un correo que no sale **no cuenta como enviado**:
+
+- ms-auth responde `502` con lo que dijo el servidor, y anula el código de ese correo: nadie lo
+  recibió, y el que el deudor ya tenía le sigue sirviendo.
+- ms-debt no lo anota como contacto ni lo cuenta para el límite de dos por semana. El motivo queda
+  en el deudor, y la empresa lo ve en su cartera: *No se pudo enviar el correo del …: …*. Si
+  reenvía el código, ve el error en el momento.
+- **Si la culpa es del servidor de correo**, el mismo correo sale solo cuando se corrige: la
+  pasada de contacto (cada 15 minutos, dentro del horario de la ley) invita a toda deuda en
+  cobranza que todavía no recibió ningún correo, y la campaña vuelve a intentar su toque. La
+  pasada se corta al primer fallo, en vez de esperar al servidor una vez por deuda.
+- **Si la culpa es de la dirección** (el servidor la rechazó), tres rechazos seguidos la dejan como
+  *correo con problemas*: ya no se le escribe solo, hasta que una cartera traiga otro correo. La
+  empresa igual puede reenviarle el código a mano.
+
 > Una cuenta de Gmail deja mandar unos cientos de correos al día y es para probar. Los enlaces de
 > los correos apuntan a `PUBLIC_URL` (`http://localhost:8080`), así que se abren en el equipo donde
 > corre DataBridge, no desde un teléfono.
@@ -840,7 +856,7 @@ las entidades con las tablas y se niega a partir si no calzan.
 
 | Base | Migraciones |
 | --- | --- |
-| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla |
+| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale |
 | `tb_auth` | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel |
 | `tb_payments` | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
@@ -1669,13 +1685,13 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**695 pruebas**, todas en Java y sin fallos:
+**735 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 17 |
-| `ms-auth` | 143 |
-| `ms-debt` | 315 |
+| `ms-auth` | 153 |
+| `ms-debt` | 345 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |
 

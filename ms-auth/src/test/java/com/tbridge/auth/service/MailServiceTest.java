@@ -1,22 +1,31 @@
 package com.tbridge.auth.service;
 
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
+import com.tbridge.auth.exception.CorreoNoSalio;
+import jakarta.mail.Address;
+import jakarta.mail.AuthenticationFailedException;
+import jakarta.mail.MessagingException;
+import jakarta.mail.SendFailedException;
+import jakarta.mail.internet.InternetAddress;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -50,6 +59,96 @@ class MailServiceTest {
         ArgumentCaptor<SimpleMailMessage> mensaje = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(smtp).send(mensaje.capture());
         return mensaje.getValue();
+    }
+
+    // ------------------------------------------------------------------
+    //  Cuando el correo de un codigo no sale
+    // ------------------------------------------------------------------
+
+    /**
+     * Como Spring entrega un correo que el servidor rechazo: un
+     * MailSendException sin causa, con lo de cada mensaje aparte.
+     */
+    private static MailSendException rechazado(String respuesta, boolean direccionInvalida) throws Exception {
+        Address[] la = {new InternetAddress("felipe.rojas@correo.cl")};
+        Address[] ninguna = {};
+        SendFailedException fallo = new SendFailedException(direccionInvalida ? "Invalid Addresses" : "Send failed",
+                new MessagingException(respuesta), ninguna, direccionInvalida ? ninguna : la, direccionInvalida ? la : ninguna);
+        return new MailSendException(Map.of(new Object(), fallo));
+    }
+
+    @Test
+    void si_el_servidor_rechaza_la_direccion_el_codigo_lo_dice_y_la_culpa_es_de_la_direccion() throws Exception {
+        MailService servicio = real("", "");
+        doThrow(rechazado("550 5.1.1 The email account that you tried to reach does not exist", true))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class,
+                () -> servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles"));
+
+        assertTrue(fallo.deLaDireccion());
+        assertEquals("550 5.1.1 The email account that you tried to reach does not exist", fallo.getMessage(),
+                "lo que dijo el servidor, no el envoltorio de Spring");
+    }
+
+    @Test
+    void con_credenciales_malas_la_culpa_es_del_servidor_y_la_clave_no_aparece() {
+        MailService servicio = real("", "");
+        doThrow(new MailAuthenticationException(new AuthenticationFailedException(
+                "535-5.7.8 Username and Password not accepted (abcd efgh ijkl mnop)")))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class,
+                () -> servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles"));
+
+        assertFalse(fallo.deLaDireccion(), "corregidas las credenciales, el mismo correo sale");
+        assertTrue(fallo.getMessage().startsWith("535-5.7.8 Username and Password not accepted"), fallo.getMessage());
+        assertFalse(fallo.getMessage().contains("abcd efgh ijkl mnop"));
+    }
+
+    @Test
+    void un_rechazo_temporal_no_es_culpa_de_la_direccion() throws Exception {
+        MailService servicio = real("", "");
+        doThrow(rechazado("451 4.3.0 Mail server temporarily rejected message", false))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class,
+                () -> servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles"));
+
+        assertFalse(fallo.deLaDireccion());
+    }
+
+    @Test
+    void un_servidor_que_no_responde_tampoco_es_culpa_de_la_direccion() {
+        MailService servicio = real("", "");
+        doThrow(new MailSendException("Mail server connection failed",
+                new MessagingException("Couldn't connect to host", new java.net.SocketTimeoutException("Connect timed out"))))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class,
+                () -> servicio.enviarRecordatorio("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles",
+                        LocalDate.of(2026, 10, 20)));
+
+        assertFalse(fallo.deLaDireccion());
+        assertEquals("Connect timed out", fallo.getMessage());
+    }
+
+    @Test
+    void lo_que_el_modo_de_prueba_no_deja_salir_no_es_un_fallo() {
+        MailService servicio = real("equipo@gmail.com", "");
+
+        assertDoesNotThrow(() -> servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles"));
+        verify(smtp, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void el_enlace_y_la_invitacion_no_lanzan_aunque_el_servidor_falle() {
+        MailService servicio = real("", "");
+        doThrow(new MailAuthenticationException("535 no")).when(smtp).send(any(SimpleMailMessage.class));
+
+        assertDoesNotThrow(() -> servicio.enviarEnlace("camila.reyes@apofyx.cl", "http://localhost:8080/magic?token=x", 15));
+        assertDoesNotThrow(() -> servicio.enviarInvitacion("camila.reyes@apofyx.cl", "Camila", "al panel",
+                "http://localhost:8080/magic?token=x", 24, "http://localhost:8080/empresas"));
     }
 
     // ------------------------------------------------------------------

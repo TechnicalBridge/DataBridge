@@ -7,7 +7,7 @@ DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQ
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
 | [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos · `V8` correo que no sale |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago |
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
@@ -271,6 +271,9 @@ erDiagram
         varchar(10) kind "person o company"
         varchar(160) full_name
         varchar(254) email "opcional"
+        datetime email_failed_at "opcional · la última vez que un correo no salió; vacío si el último salió"
+        varchar(300) email_failure "opcional · por qué no salió, con la dirección tapada"
+        smallint email_rejections "rechazos seguidos de la dirección; a los 3, no se le escribe solo"
         varchar(20) phone "opcional"
         boolean reminders "si quiere el recordatorio de sus cuotas"
         datetime created_at
@@ -387,7 +390,7 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 39 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 41 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
@@ -409,6 +412,8 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `debt_events` | `ck_debt_event_currency` | `((currency is null) or (currency in ('CLP','UF')))` |
 | `debt_events` | `ck_debt_event_type` | `(type in ('registered','updated','withdrawn','portal_entered','repacted','payment_applied','settled','disputed'))` |
 | `debtors` | `ck_debtor_canal` | `((email is not null) or (phone is not null))` |
+| `debtors` | `ck_debtor_email_failure` | `((email_failed_at is null) = (email_failure is null))` |
+| `debtors` | `ck_debtor_email_rejections` | `((email_rejections = 0) or (email_failed_at is not null))` |
 | `debtors` | `ck_debtor_kind` | `(kind in ('person','company'))` |
 | `debtors` | `ck_debtor_rut` | `regexp_like(rut,'^[0-9]{7,8}-[0-9K]$')` |
 | `debts` | `ck_debt_amount` | `(original_amount > 0)` |
