@@ -202,4 +202,34 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$._embedded.acciones[0].quien").value("admin@databridge.cl"))
                 .andExpect(jsonPath("$._embedded.acciones[0].cuando").value("2026-10-13T15:00:00Z"));
     }
+
+    @Test
+    void suspender_y_reactivar_desde_el_panel() throws Exception {
+        when(empresas.suspender(eq("77305118-6"), any())).thenReturn(new EmpresaResponse(
+                "77305118-6", "APOFYX SpA", "APOFYX", "agencia", false,
+                Instant.parse("2026-09-01T12:00:00Z"), 12, 9, List.of(), List.of()));
+        when(empresas.reactivar(eq("77305118-6"), any())).thenReturn(new EmpresaResponse(
+                "77305118-6", "APOFYX SpA", "APOFYX", "agencia", true,
+                Instant.parse("2026-09-01T12:00:00Z"), 12, 9, List.of(), List.of()));
+
+        mvc.perform(post(EMPRESAS + "/77305118-6/suspender").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activa").value(false));
+
+        mvc.perform(post(EMPRESAS + "/77305118-6/reactivar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activa").value(true));
+    }
+
+    @Test
+    void una_empresa_o_un_deudor_no_pueden_suspender_o_reactivar() throws Exception {
+        mvc.perform(post(EMPRESAS + "/77305118-6/suspender").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(EMPRESAS + "/77305118-6/suspender").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(EMPRESAS + "/77305118-6/reactivar").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(EMPRESAS + "/77305118-6/reactivar").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
 }

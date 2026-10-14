@@ -438,6 +438,18 @@ class DebtServiceTest {
     }
 
     @Test
+    void una_empresa_suspendida_no_ve_su_cartera() {
+        Organization suspendida = organizacion(10L, "76999888-7", "Suspendida");
+        suspendida.setStatus(Organization.Status.suspended);
+        when(organizations.findByRut("76999888-7")).thenReturn(Optional.of(suspendida));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.listFor(empresa("76999888-7")));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        assertEquals("La empresa esta suspendida", error.getMessage());
+    }
+
+    @Test
     void ms_payments_cobra_el_saldo_y_la_cuota_que_vence_primero() {
         DebtSnapshotResponse snapshot = servicio.snapshotInterno(3L, null);
 

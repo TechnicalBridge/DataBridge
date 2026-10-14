@@ -65,6 +65,7 @@ class AuthServiceTest {
         correo = mock(MailService.class);
         deudas = mock(DeudasClient.class);
         when(deudas.correoDelDeudor(any())).thenReturn(Optional.empty());
+        when(deudas.empresa(any())).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", true)));
         JwtService jwt = new JwtService("unit-test-secret-key-32-chars!!!", 15);
         SessionService sesiones = new SessionService(this.sesiones.repositorio,
                 java.time.Duration.ofDays(7), java.time.Clock.systemUTC());
@@ -376,5 +377,31 @@ class AuthServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertTrue(sesiones.filas.stream().allMatch(Session::revocada), "toda la familia queda revocada");
+    }
+
+    @Test
+    void el_personal_de_una_empresa_suspendida_no_recibe_enlace_no_entra_ni_renueva() {
+        when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
+        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", false)));
+
+        // 1. Pedir enlace: no recibe correo
+        auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
+        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
+
+        // 2. Entrar con enlace: lanza 401
+        conEnlaceDe(camila(true));
+        ApiException errorEntrar = assertThrows(ApiException.class, () -> auth.entrarConEnlace("token", "10.0.0.1"));
+        assertEquals(HttpStatus.UNAUTHORIZED, errorEntrar.getStatus());
+        assertEquals("La empresa esta suspendida", errorEntrar.getMessage());
+
+        // 3. Renovar sesion: si se suspende despues de haber entrado, al renovar se rechaza
+        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", true)));
+        conEnlaceDe(camila(true));
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+
+        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", false)));
+        ApiException errorRenovar = assertThrows(ApiException.class, () -> auth.renovar(sesion.llave().valor(), "10.0.0.1"));
+        assertEquals(HttpStatus.UNAUTHORIZED, errorRenovar.getStatus());
+        assertEquals("La empresa esta suspendida", errorRenovar.getMessage());
     }
 }

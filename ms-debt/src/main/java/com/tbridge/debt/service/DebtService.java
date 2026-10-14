@@ -136,9 +136,13 @@ public class DebtService {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "El token no dice de que empresa eres: no se puede mostrar una cartera");
         }
-        return organizations.findByRut(user.rut())
+        Organization org = organizations.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "Esa empresa no esta registrada en DataBridge"));
+        if (org.getStatus() == Organization.Status.suspended) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "La empresa esta suspendida");
+        }
+        return org;
     }
 
     /**

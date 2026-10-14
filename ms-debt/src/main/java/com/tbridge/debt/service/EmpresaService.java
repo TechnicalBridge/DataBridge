@@ -113,6 +113,35 @@ public class EmpresaService {
         return armar(nueva, Totales.ninguno(), List.of());
     }
 
+    /**
+     * Suspende una empresa usuaria: sus personas no pueden entrar y sus claves
+     * de API dejan de operar. Queda anotado quien lo hizo.
+     */
+    @Transactional
+    public EmpresaResponse suspender(String rutCrudo, String admin) {
+        Organization empresa = exigir(rutCrudo);
+        if (empresa.getStatus() != Organization.Status.suspended) {
+            empresa.setStatus(Organization.Status.suspended);
+            organizations.save(empresa);
+            bitacora.save(AdminLog.de(admin, AdminLog.Action.empresa_suspendida, empresa.getRut(), empresa.getTradeName()));
+        }
+        return armar(empresa, totales(), mandates.todosConSusEmpresas());
+    }
+
+    /**
+     * Reactiva una empresa usuaria previamente suspendida. Queda anotado quien lo hizo.
+     */
+    @Transactional
+    public EmpresaResponse reactivar(String rutCrudo, String admin) {
+        Organization empresa = exigir(rutCrudo);
+        if (empresa.getStatus() != Organization.Status.active) {
+            empresa.setStatus(Organization.Status.active);
+            organizations.save(empresa);
+            bitacora.save(AdminLog.de(admin, AdminLog.Action.empresa_reactivada, empresa.getRut(), empresa.getTradeName()));
+        }
+        return armar(empresa, totales(), mandates.todosConSusEmpresas());
+    }
+
     /** Lo que se hizo sobre una empresa desde el panel, lo mas reciente primero. */
     @Transactional(readOnly = true)
     public List<AccionResponse> historial(String rutCrudo) {

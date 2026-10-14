@@ -28,6 +28,14 @@ export const obtenerEmpresa = (rut) => pedir(`/admin/debt/empresas/${encodeURICo
 /** Dar de alta una empresa usuaria: una agencia, o un acreedor que cobra directo. */
 export const crearEmpresa = (empresa) => pedir("/admin/debt/empresas", { method: "POST", body: empresa });
 
+/** Suspender una empresa usuaria: corta su acceso y el de sus personas y claves de API. */
+export const suspenderEmpresa = (rut) =>
+  pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}/suspender`, { method: "POST" });
+
+/** Reactivar una empresa usuaria previamente suspendida. */
+export const reactivarEmpresa = (rut) =>
+  pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}/reactivar`, { method: "POST" });
+
 // ---- Las personas (ms-auth) ----------------------------------------------------
 
 export const listarPersonal = (rut) =>

@@ -227,10 +227,14 @@ public class AuthService {
             if (email == null || !email.contains("@")) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Correo no valido");
             }
-            destino = personal.findByEmailIgnoreCase(email.trim())
+            StaffUser staff = personal.findByEmailIgnoreCase(email.trim())
                     .filter(StaffUser::habilitado)
-                    .map(s -> s.getEmail().toLowerCase(Locale.ROOT))
                     .orElse(null);
+            if (staff != null && staff.getOrgRut() != null
+                    && !deudas.empresa(staff.getOrgRut()).map(DeudasClient.Empresa::activa).orElse(true)) {
+                staff = null;
+            }
+            destino = staff != null ? staff.getEmail().toLowerCase(Locale.ROOT) : null;
         }
 
         if (destino == null) {
@@ -273,6 +277,10 @@ public class AuthService {
         if (staff == null || !staff.habilitado()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso");
         }
+        if (staff.getOrgRut() != null
+                && !deudas.empresa(staff.getOrgRut()).map(DeudasClient.Empresa::activa).orElse(true)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La empresa esta suspendida");
+        }
         staff.setLastLoginAt(Instant.now());
         personal.save(staff);
         return sesionDePersonal(staff, ipHash);
@@ -302,6 +310,11 @@ public class AuthService {
         if (staff == null || !staff.habilitado() || rolDeSesion(staff) != renovada.role()) {
             sesiones.revocarFamilia(renovada.familia());
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no esta habilitado");
+        }
+        if (staff.getOrgRut() != null
+                && !deudas.empresa(staff.getOrgRut()).map(DeudasClient.Empresa::activa).orElse(true)) {
+            sesiones.revocarFamilia(renovada.familia());
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La empresa esta suspendida");
         }
         return new Sesion(jwtDePersonal(staff), UsuarioResponse.personal(staff), renovada.llave());
     }
