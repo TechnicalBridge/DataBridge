@@ -461,6 +461,21 @@ Para volver al buzón de prueba, se deja `SMTP_HOST` vacío y se reinicia ms-aut
 > los correos apuntan a `PUBLIC_URL` (`http://localhost:8080`), así que se abren en el equipo donde
 > corre DataBridge, no desde un teléfono.
 
+#### Cuentas de prueba y prueba de punta a punta (Gmail y Outlook)
+
+Para comprobar de forma automática que los correos llegan a buzones reales y cuánto tardan en llegar, el equipo utiliza tres cuentas de prueba:
+
+| Cuenta | Proveedor | Para qué |
+| --- | --- | --- |
+| `databridge.pruebas@gmail.com` | Gmail | Remitente: DataBridge envía desde ella por SMTP con su contraseña de aplicación. |
+| `deudores.databridge@gmail.com` | Gmail | Buzón de deudores: recibe las invitaciones y recordatorios. Con alias `+` (`deudores.databridge+deudor1@gmail.com`) todos llegan al mismo buzón. |
+| `deudor.databridge@outlook.com` | Outlook | Buzón alternativo: comprueba que los correos llegan a otro proveedor fuera de Google. |
+
+Las credenciales no se guardan en el repositorio: se configuran en el `.env` local o en los *secrets* del repositorio en GitHub.
+
+**Prueba automática de punta a punta:**
+El script en `pruebas/correo-real/probar_correo_real.py` emite un código para un deudor de prueba, lee el buzón por IMAP con su contraseña de aplicación, extrae el código, inicia sesión en el portal y mide cuánto tardó el correo en llegar (falla si supera los 2 minutos / 120 s). Se ejecuta a mano o desde GitHub Actions (*Actions → Prueba E2E de correo real*) mediante `workflow_dispatch`.
+
 ### Para pagar con Webpay
 
 Webpay abre la página real de Transbank, en su ambiente de **integración**: no se mueve plata.

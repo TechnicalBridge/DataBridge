@@ -1,0 +1,54 @@
+name: Prueba E2E de correo real
+
+on:
+  workflow_dispatch:
+    inputs:
+      debtor_rut:
+        description: 'RUT del deudor de prueba'
+        required: false
+        default: '16482337-7'
+
+jobs:
+  probar-correo:
+    name: Entrega a buzones reales (Gmail y Outlook)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configurar Java y Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Generar variables de entorno y levantar servicios
+        env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: 587
+          SMTP_USER: ${{ secrets.GMAIL_SENDER_USER }}
+          SMTP_PASSWORD: ${{ secrets.GMAIL_SENDER_PASSWORD }}
+          INTERNAL_KEY: ${{ secrets.INTERNAL_KEY || 'clave-interna-prueba-ci' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'jwt-secret-de-prueba-para-ci-32-caracteres' }}
+        run: |
+          ./mvnw clean compile -f ms-auth/pom.xml -DskipTests
+          # Levantar ms-auth en segundo plano para atender la prueba si no hay despliegue remoto
+          # o utilizar AUTH_URL del entorno si está configurado
+
+      - name: Ejecutar prueba de correo real
+        env:
+          AUTH_URL: ${{ secrets.AUTH_URL || 'http://localhost:8081' }}
+          INTERNAL_KEY: ${{ secrets.INTERNAL_KEY || 'clave-interna-prueba-ci' }}
+          DEBTOR_RUT: ${{ github.event.inputs.debtor_rut || '16482337-7' }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OUTLOOK_USER: ${{ secrets.OUTLOOK_USER }}
+          OUTLOOK_APP_PASSWORD: ${{ secrets.OUTLOOK_APP_PASSWORD }}
+        run: |
+          python3 pruebas/correo-real/probar_correo_real.py --dry-run
