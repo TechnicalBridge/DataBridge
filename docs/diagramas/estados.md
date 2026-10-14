@@ -19,6 +19,7 @@ Salen del código: de cada lugar donde un servicio cambia un estado.
 | [Un aviso por entregar](#un-aviso-por-entregar) | `OutboxEvent.Status` y `DebtNotification.Status` | ms-debt y ms-payments | `pending`, `delivered`, `failed` |
 | [Un código de acceso](#un-código-de-acceso) | `AccessCode` | ms-auth | Sin usar, usado, vencido, agotado |
 | [Una llave de renovación](#una-llave-de-renovación) | `Session` | ms-auth | Vigente, usada, revocada, vencida |
+| [Una persona con cuenta](#una-persona-con-cuenta) | `StaffUser` | ms-auth | Con acceso, sin acceso |
 
 ---
 
@@ -224,3 +225,27 @@ stateDiagram-v2
 
 Una familia son todas las llaves de un mismo inicio de sesión. Revocar la familia saca a todos los que tengan
 una de sus llaves: al dueño y al que se la copió.
+
+---
+
+## Una persona con cuenta
+
+El usuario de una empresa y el admin de DataBridge. `StaffUser` tampoco tiene una columna de estado: tiene
+acceso mientras `disabled_at` esté vacío.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ConAcceso: un admin la da de alta, y le llega su invitación
+    ConAcceso --> SinAcceso: un admin le quita el acceso
+    SinAcceso --> ConAcceso: un admin se lo devuelve
+```
+
+| Estado | Cómo se sabe | Qué puede hacer |
+| --- | --- | --- |
+| Con acceso | `disabled_at` vacío | Pedir su enlace, entrar y renovar su sesión |
+| Sin acceso | `disabled_at` con la fecha desde cuando | Nada: no le llegan enlaces, los que tenía sin abrir quedaron usados y sus sesiones, revocadas |
+
+La cuenta nunca se borra: queda la persona y desde cuándo no entra. Cada cambio lo anota `admin_log`, con el
+admin que lo hizo. Un admin no se puede quitar el acceso a sí mismo, así que siempre queda al menos uno que
+puede entrar al panel. El **rol no cambia nunca**: quien se dio de alta bajo una empresa es `usuario` de esa
+empresa, y un admin no pasa a ser de una empresa ni al revés.

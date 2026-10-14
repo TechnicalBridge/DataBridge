@@ -127,6 +127,18 @@ public class SessionService {
         sesiones.revocarFamilia(familia, reloj.instant());
     }
 
+    /**
+     * Cierra todas las sesiones de una persona, en todos sus navegadores. Es
+     * lo que pasa cuando un admin le quita el acceso: su JWT vigente dura a lo
+     * mas quince minutos, y despues ya no tiene con que renovarlo.
+     *
+     * @return cuantas llaves se revocaron.
+     */
+    @Transactional
+    public int revocarDe(String correo) {
+        return sesiones.revocarDeCorreo(correo, reloj.instant());
+    }
+
     private Llave emitir(String familia, Session.Role role, String rut, String email,
                          Instant venceEn, String ipHash) {
         //  256 bits al azar: adivinarla no es un problema de intentos por

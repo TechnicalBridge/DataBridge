@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **251 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **267 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 41 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 138 | La cartera: empresas, deudas, convenios, campañas y eventos | 6 |
+| [ms-auth](#ms-auth--el-acceso) | 48 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-debt](#ms-debt--la-cartera) | 147 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -28,11 +28,13 @@ classDiagram
     namespace ms_auth {
         class AccessCode
         class AccessLog
+        class AdminLog
         class MagicLink
         class Session
         class StaffUser
     }
     namespace ms_debt {
+        class AdminLog
         class ApiKey
         class Batch
         class Campaign
@@ -91,7 +93,7 @@ Quién entra y cómo. El deudor no tiene cuenta: entra con su RUT y un código. 
 
 ### El modelo
 
-Cinco entidades que no se apuntan entre sí: cada una se busca por su huella, por un RUT o por un correo.
+Seis entidades que no se apuntan entre sí: cada una se busca por su huella, por un RUT o por un correo.
 
 ```mermaid
 classDiagram
@@ -158,6 +160,8 @@ classDiagram
             -disabledAt : Instant
             +habilitado() boolean
             +esAdmin() boolean
+            +deshabilitar() void
+            +habilitar() void
         }
         class StaffUser_Role["StaffUser.Role"] {
             <<enumeration>>
@@ -188,11 +192,29 @@ classDiagram
             sent
             refused
         }
+        class AdminLog {
+            <<entity>>
+            -id : Long
+            -adminEmail : String
+            -action : Action
+            -orgRut : String
+            -subject : String
+            -occurredAt : Instant
+            +de(String, Action, String, String)$ AdminLog
+        }
+        class AdminLog_Action["AdminLog.Action"] {
+            <<enumeration>>
+            persona_creada
+            admin_creado
+            persona_deshabilitada
+            persona_habilitada
+        }
     }
     Session ..> Session_Role
     StaffUser ..> StaffUser_Role
     AccessLog ..> AccessLog_Method
     AccessLog ..> AccessLog_Outcome
+    AdminLog ..> AdminLog_Action
 ```
 
 | Clase | Paquete | Qué es |
@@ -202,10 +224,11 @@ classDiagram
 | `Session` | `model` | Una llave de renovación de la sesión. Cada uso la jubila y deja otra en la misma familia. |
 | `StaffUser` | `model` | Una persona con cuenta: `usuario` de una empresa o `admin` de DataBridge. |
 | `AccessLog` | `model` | Quién intentó entrar, cómo le fue y desde qué origen. |
+| `AdminLog` | `model` | Lo que un admin hizo con una persona desde el panel: qué, a quién, quién y cuándo. |
 
 ### De la petición a la base
 
-Los controladores traducen HTTP y delegan. Las reglas están en `AuthService` (códigos y enlaces) y en `SessionService` (las llaves de renovación).
+Los controladores traducen HTTP y delegan. Las reglas están en `AuthService` (códigos y enlaces), en `SessionService` (las llaves de renovación) y en `PersonalService` (las personas con cuenta, para el panel).
 
 ```mermaid
 classDiagram
@@ -223,6 +246,14 @@ classDiagram
         class AdminController {
             <<controller>>
             +estado() EstadoResponse
+            +personalDeEmpresa(JwtPrincipal, String) List~PersonaResponse~
+            +crearUsuario(JwtPrincipal, String, NuevaPersonaRequest) PersonaResponse
+            +historialDeEmpresa(String) List~AccionResponse~
+            +admins(JwtPrincipal) List~PersonaResponse~
+            +crearAdmin(JwtPrincipal, NuevaPersonaRequest) PersonaResponse
+            +historialDeAdmins() List~AccionResponse~
+            +deshabilitar(JwtPrincipal, Long) PersonaResponse
+            +habilitar(JwtPrincipal, Long) PersonaResponse
         }
         class InternalController {
             <<controller>>
@@ -252,12 +283,24 @@ classDiagram
             +user : UsuarioResponse
             +llave : SessionService.Llave
         }
+        class PersonalService {
+            <<service>>
+            +deEmpresa(String) List~PersonaResponse~
+            +admins() List~PersonaResponse~
+            +historialDeEmpresa(String) List~AccionResponse~
+            +historialDeAdmins() List~AccionResponse~
+            +crearUsuario(String, NuevaPersonaRequest, JwtPrincipal) PersonaResponse
+            +crearAdmin(NuevaPersonaRequest, JwtPrincipal) PersonaResponse
+            +deshabilitar(Long, JwtPrincipal) PersonaResponse
+            +habilitar(Long, JwtPrincipal) PersonaResponse
+        }
         class SessionService {
             <<service>>
             +abrir(Session.Role, String, String, String) Llave
             +renovar(String, String) Renovada
             +cerrar(String) void
             +revocarFamilia(String) void
+            +revocarDe(String) int
         }
         class SessionService_Llave["SessionService.Llave"] {
             <<record>>
@@ -277,12 +320,20 @@ classDiagram
             +enviarCodigo(String, String, String) void
             +enviarRecordatorio(String, String, String, LocalDate) void
             +enviarEnlace(String, String, long) void
+            +enviarInvitacion(String, String, String, String, long, String) void
         }
     }
     namespace client {
         class DeudasClient {
             <<client>>
             +correoDelDeudor(String) Optional~String~
+            +empresa(String) Optional~Empresa~
+        }
+        class DeudasClient_Empresa["DeudasClient.Empresa"] {
+            <<record>>
+            +rut : String
+            +nombre : String
+            +activa : boolean
         }
         class DeudasClient_Correo["DeudasClient.Correo"] {
             <<record>>
@@ -306,11 +357,14 @@ classDiagram
         class MagicLinkRepository {
             <<repository>>
             +findByTokenHash(String) Optional~MagicLink~
+            +anularPendientesDe(String, Instant) int
         }
         class StaffUserRepository {
             <<repository>>
             +findByEmailIgnoreCase(String) Optional~StaffUser~
             +existsByRole(StaffUser.Role) boolean
+            +findByOrgRutOrderByFullNameAsc(String) List~StaffUser~
+            +findByRoleOrderByFullNameAsc(StaffUser.Role) List~StaffUser~
         }
         class AccessLogRepository {
             <<repository>>
@@ -321,15 +375,23 @@ classDiagram
             +findByRefreshHash(String) Optional~Session~
             +bloquearPorHuella(String) Optional~Session~
             +revocarFamilia(String, Instant) int
+            +revocarDeCorreo(String, Instant) int
+        }
+        class AdminLogRepository {
+            <<repository>>
+            +findByOrgRutOrderByOccurredAtDesc(String) List~AdminLog~
+            +findByOrgRutIsNullOrderByOccurredAtDesc() List~AdminLog~
         }
     }
     AuthService ..> AuthService_Sesion
     SessionService ..> SessionService_Llave
     SessionService ..> SessionService_Renovada
+    DeudasClient ..> DeudasClient_Empresa
     DeudasClient ..> DeudasClient_Correo
     AuthController --> AuthService
     AuthController --> JwtService
     AuthController --> SesionModelAssembler
+    AdminController --> PersonalService
     InternalController --> AuthService
     InternalController --> MailService
     AuthService --> AccessCodeRepository
@@ -340,25 +402,33 @@ classDiagram
     AuthService --> SessionService
     AuthService --> MailService
     AuthService --> DeudasClient
+    PersonalService --> StaffUserRepository
+    PersonalService --> AdminLogRepository
+    PersonalService --> MagicLinkRepository
+    PersonalService --> SessionService
+    PersonalService --> DeudasClient
+    PersonalService --> MailService
     SessionService --> SessionRepository
 ```
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
+| `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota y el enlace. |
-| `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor. |
+| `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `AccessCodeRepository` | `repository` | Los códigos. |
 | `MagicLinkRepository` | `repository` | Los enlaces. |
 | `StaffUserRepository` | `repository` | Las personas con cuenta. |
 | `AccessLogRepository` | `repository` | La bitácora de acceso. |
 | `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar. |
+| `AdminLogRepository` | `repository` | La bitácora del panel. |
 
 ### Seguridad, arranque y errores
 
@@ -443,6 +513,10 @@ classDiagram
             +digitoVerificador(String)$ String
             +esValido(String)$ boolean
         }
+        class Correo {
+            <<utility>>
+            +normalizar(String)$ Optional~String~
+        }
     }
     namespace repository {
         class StaffUserRepository {
@@ -471,11 +545,12 @@ classDiagram
 | `ApiError` | `exception` | La forma de todo error. |
 | `Hash` | `util` | SHA-256 y comparación en tiempo constante. |
 | `Rut` | `util` | Normaliza el RUT y revisa su dígito verificador. |
+| `Correo` | `util` | Normaliza un correo y descarta el que no puede recibir. |
 
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
-| `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
+| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 
@@ -485,7 +560,7 @@ El servicio más grande: las empresas, sus mandatos y campañas, las deudas con 
 
 ### El modelo
 
-Trece entidades. Todo cuelga de dos: `Organization` (de quién es) y `Debt` (qué se debe). El saldo y la mora no son atributos: se calculan con las cuotas y con la tasa.
+Catorce entidades. Todo cuelga de dos: `Organization` (de quién es) y `Debt` (qué se debe). El saldo y la mora no son atributos: se calculan con las cuotas y con la tasa. `AdminLog` va aparte: anota lo que se hace desde el panel de administración.
 
 ```mermaid
 classDiagram
@@ -764,6 +839,20 @@ classDiagram
             delivered
             failed
         }
+        class AdminLog {
+            <<entity>>
+            -id : Long
+            -adminEmail : String
+            -action : Action
+            -orgRut : String
+            -subject : String
+            -occurredAt : Instant
+            +de(String, Action, String, String)$ AdminLog
+        }
+        class AdminLog_Action["AdminLog.Action"] {
+            <<enumeration>>
+            empresa_creada
+        }
     }
     Organization ..> Organization_Kind
     Organization ..> Organization_Status
@@ -778,6 +867,7 @@ classDiagram
     DebtEvent ..> DebtEvent_Type
     DebtEvent ..> DebtEvent_Actor
     OutboxEvent ..> OutboxEvent_Status
+    AdminLog ..> AdminLog_Action
     ApiKey "*" --> "1" Organization : organization
     Mandate "*" --> "1" Organization : agency
     Mandate "*" --> "1" Organization : creditor
@@ -819,6 +909,7 @@ classDiagram
 | `DetallePago` | `model` | Lo que un pago aplicado deja en `DebtEvent.detail`. |
 | `Subscription` | `model` | A dónde se le avisan los eventos a una empresa. |
 | `OutboxEvent` | `model` | Un evento por entregar a un suscriptor. |
+| `AdminLog` | `model` | Lo que un admin hizo con una empresa desde el panel: qué, quién y cuándo. |
 
 ### Deudas, convenios, reclamos y pagos abonados
 
@@ -1266,10 +1357,7 @@ classDiagram
             +contactar(String, LocalDateTime, String) ContactosResponse
             +recordar(String, LocalDate) RecordatoriosResponse
             +pagoConfirmado(String, PagoConfirmado) OkResponse
-        }
-        class AdminController {
-            <<controller>>
-            +estado() EstadoResponse
+            +organizacion(String, String) OrganizacionResponse
         }
     }
     namespace service {
@@ -1324,6 +1412,9 @@ classDiagram
             <<service>>
         }
         class ApiKeyService {
+            <<service>>
+        }
+        class EmpresaService {
             <<service>>
         }
     }
@@ -1404,6 +1495,7 @@ classDiagram
     InternalController --> ApiKeyService
     InternalController --> RecordatorioService
     InternalController --> ContactoService
+    InternalController --> EmpresaService
     InvitacionService --> DebtRepository
     InvitacionService --> DebtEventRepository
     InvitacionService --> AuthClient
@@ -1430,7 +1522,6 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `InternalController` | `controller` | Lo que le piden o le avisan los otros servicios, con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt. Solo para el admin. |
 | `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza. |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto. |
@@ -1443,6 +1534,87 @@ classDiagram
 | `PagoConfirmado` | `events` | El aviso que manda ms-payments cuando un pago se concreta. |
 | `RabbitConfig` | `config` | La cola de los avisos de pago. |
 
+### El panel de administración
+
+Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor.
+
+```mermaid
+classDiagram
+    direction LR
+    namespace controller {
+        class AdminController {
+            <<controller>>
+            +estado() EstadoResponse
+            +empresas() List~EmpresaResponse~
+            +empresa(String) EmpresaResponse
+            +crear(JwtPrincipal, NuevaEmpresaRequest) EmpresaResponse
+            +historial(String) List~AccionResponse~
+        }
+    }
+    namespace service {
+        class EmpresaService {
+            <<service>>
+            +listar() List~EmpresaResponse~
+            +ficha(String) EmpresaResponse
+            +crear(NuevaEmpresaRequest, String) EmpresaResponse
+            +historial(String) List~AccionResponse~
+            +buscar(String) Optional~OrganizacionResponse~
+        }
+        class EmpresaService_Totales["EmpresaService.Totales"] {
+            <<record>>
+            +deudas : Map
+            +porCobrar : Map
+        }
+    }
+    namespace repository {
+        class ConteoDeDeudas {
+            <<record>>
+            +acreedor : Long
+            +emisor : Long
+            +estado : Debt.Status
+            +deudas : long
+        }
+        class SaldoPendiente {
+            <<record>>
+            +acreedor : Long
+            +emisor : Long
+            +moneda : Debt.Currency
+            +monto : BigDecimal
+        }
+        class AdminLogRepository {
+            <<repository>>
+            +findByOrgRutOrderByOccurredAtDesc(String) List~AdminLog~
+        }
+        class OrganizationRepository {
+            <<repository>>
+        }
+        class MandateRepository {
+            <<repository>>
+        }
+        class DebtRepository {
+            <<repository>>
+        }
+    }
+    EmpresaService ..> EmpresaService_Totales
+    AdminController --> EmpresaService
+    EmpresaService --> OrganizationRepository
+    EmpresaService --> MandateRepository
+    EmpresaService --> DebtRepository
+    EmpresaService --> AdminLogRepository
+    EmpresaService ..> ConteoDeDeudas : lee
+    EmpresaService ..> SaldoPendiente : lee
+    DebtRepository ..> ConteoDeDeudas : arma
+    DebtRepository ..> SaldoPendiente : arma
+```
+
+| Clase | Paquete | Qué es |
+| --- | --- | --- |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas. Solo para el admin. |
+| `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, y dar de alta una empresa usuaria. |
+| `ConteoDeDeudas` | `repository` | Cuántas deudas hay de un acreedor, entregadas por un emisor, en un estado. Un total, sin deudas. |
+| `SaldoPendiente` | `repository` | Lo que falta por cobrar de un acreedor, entregado por un emisor, en una moneda. Un total. |
+| `AdminLogRepository` | `repository` | La bitácora del panel. |
+
 ### Los repositorios
 
 El acceso a la base, con Spring Data JPA. Cada uno guarda una entidad; aquí van solo las consultas propias, además de las que ya trae `JpaRepository`.
@@ -1451,6 +1623,10 @@ El acceso a la base, con Spring Data JPA. Cada uno guarda una entidad; aquí van
 classDiagram
     direction LR
     namespace repository {
+        class AdminLogRepository {
+            <<repository>>
+            +findByOrgRutOrderByOccurredAtDesc(String) List~AdminLog~
+        }
         class ApiKeyRepository {
             <<repository>>
             +findByKeyHashAndRevokedAtIsNull(String) Optional~ApiKey~
@@ -1485,6 +1661,8 @@ classDiagram
         class DebtRepository {
             <<repository>>
             +carteraDe(Organization) List~Debt~
+            +contarPorEmpresa() List~ConteoDeDeudas~
+            +saldoPorEmpresa() List~SaldoPendiente~
             +findByDebtorOrderByUpdatedAtDesc(Debtor) List~Debt~
             +findByCampaign(Campaign) List~Debt~
             +findByLastBatch(Batch) List~Debt~
@@ -1504,6 +1682,7 @@ classDiagram
             <<repository>>
             +findByAgencyAndCreditorAndStatus(Organization, Organization, Mandate.Status) List~Mandate~
             +findByAgencyAndStatus(Organization, Mandate.Status) List~Mandate~
+            +todosConSusEmpresas() List~Mandate~
         }
         class OrganizationRepository {
             <<repository>>
@@ -1524,6 +1703,9 @@ classDiagram
         }
     }
     namespace model {
+        class AdminLog {
+            <<entity>>
+        }
         class ApiKey {
             <<entity>>
         }
@@ -1564,6 +1746,7 @@ classDiagram
             <<entity>>
         }
     }
+    AdminLogRepository ..> AdminLog : guarda
     ApiKeyRepository ..> ApiKey : guarda
     BatchRepository ..> Batch : guarda
     CampaignRepository ..> Campaign : guarda
@@ -1581,6 +1764,7 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
+| `AdminLogRepository` | `repository` | La bitácora del panel. |
 | `ApiKeyRepository` | `repository` |  |
 | `BatchRepository` | `repository` |  |
 | `CampaignRepository` | `repository` |  |
@@ -1796,8 +1980,8 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
-| `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `PagoResponse`, `RecordatoriosResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 

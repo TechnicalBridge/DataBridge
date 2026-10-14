@@ -41,6 +41,20 @@ export const IconoPanel = (p) => (
   </Trazo>
 );
 
+export const IconoEmpresa = (p) => (
+  <Trazo {...p}>
+    <path d="M4 20.5V5.5a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 15 5.5v15M15 10h3.5A1.5 1.5 0 0 1 20 11.5v9M2.5 20.5h19" />
+    <path d="M8 8h3M8 12h3M8 16h3" />
+  </Trazo>
+);
+
+export const IconoEquipo = (p) => (
+  <Trazo {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.2a6.5 6.5 0 0 1 4 5.8" />
+  </Trazo>
+);
+
 export const IconoCandado = (p) => (
   <Trazo {...p}><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Trazo>
 );

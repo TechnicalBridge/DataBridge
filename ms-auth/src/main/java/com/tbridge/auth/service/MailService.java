@@ -130,6 +130,43 @@ public class MailService {
                 """.formatted(minutos, url));
     }
 
+    /**
+     * La invitacion: a quien un admin de DataBridge acaba de dar de alta.
+     *
+     * <p>Trae un enlace de un solo uso, que dura mas que el que alguien pide
+     * por su cuenta: la persona no lo estaba esperando y puede abrirlo horas
+     * despues. Y dice como entrar las veces siguientes, que es por donde se
+     * sigue si el enlace vence. Sale en segundo plano, para que dar de alta no
+     * espere al servidor de correo.
+     *
+     * @param aQue    a que se le dio acceso: "al portal de empresas, como parte
+     *                de Empresa Test" o "al panel de administracion".
+     * @param entrada la direccion donde pide un enlace nuevo con su correo.
+     */
+    @Async
+    public void enviarInvitacion(String to, String nombre, String aQue, String url, long horas, String entrada) {
+        if (!smtpEnabled) {
+            log.info("Sin SMTP: invitacion para {}: {}", to, url);
+        }
+        enviar(to, "Tu acceso a DataBridge", """
+                Hola %s,
+
+                DataBridge te dio acceso %s.
+
+                Entra con este enlace de un solo uso, valido %d horas:
+
+                %s
+
+                Las veces siguientes, o si el enlace ya vencio, entra a %s
+                y escribe este correo: te llegara un enlace nuevo. No hay
+                contrasena.
+
+                Si no esperabas este correo, ignoralo.
+
+                Technical Bridge
+                """.formatted(nombre, aQue, horas, url, entrada));
+    }
+
     private void enviar(String to, String asunto, String cuerpo) {
         if (!smtpEnabled) {
             return;

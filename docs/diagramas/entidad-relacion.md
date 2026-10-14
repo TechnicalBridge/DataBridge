@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md), por el lado de los datos: qué se guarda y cómo se relaciona.
 
-DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 22 tablas, 3 vistas y 23 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
+DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 24 tablas, 3 vistas y 23 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
-| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 5 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 13 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento |
+| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 14 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago |
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
@@ -41,6 +41,14 @@ erDiagram
         varchar(12) method "code o magic_link"
         varchar(12) outcome "granted, expired, invalid, exhausted, sent o refused"
         char(64) ip_hash "opcional · SHA-256 de la IP: la IP no se guarda"
+        datetime occurred_at
+    }
+    admin_log {
+        bigint id PK
+        varchar(254) admin_email "el admin que lo hizo"
+        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada o persona_habilitada"
+        varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
+        varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
     }
     magic_links {
@@ -77,18 +85,19 @@ erDiagram
     }
 ```
 
-Las cinco tablas no se relacionan entre sí con llaves foráneas: cada una se consulta por su propia huella o por el RUT o el correo de quien entra.
+Las 6 tablas no se relacionan entre sí con llaves foráneas: cada una se consulta por su propia huella, o por el RUT o el correo de alguien.
 
 | Tabla | Qué guarda |
 | --- | --- |
 | `access_codes` | El código con que entra un deudor. Un solo uso, con vencimiento y con tope de intentos. |
 | `access_log` | Cada intento de entrar y cada enlace pedido: por dónde, cómo resultó y desde qué origen. |
+| `admin_log` | Lo que un admin de DataBridge hizo con las personas desde su panel: altas, y accesos quitados y devueltos. |
 | `magic_links` | El enlace de un solo uso al correo: como entran el usuario de una empresa y el admin, y el respaldo del deudor. |
 | `sessions` | Las llaves de renovación de cada sesión, en familias. Es lo único de una sesión que se puede revocar. |
 | `staff_users` | Las personas con cuenta: los usuarios de las empresas y los admin de DataBridge. |
 
 <details>
-<summary>Las 13 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 14 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
@@ -99,6 +108,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `access_codes` | `ck_access_code_vigencia` | `(expires_at > issued_at)` |
 | `access_log` | `ck_access_log_method` | `(method in ('code','magic_link'))` |
 | `access_log` | `ck_access_log_outcome` | `(outcome in ('granted','expired','invalid','exhausted','sent','refused'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('persona_creada','admin_creado','persona_deshabilitada','persona_habilitada'))` |
 | `magic_links` | `ck_magic_link_vigencia` | `(expires_at > issued_at)` |
 | `sessions` | `ck_session_identidad` | `(((role = 'DEBTOR') and (rut is not null)) or ((role in ('CREDITOR','ADMIN')) and (email is not null)))` |
 | `sessions` | `ck_session_role` | `(role in ('DEBTOR','CREDITOR','ADMIN'))` |
@@ -170,6 +180,14 @@ erDiagram
     subscriptions ||--o{ outbox : "recibe"
     debts ||--o{ repactations : "se repacta en"
     organizations ||--o{ subscriptions : "se suscribe con"
+    admin_log {
+        bigint id PK
+        varchar(254) admin_email "el admin que lo hizo"
+        varchar(40) action
+        varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
+        varchar(254) subject "opcional · a qué o a quién"
+        datetime occurred_at
+    }
     api_keys {
         bigint id PK
         bigint organization_id FK
@@ -331,6 +349,7 @@ erDiagram
 
 | Tabla | Qué guarda |
 | --- | --- |
+| `admin_log` | Lo que un admin de DataBridge hizo con las empresas desde su panel: las que dio de alta. |
 | `api_keys` | Las claves de API con que el sistema de una empresa entrega cartera. |
 | `batches` | Cada cartera recibida, por la API o por archivo, con su huella para no procesarla dos veces y la respuesta que se dio. |
 | `campaigns` | La estrategia de contacto de una agencia para la cartera de un acreedor. La define la agencia y la ejecuta DataBridge. |
@@ -351,12 +370,13 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 33 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 34 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
+| `admin_log` | `ck_admin_log_action` | `(action = 'empresa_creada')` |
 | `batches` | `ck_batch_source` | `(source in ('api','file'))` |
 | `batches` | `ck_batch_status` | `(status in ('processed','rejected'))` |
 | `campaigns` | `ck_campaign_attempts` | `(attempts between 1 and 10)` |
@@ -496,6 +516,7 @@ flowchart LR
         magic_links["magic_links"]
         sessions["sessions"]
         access_log["access_log"]
+        auth_admin_log["admin_log"]
     end
     subgraph DEBT["tb_debt · ms-debt"]
         organizations["organizations"]
@@ -503,11 +524,15 @@ flowchart LR
         debts["debts"]
         installments["installments"]
         debt_events["debt_events"]
+        debt_admin_log["admin_log"]
     end
     subgraph PAY["tb_payments · ms-payments"]
         payments["payments"]
     end
     staff_users -. "org_rut = rut" .-> organizations
+    auth_admin_log -. "org_rut = rut" .-> organizations
+    auth_admin_log -. "subject = email" .-> staff_users
+    debt_admin_log -. "admin_email = email" .-> staff_users
     access_codes -. "debtor_rut = rut" .-> debtors
     magic_links -. "debtor_rut = rut" .-> debtors
     sessions -. "rut = rut, si es de un deudor" .-> debtors
@@ -526,5 +551,7 @@ flowchart LR
 | `tb_payments.payments.debt_id` e `installment_ids` | `tb_debt.debts.id` e `installments.id` | Los id de la deuda y de sus cuotas | ms-payments se los pide a ms-debt al abrir el cobro, junto con el monto |
 | `tb_payments.payments.debtor_rut` y `creditor_rut` | `tb_debt.debtors.rut` y `organizations.rut` | El RUT de quien paga y de a quién | Vienen en la misma respuesta de ms-debt |
 | `tb_debt.debt_events.detail` | `tb_payments.payments.id` | El id del pago aplicado | Lo trae el aviso `pago.confirmado` |
+| `admin_log.admin_email`, en las dos bases | `tb_auth.staff_users.email` | El correo del admin que hizo algo | Sale del JWT de su sesión, no del cuerpo de la petición |
+| `tb_auth.admin_log.org_rut` | `tb_debt.organizations.rut` | El RUT de la empresa de la persona | ms-auth le pregunta a ms-debt si esa empresa existe antes de darle una persona |
 
 Cómo viaja cada uno de esos datos está en los [diagramas de secuencia](secuencia.md).
