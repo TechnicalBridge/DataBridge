@@ -400,14 +400,50 @@ Responde con el `codigo`. Con él se entra al portal en **Tengo un código de ac
 ### Para mandar correos de verdad
 
 Sin tocar nada, los correos van al **buzón de prueba** (http://localhost:8025) y no le llegan a
-nadie. Para que lleguen a un buzón real basta el `.env`: no hay que editar el compose ni el
-código. Sirve cualquier servidor SMTP; para probar, una cuenta de Gmail.
+nadie: sirve para programar, no para producción. Para que lleguen de verdad hay dos caminos, y
+los dos se eligen en el `.env`, sin editar el compose ni el código:
 
-**1. En la cuenta de Google.** Activar la verificación en dos pasos y crear una **contraseña de
-aplicación** (16 letras). Esa es la que usa DataBridge: la clave de la cuenta no se escribe en
-ningún sistema.
+| Camino | Cuándo | Qué hace falta |
+| --- | --- | --- |
+| **La API de Brevo** | El de producción, y el único que funciona en Railway sin su plan Pro, que bloquea el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
+| **Un servidor SMTP** | Para probar en un equipo, o con otro proveedor | Una cuenta de Gmail con contraseña de aplicación, u otro servidor |
 
-**2. En el `.env`:**
+Si están los dos, gana Brevo.
+
+**Con Brevo**
+
+1. **Un Gmail del equipo**, solo para DataBridge: es el remitente.
+2. **Una cuenta en [Brevo](https://www.brevo.com)** con ese Gmail, en el plan gratuito. Entre sus
+   remitentes (*Senders*), el Gmail tiene que aparecer verificado; si no, se agrega y se confirma
+   con el código que le llega. Si Brevo pide completar los datos de la cuenta antes de mandar, se
+   completan.
+3. **Una clave de API**, en *SMTP & API → API Keys*. Se copia directo al `.env`, y a ningún otro
+   lado. Si Brevo la entrega en base64 (es la clave para MCP), la de la API es la que va adentro, en
+   `api_key`, y empieza con `xkeysib-`.
+4. **Sin bloqueo por IP.** Brevo rechaza con `401` las llamadas desde una IP que no conoce. En
+   [*Security → Authorised IPs*](https://app.brevo.com/security/authorised_ips) se desactiva el
+   bloqueo de las IPs desconocidas: en Railway la IP de salida cambia, y no hay una sola que
+   autorizar.
+5. **En el `.env`:**
+
+```
+BREVO_API_KEY=la clave de API de Brevo
+MAIL_FROM=tucuenta@gmail.com
+MAIL_FROM_NAME=DataBridge
+CORREO_SOLO_A=tucuenta@gmail.com
+CORREO_DESVIAR_A=tucuenta@gmail.com
+```
+
+Como un Gmail no se puede autenticar desde otro servicio, Brevo cambia la dirección del
+remitente por una suya (`…@….brevosend.com`); el nombre que se ve sigue siendo *DataBridge*. Con
+un dominio propio autenticado en Brevo, basta cambiar `MAIL_FROM`.
+
+**Con un servidor SMTP**
+
+1. **En la cuenta de Google.** Activar la verificación en dos pasos y crear una **contraseña de
+   aplicación** (16 letras). Esa es la que usa DataBridge: la clave de la cuenta no se escribe en
+   ningún sistema.
+2. **En el `.env`:**
 
 ```
 SMTP_HOST=smtp.gmail.com
@@ -426,7 +462,7 @@ Con Gmail, `MAIL_FROM` tiene que ser la misma cuenta. Para otro proveedor cambia
 puerto y las credenciales; con uno que pide SSL desde el principio (puerto 465), `SMTP_SSL=true` y
 `SMTP_STARTTLS=false`. El `.env` no se sube al repositorio.
 
-**3. El modo de prueba, que no es opcional con los datos de la demo.** Los deudores de ejemplo
+**El modo de prueba, que no es opcional con los datos de la demo.** Los deudores de ejemplo
 tienen correos inventados, con dominios que pueden ser de alguien, y la campaña corre sola cada 15
 minutos. Con un servidor real y sin modo de prueba, les escribiría cobranzas a personas que no
 tienen nada que ver.
@@ -444,21 +480,22 @@ llega al mismo buzón y para DataBridge es otra dirección: `tucuenta+admin@gmai
 `tucuenta+empresa@gmail.com` para la persona de una empresa y `tucuenta+deudor1@gmail.com` para un
 deudor.
 
-**4. Reiniciar ms-auth y probar.** `docker compose --profile app up -d ms-auth`, y después un
-correo de prueba, que dice si salió, adónde llegó de verdad y con qué remitente, o lo que respondió
-el servidor si no salió:
+**Reiniciar ms-auth y probar.** `docker compose --profile app up -d ms-auth`, y después un
+correo de prueba, que dice si salió, adónde llegó de verdad y por dónde, o lo que respondió el
+servidor o Brevo si no salió:
 
 ```powershell
 docker compose --profile app exec -T ms-auth sh -c 'curl -s -X POST "http://127.0.0.1:8081/internal/correo/prueba?para=tucuenta@gmail.com" -H X-Internal-Key:$INTERNAL_KEY'
 ```
 
-Al arrancar, ms-auth deja dicho en su registro a qué servidor le entrega y en qué modo está. La
-contraseña no aparece ni ahí ni en la respuesta de la prueba.
+Al arrancar, ms-auth deja dicho en su registro por dónde manda y en qué modo está. Ni la
+contraseña ni la clave de Brevo aparecen ahí ni en la respuesta de la prueba.
 
-Para volver al buzón de prueba, se deja `SMTP_HOST` vacío y se reinicia ms-auth.
+Para volver al buzón de prueba, se dejan vacías `BREVO_API_KEY` y `SMTP_HOST`, y se reinicia
+ms-auth.
 
-**Si un correo no sale.** Con un servidor real pasa: una contraseña mala, el cupo del día, una
-dirección que no existe. Un correo que no sale **no cuenta como enviado**:
+**Si un correo no sale.** Con un servidor real o con Brevo pasa: una clave mala, el cupo del
+día, una dirección que no existe. Un correo que no sale **no cuenta como enviado**:
 
 - ms-auth responde `502` con lo que dijo el servidor, y anula el código de ese correo: nadie lo
   recibió, y el que el deudor ya tenía le sigue sirviendo.
@@ -1617,7 +1654,8 @@ no es secreto sí tiene un valor de desarrollo.
 | `CODE_TTL_HOURS`, `MAGIC_TTL_MINUTES` | `24`, `15` | Cuánto dura el código de acceso del deudor, y el enlace de respaldo |
 | `INVITACION_TTL_HORAS` | `24` | Cuánto dura el enlace de la invitación que le llega a una persona recién dada de alta desde el panel |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | vacía, `587`, vacías, `true`, `true`, `false` | El servidor de correo ([cómo](#para-mandar-correos-de-verdad)). Sin `SMTP_HOST`, en Docker los correos van al buzón de prueba y lo demás se ignora |
-| `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo antes de darlo por caído |
+| `BREVO_API_KEY` | vacía | Con ella, los correos salen por la API de Brevo y no por SMTP ([cómo](#para-mandar-correos-de-verdad)). Es la de producción |
+| `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo, o a Brevo, antes de darlo por caído |
 | `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `noreply@technicalbridge.local`, `DataBridge`, vacía | El remitente, el nombre que muestra el buzón a su lado, y a quién se le responde si no es al remitente. Con Gmail, el remitente tiene que ser la propia cuenta |
 | `CORREO_SOLO_A`, `CORREO_DESVIAR_A` | vacías | El modo de prueba: a quién se le escribe directo, y adónde se desvía lo demás. Vacías, se le escribe a cualquier dirección |
 | `CORS_ORIGINS` | los del portal | Qué orígenes pueden hacer peticiones con credenciales al gateway |
@@ -1693,12 +1731,12 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**737 pruebas**, todas en Java y sin fallos:
+**754 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 153 |
+| `ms-auth` | 170 |
 | `ms-debt` | 345 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |

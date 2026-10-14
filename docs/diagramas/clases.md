@@ -2,11 +2,11 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **277 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **279 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 53 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-auth](#ms-auth--el-acceso) | 55 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
 | [ms-debt](#ms-debt--la-cartera) | 152 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
@@ -478,6 +478,14 @@ classDiagram
             +postProcessEnvironment(ConfigurableEnvironment, SpringApplication) void
             +getOrder() int
         }
+        class CorreoConfig {
+            <<configuration>>
+        }
+        class CorreoPorBrevo {
+            <<component>>
+            +send(SimpleMailMessage) void
+            +send(SimpleMailMessage[]) void
+        }
         class OpenApiConfig {
             <<configuration>>
         }
@@ -562,6 +570,7 @@ classDiagram
     JwtService ..> JwtPrincipal
     PrimerAdmin --> StaffUserRepository
     DataSeeder --> StaffUserRepository
+    CorreoConfig ..> CorreoPorBrevo
 ```
 
 | Clase | Paquete | Qué es |
@@ -573,6 +582,8 @@ classDiagram
 | `PrimerAdmin` | `config` | Al arrancar, crea el primer admin con `ADMIN_CORREO`, si todavía no hay ninguno. |
 | `DataSeeder` | `config` | El personal de la demo. |
 | `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
+| `CorreoConfig` | `config` | Por dónde salen los correos: con `BREVO_API_KEY`, por Brevo; sin ella, por SMTP o al buzón de prueba. |
+| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |

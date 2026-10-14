@@ -158,6 +158,9 @@ services:
       SMTP_STARTTLS:   ${SMTP_STARTTLS:-true}
       SMTP_SSL:        ${SMTP_SSL:-false}
       SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
+      #  Con una clave de Brevo, los correos salen por su API y no por SMTP.
+      BREVO_API_KEY:   ${BREVO_API_KEY:-}
+      BREVO_URL:       ${BREVO_URL:-https://api.brevo.com/v3/smtp/email}
       CORREO_BUZON_DE_PRUEBA: mailpit:1025
       #  El modo de prueba, para un servidor real: a quien se le escribe
       #  directo, y a donde se desvia lo demas. Vacias, se le escribe a todos.

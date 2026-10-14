@@ -181,9 +181,8 @@ flowchart LR
         PAY -->|"aviso de pago, por HTTP"| DEBT
         AI --> DEBT
         AUTH & DEBT & PAY --> MY[("MySQL 8.4<br/>con su volumen")]
-        AUTH -.->|"si se elige el buzón de prueba"| MP["mailpit"]
     end
-    AUTH -.->|"si se elige Gmail, en Pro"| SMTP{{"Gmail"}}
+    AUTH -->|"los correos, por HTTPS"| BRE{{"Brevo"}}
     PAY --> PAS{{"Pasarelas"}}
 ```
 
@@ -191,6 +190,7 @@ flowchart LR
 | --- | --- |
 | Solo el portal tiene dirección pública | El gateway y los servicios se hablan por la red privada; ninguno se publica |
 | No hay RabbitMQ | El aviso de un pago va de ms-payments a ms-debt por HTTP, con sus reintentos: un servicio menos que pagar |
+| No hay buzón de prueba: los correos salen por la API de Brevo | Railway bloquea el SMTP fuera de su plan Pro, y Brevo va por HTTPS |
 | Las bases las crea cada servicio | `db/init` no corre fuera de Docker Compose: cada servicio se conecta con `createDatabaseIfNotExist` |
 | Cada servicio escucha también en IPv6 (`SERVER_ADDRESS=::`) | La red privada de los ambientes antiguos de Railway es solo IPv6 |
 | nginx le cree al proxy de Railway la IP del visitante | Sin eso, el límite de peticiones contaría a todos como uno solo |

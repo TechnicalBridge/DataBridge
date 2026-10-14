@@ -18,12 +18,12 @@ algo según lo que se elija. La tarea es #172.
 | `ms-payments` | `/ms-payments` | No | 8084 |
 | `ms-ai` | `/ms-ai` | No | 8085 |
 | `MySQL` | La plantilla de Railway | No | 3306 |
-| `mailpit` | La imagen `axllent/mailpit` | Solo si se elige el buzón de prueba | 8025 y 1025 |
 
 - **El visitante solo llega al portal.** nginx le pasa `/api` al gateway, y el gateway a cada servicio, todo
   por la red privada de Railway (`<servicio>.railway.internal`).
 - **No hay RabbitMQ.** Sin `EVENTS_RABBIT`, el aviso de un pago va de ms-payments a ms-debt por HTTP, con sus
   reintentos.
+- **No hay buzón de prueba.** Los correos salen de verdad, por la API de Brevo (paso 5).
 - **Los nombres de los servicios importan.** Las variables de abajo se refieren a ellos (`${{ms-auth...}}`):
   cada servicio tiene que llamarse exactamente como dice la primera columna.
 
@@ -89,7 +89,8 @@ COOKIE_SECURE=true
 ADMIN_CORREO=
 ```
 
-`ADMIN_CORREO` es el correo del primer admin de DataBridge. Las variables del correo van en el paso 5.
+`ADMIN_CORREO` es el correo del primer admin de DataBridge. Las variables del correo van en el paso 5, en
+este mismo servicio.
 
 ### `ms-debt`
 
@@ -195,43 +196,32 @@ orden; en Railway, si uno parte antes que otro del que depende, se reinicia solo
 
 ## 5. El correo
 
-Según #173, pregunta 1.
-
-**A. El buzón de prueba.** Un servicio más, `mailpit`: **+ New → Docker Image → `axllent/mailpit`**, con
-estas variables, y su dominio público en el puerto 8025 para leer los correos:
-
-```
-MP_SMTP_BIND_ADDR=[::]:1025
-MP_UI_BIND_ADDR=[::]:8025
-MP_UI_AUTH=equipo:<una clave larga>
-```
-
-Y en `ms-auth`:
+Por la **API de Brevo**, como se decidió en #173: va por HTTPS, que Railway no bloquea, y es gratis hasta 300
+correos al día. La cuenta de Brevo y su clave se preparan como dice el README (*Para mandar correos de
+verdad*, con Brevo). En `ms-auth`:
 
 ```
-CORREO_BUZON_DE_PRUEBA=${{mailpit.RAILWAY_PRIVATE_DOMAIN}}:1025
-```
-
-Sin `SMTP_HOST`, ms-auth les entrega todos los correos a ese buzón, y no le llega nada a nadie.
-
-**B. Gmail, en el plan Pro.** En `ms-auth`, lo mismo del README (*Para mandar correos de verdad*), con el modo
-de prueba:
-
-```
-SMTP_HOST=smtp.gmail.com
-SMTP_USER=tucuenta@gmail.com
-SMTP_PASSWORD=<la contraseña de aplicación>
+BREVO_API_KEY=<la clave de API de Brevo>
 MAIL_FROM=tucuenta@gmail.com
+MAIL_FROM_NAME=DataBridge
 CORREO_SOLO_A=tucuenta@gmail.com
 CORREO_DESVIAR_A=tucuenta@gmail.com
 ```
 
-Railway bloquea el SMTP en los planes Free, Trial y Hobby: con ellos, esta opción no funciona.
+- **`MAIL_FROM`** es el Gmail del equipo, verificado como remitente en Brevo.
+- **En Brevo, sin bloqueo por IP** (*Security → Authorised IPs*): en el plan Hobby, la IP con que Railway
+  sale a internet cambia, y Brevo rechazaría cada correo con un `401`.
+- **`CORREO_SOLO_A`** son los correos de prueba a los que sí se les escribe directo, separados por coma, y
+  **`CORREO_DESVIAR_A`**, adonde va todo lo demás. Con los datos de la demo no son opcionales: los deudores de
+  ejemplo tienen correos inventados. Cuando DataBridge salga a cobrar de verdad, se dejan vacías.
+
+El SMTP (Gmail) no sirve aquí: Railway lo bloquea en los planes Free, Trial y Hobby.
 
 ## 6. Comprobar que funciona
 
 - El portal abre en `https://<dominio>.up.railway.app`.
-- Un deudor de la demo entra con su código (con el buzón de prueba, el código está en Mailpit).
+- El correo de prueba sale (`POST /internal/correo/prueba`, desde la consola de `ms-auth` en Railway), y un
+  deudor entra con el código que le llega.
 - El admin entra a `/admin` con un enlace a `ADMIN_CORREO`.
 - Un pago en el ambiente de integración de una pasarela llega a abonarse en la deuda.
 

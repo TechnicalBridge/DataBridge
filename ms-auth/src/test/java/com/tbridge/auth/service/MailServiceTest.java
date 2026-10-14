@@ -14,9 +14,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
+import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDate;
 import java.util.Map;
@@ -38,10 +39,10 @@ import static org.mockito.Mockito.when;
 class MailServiceTest {
 
     @Mock
-    private JavaMailSender smtp;
+    private MailSender smtp;
 
     @Mock
-    private ObjectProvider<JavaMailSender> proveedor;
+    private ObjectProvider<MailSender> proveedor;
 
     private MailService correo(String host) {
         when(proveedor.getIfAvailable()).thenReturn(smtp);
@@ -59,6 +60,62 @@ class MailServiceTest {
         ArgumentCaptor<SimpleMailMessage> mensaje = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(smtp).send(mensaje.capture());
         return mensaje.getValue();
+    }
+
+    // ------------------------------------------------------------------
+    //  Por la API de Brevo
+    // ------------------------------------------------------------------
+
+    private static final String CLAVE_DE_BREVO = "xkeysib-clave-de-prueba-que-nunca-se-muestra";
+
+    /** Con una clave de Brevo, sin SMTP_HOST, y el buzon de prueba que anuncia el compose. */
+    private MailService porBrevo(String soloA, String desviarA) {
+        when(proveedor.getIfAvailable()).thenReturn(smtp);
+        return new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/", "", 587, "", "DataBridge", "",
+                soloA, desviarA, "mailpit:1025", CLAVE_DE_BREVO);
+    }
+
+    @Test
+    void con_brevo_hay_por_donde_mandar_aunque_no_haya_smtp_host() {
+        PruebaDeCorreoResponse prueba = porBrevo("", "").probar("equipo@gmail.com");
+
+        assertTrue(prueba.enviado());
+        assertEquals("Brevo (API)", prueba.servidor());
+        assertEquals("DataBridge <equipo@gmail.com>", enviado().getFrom());
+    }
+
+    @Test
+    void con_brevo_el_modo_de_prueba_sigue_desviando() {
+        porBrevo("equipo@gmail.com", "equipo@gmail.com").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        SimpleMailMessage mensaje = enviado();
+        assertEquals("equipo@gmail.com", mensaje.getTo()[0]);
+        assertEquals("[para felipe.rojas@correo.cl] Tu codigo de acceso", mensaje.getSubject());
+    }
+
+    @Test
+    void si_brevo_rechaza_al_destinatario_la_culpa_es_de_la_direccion() {
+        MailService servicio = porBrevo("", "");
+        doThrow(new MailParseException("Brevo respondio 400 (invalid_parameter): email is not valid in to"))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class,
+                () -> servicio.enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles"));
+
+        assertTrue(fallo.deLaDireccion());
+    }
+
+    @Test
+    void la_clave_de_brevo_nunca_sale_aunque_venga_en_un_error() {
+        MailService servicio = porBrevo("", "");
+        doThrow(new MailSendException("Brevo respondio 401 (unauthorized): Key not found " + CLAVE_DE_BREVO))
+                .when(smtp).send(any(SimpleMailMessage.class));
+
+        PruebaDeCorreoResponse prueba = servicio.probar("equipo@gmail.com");
+
+        assertFalse(prueba.enviado());
+        assertFalse(prueba.error().contains(CLAVE_DE_BREVO), prueba.error());
+        assertTrue(prueba.error().contains("Key not found"));
     }
 
     // ------------------------------------------------------------------
