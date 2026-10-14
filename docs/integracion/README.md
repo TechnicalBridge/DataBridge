@@ -333,7 +333,8 @@ no deshace lo que el deudor ya acordó:
 
 **La invitación.** Cuando una deuda entra —o vuelve— a cobranza en DataBridge, al deudor le llega
 solo su código de acceso por correo, sin monto ni enlace. La agencia lo puede reenviar desde su
-portal.
+portal. Si en ese momento no sale (la ley ya no deja escribirle esa semana, o el correo falla),
+DataBridge lo vuelve a intentar solo, dentro del horario de cobranza, hasta que sale.
 
 ### 6.5 Respuesta
 
@@ -514,6 +515,9 @@ sigue con los recordatorios de su convenio.
 - **Registro:** cada gestión queda guardada como un contacto de la deuda, con qué fue (la
   invitación, un toque y su número, un recordatorio y su cuota, o un reenvío), por dónde, a dónde y
   cuándo. En la historia de la deuda se lee como `code_sent`.
+- **Un correo que no salió no es una gestión:** no queda como contacto ni cuenta para el límite.
+  Si el servidor rechazó la dirección tres veces seguidas, DataBridge deja de escribirle solo
+  hasta que una cartera traiga otro correo.
 
 Un toque que la ley no deja hoy sale en cuanto se puede. Por eso una cadencia con toques muy
 seguidos (1 y 4 está bien; 1 y 2, no) se cumple más tarde de lo que dice.

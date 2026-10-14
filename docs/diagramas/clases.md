@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **274 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **277 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 51 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 151 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-auth](#ms-auth--el-acceso) | 53 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-debt](#ms-debt--la-cartera) | 152 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -276,6 +276,7 @@ classDiagram
         class AuthService {
             <<service>>
             +emitirCodigo(String, List~String~, String) CodigoEmitidoResponse
+            +anularCodigo(String, String) void
             +entrarConCodigo(String, String, String) Sesion
             +pedirEnlace(String, String, String) EnlaceResponse
             +entrarConEnlace(String, String) Sesion
@@ -371,6 +372,7 @@ classDiagram
         class AccessCodeRepository {
             <<repository>>
             +findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(String) Optional~AccessCode~
+            +deleteByCodeHash(String) long
         }
         class MagicLinkRepository {
             <<repository>>
@@ -440,7 +442,7 @@ classDiagram
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
-| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, por cualquier servidor SMTP. También manda el correo de prueba. |
+| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, por cualquier servidor SMTP. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
 | `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
 | `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
@@ -507,6 +509,7 @@ classDiagram
         class ApiExceptionHandler {
             <<handler>>
             +deNegocio(ApiException) ApiError
+            +correoNoSalio(CorreoNoSalio) CorreoNoEnviadoResponse
             +cuerpoInvalido(MethodArgumentNotValidException) ApiError
             +parametroInvalido(HandlerMethodValidationException) ApiError
             +cuerpoIlegible(HttpMessageNotReadableException) ApiError
@@ -520,6 +523,10 @@ classDiagram
         class ApiException {
             <<exception>>
             +getStatus() HttpStatus
+        }
+        class CorreoNoSalio {
+            <<exception>>
+            +deLaDireccion() boolean
         }
         class ApiError {
             <<record>>
@@ -569,6 +576,7 @@ classDiagram
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |
+| `CorreoNoSalio` | `exception` | El servidor de correo no aceptó el correo de un código: lo que dijo, y si la culpa es de la dirección o del servidor. |
 | `ApiError` | `exception` | La forma de todo error. |
 | `Hash` | `util` | SHA-256 y comparación en tiempo constante. |
 | `Rut` | `util` | Normaliza el RUT y revisa su dígito verificador. |
@@ -577,7 +585,7 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 
@@ -701,10 +709,16 @@ classDiagram
             -kind : Kind
             -fullName : String
             -email : String
+            -emailFailedAt : Instant
+            -emailFailure : String
+            -emailRejections : short
             -phone : String
             -reminders : boolean
             -createdAt : Instant
             -updatedAt : Instant
+            +correoNoSalio(String, boolean, Instant) void
+            +correoSalio() void
+            +correoConProblemas() boolean
         }
         class Debtor_Kind["Debtor.Kind"] {
             <<enumeration>>
@@ -959,7 +973,7 @@ classDiagram
 | `Mandate` | `model` | Una agencia cobra por cuenta de un acreedor. |
 | `Campaign` | `model` | La estrategia de contacto que define la agencia y ejecuta DataBridge. |
 | `Batch` | `model` | Cada cartera recibida. |
-| `Debtor` | `model` | Quien debe. Una fila por RUT. |
+| `Debtor` | `model` | Quien debe. Una fila por RUT. Si un correo a su dirección no sale, guarda por qué y cuántas veces seguidas la rechazaron. |
 | `Debt` | `model` | Lo que un deudor le debe a un acreedor. |
 | `DebtCharge` | `model` | El desglose con que llegó la deuda. |
 | `Repactation` | `model` | Cada convenio que el deudor aceptó. |
@@ -1432,10 +1446,16 @@ classDiagram
         class InvitacionService {
             <<service>>
             +invitar(DeudaEnCobranza) void
+            +invitarPendientes(Instant, Set~Debtor~) Pasada
         }
         class InvitacionService_DeudaEnCobranza["InvitacionService.DeudaEnCobranza"] {
             <<record>>
             +debtId : Long
+        }
+        class InvitacionService_Pasada["InvitacionService.Pasada"] {
+            <<record>>
+            +enviadas : int
+            +cortada : boolean
         }
         class ContactoService {
             <<service>>
@@ -1534,6 +1554,16 @@ classDiagram
             <<record>>
             +expiraEn : Instant
         }
+        class AuthClient_CorreoNoEnviado["AuthClient.CorreoNoEnviado"] {
+            <<record>>
+            +error : String
+            +causa : String
+        }
+        class CorreoNoSalio {
+            <<utility>>
+            +motivo() String
+            +deLaDireccion() boolean
+        }
     }
     namespace events {
         class PagoConfirmado {
@@ -1566,8 +1596,10 @@ classDiagram
         }
     }
     InvitacionService ..> InvitacionService_DeudaEnCobranza
+    InvitacionService ..> InvitacionService_Pasada
     AuthClient ..> AuthClient_PedidoDeCodigo
     AuthClient ..> AuthClient_CodigoEmitido
+    AuthClient ..> AuthClient_CorreoNoEnviado
     InternalController --> DebtService
     InternalController --> CampanaAvanceService
     InternalController --> ApiKeyService
@@ -1578,21 +1610,26 @@ classDiagram
     InvitacionService --> ContactRepository
     InvitacionService --> AuthClient
     InvitacionService --> LimiteDeContacto
+    InvitacionService ..> CorreoNoSalio
     ContactoService --> CampaignRepository
     ContactoService --> DebtRepository
     ContactoService --> ContactRepository
     ContactoService --> AuthClient
     ContactoService --> LimiteDeContacto
+    ContactoService --> InvitacionService
+    ContactoService ..> CorreoNoSalio
     ContactoService ..> FeriadosDeChile
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
     RecordatorioService --> AuthClient
     RecordatorioService --> LimiteDeContacto
+    RecordatorioService ..> CorreoNoSalio
     LimiteDeContacto --> ContactRepository
     EventosService --> SubscriptionRepository
     EventosService --> OutboxEventRepository
     EventDispatcher --> OutboxEventRepository
     RabbitPaymentListener --> DebtService
+    AuthClient ..> CorreoNoSalio
     RabbitPaymentListener ..> PagoConfirmado : recibe
     InternalController ..> PagoConfirmado : recibe
     ContactRepository ..> ToquesHechos : arma
@@ -1602,7 +1639,7 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `InternalController` | `controller` | Lo que le piden o le avisan los otros servicios, con la clave interna. |
-| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza. |
+| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
@@ -1612,7 +1649,8 @@ classDiagram
 | `EventosService` | `service` | Deja en la bandeja de salida los eventos del contrato, y registra suscripciones. |
 | `EventDispatcher` | `service` | Saca los eventos de la bandeja y los entrega firmados, con reintentos. |
 | `RabbitPaymentListener` | `service` | Recibe los avisos de pago que llegan por RabbitMQ. |
-| `AuthClient` | `client` | Le pide a ms-auth que emita y mande un código. |
+| `AuthClient` | `client` | Le pide a ms-auth que emita y mande un código. Un `502` de ms-auth es un `CorreoNoSalio`. |
+| `CorreoNoSalio` | `client` | El correo de un código no salió: el motivo para la empresa, con la dirección tapada, y si la culpa es de la dirección. Responde `502`. |
 | `PagoConfirmado` | `events` | El aviso que manda ms-payments cuando un pago se concreta. |
 | `RabbitConfig` | `config` | La cola de los avisos de pago. |
 
@@ -1754,6 +1792,7 @@ classDiagram
             +saldoPorEmpresa() List~SaldoPendiente~
             +findByDebtorOrderByUpdatedAtDesc(Debtor) List~Debt~
             +findByCampaign(Campaign) List~Debt~
+            +sinInvitar(int) List~Debt~
             +findByLastBatch(Batch) List~Debt~
             +findByCreditorAndExternalId(Organization, String) Optional~Debt~
         }

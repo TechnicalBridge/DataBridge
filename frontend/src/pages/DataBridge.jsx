@@ -172,6 +172,12 @@ export default function DataBridge() {
                       <td>
                         {d.deudor}<span className="sub">{rutLegible(d.deudorRut)}</span>
                         {d.sinCorreoValido ? <span className="tag tag-vencida">Sin correo válido</span> : null}
+                        {d.correoFallido?.conProblemas ? (
+                          <span className="tag tag-vencida"
+                                title="El servidor rechazó su dirección tres veces seguidas: ya no se le escribe solo hasta que llegue otro correo en la cartera. Puedes reenviarle el código a mano.">
+                            Correo con problemas
+                          </span>
+                        ) : null}
                       </td>
                       <td>{d.acreedor}<span className="sub">{d.concepto}, ref. {d.externalId}</span></td>
                       <td className="num">
@@ -212,6 +218,11 @@ export default function DataBridge() {
                         {cobrable && !aviso ? (
                           <span className="sub">
                             {d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
+                          </span>
+                        ) : null}
+                        {cobrable && !aviso && d.correoFallido ? (
+                          <span className="sub" style={{ color: "var(--danger)" }}>
+                            No se pudo enviar el correo del {fecha(d.correoFallido.cuando)}: {d.correoFallido.motivo}
                           </span>
                         ) : null}
                         {aviso?.ok ? <span className="sub">{aviso.ok}</span> : null}

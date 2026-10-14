@@ -4,6 +4,7 @@ import com.tbridge.debt.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -18,6 +19,10 @@ import java.util.List;
  * codigo, pero aca se lee solo cuando vence: el codigo nunca llega a quien lo
  * pidio. Si el personal de la empresa pudiera verlo, podria entrar como el
  * deudor.
+ *
+ * <p>Si el correo no sale, ms-auth responde {@code 502} y aca eso es un
+ * {@link CorreoNoSalio}: quien llamo decide que hacer, pero nunca lo anota
+ * como un contacto.
  */
 @Component
 public class AuthClient {
@@ -37,6 +42,9 @@ public class AuthClient {
     /** Lo unico que se lee de la respuesta. */
     public record CodigoEmitido(Instant expiraEn) {}
 
+    /** Lo que responde ms-auth cuando el correo no salio. */
+    record CorreoNoEnviado(String error, String causa) {}
+
     private final RestClient rest;
     private final String internalKey;
 
@@ -54,9 +62,21 @@ public class AuthClient {
                     .body(pedido)
                     .retrieve()
                     .body(CodigoEmitido.class);
+        } catch (HttpServerErrorException.BadGateway noSalio) {
+            CorreoNoEnviado cuerpo = leer(noSalio);
+            throw new CorreoNoSalio(cuerpo == null ? null : cuerpo.error(),
+                    cuerpo != null && "direccion".equals(cuerpo.causa()));
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo emitir el codigo: el servicio de acceso no responde");
+        }
+    }
+
+    private static CorreoNoEnviado leer(HttpServerErrorException respuesta) {
+        try {
+            return respuesta.getResponseBodyAs(CorreoNoEnviado.class);
+        } catch (RuntimeException ilegible) {
+            return null;
         }
     }
 }

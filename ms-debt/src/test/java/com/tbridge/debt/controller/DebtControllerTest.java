@@ -79,7 +79,7 @@ class DebtControllerTest {
                 "Comercial Nandu SpA", "76991245-2", "Arriendo local comercial", Debt.Currency.UF,
                 new BigDecimal("115.50"), new BigDecimal("115.50"), BigDecimal.ZERO, estado,
                 Instant.parse("2026-09-24T12:00:00Z"), 0, 1, false, 0, null, null, null, BigDecimal.ZERO,
-                new BigDecimal("115.50"), null, null, false);
+                new BigDecimal("115.50"), null, null, false, null);
     }
 
     @Test

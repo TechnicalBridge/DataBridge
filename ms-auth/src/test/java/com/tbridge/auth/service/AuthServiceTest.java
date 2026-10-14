@@ -75,6 +75,11 @@ class AuthServiceTest {
             guardados.add(codigo);
             return codigo;
         });
+        when(codigos.deleteByCodeHash(any())).thenAnswer(llamada -> {
+            int antes = guardados.size();
+            guardados.removeIf(c -> c.getCodeHash().equals(llamada.getArgument(0)));
+            return (long) (antes - guardados.size());
+        });
         when(codigos.findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(any()))
                 .thenAnswer(llamada -> guardados.stream()
                         .filter(c -> c.getDebtorRut().equals(llamada.getArgument(0)))
@@ -97,6 +102,18 @@ class AuthServiceTest {
 
     private String emitir(String rut) {
         return auth.emitirCodigo(rut, List.of("whatsapp", "correo"), "prueba").codigo();
+    }
+
+    @Test
+    void anular_un_codigo_que_nadie_recibio_deja_servir_al_anterior() {
+        String elQueTiene = emitir("16482337-7");
+        String elQueNoLeLlego = emitir("16482337-7");
+
+        auth.anularCodigo("16482337-7", elQueNoLeLlego);
+
+        assertEquals(1, guardados.size(), "el anulado no queda");
+        assertNotNull(auth.entrarConCodigo("16482337-7", elQueTiene, "1.2.3.4").token(),
+                "el deudor entra con el codigo que si le llego");
     }
 
     @Test

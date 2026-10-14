@@ -1,12 +1,17 @@
 package com.tbridge.auth.service;
 
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
+import com.tbridge.auth.exception.CorreoNoSalio;
+import jakarta.mail.SendFailedException;
+import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailParseException;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,6 +22,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -34,6 +41,11 @@ import java.util.Optional;
  * <p>Con un servidor real, {@link ModoDePrueba} decide a quien se le escribe
  * de verdad: sin el, los correos inventados de los datos de demostracion
  * recibirian cobranzas.
+ *
+ * <p>El correo de un codigo y el de un recordatorio <b>dicen si no salieron</b>
+ * ({@link CorreoNoSalio}): quien los pide es la cobranza, que no puede anotar
+ * como hecha una gestion que nunca llego. El enlace y la invitacion salen en
+ * segundo plano y solo dejan el fallo en el log.
  */
 @Service
 public class MailService {
@@ -120,6 +132,8 @@ public class MailService {
      * llevarlo a otra parte. Tampoco lleva el detalle de la deuda: eso vive
      * dentro del portal, asi que un mensaje que llegue a un numero equivocado
      * no expone cuanto debe alguien ni a quien.
+     *
+     * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarCodigo(String to, String codigo, String acreedor) {
         if (!smtpEnabled) {
@@ -127,7 +141,7 @@ public class MailService {
             //  log: quien leyera los logs podria entrar como cualquier deudor.
             log.info("Sin SMTP: codigo de acceso para {}: {}", to, codigo);
         }
-        enviar(to, "Tu codigo de acceso", """
+        enviarODecirlo(to, "Tu codigo de acceso", """
                 Hola,
 
                 %s te dejo un mensaje sobre un pago pendiente.
@@ -151,12 +165,14 @@ public class MailService {
      * <p>Con las mismas reglas que el primer aviso: sin enlace y sin monto.
      * Dice la fecha, porque es lo que el deudor necesita para organizarse, y
      * una fecha sola no le cuenta a un tercero cuanto debe nadie.
+     *
+     * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarRecordatorio(String to, String codigo, String acreedor, LocalDate vence) {
         if (!smtpEnabled) {
             log.info("Sin SMTP: recordatorio para {}, cuota del {}, codigo {}", to, vence, codigo);
         }
-        enviar(to, "Se acerca el vencimiento de tu cuota", """
+        enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", """
                 Hola,
 
                 El %s vence una cuota de tu convenio con %s.
@@ -271,10 +287,9 @@ public class MailService {
 
     /** Lo que dijo el servidor, en una linea y sin la clave, por si algun servidor la repitiera en su error. */
     private String motivo(Exception e) {
-        Throwable causa = e;
-        while (causa.getCause() != null && causa.getCause() != causa) {
-            causa = causa.getCause();
-        }
+        //  Lo que explica el fallo es lo mas hondo de la cadena: ahi esta la
+        //  respuesta del servidor ("550 5.1.1 ...", "535 ... not accepted").
+        Throwable causa = cadena(e).getLast();
         String texto = causa.getMessage() == null ? causa.getClass().getSimpleName() : causa.getMessage();
         texto = texto.replaceAll("\\s+", " ").strip();
         if (StringUtils.hasText(clave)) {
@@ -283,6 +298,45 @@ public class MailService {
         return texto.length() > 300 ? texto.substring(0, 300) : texto;
     }
 
+    /**
+     * El fallo y todo lo que trae debajo, de afuera hacia adentro. Spring
+     * junta los correos rechazados en un {@link MailSendException} sin causa:
+     * lo que paso con cada uno esta en sus excepciones por mensaje.
+     */
+    private static List<Throwable> cadena(Throwable e) {
+        List<Throwable> eslabones = new ArrayList<>();
+        Throwable actual = e;
+        while (actual != null && !eslabones.contains(actual)) {
+            eslabones.add(actual);
+            if (actual.getCause() == null && actual instanceof MailSendException varios
+                    && varios.getMessageExceptions().length > 0) {
+                actual = varios.getMessageExceptions()[0];
+            } else {
+                actual = actual.getCause();
+            }
+        }
+        return eslabones;
+    }
+
+    /**
+     * Si lo que fallo es la direccion y no el servidor: la rechazo al
+     * recibirla (550, 553: no existe, no acepta correo) o esta mal escrita.
+     * Un rechazo temporal (450, 451, 452) no cuenta: ese correo sale despues.
+     */
+    static boolean esDeLaDireccion(Throwable e) {
+        for (Throwable causa : cadena(e)) {
+            if (causa instanceof AddressException || causa instanceof MailParseException) {
+                return true;
+            }
+            if (causa instanceof SendFailedException rechazo
+                    && rechazo.getInvalidAddresses() != null && rechazo.getInvalidAddresses().length > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Para un correo que nadie espera saber si salio: el fallo queda en el log. */
     private void enviar(String to, String asunto, String cuerpo) {
         if (!smtpEnabled) {
             return;
@@ -291,6 +345,24 @@ public class MailService {
             entregar(to, asunto, cuerpo);
         } catch (Exception e) {
             log.warn("No se pudo enviar SMTP a {}: {}", to, motivo(e));
+        }
+    }
+
+    /**
+     * Para un correo que alguien espera saber si salio. Sin servidor no hay
+     * nada que pueda fallar, y lo que el modo de prueba no deja salir tampoco
+     * es un fallo: asi se pidio que fuera.
+     */
+    private void enviarODecirlo(String to, String asunto, String cuerpo) {
+        if (!smtpEnabled) {
+            return;
+        }
+        try {
+            entregar(to, asunto, cuerpo);
+        } catch (Exception e) {
+            String motivo = motivo(e);
+            log.warn("No se pudo enviar SMTP a {}: {}", to, motivo);
+            throw new CorreoNoSalio(motivo, esDeLaDireccion(e));
         }
     }
 

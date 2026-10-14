@@ -3,6 +3,7 @@ package com.tbridge.debt.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
@@ -27,6 +28,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +56,12 @@ import java.util.stream.Collectors;
  *       {@link LimiteDeContacto}. Un toque que la ley
  *       no deja hoy sale en la proxima pasada en que si.</li>
  * </ul>
+ *
+ * <p>Un toque cuyo correo no sale no es un toque: queda el motivo en el
+ * deudor y se intenta de nuevo en la pasada siguiente. Si la culpa es del
+ * servidor de correo, la pasada se corta ahi, en vez de esperarlo una vez por
+ * deuda. Antes de las campanas, cada pasada invita a las deudas que todavia
+ * no recibieron ningun correo ({@link InvitacionService#invitarPendientes}).
  */
 @Service
 public class ContactoService {
@@ -71,6 +80,7 @@ public class ContactoService {
     private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final InvitacionService invitaciones;
     private final ObjectMapper json;
     /** Los que se decretan (elecciones, plebiscitos, feriados especiales): no se pueden calcular. */
     private final Set<LocalDate> decretados;
@@ -78,13 +88,14 @@ public class ContactoService {
     private final Map<Integer, Set<LocalDate>> nacionales = new ConcurrentHashMap<>();
 
     public ContactoService(CampaignRepository campaigns, DebtRepository debts, ContactRepository contactos,
-                           AuthClient auth, LimiteDeContacto limite, ObjectMapper json,
+                           AuthClient auth, LimiteDeContacto limite, InvitacionService invitaciones, ObjectMapper json,
                            @Value("${app.contacto.feriados:}") String decretados) {
         this.campaigns = campaigns;
         this.debts = debts;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.invitaciones = invitaciones;
         this.json = json;
         this.decretados = Arrays.stream(decretados.split(","))
                 .map(String::trim)
@@ -99,8 +110,9 @@ public class ContactoService {
     @Scheduled(cron = "${app.contacto.cron:0 */15 * * * *}", zone = "America/Santiago")
     public void pasar() {
         ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
-        if (hecho.enviados() > 0) {
-            log.info("Campanas: {} toque(s) enviados, {} pendientes", hecho.enviados(), hecho.omitidos());
+        if (hecho.enviados() + hecho.invitados() > 0) {
+            log.info("Campanas: {} toque(s) enviados, {} pendientes; {} invitacion(es) pendientes que salieron",
+                    hecho.enviados(), hecho.omitidos(), hecho.invitados());
         }
     }
 
@@ -125,17 +137,29 @@ public class ContactoService {
      * Una pasada: los toques que tocan a esta hora de Chile. Con otra hora que
      * la de ahora sirve para probar una cadencia sin esperar semanas: los
      * toques quedan fechados a esa hora. Con {@code soloCampana} (su id
-     * externo) pasa solo por esa, y las demas no se enteran.
+     * externo) pasa solo por esa, y las demas no se enteran: tampoco las
+     * invitaciones pendientes.
      */
     @Transactional
     public ContactosResponse contactar(LocalDateTime ahora, String soloCampana) {
         if (!horaDeContacto(ahora)) {
-            return new ContactosResponse(0, 0, false);
+            return new ContactosResponse(0, 0, false, 0);
         }
         Instant cuando = ahora.atZone(CHILE).toInstant();
         LocalDate hoy = ahora.toLocalDate();
         int enviados = 0;
         int omitidos = 0;
+        //  A quien ya se le intento en esta pasada y fallo: no se insiste con sus otras deudas.
+        Set<Debtor> fallaron = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        int invitados = 0;
+        if (soloCampana == null) {
+            InvitacionService.Pasada pendientes = invitaciones.invitarPendientes(cuando, fallaron);
+            invitados = pendientes.enviadas();
+            if (pendientes.cortada()) {
+                return new ContactosResponse(0, 0, true, invitados);
+            }
+        }
 
         for (Campaign campana : campaigns.findByStatus(Campaign.Status.running)) {
             if ((soloCampana != null && !soloCampana.equals(campana.getExternalId()))
@@ -169,13 +193,25 @@ public class ContactoService {
                     continue;
                 }
                 Debtor deudor = deuda.getDebtor();
-                if (deudor.getEmail() == null || deudor.getEmail().isBlank() || !limite.permite(deudor, cuando)) {
+                if (deudor.getEmail() == null || deudor.getEmail().isBlank() || deudor.correoConProblemas()
+                        || fallaron.contains(deudor) || !limite.permite(deudor, cuando)) {
                     omitidos++;
                     continue;
                 }
                 try {
                     auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
                             deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId()));
+                } catch (CorreoNoSalio noSalio) {
+                    deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), cuando);
+                    omitidos++;
+                    if (!noSalio.deLaDireccion()) {
+                        //  El servidor de correo no esta aceptando: con las demas deudas
+                        //  seria esperarlo una vez por cada una. Salen en la proxima pasada.
+                        log.warn("Campanas: la pasada se corta, el correo no sale: {}", noSalio.motivo());
+                        return new ContactosResponse(enviados, omitidos, true, invitados);
+                    }
+                    fallaron.add(deudor);
+                    continue;
                 } catch (RuntimeException e) {
                     log.warn("No salio el toque {} de la deuda {}: {}", toque + 1, deuda.getId(), e.getMessage());
                     omitidos++;
@@ -183,10 +219,11 @@ public class ContactoService {
                 }
                 contactos.save(Contact.toque(deuda, campana, toque + 1, AccesoService.enmascarar(deudor.getEmail()))
                         .el(cuando));
+                deudor.correoSalio();
                 enviados++;
             }
         }
-        return new ContactosResponse(enviados, omitidos, true);
+        return new ContactosResponse(enviados, omitidos, true, invitados);
     }
 
     /** Hoy DataBridge contacta solo por correo: WhatsApp no esta conectado. */

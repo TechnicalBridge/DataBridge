@@ -3,6 +3,7 @@ package com.tbridge.debt.service;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.CodigoEnviadoResponse;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
@@ -14,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -53,6 +55,62 @@ class AccesoServiceTest {
         assertTrue(error.getMessage().startsWith("Ya se le escribio lo que permite la ley"), error.getMessage());
         verify(auth, never()).emitirCodigo(any());
         verify(contactos, never()).save(any());
+    }
+
+    @Test
+    void si_el_correo_no_sale_la_empresa_lo_ve_en_el_momento_y_queda_en_el_deudor() {
+        DebtService debts = mock(DebtService.class);
+        AuthClient auth = mock(AuthClient.class);
+        LimiteDeContacto limite = mock(LimiteDeContacto.class);
+        ContactRepository contactos = mock(ContactRepository.class);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite);
+        JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        Organization patrimonio = new Organization();
+        patrimonio.setTradeName("Patrimonio Inmuebles");
+        Debtor deudor = new Debtor();
+        deudor.setEmail("felipe.rojas@correo.cl");
+        Debt deuda = new Debt();
+        deuda.setDebtor(deudor);
+        deuda.setCreditor(patrimonio);
+        deuda.setStatus(Debt.Status.open);
+        when(debts.requireVisible(empresa, 3L)).thenReturn(deuda);
+        when(limite.permite(any(), any())).thenReturn(true);
+        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, error.getStatus());
+        assertEquals("No se pudo enviar el correo: el servidor rechazo la direccion (550 User unknown)",
+                error.getMessage());
+        assertEquals(1, deudor.getEmailRejections());
+        verify(contactos, never()).save(any());
+    }
+
+    @Test
+    void la_empresa_puede_insistir_aunque_la_direccion_tenga_problemas_y_si_sale_vuelve_a_cero() {
+        DebtService debts = mock(DebtService.class);
+        AuthClient auth = mock(AuthClient.class);
+        LimiteDeContacto limite = mock(LimiteDeContacto.class);
+        AccesoService servicio = new AccesoService(debts, mock(ContactRepository.class), auth, limite);
+        JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        Organization patrimonio = new Organization();
+        patrimonio.setTradeName("Patrimonio Inmuebles");
+        Debtor deudor = new Debtor();
+        deudor.setEmail("felipe.rojas@correo.cl");
+        for (int i = 0; i < 3; i++) {
+            deudor.correoNoSalio("rechazada", true, java.time.Instant.now());
+        }
+        Debt deuda = new Debt();
+        deuda.setDebtor(deudor);
+        deuda.setCreditor(patrimonio);
+        deuda.setStatus(Debt.Status.open);
+        when(debts.requireVisible(empresa, 3L)).thenReturn(deuda);
+        when(limite.permite(any(), any())).thenReturn(true);
+
+        servicio.enviarCodigo(empresa, 3L);
+
+        assertEquals(false, deudor.correoConProblemas());
+        assertNull(deudor.getEmailFailedAt());
     }
 
     @Test
