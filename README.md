@@ -869,6 +869,10 @@ La arquitectura se describe con el **modelo 4+1** de Kruchten: cuatro vistas, ca
 pregunta distinta para un lector distinto, y un conjunto de escenarios que las recorre a todas y
 las amarra.
 
+Aquí va el resumen. El detalle de todo TB_web, con cada tipo de diagrama en su propio archivo (casos
+de uso, clases, entidad-relación, estados, secuencia, componentes y despliegue), está en
+[`docs/diagramas`](docs/diagramas/README.md).
+
 | Vista | Qué responde | Para quién | Diagramas |
 | --- | --- | --- | --- |
 | [**Escenarios** (el +1)](#81-escenarios) | Qué hace cada actor, y qué recorridos prueban la arquitectura | Todos | Casos de uso y escenarios clave |
