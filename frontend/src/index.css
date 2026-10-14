@@ -335,6 +335,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 /* ---- Portal: marco ------------------------------------------------------------------------- */
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 256px 1fr; }
+/* El contenido de la grilla puede ser mas angosto que sus tablas para permitir scroll horizontal interno (#148) */
+.app-shell > * { min-width: 0; }
 .sidebar {
   position: sticky;
   top: 0;
@@ -389,7 +391,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   font-weight: 700;
   font-size: 14px;
 }
-.main { width: 100%; max-width: 1160px; margin: 0 auto; padding: 34px 40px 72px; }
+.main { width: 100%; max-width: 1160px; margin: 0 auto; padding: 34px 40px 72px; min-width: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
 .topbar h1 { margin: 2px 0 6px; font-size: clamp(28px, 3vw, 34px); }
 .topbar p { margin: 0; color: var(--muted); font-size: 16.5px; }
