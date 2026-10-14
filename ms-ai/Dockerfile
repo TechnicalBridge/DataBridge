@@ -18,15 +18,18 @@
 FROM maven:3.9-eclipse-temurin-25 AS construccion
 WORKDIR /obra
 
-#  Solo este servicio: su pom y su codigo.
+#  Primero solo el pom, y se bajan sus dependencias. Esa capa queda guardada
+#  y se reutiliza mientras el pom no cambie, aunque cambie el codigo. Antes lo
+#  hacia un cache de ~/.m2 montado en la construccion, pero Railway rechaza
+#  esos montajes si no llevan el id de cada servicio suyo, que cambia de un
+#  proyecto a otro.
 COPY pom.xml .
-COPY src src
+RUN mvn -B -q dependency:go-offline
 
-#  El cache de ~/.m2 sobrevive entre construcciones: las dependencias se bajan
-#  una vez, no en cada cambio de codigo. Sin pruebas: las corre la integracion
-#  continua; una imagen se construye para desplegar.
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -q package -DskipTests
+#  Despues el codigo. Sin pruebas: las corre la integracion continua; una
+#  imagen se construye para desplegar.
+COPY src src
+RUN mvn -B -q package -DskipTests
 
 
 FROM eclipse-temurin:25-jre
