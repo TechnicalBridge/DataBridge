@@ -126,7 +126,12 @@ export default function Pay() {
       }
     } catch (err) {
       if (popup) popup.close();
-      setError(err.message);
+      const msg = err.message || "";
+      if (msg.toLowerCase().includes("valor de la uf") || msg.toLowerCase().includes("uf")) {
+        setError("Por el momento no es posible calcular el monto en pesos para esta deuda en UF porque el valor oficial de la UF para hoy aún no está disponible. Por favor, intenta más tarde.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }

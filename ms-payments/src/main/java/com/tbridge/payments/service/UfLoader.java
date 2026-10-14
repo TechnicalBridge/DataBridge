@@ -11,6 +11,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -32,9 +33,13 @@ public class UfLoader {
     private final BancoCentralClient bancoCentral;
     private final UfValueRepository valores;
 
-    public UfLoader(BancoCentralClient bancoCentral, UfValueRepository valores) {
+    private final BigDecimal valorDefecto;
+
+    public UfLoader(BancoCentralClient bancoCentral, UfValueRepository valores,
+                    @org.springframework.beans.factory.annotation.Value("${app.uf.valor-defecto:38000.00}") BigDecimal valorDefecto) {
         this.bancoCentral = bancoCentral;
         this.valores = valores;
+        this.valorDefecto = valorDefecto;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -42,6 +47,12 @@ public class UfLoader {
         if (!bancoCentral.configurado()) {
             log.warn("Sin BCENTRAL_USER/BCENTRAL_PASS: la UF no se carga sola. "
                     + "Cargala con POST /internal/uf o configura las credenciales del Banco Central.");
+            LocalDate hoy = LocalDate.now(CHILE);
+            if (valores.findById(hoy).isEmpty() && valorDefecto != null && valorDefecto.signum() > 0) {
+                valores.save(new UfValue(hoy, valorDefecto, "fallback_local"));
+                log.info("Ambiente sin credenciales del Banco Central: sembrando valor referencial de UF {} para el día {}",
+                        valorDefecto, hoy);
+            }
             return;
         }
         cargar();
