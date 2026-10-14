@@ -2,11 +2,11 @@ package com.tbridge.debt.service;
 
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Organization;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +23,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.when;
 class InvitacionServiceTest {
 
     @Mock private DebtRepository debts;
-    @Mock private DebtEventRepository events;
+    @Mock private ContactRepository contactos;
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
 
@@ -45,7 +47,7 @@ class InvitacionServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new InvitacionService(debts, events, auth, limite);
+        servicio = new InvitacionService(debts, contactos, auth, limite);
         when(limite.permite(any(), any())).thenReturn(true);
 
         Organization patrimonio = new Organization();
@@ -73,11 +75,11 @@ class InvitacionServiceTest {
         invitar();
 
         verify(auth, never()).emitirCodigo(any());
-        verify(events, never()).save(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test
-    void le_envia_el_codigo_al_correo_y_lo_anota_como_del_sistema() {
+    void le_envia_el_codigo_al_correo_y_lo_anota_como_una_invitacion() {
         invitar();
 
         ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
@@ -88,11 +90,14 @@ class InvitacionServiceTest {
         //  Sin fecha: es el primer aviso, no el recordatorio de una cuota.
         assertNull(pedido.getValue().vence());
 
-        ArgumentCaptor<DebtEvent> evento = ArgumentCaptor.forClass(DebtEvent.class);
-        verify(events).save(evento.capture());
-        assertEquals(DebtEvent.Type.code_sent, evento.getValue().getType());
-        assertEquals(DebtEvent.Actor.system, evento.getValue().getActor());
-        assertEquals("ca************@correo.cl", evento.getValue().getReference());
+        ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
+        verify(contactos).save(contacto.capture());
+        assertEquals(Contact.Kind.invitation, contacto.getValue().getKind());
+        assertSame(deuda, contacto.getValue().getDebt());
+        assertFalse(contacto.getValue().deLaEmpresa(), "lo manda el sistema");
+        assertEquals("ca************@correo.cl", contacto.getValue().getDestination());
+        assertNull(contacto.getValue().getCampaign());
+        assertNull(contacto.getValue().getInstallment());
     }
 
     @Test
@@ -102,7 +107,7 @@ class InvitacionServiceTest {
         invitar();
 
         verify(auth, never()).emitirCodigo(any());
-        verify(events, never()).save(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test
@@ -110,7 +115,7 @@ class InvitacionServiceTest {
         when(auth.emitirCodigo(any())).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "caido"));
 
         assertDoesNotThrow(this::invitar);
-        verify(events, never()).save(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test

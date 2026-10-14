@@ -1,8 +1,7 @@
 package com.tbridge.debt.service;
 
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -18,7 +17,7 @@ import java.util.List;
  * separadas por al menos dos dias</b>. Aca se cuenta todo lo que le llega al
  * deudor desde DataBridge, de todas sus deudas: la invitacion, los toques de la
  * campana, el recordatorio de una cuota y el codigo que reenvia la empresa.
- * Cada uno queda como {@code code_sent} en la historia de su deuda, que es
+ * Cada uno queda como un contacto de su deuda ({@code contacts}), que es
  * tambien el registro de gestiones que pide la ley.
  *
  * <p>No cuenta el codigo que pide el propio deudor para entrar: eso no es
@@ -35,10 +34,10 @@ public class LimiteDeContacto {
 
     private static final ZoneId CHILE = ZoneId.of("America/Santiago");
 
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
 
-    public LimiteDeContacto(DebtEventRepository events) {
-        this.events = events;
+    public LimiteDeContacto(ContactRepository contactos) {
+        this.contactos = contactos;
     }
 
     /** Si en este momento se le puede escribir al deudor. */
@@ -46,9 +45,9 @@ public class LimiteDeContacto {
         LocalDate hoy = LocalDate.ofInstant(ahora, CHILE);
         //  La semana son los ultimos siete dias, hoy incluido.
         Instant desde = hoy.minusDays(6).atStartOfDay(CHILE).toInstant();
-        List<LocalDate> dias = events.findByDebtDebtorAndTypeAndOccurredAtAfter(deudor, DebtEvent.Type.code_sent, desde)
+        List<LocalDate> dias = contactos.cuandoSeLeEscribio(deudor, desde)
                 .stream()
-                .map(e -> LocalDate.ofInstant(e.getOccurredAt(), CHILE))
+                .map(cuando -> LocalDate.ofInstant(cuando, CHILE))
                 .filter(dia -> !dia.isAfter(hoy))
                 .toList();
         if (dias.size() >= POR_SEMANA) {

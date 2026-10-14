@@ -4,13 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.client.AuthClient;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.repository.CampaignRepository;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
+import com.tbridge.debt.repository.ToquesHechos;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,9 +33,12 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,18 +57,18 @@ class ContactoServiceTest {
 
     @Mock private CampaignRepository campaigns;
     @Mock private DebtRepository debts;
-    @Mock private DebtEventRepository events;
+    @Mock private ContactRepository contactos;
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
 
     private ContactoService servicio;
     private Campaign campana;
     private Debt deuda;
-    private final List<DebtEvent> historia = new ArrayList<>();
+    private final List<Contact> historia = new ArrayList<>();
 
     @BeforeEach
     void preparar() {
-        servicio = new ContactoService(campaigns, debts, events, auth, limite, new ObjectMapper(), "2026-10-12");
+        servicio = new ContactoService(campaigns, debts, contactos, auth, limite, new ObjectMapper(), "2026-10-12");
 
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -91,8 +95,10 @@ class ContactoServiceTest {
 
         when(campaigns.findByStatus(Campaign.Status.running)).thenReturn(List.of(campana));
         when(debts.findByCampaign(campana)).thenReturn(List.of(deuda));
-        when(events.findByDebtInAndType(anyList(), any())).thenReturn(historia);
-        when(events.save(any())).thenAnswer(llamada -> {
+        //  Como la base: los toques de esta campana que lleva la deuda, y las que no llevan ninguno no vienen.
+        when(contactos.toquesPorDeuda(eq(campana), anyList())).thenAnswer(llamada ->
+                historia.isEmpty() ? List.of() : List.of(new ToquesHechos(3L, historia.size())));
+        when(contactos.save(any())).thenAnswer(llamada -> {
             historia.add(llamada.getArgument(0));
             return llamada.getArgument(0);
         });
@@ -110,11 +116,28 @@ class ContactoServiceTest {
         assertEquals(0, el(7, 10).enviados(), "el segundo es el dia 4");
         assertEquals(1, el(9, 10).enviados(), "dia 4");
 
-        DebtEvent primero = historia.getFirst();
-        assertEquals(DebtEvent.Type.code_sent, primero.getType());
-        assertEquals("{\"campana\":8,\"toque\":1}", primero.getDetail());
-        assertEquals("campana Arriendos octubre, toque 1 de 2", primero.getReference());
+        Contact primero = historia.getFirst();
+        assertEquals(Contact.Kind.campaign, primero.getKind());
+        assertSame(campana, primero.getCampaign());
+        assertEquals((short) 1, primero.getTouchNumber());
+        assertSame(deuda, primero.getDebt());
+        assertEquals("fe**********@correo.cl", primero.getDestination(), "a donde, con la direccion tapada");
+        assertEquals(LocalDateTime.of(2026, 10, 6, 10, 0).atZone(CHILE).toInstant(), primero.getOccurredAt(),
+                "fechado a la hora de la pasada");
+        assertNull(primero.getInstallment());
+        assertEquals((short) 2, historia.get(1).getTouchNumber(), "el segundo es el toque 2");
         verify(auth, org.mockito.Mockito.times(2)).emitirCodigo(any());
+    }
+
+    @Test
+    void si_el_correo_no_sale_no_queda_ningun_contacto() {
+        when(auth.emitirCodigo(any())).thenThrow(new IllegalStateException("sin ms-auth"));
+
+        ContactosResponse pasada = el(6, 10);
+
+        assertEquals(0, pasada.enviados());
+        assertEquals(1, pasada.omitidos());
+        verify(contactos, never()).save(any());
     }
 
     @Test
@@ -210,7 +233,7 @@ class ContactoServiceTest {
                 .getFirst()
                 .getProperty("app.contacto.feriados");
         String conLaVariable = String.valueOf(feriados).replace("${CONTACTO_FERIADOS:}", contactoFeriados);
-        return new ContactoService(campaigns, debts, events, auth, limite, new ObjectMapper(), conLaVariable);
+        return new ContactoService(campaigns, debts, contactos, auth, limite, new ObjectMapper(), conLaVariable);
     }
 
     @Test

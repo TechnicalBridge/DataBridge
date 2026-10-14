@@ -2,7 +2,6 @@ package com.tbridge.debt.repository;
 
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
-import com.tbridge.debt.model.Debtor;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
@@ -23,7 +22,4 @@ public interface DebtEventRepository extends JpaRepository<DebtEvent, Long> {
     List<DebtEvent> findTop300ByDebtInAndTypeOrderByOccurredAtDesc(Collection<Debt> debts, DebtEvent.Type type);
 
     boolean existsByDebtAndTypeAndOccurredAtAfter(Debt debt, DebtEvent.Type type, Instant desde);
-
-    /** Lo que se le envio a un deudor, de todas sus deudas: para no escribirle mas de lo que deja la ley. */
-    List<DebtEvent> findByDebtDebtorAndTypeAndOccurredAtAfter(Debtor debtor, DebtEvent.Type type, Instant desde);
 }

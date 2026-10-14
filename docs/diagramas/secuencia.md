@@ -246,7 +246,7 @@ sequenceDiagram
         IV->>AU: POST /internal/codigos, con la clave interna
         AU->>AU: guarda la huella del código, vigente 24 horas
         AU-)C: correo con el código: sin monto y sin enlace
-        IV->>B: debt_events: code_sent
+        IV->>B: contacts: la invitación, con el destino tapado
     end
 ```
 
@@ -564,7 +564,7 @@ sequenceDiagram
             CS->>B: campaigns en curso, dentro de sus fechas y con correo
             loop cada campaña
                 CS->>B: sus deudas abiertas
-                CS->>B: debt_events: cuántos correos lleva cada una
+                CS->>B: contacts: cuántos toques lleva cada una
                 loop cada deuda
                     Note over CS: ¿le quedan intentos?<br/>¿llegó el día según la cadencia?
                     CS->>LC: permite(deudor, ahora)
@@ -574,7 +574,7 @@ sequenceDiagram
                         CS->>AC: emitirCodigo(rut, correo, acreedor)
                         AC->>AU: POST /internal/codigos, con la clave interna
                         AU-)C: correo con el código: sin monto y sin enlace
-                        CS->>B: debt_events: code_sent, con la campaña y el número de correo
+                        CS->>B: contacts: el toque, con su campaña y su número
                     end
                 end
             end

@@ -14,13 +14,16 @@ import java.time.Instant;
  * cruzar con la pasarela. Aca cada dato tiene su columna, y lo que no calza en
  * ninguna va en {@code detail} (JSON): hoy, el {@link DetallePago} de cada
  * pago aplicado.
+ *
+ * <p>Lo que se le escribe al deudor no va aca: cada contacto tiene su fila en
+ * {@link Contact}, con su campana, su toque o su cuota.
  */
 @Entity
 @Table(name = "debt_events")
 public class DebtEvent {
 
     public enum Type {
-        registered, updated, withdrawn, code_sent, portal_entered,
+        registered, updated, withdrawn, portal_entered,
         repacted, payment_applied, settled, disputed
     }
 

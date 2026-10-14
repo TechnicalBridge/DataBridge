@@ -13,6 +13,7 @@ import com.tbridge.debt.dto.response.RepactPlan;
 import com.tbridge.debt.dto.response.DebtSummaryResponse;
 import com.tbridge.debt.model.Batch;
 import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtCharge;
 import com.tbridge.debt.model.DebtEvent;
@@ -21,6 +22,7 @@ import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Installment;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.model.Repactation;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtChargeRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
@@ -28,6 +30,7 @@ import com.tbridge.debt.repository.DebtorRepository;
 import com.tbridge.debt.repository.InstallmentRepository;
 import com.tbridge.debt.repository.OrganizationRepository;
 import com.tbridge.debt.repository.RepactationRepository;
+import com.tbridge.debt.repository.UltimoContacto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,6 +75,7 @@ class DebtServiceTest {
     @Mock private InstallmentRepository installments;
     @Mock private RepactationRepository repactations;
     @Mock private DebtEventRepository events;
+    @Mock private ContactRepository contactos;
     @Mock private EventosService eventos;
     @Mock private DescuentoService descuentos;
     @Spy private RepactationService repactation = new RepactationService();
@@ -319,6 +323,87 @@ class DebtServiceTest {
         assertEquals(List.of(Installment.Status.void_, Installment.Status.paid, Installment.Status.paid,
                 Installment.Status.pending), cuotas.stream().map(Installment::getStatus).toList());
         assertEquals(Debt.Status.repacted, deuda.getStatus());
+    }
+
+    // ------------------------------------------------------------------
+    //  Los contactos al deudor
+    // ------------------------------------------------------------------
+
+    private static Instant el(String fechaYHora) {
+        return java.time.LocalDateTime.parse(fechaYHora).atZone(ZoneId.of("America/Santiago")).toInstant();
+    }
+
+    @Test
+    void la_empresa_ve_cuando_se_le_escribio_por_ultima_vez_a_cada_deudor() {
+        Debt sinInvitar = new Debt();
+        sinInvitar.setId(4L);
+        sinInvitar.setCreditor(patrimonio);
+        sinInvitar.setDebtor(valentina);
+        sinInvitar.setLastBatch(deuda.getLastBatch());
+        sinInvitar.setCurrency(Debt.Currency.CLP);
+        sinInvitar.setOriginalAmount(new BigDecimal("100000"));
+        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda, sinInvitar));
+        //  La base responde solo por las deudas a las que se les escribio alguna vez.
+        when(contactos.ultimoPorDeuda(List.of(deuda, sinInvitar)))
+                .thenReturn(List.of(new UltimoContacto(3L, el("2026-10-06T10:00"))));
+
+        List<DebtSummaryResponse> cartera = servicio.listFor(empresa("77305118-6"));
+
+        assertEquals(el("2026-10-06T10:00"), cartera.get(0).codigoEnviado());
+        assertEquals(null, cartera.get(1).codigoEnviado(), "todavia sin invitar");
+    }
+
+    @Test
+    void la_historia_de_la_deuda_intercala_los_contactos_con_lo_que_le_paso() {
+        Campaign campana = new Campaign();
+        campana.setName("Arriendos octubre");
+        campana.setAttempts((short) 2);
+        campana.setCadenceDays("[1, 4, 11]");
+        Installment cuota = cuotas.getFirst();
+
+        DebtEvent registrada = DebtEvent.de(deuda, DebtEvent.Type.registered, DebtEvent.Actor.agency)
+                .conReferencia("APX-2026-09-19-004");
+        registrada.setOccurredAt(el("2026-09-19T10:00"));
+        DebtEvent entro = DebtEvent.de(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor);
+        entro.setOccurredAt(el("2026-09-21T18:39"));
+        historia.add(registrada);
+        historia.add(entro);
+        when(contactos.findByDebtOrderByOccurredAtAsc(deuda)).thenReturn(List.of(
+                Contact.invitacion(deuda, "va**************@correo.cl").el(el("2026-09-19T10:05")),
+                Contact.toque(deuda, campana, 1, "va**************@correo.cl").el(el("2026-09-20T10:00")),
+                Contact.reenvio(deuda, "va**************@correo.cl").el(el("2026-09-23T09:30")),
+                Contact.recordatorio(cuota, "va**************@correo.cl").el(el("2026-09-25T09:00"))));
+
+        List<DebtDetailResponse.Suceso> sucesos = servicio.getFor(empresa("77305118-6"), 3L).historia();
+
+        assertEquals(List.of("registered", "code_sent", "code_sent", "portal_entered", "code_sent", "code_sent"),
+                sucesos.stream().map(DebtDetailResponse.Suceso::tipo).toList(), "en el orden en que paso");
+        //  Cada contacto se lee como se leia cuando era un evento.
+        DebtDetailResponse.Suceso invitacion = sucesos.get(1);
+        assertEquals(DebtEvent.Actor.system, invitacion.quien());
+        assertEquals("va**************@correo.cl", invitacion.referencia());
+        assertEquals(el("2026-09-19T10:05"), invitacion.ocurrioEn());
+        assertEquals(null, invitacion.monto());
+        assertEquals("campana Arriendos octubre, toque 1 de 2", sucesos.get(2).referencia());
+        assertEquals(DebtEvent.Actor.system, sucesos.get(2).quien());
+        assertEquals(DebtEvent.Actor.agency, sucesos.get(4).quien(), "el reenvio lo pide la empresa");
+        assertEquals("va**************@correo.cl", sucesos.get(4).referencia());
+        assertEquals("recordatorio de la cuota que vence el 2026-09-05", sucesos.get(5).referencia());
+        assertEquals(DebtEvent.Actor.system, sucesos.get(5).quien());
+    }
+
+    @Test
+    void un_toque_que_ya_salio_nunca_se_lee_como_mayor_que_el_total() {
+        //  La campana bajo sus intentos a 1 despues de mandar el toque 2.
+        Campaign campana = new Campaign();
+        campana.setName("Arriendos octubre");
+        campana.setAttempts((short) 1);
+        campana.setCadenceDays("[1, 4, 11]");
+        when(contactos.findByDebtOrderByOccurredAtAsc(deuda)).thenReturn(List.of(
+                Contact.toque(deuda, campana, 2, null).el(el("2026-09-23T10:00"))));
+
+        assertEquals("campana Arriendos octubre, toque 2 de 2",
+                servicio.getFor(empresa("77305118-6"), 3L).historia().getFirst().referencia());
     }
 
     @Test

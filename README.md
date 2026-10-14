@@ -840,7 +840,7 @@ las entidades con las tablas y se niega a partir si no calzan.
 
 | Base | Migraciones |
 | --- | --- |
-| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel |
+| `tb_debt` | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla |
 | `tb_auth` | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel |
 | `tb_payments` | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
@@ -861,10 +861,13 @@ erDiagram
     debts         ||--o{ debt_charges : "se compone de"
     debts         ||--o{ repactations : "se repacta en"
     debts         ||--o{ debt_events  : "registra"
+    debts         ||--o{ contacts     : "motiva"
+    campaigns     |o--o{ contacts     : "ordena cada toque de"
+    installments  |o--o| contacts     : "se recuerda con"
     repactations  ||--o{ installments : "se paga en"
 ```
 
-Trece tablas y dos vistas (`v_debt_balance`, `v_creditor_portfolio`). Lo que conviene mirar:
+Quince tablas y dos vistas (`v_debt_balance`, `v_creditor_portfolio`). Lo que conviene mirar:
 
 - **`organizations`** guarda a los acreedores y a la agencia, con un `kind` que dice cuál es cuál.
   No hay rubro: un acreedor es cualquiera que tenga cobros. Un `mandates` las une: *esta agencia
@@ -879,6 +882,10 @@ Trece tablas y dos vistas (`v_debt_balance`, `v_creditor_portfolio`). Lo que con
 - **`debts.status`** es uno de `open`, `repacted`, `disputed`, `paid` o `withdrawn`
   ([§8](#estados-de-una-deuda)). Un reclamo queda en `debt_events` con su motivo y el texto del
   deudor, que no sale de DataBridge.
+- **`contacts`** guarda cada vez que DataBridge le escribió a un deudor: la invitación, un toque de
+  campaña con su número, el recordatorio de una cuota o el código que reenvía la empresa. Es el
+  registro de gestiones que pide la ley, y de ahí se cuenta el límite de dos por semana. La base
+  misma impide repetir un toque de una campaña para una deuda, o recordar dos veces una cuota.
 - **`outbox`** es la bandeja de salida de los eventos, escrita en la misma transacción que el
   hecho que los provoca. Si el sistema se cae entre "cobré" y "avisé", el aviso sigue ahí.
 - **`subscriptions.secret`** va **cifrado** ([§9](#9-requisitos-no-funcionales)).
@@ -1662,13 +1669,13 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**684 pruebas**, todas en Java y sin fallos:
+**695 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 17 |
 | `ms-auth` | 143 |
-| `ms-debt` | 304 |
+| `ms-debt` | 315 |
 | `ms-payments` | 178 |
 | `ms-ai` | 42 |
 

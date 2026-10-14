@@ -1,6 +1,7 @@
 package com.tbridge.debt.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtCharge;
 import com.tbridge.debt.model.DebtEvent;
@@ -76,18 +77,30 @@ public record DebtDetailResponse(
         }
     }
 
-    @Schema(description = "Algo que le paso a la deuda")
+    @Schema(description = "Algo que le paso a la deuda, o una vez que se le escribio al deudor (code_sent)")
     public record Suceso(
-            @Schema(example = "payment_applied") DebtEvent.Type tipo,
+            @Schema(example = "payment_applied", allowableValues = {"registered", "updated", "withdrawn",
+                    "code_sent", "portal_entered", "repacted", "payment_applied", "settled", "disputed"})
+            String tipo,
             @Schema(example = "system") DebtEvent.Actor quien,
             @Schema(nullable = true, example = "19.25") BigDecimal monto,
             @Schema(nullable = true, example = "UF") Debt.Currency moneda,
             @Schema(nullable = true, example = "webpay:wp-9f31c2") String referencia,
             Instant ocurrioEn
     ) {
+        /** Como se lee en la historia un contacto al deudor: asi se llamaba cuando era un evento. */
+        public static final String CODIGO_ENVIADO = "code_sent";
+
         public static Suceso from(DebtEvent evento) {
-            return new Suceso(evento.getType(), evento.getActor(), evento.getAmount(), evento.getCurrency(),
+            return new Suceso(evento.getType().name(), evento.getActor(), evento.getAmount(), evento.getCurrency(),
                     evento.getReference(), evento.getOccurredAt());
+        }
+
+        /** Un contacto: lo manda el sistema, salvo el reenvio, que lo pide una persona de la empresa. */
+        public static Suceso from(Contact contacto, String descripcion) {
+            return new Suceso(CODIGO_ENVIADO,
+                    contacto.deLaEmpresa() ? DebtEvent.Actor.agency : DebtEvent.Actor.system,
+                    null, null, descripcion, contacto.getOccurredAt());
         }
     }
 }
