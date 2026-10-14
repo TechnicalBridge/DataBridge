@@ -24,7 +24,7 @@ COPY src src
 #  El cache de ~/.m2 sobrevive entre construcciones: las dependencias se bajan
 #  una vez, no en cada cambio de codigo. Sin pruebas: las corre la integracion
 #  continua; una imagen se construye para desplegar.
-RUN --mount=type=cache,target=/root/.m2 \
+RUN --mount=type=cache,id=s/04ca7de1-d964-43a1-b011-dc04651237af-/root/.m2,target=/root/.m2 \
     mvn -B -q package -DskipTests
 
 
