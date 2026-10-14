@@ -146,6 +146,21 @@ public class MandatoService {
             throw new CarteraInvalida("fechas_invalidas", "La campana no puede terminar antes de empezar");
         }
         if (presente(pedido.canales())) {
+            boolean tieneCorreo = false;
+            if (pedido.canales().isArray()) {
+                for (JsonNode canal : pedido.canales()) {
+                    if ("correo".equalsIgnoreCase(canal.asText())) {
+                        tieneCorreo = true;
+                        break;
+                    }
+                }
+            } else if (pedido.canales().isTextual() && pedido.canales().asText().toLowerCase().contains("correo")) {
+                tieneCorreo = true;
+            }
+            if (!tieneCorreo) {
+                throw new CarteraInvalida("canal_no_soportado",
+                        "Hoy DataBridge contacta solo por correo: la campana debe incluir el canal 'correo'");
+            }
             campana.setChannels(pedido.canales().toString());
         }
         if (pedido.intentos() != null) {

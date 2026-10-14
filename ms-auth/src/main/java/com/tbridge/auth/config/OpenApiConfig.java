@@ -38,7 +38,7 @@ public class OpenApiConfig {
                                 Como entra cada quien a DataBridge.
 
                                 - **El deudor** entra con su RUT y un codigo de acceso de un solo uso, \
-                                sin cuenta ni contrasena. El codigo le llega por correo o WhatsApp y el \
+                                sin cuenta ni contrasena. El codigo le llega por correo y el \
                                 entra escribiendo la direccion del portal: ningun mensaje trae un enlace \
                                 en el que tenga que confiar.
                                 - **El usuario de una empresa** entra con un enlace de un solo uso a su correo.

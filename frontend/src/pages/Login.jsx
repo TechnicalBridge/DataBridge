@@ -38,7 +38,7 @@ export default function Login({ portal }) {
             <>
               <h1 className="aparece" style={{ "--i": 1 }}>Entra con tu RUT y tu código</h1>
               <p className="aparece" style={{ "--i": 2 }}>
-                Sin cuenta y sin contraseña. El código te llegó por correo o WhatsApp de parte de la
+                Sin cuenta y sin contraseña. El código te llegó por correo de parte de la
                 empresa con la que tienes el pago pendiente. Nunca te vamos a mandar un enlace para
                 entrar: escribe esta dirección tú mismo.
               </p>

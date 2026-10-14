@@ -20,8 +20,8 @@ public record CampanaRequest(
         @Schema(nullable = true, example = "2026-12-31") String fin,
         //  Se guardan tal como llegan, como texto JSON; `implementation` le dice a
         //  Swagger que son listas, porque JsonNode se publicaria como un objeto vacio.
-        @Schema(implementation = String[].class, nullable = true, description = "whatsapp y/o correo",
-                example = "[\"whatsapp\",\"correo\"]")
+        @Schema(implementation = String[].class, nullable = true, description = "Canal de contacto. Hoy DataBridge contacta solo por correo",
+                example = "[\"correo\"]")
         JsonNode canales,
         @Schema(description = "Cuantas veces se contacta. Sin indicar, 3", example = "3", nullable = true) Integer intentos,
         @Schema(implementation = Integer[].class, nullable = true,

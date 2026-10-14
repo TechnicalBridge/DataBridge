@@ -288,6 +288,18 @@ class MandatoServiceTest {
     }
 
     @Test
+    void una_campana_sin_correo_entre_sus_canales_se_rechaza() throws Exception {
+        campanaRegistrada();
+        CampanaRequest sinCorreo = new CampanaRequest("APX-CMP-9", "76418902-7", "Solo WA", null, null,
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree("[\"whatsapp\"]"), null, null, null);
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
+                () -> servicio.registrarCampana(apofyx, sinCorreo));
+
+        assertEquals("canal_no_soportado", fallo.getCodigo());
+    }
+
+    @Test
     void un_id_externo_de_mas_de_64_caracteres_se_rechaza() throws Exception {
         campanaRegistrada();
         CampanaRequest largo = new CampanaRequest("C".repeat(65), "76418902-7", "A", null, null, null, null, null, null);

@@ -5,7 +5,7 @@ import * as sesion from "../api/sesion";
 /**
  * La sesion.
  *
- * El deudor entra con su RUT y el codigo que le llego por correo o WhatsApp:
+ * El deudor entra con su RUT y el codigo que le llego por correo:
  * sin cuenta, sin contrasena y sin hacer clic en ningun enlace. El enlace al
  * correo queda como respaldo, y es tambien como entra el personal de las
  * empresas.
