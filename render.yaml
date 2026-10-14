@@ -1,0 +1,139 @@
+# =============================================================================
+#  render.yaml — Blueprint de despliegue en Render (https://render.com)
+# =============================================================================
+#  Topología para Technical Bridge / DataBridge:
+#  - Portal: Static Site (React 18 + Vite) con rewrites automáticos hacia el Gateway.
+#  - Gateway: Web Service público expuesto a Internet (:8082 o $PORT).
+#  - Microservicios: Private Services (ms-auth, ms-debt, ms-payments, ms-ai)
+#    aislados dentro de la red privada interna de Render.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Portal Web (Frontend SPA React 18 + Vite)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: tbridge-portal
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://tbridge-gateway.onrender.com/api/*
+      - type: rewrite
+        source: /swagger-ui/*
+        destination: https://tbridge-gateway.onrender.com/swagger-ui/*
+      - type: rewrite
+        source: /v3/api-docs/*
+        destination: https://tbridge-gateway.onrender.com/v3/api-docs/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ---------------------------------------------------------------------------
+  # 2. Gateway (Único punto de entrada público al backend)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: tbridge-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./gateway
+    plan: standard
+    envVars:
+      - key: PORT
+        value: 8082
+      - key: AUTH_URI
+        value: http://ms-auth:8081
+      - key: DEBT_URI
+        value: http://ms-debt:8083
+      - key: PAYMENTS_URI
+        value: http://ms-payments:8084
+      - key: AI_URI
+        value: http://ms-ai:8085
+      - key: CORS_ORIGINS
+        value: https://tbridge-portal.onrender.com
+
+  # ---------------------------------------------------------------------------
+  # 3. Microservicio ms-auth (Servicio privado)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: ms-auth
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./ms-auth
+    envVars:
+      - key: PORT
+        value: 8081
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INTERNAL_KEY
+        generateValue: true
+      - key: DEBT_URI
+        value: http://ms-debt:8083
+
+  # ---------------------------------------------------------------------------
+  # 4. Microservicio ms-debt (Servicio privado)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: ms-debt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./ms-debt
+    envVars:
+      - key: PORT
+        value: 8083
+      - key: JWT_SECRET
+        fromService:
+          name: ms-auth
+          type: pserv
+          envVarKey: JWT_SECRET
+      - key: INTERNAL_KEY
+        fromService:
+          name: ms-auth
+          type: pserv
+          envVarKey: INTERNAL_KEY
+      - key: AUTH_URI
+        value: http://ms-auth:8081
+
+  # ---------------------------------------------------------------------------
+  # 5. Microservicio ms-payments (Servicio privado)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: ms-payments
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./ms-payments
+    envVars:
+      - key: PORT
+        value: 8084
+      - key: JWT_SECRET
+        fromService:
+          name: ms-auth
+          type: pserv
+          envVarKey: JWT_SECRET
+      - key: INTERNAL_KEY
+        fromService:
+          name: ms-auth
+          type: pserv
+          envVarKey: INTERNAL_KEY
+      - key: DEBT_URI
+        value: http://ms-debt:8083
+
+  # ---------------------------------------------------------------------------
+  # 6. Microservicio ms-ai (Servicio privado)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: ms-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./ms-ai
+    envVars:
+      - key: PORT
+        value: 8085
+      - key: DEBT_URI
+        value: http://ms-debt:8083
