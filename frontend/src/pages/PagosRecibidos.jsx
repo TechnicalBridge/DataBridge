@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { descargarComprobante, listarPagos, listarParaDevolver } from "../api/pagos";
+import { descargarComprobante, listarPagos, listarParaDevolver, registrarDevolucion } from "../api/pagos";
 import { dinero, fechaHora, porMoneda, queSePago, rutLegible } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import Cargando from "../components/Cargando";
@@ -30,6 +30,17 @@ export default function PagosRecibidos() {
   const visibles = pagos.filter((p) =>
     (pasarela === "todas" || p.pasarela === pasarela)
     && (!texto || [p.deudor, p.deudorRut, p.externalId].some((v) => String(v).toLowerCase().includes(texto))));
+
+  async function marcarDevuelto(id) {
+    const ref = window.prompt("Referencia o comprobante de devolución en la pasarela (opcional):", "");
+    if (ref === null) return;
+    try {
+      await registrarDevolucion(id, ref);
+      setParaDevolver((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      alert("No se pudo registrar la devolución: " + err.message);
+    }
+  }
 
   function exportar() {
     descargarCsv("pagos-recibidos.csv",
@@ -77,6 +88,7 @@ export default function PagosRecibidos() {
                   <th>Medio</th>
                   <th>Referencia en la pasarela</th>
                   <th className="num">Monto</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -87,6 +99,11 @@ export default function PagosRecibidos() {
                     <td><LogoPasarela id={p.gateway} alto={16} /></td>
                     <td>{p.referenciaPasarela}</td>
                     <td className="num">{p.amountClp ? dinero(p.amountClp) : dinero(p.amount, p.currency)}</td>
+                    <td>
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => marcarDevuelto(p.id)}>
+                        Ya lo devolví
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

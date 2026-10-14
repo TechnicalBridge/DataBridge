@@ -103,6 +103,22 @@ public class PaymentController {
         return enlaces.toCollectionModel(payments.paraDevolver(user));
     }
 
+    @PostMapping("/{id}/devolucion")
+    @Operation(summary = "Registrar la devolucion de un pago duplicado",
+            description = "La empresa registra que ya devolvio el pago en la pasarela, con su referencia.")
+    @SecurityRequirement(name = OpenApiConfig.JWT)
+    @ApiResponse(responseCode = "200", description = "Pago marcado como devuelto")
+    @ApiResponse(responseCode = "400", description = "El pago no es duplicado",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "No pertenece a su cartera o no es empresa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public EntityModel<PaymentResponse> registrarDevolucion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
+            @PathVariable Long id,
+            @RequestBody(required = false) com.tbridge.payments.dto.request.DevolucionRequest body) {
+        return enlaces.toModel(payments.registrarDevolucion(user, id, body != null ? body.referencia() : null));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Un pago")
     @SecurityRequirement(name = OpenApiConfig.JWT)

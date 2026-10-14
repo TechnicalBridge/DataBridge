@@ -26,6 +26,10 @@ export const listarPagos = () => pedir("/debts/pagos").then((data) => embebidos(
  */
 export const listarParaDevolver = () => pedir("/payments/para-devolver").then((data) => embebidos(data, "payments"));
 
+/** Registra que la empresa devolvió un pago duplicado en la pasarela. */
+export const registrarDevolucion = (id, referencia) =>
+  pedir(`/payments/${id}/devolucion`, { method: "POST", body: { referencia } });
+
 /** El comprobante de un pago, descargado como archivo. */
 export async function descargarComprobante(id) {
   const res = await client.get(`/debts/pagos/${id}/comprobante`, { responseType: "blob" });

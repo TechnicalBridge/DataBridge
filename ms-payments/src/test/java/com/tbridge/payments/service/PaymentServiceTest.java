@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -672,6 +673,34 @@ class PaymentServiceTest {
         assertEquals(KHIPU_ID, paraDevolver.getFirst().referenciaPasarela());
         assertEquals(HttpStatus.FORBIDDEN,
                 assertThrows(ApiException.class, () -> servicio.paraDevolver(DEUDOR)).getStatus());
+    }
+
+    @Test
+    void registrar_devolucion_de_un_pago_duplicado() {
+        JwtPrincipal agencia = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        Payment duplicado = abierto();
+        duplicado.setStatus(Payment.Status.duplicated);
+        when(payments.findById(41L)).thenReturn(Optional.of(duplicado));
+        when(deudas.cartera("77305118-6")).thenReturn(List.of(duplicado.getDebtId()));
+
+        PaymentResponse res = servicio.registrarDevolucion(agencia, 41L, "DEV-12345");
+
+        assertEquals(Payment.Status.refunded, res.status());
+        verify(payments).save(duplicado);
+        verify(eventos).save(argThat(e -> e.getType() == PaymentEvent.Type.refunded && e.getSource() == PaymentEvent.Source.manual));
+    }
+
+    @Test
+    void un_pago_no_duplicado_no_se_puede_devolver() {
+        JwtPrincipal agencia = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        Payment pagado = abierto();
+        pagado.setStatus(Payment.Status.paid);
+        when(payments.findById(41L)).thenReturn(Optional.of(pagado));
+        when(deudas.cartera("77305118-6")).thenReturn(List.of(pagado.getDebtId()));
+
+        ApiException fallo = assertThrows(ApiException.class, () -> servicio.registrarDevolucion(agencia, 41L, "DEV-1"));
+        assertEquals(HttpStatus.BAD_REQUEST, fallo.getStatus());
+        assertEquals("Solo se puede registrar la devolucion de un pago duplicado", fallo.getMessage());
     }
 
     @Test

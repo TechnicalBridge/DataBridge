@@ -453,6 +453,39 @@ public class PaymentService {
                 .toList();
     }
 
+    /**
+     * Registra que la empresa ya devolvio un pago duplicado en la pasarela.
+     * El pago pasa a `refunded` y se anota un evento manual con la referencia.
+     */
+    @Transactional
+    public PaymentResponse registrarDevolucion(JwtPrincipal user, Long id, String referencia) {
+        if (user == null || !user.isCreditor() || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
+        }
+        Payment pago = buscar(id);
+        List<Long> cartera = deudas.cartera(user.rut());
+        if (!cartera.contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Este pago no pertenece a tu cartera");
+        }
+        if (pago.getStatus() == Payment.Status.refunded) {
+            return respuesta(pago);
+        }
+        if (pago.getStatus() != Payment.Status.duplicated) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Solo se puede registrar la devolucion de un pago duplicado");
+        }
+        pago.setStatus(Payment.Status.refunded);
+        payments.save(pago);
+
+        String payload = (referencia != null && !referencia.isBlank())
+                ? "{\"referencia\":\"" + referencia.trim() + "\",\"usuario\":\"" + user.rut() + "\"}"
+                : "{\"usuario\":\"" + user.rut() + "\"}";
+        PaymentEvent evento = PaymentEvent.de(pago.getId(), PaymentEvent.Type.refunded, PaymentEvent.Source.manual)
+                .conRespuesta(payload);
+        eventos.save(evento);
+        return respuesta(pago);
+    }
+
     /** El libro de un pago, para el panel y para auditar. */
     public HistoriaResponse historia(JwtPrincipal user, Long id) {
         visible(user, id);
