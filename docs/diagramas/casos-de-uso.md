@@ -287,6 +287,7 @@ flowchart LR
         R8(["Traer la UF del día"])
         O1(["Cargar la UF a mano"])
         O2(["Emitir una clave de API<br/>para una empresa"])
+        O3(["Mandar un correo de prueba"])
     end
     COR{{"Servidor de correo"}}
     PAS{{"Webpay · Khipu<br/>Mercado Pago"}}
@@ -294,7 +295,8 @@ flowchart LR
     SIS{{"Sistema de<br/>una empresa"}}
 
     REL --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8
-    OPE --> R1 & R2 & R3 & R8 & O1 & O2
+    OPE --> R1 & R2 & R3 & R8 & O1 & O2 & O3
+    O3 --- COR
     R0 --- COR
     R1 --- COR
     R2 --- COR
@@ -308,7 +310,7 @@ flowchart LR
 
 | Caso de uso | Cuándo | Quién lo hace | La regla que importa |
 | --- | --- | --- | --- |
-| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, y solo si la ley lo deja esa semana |
+| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, y solo si la ley lo deja esa semana. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
 | Escribirle según la campaña | Cada 15 minutos | `ContactoService`, ms-debt | De lunes a sábado, de 8:00 a 20:00, sin feriados. Según la cadencia de la campaña (por omisión, los días 1, 4, 11, 25 y 45) y hasta sus intentos |
 | Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio |
 | Publicar el avance de las campañas | Todos los días, 8:00 | `CampanaAvanceService`, ms-debt | Deja el evento `campana.avance` en la bandeja de salida |
@@ -319,6 +321,7 @@ flowchart LR
 | Traer la UF del día | Al arrancar y todos los días, 9:30 | `UfLoader`, ms-payments | Desde el Banco Central. Se guarda, para que un pago se pueda reconstruir después |
 | Cargar la UF a mano | Cuando haga falta | `POST /internal/uf` | Para que el cobro en UF no se detenga si la fuente está caída |
 | Emitir una clave de API | Cuando haga falta | `POST /internal/claves` | El camino de antes de que la empresa pudiera emitir la suya en su portal |
+| Mandar un correo de prueba | Al cambiar el servidor de correo | `POST /internal/correo/prueba` | Dice si salió, adónde llegó de verdad y con qué remitente, o lo que respondió el servidor. Nunca muestra la clave |
 
 ---
 
@@ -339,7 +342,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **79 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
 
 ### ms-auth
 
@@ -361,6 +364,7 @@ Cada caso de uso de arriba termina en uno o más de estos **79 endpoints**. La l
 | `POST /api/auth/logout` | Cerrar sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.logout` |
 | `GET /api/me` | Quién soy | Quien tenga sesión | JWT | Sí | `AuthController.me` |
 | `POST /internal/codigos` | Emitir un código de acceso | ms-debt | Clave interna | No | `InternalController.emitir` |
+| `POST /internal/correo/prueba` | Mandar un correo de prueba | Operación de DataBridge | Clave interna | No | `InternalController.probarCorreo` |
 
 ### ms-debt
 
