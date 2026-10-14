@@ -80,6 +80,9 @@ export const useAuth = create((set, get) => {
 
     homeFor: (user = get().user) => {
       if (!user) return "/";
+      //  El admin de DataBridge va a su panel; el usuario de una empresa, al
+      //  portal de empresas; el deudor, al de pago.
+      if (user.role === "ADMIN") return "/admin";
       return user.role === "CREDITOR" ? "/databridge" : "/app";
     },
   };

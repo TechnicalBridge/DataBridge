@@ -12,10 +12,12 @@ import { useAuth } from "../store/authStore";
  * El deudor escribe su RUT y el codigo que le llego. No hay enlace que tocar:
  * es lo que evita que un mensaje falso lo lleve a otra parte (docs de APOFYX,
  * seccion 13.3). El enlace al correo existe como respaldo, para quien no
- * recibio el codigo, y es como entra el personal de las empresas.
+ * recibio el codigo, y es como entra el personal de las empresas. El admin de
+ * DataBridge entra igual, con su enlace, por su propia puerta.
  */
 export default function Login({ portal }) {
-  const esDeudor = portal !== "DATABRIDGE";
+  const esAdmin = portal === "ADMIN";
+  const esDeudor = portal !== "DATABRIDGE" && !esAdmin;
   const [modo, setModo] = useState(esDeudor ? "codigo" : "enlace");
 
   return (
@@ -26,7 +28,9 @@ export default function Login({ portal }) {
           <Logo size={46} />
           <div>
             <div className="brand-name">{esDeudor ? "Technical Bridge" : "DataBridge"}</div>
-            <div className="brand-sub">{esDeudor ? "Portal de pago" : "Portal de empresas"}</div>
+            <div className="brand-sub">
+              {esDeudor ? "Portal de pago" : esAdmin ? "Panel de administración" : "Portal de empresas"}
+            </div>
           </div>
         </div>
         <div className="hero-copy">
@@ -37,6 +41,14 @@ export default function Login({ portal }) {
                 Sin cuenta y sin contraseña. El código te llegó por correo o WhatsApp de parte de la
                 empresa con la que tienes el pago pendiente. Nunca te vamos a mandar un enlace para
                 entrar: escribe esta dirección tú mismo.
+              </p>
+            </>
+          ) : esAdmin ? (
+            <>
+              <h1 className="aparece" style={{ "--i": 1 }}>La plataforma, desde un solo lugar</h1>
+              <p className="aparece" style={{ "--i": 2 }}>
+                Solo para el equipo de DataBridge. Entras con un enlace a tu correo, sin contraseña.
+                Si eres de una empresa, tu entrada es el portal de empresas.
               </p>
             </>
           ) : (
@@ -59,7 +71,8 @@ export default function Login({ portal }) {
           {modo === "codigo" ? (
             <ConCodigo onSinCodigo={() => setModo("enlace")} />
           ) : (
-            <ConEnlace esDeudor={esDeudor} onVolver={esDeudor ? () => setModo("codigo") : null} />
+            <ConEnlace esDeudor={esDeudor} onVolver={esDeudor ? () => setModo("codigo") : null}
+                       ejemplo={esAdmin ? "nombre@databridge.cl" : "nombre@empresa.cl"} />
           )}
         </div>
       </section>
@@ -130,7 +143,7 @@ function ConCodigo({ onSinCodigo }) {
   );
 }
 
-function ConEnlace({ esDeudor, onVolver }) {
+function ConEnlace({ esDeudor, onVolver, ejemplo }) {
   const { pedirEnlace } = useAuth();
   const [correo, setCorreo] = useState("");
   const [rut, setRut] = useState("");
@@ -194,7 +207,7 @@ function ConEnlace({ esDeudor, onVolver }) {
             type="email"
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
-            placeholder="nombre@empresa.cl"
+            placeholder={ejemplo}
             autoComplete="email"
             required
           />

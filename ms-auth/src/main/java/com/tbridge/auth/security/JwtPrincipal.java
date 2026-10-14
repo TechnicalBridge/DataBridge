@@ -5,7 +5,8 @@ package com.tbridge.auth.security;
  *
  * <p>El RUT es lo que acota lo que cada quien ve: al deudor, sus deudas; a una
  * empresa, su cartera. En la sesion de un deudor es su propio RUT; en la del
- * personal de una empresa, el RUT de la empresa.
+ * personal de una empresa, el RUT de la empresa. El admin de DataBridge no
+ * tiene: no es de ninguna empresa.
  */
 public record JwtPrincipal(String id, String email, String role, String name, String rut) {
 
@@ -15,5 +16,9 @@ public record JwtPrincipal(String id, String email, String role, String name, St
 
     public boolean isDebtor() {
         return "DEBTOR".equalsIgnoreCase(role);
+    }
+
+    public boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(role);
     }
 }

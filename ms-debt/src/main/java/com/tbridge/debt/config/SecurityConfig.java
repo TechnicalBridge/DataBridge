@@ -41,7 +41,12 @@ public class SecurityConfig {
                         .requestMatchers("/internal/**").permitAll()
                         //  La clave de API la valida el controlador: el emisor sale de ella.
                         .requestMatchers("/api/v1/**").permitAll()
-                        .anyRequest().authenticated()
+                        //  El panel de administracion es solo del admin de DataBridge.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        //  Y todo lo demas, solo del deudor y de las empresas: el admin
+                        //  no entra a un portal ajeno. Antes bastaba con tener sesion, y
+                        //  quien no era empresa se trataba como deudor.
+                        .anyRequest().hasAnyRole("DEBTOR", "CREDITOR")
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> {
@@ -49,6 +54,14 @@ public class SecurityConfig {
                             res.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             res.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             res.getWriter().write("{\"error\":\"No autorizado\"}");
+                        })
+                        //  Con sesion, pero de otro rol: un deudor o una empresa en el
+                        //  panel de administracion, o el admin en un portal ajeno.
+                        .accessDeniedHandler((req, res, e) -> {
+                            res.setStatus(403);
+                            res.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            res.getWriter().write("{\"error\":\"No tienes permiso para esto\"}");
                         })
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)

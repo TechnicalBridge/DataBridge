@@ -296,8 +296,10 @@ public class AuthService {
         if (renovada.role() == Session.Role.DEBTOR) {
             return new Sesion(jwtDeDeudor(renovada.rut()), UsuarioResponse.deudor(renovada.rut()), renovada.llave());
         }
+        //  Tiene que seguir habilitado y con el rol con que abrio la sesion: una
+        //  llave de admin no renueva una sesion de empresa, ni al reves.
         StaffUser staff = personal.findByEmailIgnoreCase(renovada.email()).orElse(null);
-        if (staff == null || !staff.habilitado()) {
+        if (staff == null || !staff.habilitado() || rolDeSesion(staff) != renovada.role()) {
             sesiones.revocarFamilia(renovada.familia());
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no esta habilitado");
         }
@@ -314,7 +316,7 @@ public class AuthService {
     }
 
     private Sesion sesionDePersonal(StaffUser staff, String ipHash) {
-        SessionService.Llave llave = sesiones.abrir(Session.Role.CREDITOR, null, staff.getEmail(), ipHash);
+        SessionService.Llave llave = sesiones.abrir(rolDeSesion(staff), null, staff.getEmail(), ipHash);
         return new Sesion(jwtDePersonal(staff), UsuarioResponse.personal(staff), llave);
     }
 
@@ -322,9 +324,18 @@ public class AuthService {
         return jwt.issue(rut, null, "DEBTOR", null, rut);
     }
 
+    /**
+     * El usuario de una empresa sale con el rol de siempre (CREDITOR) y el RUT
+     * de su empresa. El admin de DataBridge, con un rol propio y sin RUT: asi
+     * ningun servicio lo confunde con una empresa ni con un deudor.
+     */
     private String jwtDePersonal(StaffUser staff) {
         return jwt.issue(String.valueOf(staff.getId()), staff.getEmail(),
-                "CREDITOR", staff.getFullName(), staff.getOrgRut());
+                rolDeSesion(staff).name(), staff.getFullName(), staff.getOrgRut());
+    }
+
+    private static Session.Role rolDeSesion(StaffUser staff) {
+        return staff.esAdmin() ? Session.Role.ADMIN : Session.Role.CREDITOR;
     }
 
     // ------------------------------------------------------------------

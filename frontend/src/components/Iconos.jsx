@@ -32,6 +32,15 @@ export const IconoChat = (p) => (
 
 export const IconoCerrar = (p) => <Trazo {...p}><path d="M6 6l12 12M18 6L6 18" /></Trazo>;
 
+export const IconoPanel = (p) => (
+  <Trazo {...p}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+  </Trazo>
+);
+
 export const IconoCandado = (p) => (
   <Trazo {...p}><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Trazo>
 );

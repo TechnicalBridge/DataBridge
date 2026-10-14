@@ -13,6 +13,7 @@ import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.exception.ApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.tbridge.auth.model.Session;
 import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * El acceso del deudor.
@@ -225,7 +227,7 @@ class AuthServiceTest {
         staff.setEmail("camila.reyes@apofyx.cl");
         staff.setFullName("Camila Reyes");
         staff.setOrgRut("77305118-6");
-        staff.setRole(StaffUser.Role.operator);
+        staff.setRole(StaffUser.Role.usuario);
         if (!habilitada) {
             org.springframework.test.util.ReflectionTestUtils.setField(staff, "disabledAt", Instant.now());
         }
@@ -298,5 +300,81 @@ class AuthServiceTest {
 
         assertEquals("16482337-7", sesion.user().rut());
         assertEquals("16482337-7", sesion.user().id(), "es la sesion del deudor, no la de la empresa");
+    }
+
+    // ------------------------------------------------------------------
+    //  Los roles (#137): el admin de DataBridge y el usuario de una empresa
+    // ------------------------------------------------------------------
+
+    private StaffUser admin() {
+        StaffUser staff = new StaffUser();
+        staff.setEmail("admin@databridge.cl");
+        staff.setFullName("Administrador de DataBridge");
+        staff.setRole(StaffUser.Role.admin);
+        return staff;
+    }
+
+    /** Deja listo un enlace vigente de esa persona, que es como entra el personal. */
+    private void conEnlaceDe(StaffUser staff) {
+        MagicLink enlace = new MagicLink();
+        enlace.setEmail(staff.getEmail());
+        enlace.setExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
+        when(enlaces.findByTokenHash(any())).thenReturn(Optional.of(enlace));
+        when(personal.findByEmailIgnoreCase(staff.getEmail())).thenReturn(Optional.of(staff));
+    }
+
+    private static io.jsonwebtoken.Claims loQueDiceElJwt(AuthService.Sesion sesion) {
+        return new JwtService("unit-test-secret-key-32-chars!!!", 15).parse(sesion.token());
+    }
+
+    @Test
+    void el_admin_de_databridge_entra_con_su_propio_rol_y_sin_empresa() {
+        conEnlaceDe(admin());
+
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+
+        assertEquals("ADMIN", sesion.user().role());
+        assertNull(sesion.user().rut(), "el admin no es de ninguna empresa");
+        assertEquals("ADMIN", loQueDiceElJwt(sesion).get("role", String.class));
+        assertNull(loQueDiceElJwt(sesion).get("rut", String.class));
+        assertEquals(Session.Role.ADMIN, sesiones.filas.getLast().getRole());
+    }
+
+    @Test
+    void el_usuario_de_una_empresa_sigue_entrando_como_empresa_con_el_rut_de_la_suya() {
+        conEnlaceDe(camila(true));
+
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+
+        assertEquals("CREDITOR", sesion.user().role());
+        assertEquals("77305118-6", sesion.user().rut());
+        assertEquals("CREDITOR", loQueDiceElJwt(sesion).get("role", String.class));
+        assertEquals(Session.Role.CREDITOR, sesiones.filas.getLast().getRole());
+    }
+
+    @Test
+    void la_llave_del_admin_renueva_como_admin() {
+        conEnlaceDe(admin());
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+
+        AuthService.Sesion renovada = auth.renovar(sesion.llave().valor(), "10.0.0.1");
+
+        assertEquals("ADMIN", renovada.user().role());
+        assertEquals("ADMIN", loQueDiceElJwt(renovada).get("role", String.class));
+    }
+
+    @Test
+    void una_llave_de_empresa_no_renueva_como_admin_y_la_sesion_se_cierra() {
+        conEnlaceDe(camila(true));
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+        //  Aunque la misma persona apareciera despues como admin, su llave sigue siendo de empresa.
+        StaffUser ahoraAdmin = admin();
+        ahoraAdmin.setEmail("camila.reyes@apofyx.cl");
+        when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(ahoraAdmin));
+
+        ApiException error = assertThrows(ApiException.class, () -> auth.renovar(sesion.llave().valor(), "10.0.0.1"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
+        assertTrue(sesiones.filas.stream().allMatch(Session::revocada), "toda la familia queda revocada");
     }
 }

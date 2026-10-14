@@ -139,6 +139,9 @@ services:
       COOKIE_SECURE:     ${COOKIE_SECURE:-false}
       CODE_TTL_HOURS:    ${CODE_TTL_HOURS:-24}
       MAGIC_TTL_MINUTES: ${MAGIC_TTL_MINUTES:-15}
+      #  El primer admin de DataBridge: entra al panel de administracion con un
+      #  enlace a este correo. Sin el no hay admin, y nadie entra al panel.
+      ADMIN_CORREO:      ${ADMIN_CORREO:-}
       MAIL_FROM:         ${MAIL_FROM:-noreply@technicalbridge.local}
       #  Los correos van al buzon de prueba, no a nadie de verdad. En Docker
       #  SMTP_* del .env no se usan: son para correr ms-auth con Maven.

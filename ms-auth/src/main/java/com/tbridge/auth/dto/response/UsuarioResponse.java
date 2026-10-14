@@ -21,10 +21,12 @@ public record UsuarioResponse(
         @Schema(description = "Solo el personal de una empresa", example = "camila.reyes@apofyx.cl", nullable = true)
         String correo,
 
-        @Schema(description = "Del deudor, o de la empresa del personal", example = "16482337-7")
+        @Schema(description = "Del deudor, o de la empresa del usuario. El admin de DataBridge no tiene",
+                example = "16482337-7", nullable = true)
         String rut,
 
-        @Schema(description = "DEBTOR o CREDITOR", example = "DEBTOR", allowableValues = {"DEBTOR", "CREDITOR"})
+        @Schema(description = "DEBTOR es el deudor; CREDITOR, el usuario de una empresa; ADMIN, el admin de DataBridge",
+                example = "DEBTOR", allowableValues = {"DEBTOR", "CREDITOR", "ADMIN"})
         String role
 ) {
 
@@ -34,7 +36,7 @@ public record UsuarioResponse(
 
     public static UsuarioResponse personal(StaffUser staff) {
         return new UsuarioResponse(String.valueOf(staff.getId()), staff.getFullName(), staff.getEmail(),
-                staff.getOrgRut(), "CREDITOR");
+                staff.getOrgRut(), staff.esAdmin() ? "ADMIN" : "CREDITOR");
     }
 
     /** Lo que dice el JWT de la peticion en curso. */
