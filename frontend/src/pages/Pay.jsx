@@ -158,7 +158,10 @@ export default function Pay() {
         <div>
           <span className="eyebrow">{deuda.acreedor}</span>
           <h1>Pagar</h1>
-          <p>{deuda.concepto}, ref. {deuda.externalId}</p>
+          <p>
+            {deuda.concepto}, ref. {deuda.externalId}
+            {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
+          </p>
         </div>
         <Link className="btn btn-ghost btn-sm" to="/app">
           <IconoVolver size={16} />
@@ -198,7 +201,12 @@ export default function Pay() {
                 <>
                   <div className="card-cab">
                     <h3>Elige las cuotas</h3>
-                    <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      {deuda.cae != null ? (
+                        <span className="badge badge-muted">CAE {porcentaje(deuda.cae, 2)}</span>
+                      ) : null}
+                      <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
+                    </div>
                   </div>
                   <p className="hint" style={{ margin: "0 0 14px" }}>
                     Se pagan en orden, desde la que vence primero. Marca hasta donde quieras avanzar.

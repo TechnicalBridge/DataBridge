@@ -36,6 +36,10 @@ public record DebtDetailResponse(
         return resumen.estado();
     }
 
+    public BigDecimal cae() {
+        return resumen.cae();
+    }
+
     @Schema(description = "Un cargo del desglose original")
     public record Cargo(
             @Schema(example = "Arriendo agosto") String concepto,

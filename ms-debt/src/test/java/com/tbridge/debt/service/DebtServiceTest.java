@@ -699,10 +699,26 @@ class DebtServiceTest {
         assertEquals(3, delPlan.size());
         assertEquals(plan.cuotas().getFirst().interest(), delPlan.getFirst().getInterestAmount(),
                 "cada cuota guarda su interes, para que la mora corra solo sobre el capital");
+        ArgumentCaptor<Repactation> repactCaptor = ArgumentCaptor.forClass(Repactation.class);
+        verify(repactations).save(repactCaptor.capture());
+        assertEquals(plan.cae(), repactCaptor.getValue().getCae(), "el convenio guarda la CAE calculada");
+
         ArgumentCaptor<Object> datos = ArgumentCaptor.forClass(Object.class);
         verify(eventos).publicar(eq(deuda), eq(EventosService.REPACTACION_ACEPTADA), datos.capture(), any());
         RepactacionAceptadaDatos aceptada = (RepactacionAceptadaDatos) datos.getValue();
         assertEquals(new BigDecimal("1"), aceptada.tasaInteresMensual());
         assertEquals(414100L, aceptada.aRepactar());
+        assertEquals(plan.cae(), aceptada.cae(), "el evento repactacion.aceptada lleva la CAE");
+    }
+
+    @Test
+    void detalle_devuelve_la_cae_del_convenio_guardado() {
+        Repactation repact = new Repactation();
+        repact.setDebt(deuda);
+        repact.setCae(new BigDecimal("18.00"));
+        when(repactations.findByDebtAndSupersededAtIsNull(deuda)).thenReturn(List.of(repact));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+        assertEquals(new BigDecimal("18.00"), detalle.cae());
     }
 }

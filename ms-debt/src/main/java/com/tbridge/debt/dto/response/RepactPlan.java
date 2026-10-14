@@ -3,6 +3,7 @@ package com.tbridge.debt.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 /**
@@ -24,6 +25,16 @@ public record RepactPlan(
         @Schema(description = "Lo que se repacta: el capital mas la mora", example = "115.50") BigDecimal aRepactar,
         @Schema(description = "La tasa mensual del acreedor, en porcentaje. Vacia si la deuda no genera intereses",
                 nullable = true, example = "1.5") BigDecimal tasaInteresMensual,
-        @Schema(description = "Lo que suman los intereses del convenio", example = "0") BigDecimal interesConvenio
+        @Schema(description = "Lo que suman los intereses del convenio", example = "0") BigDecimal interesConvenio,
+        @Schema(description = "La Carga Anual Equivalente (CAE) del convenio según Ley 20.555 y D.S. 43/2012, en porcentaje con dos decimales",
+                example = "18.00") BigDecimal cae,
+        @Schema(description = "El costo total del convenio: la suma de todas las cuotas",
+                example = "962685") BigDecimal costoTotal
 ) {
+    public RepactPlan(int months, BigDecimal monthlyAmount, BigDecimal lastAmount, BigDecimal total,
+                      List<InstallmentPreview> cuotas, BigDecimal capital, BigDecimal interesMora,
+                      BigDecimal aRepactar, BigDecimal tasaInteresMensual, BigDecimal interesConvenio) {
+        this(months, monthlyAmount, lastAmount, total, cuotas, capital, interesMora, aRepactar, tasaInteresMensual,
+                interesConvenio, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), total);
+    }
 }

@@ -395,6 +395,7 @@ public class DebtService {
         nueva.setMonthlyAmount(plan.monthlyAmount());
         nueva.setInterestRate(plan.tasaInteresMensual());
         nueva.setPrincipal(plan.aRepactar());
+        nueva.setCae(plan.cae());
         nueva.setCurrency(deuda.getCurrency());
         repactations.save(nueva);
 
@@ -424,7 +425,8 @@ public class DebtService {
                 deuda.getCurrency().name(), plan.cuotas().getFirst().dueDate().toString(),
                 plan.tasaInteresMensual(),
                 conInteres ? EventosService.monto(plan.aRepactar(), deuda.getCurrency()) : null,
-                conInteres ? EventosService.monto(plan.total(), deuda.getCurrency()) : null), Instant.now());
+                conInteres ? EventosService.monto(plan.total(), deuda.getCurrency()) : null,
+                plan.cae()), Instant.now());
 
         return detalle(deuda);
     }
@@ -701,9 +703,13 @@ public class DebtService {
     private DebtDetailResponse detalle(Debt deuda) {
         List<Installment> cuotas = installments.findByDebtOrderByNumberAsc(deuda);
         Map<Long, BigDecimal> mora = mora(deuda, cuotas);
+        BigDecimal cae = repactations.findByDebtAndSupersededAtIsNull(deuda).stream()
+                .findFirst()
+                .map(Repactation::getCae)
+                .orElse(null);
         return new DebtDetailResponse(
                 DebtSummaryResponse.from(deuda, cuotas, null, disputas(List.of(deuda)).get(deuda.getId()),
-                        Intereses.total(mora), oferta(deuda, cuotas, Intereses.total(mora))),
+                        Intereses.total(mora), oferta(deuda, cuotas, Intereses.total(mora)), cae),
                 charges.findByDebtOrderByDueDateAsc(deuda).stream().map(DebtDetailResponse.Cargo::from).toList(),
                 cuotas.stream().map(c -> DebtDetailResponse.Cuota.from(c, mora.get(c.getId()))).toList(),
                 historia(deuda));

@@ -66,8 +66,23 @@ public record DebtSummaryResponse(
         LocalDate descuentoHasta,
         @Schema(description = "El deudor no tiene un correo valido: no le llegan el codigo ni los recordatorios por "
                 + "correo", example = "false")
-        boolean sinCorreoValido
+        boolean sinCorreoValido,
+        @Schema(description = "La CAE guardada del convenio si la deuda está en convenio", nullable = true, example = "18.00")
+        BigDecimal cae
 ) {
+
+    public DebtSummaryResponse(Long id, String externalId, String acreedor, String acreedorRut, String deudor,
+                               String deudorRut, String concepto, Debt.Currency moneda, BigDecimal montoOriginal,
+                               BigDecimal saldo, BigDecimal pagado, Debt.Status estado, Instant actualizada,
+                               int cuotasPagadas, int cuotasTotales, boolean conConvenio, int cuotasVencidas,
+                               Instant codigoEnviado, Disputa disputa, BigDecimal tasaInteresMensual,
+                               BigDecimal interesMora, BigDecimal totalHoy, BigDecimal descuentoDisponible,
+                               LocalDate descuentoHasta, boolean sinCorreoValido) {
+        this(id, externalId, acreedor, acreedorRut, deudor, deudorRut, concepto, moneda, montoOriginal, saldo,
+                pagado, estado, actualizada, cuotasPagadas, cuotasTotales, conConvenio, cuotasVencidas,
+                codigoEnviado, disputa, tasaInteresMensual, interesMora, totalHoy, descuentoDisponible,
+                descuentoHasta, sinCorreoValido, null);
+    }
 
     /** El descuento por pronto pago que tiene hoy la deuda, y hasta cuando vale. */
     public record Oferta(BigDecimal monto, LocalDate hasta) {}
@@ -112,6 +127,11 @@ public record DebtSummaryResponse(
     /** Con la mora de hoy y el descuento por pronto pago, si la deuda lo tiene. */
     public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
                                            Disputa disputa, BigDecimal interesMora, Oferta oferta) {
+        return from(deuda, cuotas, codigoEnviado, disputa, interesMora, oferta, null);
+    }
+
+    public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
+                                           Disputa disputa, BigDecimal interesMora, Oferta oferta, BigDecimal cae) {
         BigDecimal saldo = suma(cuotas, Installment.Status.pending);
         BigDecimal mora = interesMora == null ? BigDecimal.ZERO : interesMora;
         //  Lo pagado es lo que se pago por DataBridge. No sale de restar el saldo
@@ -131,6 +151,13 @@ public record DebtSummaryResponse(
         LocalDate hoy = LocalDate.now(CHILE);
         int vencidas = (int) cuotas.stream()
                 .filter(c -> c.getStatus() == Installment.Status.pending && c.getDueDate().isBefore(hoy)).count();
+        BigDecimal caeConvenio = cae != null ? cae : cuotas.stream()
+                .map(Installment::getRepactation)
+                .filter(java.util.Objects::nonNull)
+                .map(com.tbridge.debt.model.Repactation::getCae)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
         return new DebtSummaryResponse(
                 deuda.getId(),
                 deuda.getExternalId(),
@@ -156,6 +183,7 @@ public record DebtSummaryResponse(
                 saldo.add(mora),
                 oferta == null ? null : oferta.monto(),
                 oferta == null ? null : oferta.hasta(),
-                deuda.getDebtor().getEmail() == null);
+                deuda.getDebtor().getEmail() == null,
+                caeConvenio);
     }
 }

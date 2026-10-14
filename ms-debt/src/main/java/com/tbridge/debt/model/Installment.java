@@ -80,6 +80,7 @@ public class Installment {
     public void setId(Long id) { this.id = id; }
     public Debt getDebt() { return debt; }
     public void setDebt(Debt debt) { this.debt = debt; }
+    public Repactation getRepactation() { return repactation; }
     public void setRepactation(Repactation repactation) { this.repactation = repactation; }
     /** Si es cuota de un convenio. Lee la columna, sin cargar el convenio. */
     public boolean enConvenio() { return repactation != null; }

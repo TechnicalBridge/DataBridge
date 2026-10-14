@@ -105,11 +105,14 @@ export default function Repact() {
               <span className="eyebrow">Plazo</span>
               <b key={meses}>{meses}<small>meses</small></b>
             </div>
-            {deuda.tasaInteresMensual ? (
-              <span className="badge badge-muted">{porcentaje(deuda.tasaInteresMensual)} mensual</span>
-            ) : (
-              <span className="badge badge-ok">Sin interés</span>
-            )}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <span className="badge badge-muted">CAE {plan ? porcentaje(plan.cae, 2) : (deuda.tasaInteresMensual ? "—" : "0,00%")}</span>
+              {deuda.tasaInteresMensual ? (
+                <span className="badge badge-muted">{porcentaje(deuda.tasaInteresMensual)} mensual</span>
+              ) : (
+                <span className="badge badge-ok">Sin interés</span>
+              )}
+            </div>
           </div>
 
           <div className="plazo">
@@ -145,8 +148,8 @@ export default function Repact() {
               <b key={`u${meses}${!!plan}`}>{plan ? dinero(plan.lastAmount, moneda) : "—"}</b>
             </div>
             <div className="cifra">
-              <span>Total</span>
-              <b key={`t${meses}${!!plan}`}>{plan ? dinero(plan.total, moneda) : "—"}</b>
+              <span>Costo total</span>
+              <b key={`t${meses}${!!plan}`}>{plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}</b>
             </div>
           </div>
           {plan?.tasaInteresMensual ? (
@@ -154,13 +157,13 @@ export default function Repact() {
               Se repacta lo que debes hoy: {dinero(plan.capital, moneda)}
               {Number(plan.interesMora) > 0 ? ` más ${dinero(plan.interesMora, moneda)} de intereses por mora` : ""},{" "}
               {dinero(plan.aRepactar, moneda)}. Las cuotas llevan el {porcentaje(plan.tasaInteresMensual)} de interés
-              mensual que pactaste con {deuda.acreedor}: en total pagas {dinero(plan.total, moneda)}, y{" "}
-              {dinero(plan.interesConvenio, moneda)} son intereses del convenio. La última cuota absorbe el redondeo.
+              mensual que pactaste con {deuda.acreedor}: en total pagas {dinero(plan.costoTotal ?? plan.total, moneda)}, y{" "}
+              {dinero(plan.interesConvenio, moneda)} son intereses del convenio. CAE {porcentaje(plan.cae, 2)} (el costo del convenio en un año, con todo incluido). La última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           ) : (
             <p className="hint">
-              El total es lo que debes hoy: no se cobran intereses. La última cuota absorbe el redondeo.
+              El costo total es lo que debes hoy: {plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}, no se cobran intereses. CAE {plan ? porcentaje(plan.cae, 2) : "0,00%"} (el costo del convenio en un año, con todo incluido). La última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           )}

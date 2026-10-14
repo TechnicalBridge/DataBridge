@@ -42,6 +42,10 @@ public class Repactation {
     @Column(precision = 18, scale = 2)
     private BigDecimal principal;
 
+    /** La CAE (Carga Anual Equivalente) del convenio segun Ley 20.555 y D.S. 43/2012. */
+    @Column(precision = 6, scale = 2)
+    private BigDecimal cae;
+
     @Column(name = "accepted_at", nullable = false)
     private Instant acceptedAt = Instant.now();
 
@@ -56,6 +60,8 @@ public class Repactation {
     public void setMonthlyAmount(BigDecimal monthlyAmount) { this.monthlyAmount = monthlyAmount; }
     public void setInterestRate(BigDecimal interestRate) { this.interestRate = interestRate; }
     public void setPrincipal(BigDecimal principal) { this.principal = principal; }
+    public BigDecimal getCae() { return cae; }
+    public void setCae(BigDecimal cae) { this.cae = cae; }
     public Debt.Currency getCurrency() { return currency; }
     public void setCurrency(Debt.Currency currency) { this.currency = currency; }
     public void setAcceptedAt(Instant acceptedAt) { this.acceptedAt = acceptedAt; }

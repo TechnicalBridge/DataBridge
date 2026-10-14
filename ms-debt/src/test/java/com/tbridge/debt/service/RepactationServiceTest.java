@@ -84,4 +84,34 @@ class RepactationServiceTest {
         assertEquals(new BigDecimal("4100"), plan.interesMora());
         assertNull(plan.tasaInteresMensual());
     }
+
+    @Test
+    void cae_y_costo_total_segun_criterio_de_aceptacion() {
+        // $914.100 al 1,5% mensual en 6 cuotas: el deudor ve CAE 18,00% y costo total $962.685
+        RepactPlan plan = service.simulate(new BigDecimal("914100"), BigDecimal.ZERO, new BigDecimal("1.5"),
+                Debt.Currency.CLP, 6, LocalDate.of(2026, 11, 1));
+
+        assertEquals(new BigDecimal("18.00"), plan.cae());
+        assertEquals(new BigDecimal("962685"), plan.costoTotal());
+        assertEquals(new BigDecimal("962685"), plan.total());
+    }
+
+    @Test
+    void sin_tasa_la_cae_es_cero() {
+        RepactPlan plan = service.simulate(new BigDecimal("100000"), Debt.Currency.CLP, 3, LocalDate.of(2026, 1, 15));
+        assertEquals(new BigDecimal("0.00"), plan.cae());
+        assertEquals(new BigDecimal("100000"), plan.costoTotal());
+    }
+
+    @Test
+    void cae_en_uf_con_tasa_y_sin_tasa() {
+        RepactPlan sinTasa = service.simulate(new BigDecimal("115.50"), Debt.Currency.UF, 6, LocalDate.of(2026, 10, 20));
+        assertEquals(new BigDecimal("0.00"), sinTasa.cae());
+        assertEquals(new BigDecimal("115.50"), sinTasa.costoTotal());
+
+        RepactPlan conTasa = service.simulate(new BigDecimal("100.00"), BigDecimal.ZERO, new BigDecimal("1.5"),
+                Debt.Currency.UF, 6, LocalDate.of(2026, 10, 20));
+        assertEquals(new BigDecimal("18.01"), conTasa.cae());
+        assertEquals(new BigDecimal("105.32"), conTasa.costoTotal());
+    }
 }
