@@ -1,0 +1,31 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "https://api.databridge.cl/api/:match*"
+    },
+    {
+      "source": "/swagger-ui/:match*",
+      "destination": "https://api.databridge.cl/swagger-ui/:match*"
+    },
+    {
+      "source": "/v3/api-docs/:match*",
+      "destination": "https://api.databridge.cl/v3/api-docs/:match*"
+    },
+    {
+      "source": "/((?!api/|swagger-ui|v3/api-docs).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
