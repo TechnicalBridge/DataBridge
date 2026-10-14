@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **270 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **274 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
 | [ms-auth](#ms-auth--el-acceso) | 51 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 147 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-debt](#ms-debt--la-cartera) | 151 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -38,6 +38,7 @@ classDiagram
         class ApiKey
         class Batch
         class Campaign
+        class Contact
         class Debt
         class DebtCharge
         class DebtEvent
@@ -60,6 +61,9 @@ classDiagram
     Batch "*" --> "1" Organization : creditor
     Campaign "*" --> "1" Organization : agency
     Campaign "*" --> "1" Organization : creditor
+    Contact "*" --> "1" Debt : debt
+    Contact "*" --> "0..1" Campaign : campaign
+    Contact "*" --> "0..1" Installment : installment
     Debt "*" --> "1" Organization : creditor
     Debt "*" --> "1" Debtor : debtor
     Debt "*" --> "0..1" Mandate : mandate
@@ -583,7 +587,7 @@ El servicio más grande: las empresas, sus mandatos y campañas, las deudas con 
 
 ### El modelo
 
-Catorce entidades. Todo cuelga de dos: `Organization` (de quién es) y `Debt` (qué se debe). El saldo y la mora no son atributos: se calculan con las cuotas y con la tasa. `AdminLog` va aparte: anota lo que se hace desde el panel de administración.
+Quince entidades. Todo cuelga de dos: `Organization` (de quién es) y `Debt` (qué se debe). El saldo y la mora no son atributos: se calculan con las cuotas y con la tasa. Lo que le pasa a una deuda queda en `DebtEvent`, y cada vez que se le escribe al deudor, en `Contact`. `AdminLog` va aparte: anota lo que se hace desde el panel de administración.
 
 ```mermaid
 classDiagram
@@ -772,7 +776,6 @@ classDiagram
             -interestAmount : BigDecimal
             -status : Status
             -paidAt : Instant
-            -remindedAt : Instant
             +enConvenio() boolean
             +capital() BigDecimal
         }
@@ -803,7 +806,6 @@ classDiagram
             registered
             updated
             withdrawn
-            code_sent
             portal_entered
             repacted
             payment_applied
@@ -816,6 +818,35 @@ classDiagram
             creditor
             agency
             system
+        }
+        class Contact {
+            <<entity>>
+            -id : Long
+            -debt : Debt
+            -kind : Kind
+            -channel : Channel
+            -destination : String
+            -campaign : Campaign
+            -touchNumber : Short
+            -installment : Installment
+            -occurredAt : Instant
+            +invitacion(Debt, String)$ Contact
+            +toque(Debt, Campaign, int, String)$ Contact
+            +recordatorio(Installment, String)$ Contact
+            +reenvio(Debt, String)$ Contact
+            +el(Instant) Contact
+            +deLaEmpresa() boolean
+        }
+        class Contact_Kind["Contact.Kind"] {
+            <<enumeration>>
+            invitation
+            campaign
+            reminder
+            resend
+        }
+        class Contact_Channel["Contact.Channel"] {
+            <<enumeration>>
+            email
         }
         class DetallePago {
             <<record>>
@@ -889,6 +920,8 @@ classDiagram
     Installment ..> Installment_Status
     DebtEvent ..> DebtEvent_Type
     DebtEvent ..> DebtEvent_Actor
+    Contact ..> Contact_Kind
+    Contact ..> Contact_Channel
     OutboxEvent ..> OutboxEvent_Status
     AdminLog ..> AdminLog_Action
     ApiKey "*" --> "1" Organization : organization
@@ -909,6 +942,9 @@ classDiagram
     Installment "*" --> "1" Debt : debt
     Installment "*" --> "0..1" Repactation : repactation
     DebtEvent "*" --> "1" Debt : debt
+    Contact "*" --> "1" Debt : debt
+    Contact "*" --> "0..1" Campaign : campaign
+    Contact "*" --> "0..1" Installment : installment
     Subscription "*" --> "1" Organization : organization
     OutboxEvent "*" --> "1" Subscription : subscription
     DebtEvent ..> DetallePago : detail
@@ -929,6 +965,7 @@ classDiagram
 | `Repactation` | `model` | Cada convenio que el deudor aceptó. |
 | `Installment` | `model` | Las cuotas por pagar. |
 | `DebtEvent` | `model` | La historia de la deuda, en columnas. |
+| `Contact` | `model` | Una vez que DataBridge le escribió a un deudor: la invitación, un toque de campaña, un recordatorio o un reenvío. |
 | `DetallePago` | `model` | Lo que un pago aplicado deja en `DebtEvent.detail`. |
 | `Subscription` | `model` | A dónde se le avisan los eventos a una empresa. |
 | `OutboxEvent` | `model` | Un evento por entregar a un suscriptor. |
@@ -1082,6 +1119,9 @@ classDiagram
         class DebtEventRepository {
             <<repository>>
         }
+        class ContactRepository {
+            <<repository>>
+        }
         class MandateRepository {
             <<repository>>
         }
@@ -1111,6 +1151,7 @@ classDiagram
     DebtService --> InstallmentRepository
     DebtService --> RepactationRepository
     DebtService --> DebtEventRepository
+    DebtService --> ContactRepository
     DebtService --> RepactationService
     DebtService --> EventosService
     DebtService --> DescuentoService
@@ -1123,7 +1164,7 @@ classDiagram
     DisputaService --> DebtEventRepository
     DisputaService --> EventosService
     AccesoService --> DebtService
-    AccesoService --> DebtEventRepository
+    AccesoService --> ContactRepository
     AccesoService --> AuthClient
     AccesoService --> LimiteDeContacto
     CuotaService --> DebtService
@@ -1296,6 +1337,9 @@ classDiagram
         class DebtEventRepository {
             <<repository>>
         }
+        class ContactRepository {
+            <<repository>>
+        }
         class ApiKeyRepository {
             <<repository>>
         }
@@ -1338,6 +1382,7 @@ classDiagram
     CampanaAvanceService --> CampaignRepository
     CampanaAvanceService --> DebtRepository
     CampanaAvanceService --> DebtEventRepository
+    CampanaAvanceService --> ContactRepository
     CampanaAvanceService --> EventosService
     ApiKeyService --> ApiKeyRepository
     ApiKeyService --> OrganizationRepository
@@ -1364,7 +1409,7 @@ classDiagram
 
 ### Lo que corre solo y lo que se habla con otros servicios
 
-Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments.
+Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments. Todo lo que se le escribe al deudor pasa por `LimiteDeContacto` y queda en `ContactRepository`: de ahí salen el límite legal y los toques que lleva cada deuda (`ToquesHechos`).
 
 ```mermaid
 classDiagram
@@ -1441,6 +1486,36 @@ classDiagram
             <<service>>
         }
     }
+    namespace repository {
+        class ContactRepository {
+            <<repository>>
+            +cuandoSeLeEscribio(Debtor, Instant) List~Instant~
+            +toquesPorDeuda(Campaign, Collection~Debt~) List~ToquesHechos~
+            +ultimoPorDeuda(Collection~Debt~) List~UltimoContacto~
+            +countByDebtIn(Collection~Debt~) long
+            +findByDebtOrderByOccurredAtAsc(Debt) List~Contact~
+        }
+        class ToquesHechos {
+            <<record>>
+            +deuda : Long
+            +toques : long
+        }
+        class DebtRepository {
+            <<repository>>
+        }
+        class CampaignRepository {
+            <<repository>>
+        }
+        class InstallmentRepository {
+            <<repository>>
+        }
+        class SubscriptionRepository {
+            <<repository>>
+        }
+        class OutboxEventRepository {
+            <<repository>>
+        }
+    }
     namespace client {
         class AuthClient {
             <<client>>
@@ -1490,26 +1565,6 @@ classDiagram
             +jackson2JsonMessageConverter() Jackson2JsonMessageConverter
         }
     }
-    namespace repository {
-        class DebtRepository {
-            <<repository>>
-        }
-        class DebtEventRepository {
-            <<repository>>
-        }
-        class CampaignRepository {
-            <<repository>>
-        }
-        class InstallmentRepository {
-            <<repository>>
-        }
-        class SubscriptionRepository {
-            <<repository>>
-        }
-        class OutboxEventRepository {
-            <<repository>>
-        }
-    }
     InvitacionService ..> InvitacionService_DeudaEnCobranza
     AuthClient ..> AuthClient_PedidoDeCodigo
     AuthClient ..> AuthClient_CodigoEmitido
@@ -1520,26 +1575,28 @@ classDiagram
     InternalController --> ContactoService
     InternalController --> EmpresaService
     InvitacionService --> DebtRepository
-    InvitacionService --> DebtEventRepository
+    InvitacionService --> ContactRepository
     InvitacionService --> AuthClient
     InvitacionService --> LimiteDeContacto
     ContactoService --> CampaignRepository
     ContactoService --> DebtRepository
-    ContactoService --> DebtEventRepository
+    ContactoService --> ContactRepository
     ContactoService --> AuthClient
     ContactoService --> LimiteDeContacto
     ContactoService ..> FeriadosDeChile
     RecordatorioService --> InstallmentRepository
-    RecordatorioService --> DebtEventRepository
+    RecordatorioService --> ContactRepository
     RecordatorioService --> AuthClient
     RecordatorioService --> LimiteDeContacto
-    LimiteDeContacto --> DebtEventRepository
+    LimiteDeContacto --> ContactRepository
     EventosService --> SubscriptionRepository
     EventosService --> OutboxEventRepository
     EventDispatcher --> OutboxEventRepository
     RabbitPaymentListener --> DebtService
     RabbitPaymentListener ..> PagoConfirmado : recibe
     InternalController ..> PagoConfirmado : recibe
+    ContactRepository ..> ToquesHechos : arma
+    ContactoService ..> ToquesHechos : lee
 ```
 
 | Clase | Paquete | Qué es |
@@ -1550,6 +1607,8 @@ classDiagram
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
 | `FeriadosDeChile` | `service` | Los feriados de Chile de cualquier año. |
+| `ContactRepository` | `repository` | Los contactos al deudor: cuándo se le escribió, cuántos toques lleva cada deuda y el último de cada una. |
+| `ToquesHechos` | `repository` | Cuántos toques de una campaña lleva una deuda. |
 | `EventosService` | `service` | Deja en la bandeja de salida los eventos del contrato, y registra suscripciones. |
 | `EventDispatcher` | `service` | Saca los eventos de la bandeja y los entrega firmados, con reintentos. |
 | `RabbitPaymentListener` | `service` | Recibe los avisos de pago que llegan por RabbitMQ. |
@@ -1666,6 +1725,14 @@ classDiagram
             +findByStatus(Campaign.Status) List~Campaign~
             +findByAgencyOrderByStartsOnDesc(Organization) List~Campaign~
         }
+        class ContactRepository {
+            <<repository>>
+            +cuandoSeLeEscribio(Debtor, Instant) List~Instant~
+            +toquesPorDeuda(Campaign, Collection~Debt~) List~ToquesHechos~
+            +ultimoPorDeuda(Collection~Debt~) List~UltimoContacto~
+            +countByDebtIn(Collection~Debt~) long
+            +findByDebtOrderByOccurredAtAsc(Debt) List~Contact~
+        }
         class DebtChargeRepository {
             <<repository>>
             +findByDebtOrderByDueDateAsc(Debt) List~DebtCharge~
@@ -1679,7 +1746,6 @@ classDiagram
             +findByDebtInAndType(Collection~Debt~, DebtEvent.Type) List~DebtEvent~
             +findTop300ByDebtInAndTypeOrderByOccurredAtDesc(Collection~Debt~, DebtEvent.Type) List~DebtEvent~
             +existsByDebtAndTypeAndOccurredAtAfter(Debt, DebtEvent.Type, Instant) boolean
-            +findByDebtDebtorAndTypeAndOccurredAtAfter(Debtor, DebtEvent.Type, Instant) List~DebtEvent~
         }
         class DebtRepository {
             <<repository>>
@@ -1738,6 +1804,9 @@ classDiagram
         class Campaign {
             <<entity>>
         }
+        class Contact {
+            <<entity>>
+        }
         class DebtCharge {
             <<entity>>
         }
@@ -1773,6 +1842,7 @@ classDiagram
     ApiKeyRepository ..> ApiKey : guarda
     BatchRepository ..> Batch : guarda
     CampaignRepository ..> Campaign : guarda
+    ContactRepository ..> Contact : guarda
     DebtChargeRepository ..> DebtCharge : guarda
     DebtEventRepository ..> DebtEvent : guarda
     DebtRepository ..> Debt : guarda
@@ -1791,6 +1861,7 @@ classDiagram
 | `ApiKeyRepository` | `repository` |  |
 | `BatchRepository` | `repository` |  |
 | `CampaignRepository` | `repository` |  |
+| `ContactRepository` | `repository` | Los contactos al deudor: cuándo se le escribió, cuántos toques lleva cada deuda y el último de cada una. |
 | `DebtChargeRepository` | `repository` |  |
 | `DebtEventRepository` | `repository` |  |
 | `DebtRepository` | `repository` |  |
@@ -1958,6 +2029,9 @@ classDiagram
         class DebtEventRepository {
             <<repository>>
         }
+        class ContactRepository {
+            <<repository>>
+        }
     }
     DataSeeder ..> DataSeeder_Cargo
     ErrorContrato ..> ErrorContrato_Detalle
@@ -1976,6 +2050,7 @@ classDiagram
     DataSeeder --> InstallmentRepository
     DataSeeder --> RepactationRepository
     DataSeeder --> DebtEventRepository
+    DataSeeder --> ContactRepository
 ```
 
 | Clase | Paquete | Qué es |

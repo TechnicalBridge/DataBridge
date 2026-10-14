@@ -14,6 +14,8 @@ import com.tbridge.debt.dto.response.DebtSnapshotResponse;
 import com.tbridge.debt.dto.response.DebtSummaryResponse;
 import com.tbridge.debt.dto.response.InstallmentPreview;
 import com.tbridge.debt.dto.response.RepactPlan;
+import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.DetallePago;
@@ -21,6 +23,7 @@ import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Installment;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.model.Repactation;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtChargeRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
@@ -28,6 +31,7 @@ import com.tbridge.debt.repository.DebtorRepository;
 import com.tbridge.debt.repository.InstallmentRepository;
 import com.tbridge.debt.repository.OrganizationRepository;
 import com.tbridge.debt.repository.RepactationRepository;
+import com.tbridge.debt.repository.UltimoContacto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -82,6 +86,7 @@ public class DebtService {
     private final InstallmentRepository installments;
     private final RepactationRepository repactations;
     private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final RepactationService repactation;
     private final EventosService eventos;
     private final ObjectMapper json;
@@ -95,6 +100,7 @@ public class DebtService {
             InstallmentRepository installments,
             RepactationRepository repactations,
             DebtEventRepository events,
+            ContactRepository contactos,
             RepactationService repactation,
             EventosService eventos,
             ObjectMapper json,
@@ -107,6 +113,7 @@ public class DebtService {
         this.installments = installments;
         this.repactations = repactations;
         this.events = events;
+        this.contactos = contactos;
         this.repactation = repactation;
         this.eventos = eventos;
         this.json = json;
@@ -178,15 +185,11 @@ public class DebtService {
     public List<DebtSummaryResponse> listFor(JwtPrincipal user) {
         if (user != null && user.isCreditor()) {
             List<Debt> cartera = debts.carteraDe(organizacionDe(user));
-            //  Cuando se le envio el codigo a cada deudor, en una sola consulta:
-            //  la empresa ve a quien falta invitar o hay que reenviarselo.
-            Map<Long, Instant> enviado = new HashMap<>();
-            if (!cartera.isEmpty()) {
-                for (DebtEvent evento : events.findByDebtInAndType(cartera, DebtEvent.Type.code_sent)) {
-                    enviado.merge(evento.getDebt().getId(), evento.getOccurredAt(),
-                            (a, b) -> a.isAfter(b) ? a : b);
-                }
-            }
+            //  Cuando se le escribio por ultima vez a cada deudor, en una sola
+            //  consulta: la empresa ve a quien falta invitar o hay que reenviarselo.
+            Map<Long, Instant> enviado = cartera.isEmpty() ? Map.of()
+                    : contactos.ultimoPorDeuda(cartera).stream()
+                            .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
             Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(cartera);
             return cartera.stream()
                     .map(d -> resumen(d, enviado.get(d.getId()), disputas.get(d.getId())))
@@ -703,6 +706,36 @@ public class DebtService {
                         Intereses.total(mora), oferta(deuda, cuotas, Intereses.total(mora))),
                 charges.findByDebtOrderByDueDateAsc(deuda).stream().map(DebtDetailResponse.Cargo::from).toList(),
                 cuotas.stream().map(c -> DebtDetailResponse.Cuota.from(c, mora.get(c.getId()))).toList(),
-                events.findByDebtOrderByOccurredAtAsc(deuda).stream().map(DebtDetailResponse.Suceso::from).toList());
+                historia(deuda));
+    }
+
+    /**
+     * La historia de la deuda, en orden: lo que le paso, y cada vez que se le
+     * escribio al deudor. Los contactos viven en su tabla y aca se leen como
+     * siempre se leyeron: un suceso {@code code_sent}.
+     */
+    private List<DebtDetailResponse.Suceso> historia(Debt deuda) {
+        List<DebtDetailResponse.Suceso> sucesos = new ArrayList<>();
+        events.findByDebtOrderByOccurredAtAsc(deuda)
+                .forEach(evento -> sucesos.add(DebtDetailResponse.Suceso.from(evento)));
+        contactos.findByDebtOrderByOccurredAtAsc(deuda)
+                .forEach(contacto -> sucesos.add(DebtDetailResponse.Suceso.from(contacto, descripcion(contacto))));
+        sucesos.sort(Comparator.comparing(DebtDetailResponse.Suceso::ocurrioEn));
+        return sucesos;
+    }
+
+    /** Lo que la historia dice de un contacto: que fue o, si no hay mas que decir, a donde se mando. */
+    private String descripcion(Contact contacto) {
+        return switch (contacto.getKind()) {
+            case campaign -> {
+                Campaign campana = contacto.getCampaign();
+                //  El tope es el de la campana hoy; nunca menos que el toque que ya salio.
+                int tope = Math.max(contacto.getTouchNumber(),
+                        Math.min(campana.getAttempts(), ContactoService.cadencia(campana, json).size()));
+                yield "campana " + campana.getName() + ", toque " + contacto.getTouchNumber() + " de " + tope;
+            }
+            case reminder -> "recordatorio de la cuota que vence el " + contacto.getInstallment().getDueDate();
+            case invitation, resend -> contacto.getDestination();
+        };
     }
 }

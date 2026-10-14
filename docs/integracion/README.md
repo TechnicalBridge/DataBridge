@@ -511,7 +511,9 @@ sigue con los recordatorios de su convenio.
 - **Frecuencia:** como máximo dos gestiones por semana a un mismo deudor, con al menos dos días
   entre una y otra. Cuentan todas: la invitación, los toques, el recordatorio de una cuota y el
   código que reenvía la empresa.
-- **Registro:** cada gestión queda como `code_sent` en la historia de la deuda.
+- **Registro:** cada gestión queda guardada como un contacto de la deuda, con qué fue (la
+  invitación, un toque y su número, un recordatorio y su cuota, o un reenvío), por dónde, a dónde y
+  cuándo. En la historia de la deuda se lee como `code_sent`.
 
 Un toque que la ley no deja hoy sale en cuanto se puede. Por eso una cadencia con toques muy
 seguidos (1 y 4 está bien; 1 y 2, no) se cumple más tarde de lo que dice.

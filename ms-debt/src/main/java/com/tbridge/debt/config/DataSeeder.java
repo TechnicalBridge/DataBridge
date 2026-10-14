@@ -3,6 +3,7 @@ package com.tbridge.debt.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.model.Batch;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtCharge;
 import com.tbridge.debt.model.DebtEvent;
@@ -13,6 +14,7 @@ import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.model.Repactation;
 import com.tbridge.debt.repository.BatchRepository;
 import com.tbridge.debt.repository.DebtChargeRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import com.tbridge.debt.repository.DebtorRepository;
@@ -94,6 +96,7 @@ public class DataSeeder implements CommandLineRunner {
     private final InstallmentRepository installments;
     private final RepactationRepository repactations;
     private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final ObjectMapper json;
     private final boolean historia;
 
@@ -113,6 +116,7 @@ public class DataSeeder implements CommandLineRunner {
             InstallmentRepository installments,
             RepactationRepository repactations,
             DebtEventRepository events,
+            ContactRepository contactos,
             ObjectMapper json,
             @Value("${app.demo.datos:true}") boolean historia
     ) {
@@ -124,6 +128,7 @@ public class DataSeeder implements CommandLineRunner {
         this.installments = installments;
         this.repactations = repactations;
         this.events = events;
+        this.contactos = contactos;
         this.json = json;
         this.historia = historia;
     }
@@ -168,7 +173,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         cuota(deuda, 1, "2026-09-05", "1040000", Installment.Status.void_, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-09-19T16:20", null, "fe**********@correo.cl");
+        reenvio(deuda, "2026-09-19T16:20", "fe**********@correo.cl");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-20T11:31", null, null);
         List<Installment> plan = convenio(deuda, "2026-09-20T11:40", 6, "173333", "173335", "2026-10-20");
         pago(deuda, plan, List.of(0), "2026-09-21T20:14", "webpay", "wp-3f8a21", null, null);
@@ -192,9 +197,9 @@ public class DataSeeder implements CommandLineRunner {
         debts.save(deuda);
         cuota(deuda, 1, "2026-08-05", "77.00", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "115.50", Installment.Status.pending, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:05", null, "ad*************@nandu.cl");
+        reenvio(deuda, "2026-08-19T16:05", "ad*************@nandu.cl");
         actualizada(deuda, "2026-09-19T10:05", "115.50");
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-09-22T09:40", null, "ad*************@nandu.cl");
+        reenvio(deuda, "2026-09-22T09:40", "ad*************@nandu.cl");
         cerrar(deuda, Debt.Status.open, "2026-09-22T09:40");
     }
 
@@ -209,7 +214,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         cuota(deuda, 1, "2026-08-05", "1360000", Installment.Status.void_, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:10", null, "to***********@correo.cl");
+        reenvio(deuda, "2026-08-19T16:10", "to***********@correo.cl");
         //  Pago en la oficina el 10 de septiembre, y la cartera siguiente lo retiro.
         evento(deuda, DebtEvent.Type.withdrawn, DebtEvent.Actor.creditor, "2026-09-19T10:05", null, "pago_directo");
         deuda.setWithdrawnReason("pago_directo");
@@ -230,9 +235,9 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "1350000", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "1800000", Installment.Status.pending, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:15", null, "ro************@correo.cl");
+        reenvio(deuda, "2026-08-19T16:15", "ro************@correo.cl");
         actualizada(deuda, "2026-09-19T10:05", "1800000");
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-09-24T10:00", null, "ro************@correo.cl");
+        reenvio(deuda, "2026-09-24T10:00", "ro************@correo.cl");
         cerrar(deuda, Debt.Status.open, "2026-09-24T10:00");
     }
 
@@ -247,7 +252,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         List<Installment> total = List.of(cuota(deuda, 1, "2026-09-05", "760000", Installment.Status.pending, null, null));
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-09-19T16:30", null, "ca*************@correo.cl");
+        reenvio(deuda, "2026-09-19T16:30", "ca*************@correo.cl");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-09-21T18:39", null, null);
         pago(deuda, total, List.of(0), "2026-09-21T18:45", "khipu", "kh-4452-0917", null, null);
         evento(deuda, DebtEvent.Type.settled, DebtEvent.Actor.system, "2026-09-21T18:45", null, null);
@@ -268,7 +273,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "48.00", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "72.00", Installment.Status.void_, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:20", null, "co**********@laespiga.cl");
+        reenvio(deuda, "2026-08-19T16:20", "co**********@laespiga.cl");
         actualizada(deuda, "2026-09-19T10:05", "72.00");
         List<Installment> plan = convenio(deuda, "2026-09-22T10:15", 3, "24.00", "24.00", "2026-10-22");
         //  En UF: se cobro en pesos, con la UF de ese dia.
@@ -291,7 +296,7 @@ public class DataSeeder implements CommandLineRunner {
         //  Dejo el departamento el 31 de agosto: su contrato termino, y por eso
         //  no volvio en la cartera de septiembre y el convenio sigue intacto.
         cuota(deuda, 1, "2026-08-05", "1050000", Installment.Status.void_, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:25", null, "ig***********@correo.cl");
+        reenvio(deuda, "2026-08-19T16:25", "ig***********@correo.cl");
         evento(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor, "2026-08-20T17:01", null, null);
         convenio(deuda, "2026-08-20T17:05", 6, "175000", "175000", "2026-09-20");
         cerrar(deuda, Debt.Status.repacted, "2026-08-20T17:05");
@@ -310,7 +315,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         cuota(deuda, 1, "2026-08-05", "600000", Installment.Status.void_, null, null);
         cuota(deuda, 2, "2026-09-05", "900000", Installment.Status.void_, null, null);
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency, "2026-08-19T16:30", null, "da*************@correo.cl");
+        reenvio(deuda, "2026-08-19T16:30", "da*************@correo.cl");
         actualizada(deuda, "2026-09-19T10:05", "900000");
         List<Installment> plan = convenio(deuda, "2026-09-20T09:10", 3, "300000", "300000", "2026-10-20");
         pago(deuda, plan, List.of(0, 1, 2), "2026-09-24T21:05", "webpay", "wp-8c21d4", null, null);
@@ -418,7 +423,12 @@ public class DataSeeder implements CommandLineRunner {
 
     /** La invitacion que sale sola cuando la deuda entra (InvitacionService). */
     private void invitacion(Debt deuda, String cuando, String destino) {
-        evento(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.system, cuando, null, destino);
+        contactos.save(Contact.invitacion(deuda, destino).el(cl(cuando)));
+    }
+
+    /** El codigo que una persona de la agencia reenvia a mano desde el portal (AccesoService). */
+    private void reenvio(Debt deuda, String cuando, String destino) {
+        contactos.save(Contact.reenvio(deuda, destino).el(cl(cuando)));
     }
 
     private static Instant cl(String fechaYHora) {

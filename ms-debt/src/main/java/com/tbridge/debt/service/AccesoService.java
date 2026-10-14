@@ -4,10 +4,10 @@ import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.client.AuthClient;
 import com.tbridge.debt.dto.response.CodigoEnviadoResponse;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,13 +30,13 @@ import java.util.List;
 public class AccesoService {
 
     private final DebtService debts;
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
 
-    public AccesoService(DebtService debts, DebtEventRepository events, AuthClient auth, LimiteDeContacto limite) {
+    public AccesoService(DebtService debts, ContactRepository contactos, AuthClient auth, LimiteDeContacto limite) {
         this.debts = debts;
-        this.events = events;
+        this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
     }
@@ -63,10 +63,10 @@ public class AccesoService {
                 deudor.getRut(), List.of("correo"), deudor.getEmail(), deuda.getCreditor().getTradeName(),
                 deuda.getExternalId()));
 
-        //  Queda en la historia de la deuda: es el primer paso del embudo que
-        //  la agencia mide (contrato, campana.avance).
+        //  Queda como un contacto de la deuda: es el primer paso del embudo que
+        //  la agencia mide (contrato, campana.avance), y cuenta para el limite.
         String destino = enmascarar(deudor.getEmail());
-        events.save(DebtEvent.de(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency).conReferencia(destino));
+        contactos.save(Contact.reenvio(deuda, destino));
 
         return new CodigoEnviadoResponse(true, "correo", destino, emitido == null ? null : emitido.expiraEn());
     }

@@ -160,7 +160,7 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 147 tipos en 12 paquetes.
+`com.tbridge.debt` · 151 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
@@ -168,8 +168,8 @@ flowchart LR
     assembler["assembler<br/>1 clase"]
     service["service<br/>29 clases"]
     client["client<br/>1 clase"]
-    repository["repository<br/>16 clases"]
-    model["model<br/>16 clases"]
+    repository["repository<br/>19 clases"]
+    model["model<br/>17 clases"]
     events["events<br/>1 clase"]
     dto["dto<br/>52 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
@@ -277,8 +277,8 @@ flowchart LR
 | `assembler` | Los enlaces HATEOAS de cada respuesta | 1 | 1 | 1 | — | — |
 | `service` | Las reglas de negocio, y las tareas programadas | 5 | 29 | 8 | 3 | — |
 | `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 1 | 6 | 1 | — |
-| `repository` | El acceso a la base, con Spring Data JPA | 6 | 16 | 4 | — | — |
-| `model` | Las entidades, una por tabla | 6 | 16 | 4 | — | — |
+| `repository` | El acceso a la base, con Spring Data JPA | 6 | 19 | 4 | — | — |
+| `model` | Las entidades, una por tabla | 6 | 17 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
 | `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 14 | 52 | 12 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
@@ -286,7 +286,7 @@ flowchart LR
 | `exception` | Los errores propios y su forma de respuesta | 3 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **51** | **147** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **51** | **151** | **51** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 

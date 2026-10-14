@@ -175,7 +175,7 @@ flowchart LR
 | Entrar con un enlace a su correo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | Sale solo si el correo es de una cuenta habilitada. En cada renovación se vuelve a revisar que lo siga estando |
 | Ver la cartera y el resumen | `DataBridge` | `GET /api/debts`, `GET /api/analytics/summary` | Nunca «todas las deudas»: siempre las de la empresa de la sesión |
 | Ver una deuda y su historia | `DataBridge` | `GET /api/debts/{id}` | Si la deuda no es de su cartera, no la ve |
-| Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409` |
+| Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409`. Queda como un contacto de la deuda (`contacts`) |
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
 | Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
@@ -312,7 +312,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, y solo si la ley lo deja esa semana. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
 | Escribirle según la campaña | Cada 15 minutos | `ContactoService`, ms-debt | De lunes a sábado, de 8:00 a 20:00, sin feriados. Según la cadencia de la campaña (por omisión, los días 1, 4, 11, 25 y 45) y hasta sus intentos |
-| Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio |
+| Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio. Una cuota se recuerda una sola vez: la base no deja que tenga dos contactos |
 | Publicar el avance de las campañas | Todos los días, 8:00 | `CampanaAvanceService`, ms-debt | Deja el evento `campana.avance` en la bandeja de salida |
 | Entregar los eventos pendientes | Cada 15 segundos | `EventDispatcher`, ms-debt | Firmados, hasta 100 por pasada. Lo que falla se reintenta: al minuto, a los 5 y a los 30 minutos, a las 2 y a las 6 horas. Después queda para reenviarlo a mano |
 | Preguntar por los cobros abiertos | Cada 10 segundos | `ConciliacionPasarelas`, ms-payments | Así un pago se registra aunque el deudor cierre la ventana antes de volver |
@@ -332,7 +332,7 @@ arquitectura calza:
 
 | Escenario | Lo dispara | [Clases](clases.md) | [Secuencia](secuencia.md) | [Componentes](componentes.md) y [despliegue](despliegue.md) |
 | --- | --- | --- | --- | --- |
-| **E1. Entregar la cartera** | El sistema de una empresa | `Batch`, `Debt`, `DebtCharge`, `Mandate`, `Campaign` | [Entregar una cartera](secuencia.md#4-entregar-una-cartera-por-la-api) | portal → gateway → ms-debt → ms-auth → correo |
+| **E1. Entregar la cartera** | El sistema de una empresa | `Batch`, `Debt`, `DebtCharge`, `Mandate`, `Campaign`, `Contact` | [Entregar una cartera](secuencia.md#4-entregar-una-cartera-por-la-api) | portal → gateway → ms-debt → ms-auth → correo |
 | **E2. Entrar al portal** | El deudor | `AccessCode`, `Session`, `AccessLog` | [Entrar con RUT y código](secuencia.md#1-el-deudor-entra-con-su-rut-y-su-código) | portal → gateway → ms-auth |
 | **E3. Pagar** | El deudor | `Payment`, `PaymentEvent`, `Installment`, `DebtEvent` | [Pagar con Khipu](secuencia.md#6-pagar-con-khipu) y [el aviso del pago](secuencia.md#9-el-aviso-del-pago-de-ms-payments-a-quien-entregó-la-cartera) | portal → gateway → ms-payments ↔ pasarela; RabbitMQ → ms-debt → sistema de la empresa |
 | **E4. Repactar** | El deudor | `Repactation`, `Installment` | [Simular y aceptar un convenio](secuencia.md#5-simular-y-aceptar-un-convenio) | portal → gateway → ms-debt |

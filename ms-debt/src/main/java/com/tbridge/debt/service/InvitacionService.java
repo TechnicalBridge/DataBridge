@@ -1,10 +1,10 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,14 +40,14 @@ public class InvitacionService {
     public record DeudaEnCobranza(Long debtId) {}
 
     private final DebtRepository debts;
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
 
-    public InvitacionService(DebtRepository debts, DebtEventRepository events, AuthClient auth,
+    public InvitacionService(DebtRepository debts, ContactRepository contactos, AuthClient auth,
                              LimiteDeContacto limite) {
         this.debts = debts;
-        this.events = events;
+        this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
     }
@@ -80,7 +80,6 @@ public class InvitacionService {
             log.warn("No se pudo invitar al deudor de la deuda {}: {}", deuda.getId(), e.getMessage());
             return;
         }
-        events.save(DebtEvent.de(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.system)
-                .conReferencia(AccesoService.enmascarar(deudor.getEmail())));
+        contactos.save(Contact.invitacion(deuda, AccesoService.enmascarar(deudor.getEmail())));
     }
 }

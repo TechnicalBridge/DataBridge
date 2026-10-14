@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md), por el lado de los datos: qué se guarda y cómo se relaciona.
 
-DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 24 tablas, 3 vistas y 23 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
+DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 25 tablas, 3 vistas y 26 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
 | [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 14 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago |
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
@@ -138,6 +138,9 @@ erDiagram
     organizations ||--o{ batches : "entrega (sender_id)"
     organizations ||--o{ campaigns : "ejecuta (agency_id)"
     organizations ||--o{ campaigns : "encarga (creditor_id)"
+    campaigns |o--o{ contacts : "ordena cada toque de"
+    debts ||--o{ contacts : "motiva"
+    installments |o--o| contacts : "se recuerda con"
     debts ||--o{ debt_charges : "se desglosa en"
     debts ||--o{ debt_events : "deja historia en"
     campaigns |o--o{ debts : "gestiona"
@@ -165,6 +168,9 @@ erDiagram
     organizations ||--o{ batches : "entrega (sender_id)"
     organizations ||--o{ campaigns : "ejecuta (agency_id)"
     organizations ||--o{ campaigns : "encarga (creditor_id)"
+    campaigns |o--o{ contacts : "ordena cada toque de"
+    debts ||--o{ contacts : "motiva"
+    installments |o--o| contacts : "se recuerda con"
     debts ||--o{ debt_charges : "se desglosa en"
     debts ||--o{ debt_events : "deja historia en"
     campaigns |o--o{ debts : "gestiona"
@@ -229,6 +235,17 @@ erDiagram
         varchar(10) status "running, paused o finished"
         datetime created_at
     }
+    contacts {
+        bigint id PK
+        bigint debt_id FK "la deuda por la que se le escribió; el deudor es el de esa deuda · no se repite junto con campaign_id y touch_number"
+        varchar(12) kind "invitation, campaign, reminder o resend"
+        varchar(10) channel "por dónde se le escribió: hoy, solo email"
+        varchar(254) destination "opcional · a dónde, con la dirección tapada"
+        bigint campaign_id FK "opcional · solo en un toque de campaña · no se repite junto con debt_id y touch_number"
+        smallint touch_number "opcional · qué toque es de esa campaña para esa deuda: 1, 2… · no se repite junto con debt_id y campaign_id"
+        bigint installment_id FK, UK "opcional · solo en un recordatorio: la cuota que se avisó"
+        datetime occurred_at
+    }
     debt_charges {
         bigint id PK
         bigint debt_id FK
@@ -240,11 +257,11 @@ erDiagram
     debt_events {
         bigint id PK
         bigint debt_id FK
-        varchar(30) type "registered, updated, withdrawn, code_sent, portal_entered, repacted, payment_applied, settled o disputed"
+        varchar(30) type "registered, updated, withdrawn, portal_entered, repacted, payment_applied, settled o disputed"
         varchar(10) actor "debtor, creditor, agency o system"
         decimal(18_2) amount "opcional"
         varchar(3) currency "opcional · CLP o UF"
-        varchar(80) reference "opcional · a qué se refiere: el pago, el correo"
+        varchar(80) reference "opcional · a qué se refiere: el pago, la cartera, el motivo"
         json detail "opcional · lo que no calza en una columna"
         datetime occurred_at
     }
@@ -288,7 +305,6 @@ erDiagram
         decimal(18_2) interest_amount "el interés del convenio dentro de la cuota"
         varchar(10) status "pending, paid o void"
         datetime paid_at "opcional"
-        datetime reminded_at "opcional · cuándo se recordó"
     }
     mandates {
         bigint id PK
@@ -353,8 +369,9 @@ erDiagram
 | `api_keys` | Las claves de API con que el sistema de una empresa entrega cartera. |
 | `batches` | Cada cartera recibida, por la API o por archivo, con su huella para no procesarla dos veces y la respuesta que se dio. |
 | `campaigns` | La estrategia de contacto de una agencia para la cartera de un acreedor. La define la agencia y la ejecuta DataBridge. |
+| `contacts` | Cada vez que DataBridge le escribió a un deudor: la invitación, un toque de campaña, el recordatorio de una cuota o el código que reenvía la empresa. Es el registro de gestiones de cobranza que pide la ley, y con él se cuenta el límite de dos por semana. |
 | `debt_charges` | El desglose con que llegó la deuda: cada cargo con su monto y su vencimiento. |
-| `debt_events` | La historia de cada deuda: qué pasó, quién lo hizo, cuánto y cuándo. |
+| `debt_events` | La historia de cada deuda: qué pasó, quién lo hizo, cuánto y cuándo. Lo que se le escribe al deudor va aparte, en `contacts`. |
 | `debtors` | Quien debe. Una fila por RUT, aunque le deba a varios acreedores. |
 | `debts` | Lo que un deudor le debe a un acreedor. |
 | `installments` | Las cuotas por pagar. Una deuda sin convenio tiene una sola; al repactar, las pendientes se anulan y se emiten las del convenio. |
@@ -370,7 +387,7 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 34 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 39 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
@@ -382,10 +399,15 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `campaigns` | `ck_campaign_attempts` | `(attempts between 1 and 10)` |
 | `campaigns` | `ck_campaign_fechas` | `((ends_on is null) or (ends_on >= starts_on))` |
 | `campaigns` | `ck_campaign_status` | `(status in ('running','paused','finished'))` |
+| `contacts` | `ck_contact_campaign` | `(((kind = 'campaign') and (campaign_id is not null) and (touch_number is not null)) or ((kind <> 'campaign') and (campaign_id is null) and (touch_number is null)))` |
+| `contacts` | `ck_contact_channel` | `(channel = 'email')` |
+| `contacts` | `ck_contact_kind` | `(kind in ('invitation','campaign','reminder','resend'))` |
+| `contacts` | `ck_contact_reminder` | `(((kind = 'reminder') and (installment_id is not null)) or ((kind <> 'reminder') and (installment_id is null)))` |
+| `contacts` | `ck_contact_touch` | `((touch_number is null) or (touch_number >= 1))` |
 | `debt_charges` | `ck_charge_amount` | `(amount > 0)` |
 | `debt_events` | `ck_debt_event_actor` | `(actor in ('debtor','creditor','agency','system'))` |
 | `debt_events` | `ck_debt_event_currency` | `((currency is null) or (currency in ('CLP','UF')))` |
-| `debt_events` | `ck_debt_event_type` | `(type in ('registered','updated','withdrawn','code_sent','portal_entered','repacted','payment_applied','settled','disputed'))` |
+| `debt_events` | `ck_debt_event_type` | `(type in ('registered','updated','withdrawn','portal_entered','repacted','payment_applied','settled','disputed'))` |
 | `debtors` | `ck_debtor_canal` | `((email is not null) or (phone is not null))` |
 | `debtors` | `ck_debtor_kind` | `(kind in ('person','company'))` |
 | `debtors` | `ck_debtor_rut` | `regexp_like(rut,'^[0-9]{7,8}-[0-9K]$')` |

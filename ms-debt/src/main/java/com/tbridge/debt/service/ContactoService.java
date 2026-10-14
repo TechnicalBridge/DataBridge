@@ -5,12 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.client.AuthClient;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.repository.CampaignRepository;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
+import com.tbridge.debt.repository.ToquesHechos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +27,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,7 +68,7 @@ public class ContactoService {
 
     private final CampaignRepository campaigns;
     private final DebtRepository debts;
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
     private final ObjectMapper json;
@@ -77,12 +77,12 @@ public class ContactoService {
     /** Los nacionales, calculados una vez por ano. */
     private final Map<Integer, Set<LocalDate>> nacionales = new ConcurrentHashMap<>();
 
-    public ContactoService(CampaignRepository campaigns, DebtRepository debts, DebtEventRepository events,
+    public ContactoService(CampaignRepository campaigns, DebtRepository debts, ContactRepository contactos,
                            AuthClient auth, LimiteDeContacto limite, ObjectMapper json,
                            @Value("${app.contacto.feriados:}") String decretados) {
         this.campaigns = campaigns;
         this.debts = debts;
-        this.events = events;
+        this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
         this.json = json;
@@ -152,10 +152,12 @@ public class ContactoService {
             if (abiertas.isEmpty()) {
                 continue;
             }
-            Map<Long, Integer> hechos = toquesHechos(campana, abiertas);
+            //  Cuantos toques de esta campana lleva cada deuda.
+            Map<Long, Long> hechos = contactos.toquesPorDeuda(campana, abiertas).stream()
+                    .collect(Collectors.toMap(ToquesHechos::deuda, ToquesHechos::toques));
 
             for (Debt deuda : abiertas) {
-                int toque = hechos.getOrDefault(deuda.getId(), 0);
+                int toque = hechos.getOrDefault(deuda.getId(), 0L).intValue();
                 if (toque >= tope) {
                     continue;
                 }
@@ -179,11 +181,8 @@ public class ContactoService {
                     omitidos++;
                     continue;
                 }
-                DebtEvent enviado = DebtEvent.de(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.system)
-                        .conReferencia("campana " + campana.getName() + ", toque " + (toque + 1) + " de " + tope)
-                        .conDetalle("{\"campana\":" + campana.getId() + ",\"toque\":" + (toque + 1) + "}");
-                enviado.setOccurredAt(cuando);
-                events.save(enviado);
+                contactos.save(Contact.toque(deuda, campana, toque + 1, AccesoService.enmascarar(deudor.getEmail()))
+                        .el(cuando));
                 enviados++;
             }
         }
@@ -214,23 +213,5 @@ public class ContactoService {
         } catch (Exception e) {
             return CADENCIA_POR_OMISION;
         }
-    }
-
-    /** Cuantos toques de esta campana lleva cada deuda: los code_sent que la nombran. */
-    private Map<Long, Integer> toquesHechos(Campaign campana, List<Debt> deudas) {
-        Map<Long, Integer> hechos = new HashMap<>();
-        for (DebtEvent evento : events.findByDebtInAndType(deudas, DebtEvent.Type.code_sent)) {
-            if (evento.getDetail() == null) {
-                continue;
-            }
-            try {
-                if (json.readTree(evento.getDetail()).path("campana").asLong(-1) == campana.getId()) {
-                    hechos.merge(evento.getDebt().getId(), 1, Integer::sum);
-                }
-            } catch (Exception ilegible) {
-                //  Un detalle que no se puede leer no es un toque de campana.
-            }
-        }
-        return hechos;
     }
 }
