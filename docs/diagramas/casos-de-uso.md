@@ -179,7 +179,7 @@ flowchart LR
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
 | Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
-| Cargar una cartera en CSV | `Cargar` | `GET /api/debts/cartera/opciones`, `POST /api/debts/cartera` | Pasa por las mismas reglas que la API: la planilla se convierte al JSON del contrato |
+| Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. La planilla pasa por las mismas reglas que la API |
 | Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
 | Emitir y revocar claves de API | `Claves` | `GET` y `POST /api/claves`, `DELETE /api/claves/{id}` | La clave se muestra una sola vez. En la base queda su huella |
 | Exportar la cartera | `DataBridge` | — | Se arma en el navegador con lo que ya está en pantalla |
@@ -344,7 +344,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **83 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
 
 ### ms-auth
 
@@ -384,7 +384,8 @@ Cada caso de uso de arriba termina en uno o más de estos **83 endpoints**. La l
 | `POST /api/debts/campanas` | Crear o cambiar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.guardar` |
 | `POST /api/debts/campanas/{idExterno}/estado` | Pausar, reanudar o terminar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.estado` |
 | `GET /api/debts/cartera/opciones` | Por cuenta de quién puedo cargar | Usuario de una empresa | JWT | Sí | `CargaController.opciones` |
-| `POST /api/debts/cartera` | Cargar una cartera en CSV | Usuario de una empresa | JWT | Sí | `CargaController.subir` |
+| `POST /api/debts/cartera` | Cargar una cartera en CSV, en una campaña | Usuario de una empresa | JWT | Sí | `CargaController.subir` |
+| `POST /api/debts/cartera/revision` | Revisar una planilla antes de cargarla | Usuario de una empresa | JWT | Sí | `CargaController.revisar` |
 | `GET /api/claves` | Las claves de la empresa | Usuario de una empresa | JWT | Sí | `ClaveController.listar` |
 | `POST /api/claves` | Emitir una clave | Usuario de una empresa | JWT | Sí | `ClaveController.emitir` |
 | `DELETE /api/claves/{id}` | Revocar una clave | Usuario de una empresa | JWT | Sí | `ClaveController.revocar` |

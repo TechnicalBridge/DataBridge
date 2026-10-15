@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **287 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **288 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
 | [ms-auth](#ms-auth--el-acceso) | 58 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 155 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-debt](#ms-debt--la-cartera) | 156 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 53 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -1283,6 +1283,7 @@ classDiagram
             <<controller>>
             +opciones(JwtPrincipal) OpcionesCargaResponse
             +subir(JwtPrincipal, MultipartFile, String, String, String, String) CarteraResponse
+            +revisar(JwtPrincipal, MultipartFile, String, String, String, String) RevisionResponse
         }
         class CampanaController {
             <<controller>>
@@ -1330,6 +1331,12 @@ classDiagram
             <<service>>
             +opciones(JwtPrincipal) OpcionesCargaResponse
             +subir(JwtPrincipal, byte[], String, String, String, String) CarteraResponse
+            +revisar(JwtPrincipal, byte[], String, String, String, String) RevisionResponse
+        }
+        class CargaService_Carga["CargaService.Carga"] {
+            <<record>>
+            +organizacion : Organization
+            +cartera : ObjectNode
         }
         class MandatoService {
             <<service>>
@@ -1407,6 +1414,7 @@ classDiagram
     }
     CarteraIntakeService ..> CarteraIntakeService_CargoLeido
     CarteraCsv ..> CarteraCsv_Lote
+    CargaService ..> CargaService_Carga
     IntegracionController --> ApiKeyService
     IntegracionController --> CarteraIntakeService
     IntegracionController --> MandatoService
@@ -1455,13 +1463,13 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `IntegracionController` | `controller` | El contrato de integración v1: carteras, cuenta, mandatos, campañas y suscripciones. |
-| `CargaController` | `controller` | Cargar una cartera en CSV desde el portal. |
+| `CargaController` | `controller` | Cargar deudores desde el portal, siempre en una campaña, y revisar la planilla antes sin guardar nada. |
 | `CampanaController` | `controller` | Las campañas desde el portal de empresas. |
 | `ClaveController` | `controller` | Las claves de API de la empresa: emitir, listar y revocar. |
 | `AnalyticsController` | `controller` | El resumen de la cartera de una empresa. |
 | `CarteraIntakeService` | `service` | Recibe una Cartera v1: la valida, la guarda y responde deuda por deuda. |
 | `CarteraCsv` | `service` | Convierte la planilla CSV al JSON del contrato. |
-| `CargaService` | `service` | La carga por archivo desde el portal. |
+| `CargaService` | `service` | La carga desde el portal: siempre en una campaña. La revisión corre la misma ingesta en una transacción que se deshace siempre. |
 | `MandatoService` | `service` | Registra mandatos y campañas. |
 | `CampanaService` | `service` | Las campañas desde el portal: crear, cambiar y pausar. |
 | `CampanaAvanceService` | `service` | El avance de cada campaña, publicado una vez al día. |
@@ -2194,7 +2202,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
 | `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 

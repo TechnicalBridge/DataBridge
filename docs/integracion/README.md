@@ -406,9 +406,17 @@ POST /api/v1/carteras   (multipart/form-data)
 - `tasa_interes_mensual` es opcional: una planilla sin esa columna sirve igual. Como las otras
   columnas de la deuda, se repite en cada fila de sus cargos; acepta `1,5` o `1.5`.
 
-Desde el portal de empresas de DataBridge la misma planilla se carga arrastrándola
-(`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API). No es otra
-ingesta: el archivo se convierte a Cartera v1 y entra por el mismo camino.
+Desde el portal de empresas de DataBridge la misma planilla se carga **dentro de una campaña**:
+`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API.
+
+- **La campaña es obligatoria:** sin `campana_id_externo` responde `400` (`sin_campana`), y en
+  una terminada, `409` (`campana_terminada`).
+- **El id del lote y la fecha de corte se arman solos** si no vienen: el corte es hoy.
+- **Antes de confirmar se puede revisar:** `POST /api/debts/cartera/revision` recibe lo mismo y
+  responde lo que pasaría con cada deuda y cuánto entraría por moneda. No guarda nada ni invita a
+  nadie, porque corre la misma ingesta en una transacción que se deshace siempre.
+
+No es otra ingesta: el archivo se convierte a Cartera v1 y entra por el mismo camino.
 
 Reemplaza al CSV antiguo de ms-debt (`email,nombre,acreedor,monto,...`), que no traía RUT, ni id
 externo, ni forma de reenviar sin duplicar.

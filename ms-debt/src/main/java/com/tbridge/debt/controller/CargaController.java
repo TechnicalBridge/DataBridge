@@ -5,6 +5,7 @@ import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.OpcionesCargaResponse;
+import com.tbridge.debt.dto.response.RevisionResponse;
 import com.tbridge.debt.exception.ErrorContrato;
 import com.tbridge.debt.service.CargaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,24 +55,51 @@ public class CargaController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Cargar una cartera en CSV",
+    @Operation(summary = "Cargar una cartera en CSV, en una campana",
             description = """
-                    El CSV del contrato (seccion 6.6): separador `;`, una fila por cargo. Entra por la misma \
-                    ingesta que la API, con aceptacion parcial e idempotencia: cargar el mismo archivo dos \
-                    veces no duplica nada.""")
+                    El CSV del contrato (seccion 6.6): separador `;`, una fila por cargo. Toda carga entra en una \
+                    campana: sin `campana_id_externo` responde `400`, y en una terminada, `409`. Entra por la \
+                    ingesta del contrato, con aceptacion parcial e idempotencia: cargar el mismo lote dos veces \
+                    no duplica nada. Sin id de lote ni fecha de corte, se arman solos: el corte es hoy.""")
     @ApiResponse(responseCode = "200", description = "Cuantas deudas entraron y cuales no, con su motivo")
     @ApiResponse(responseCode = "400", description = "Al archivo le faltan columnas o sus filas no calzan",
             content = @Content(schema = @Schema(implementation = ErrorContrato.class)))
-    @ApiResponse(responseCode = "409", description = "Ese id de lote ya se uso con otro contenido",
+    @ApiResponse(responseCode = "409",
+            description = "La campana esta terminada, o ese id de lote ya se uso con otro contenido",
             content = @Content(schema = @Schema(implementation = ErrorContrato.class)))
     public CarteraResponse subir(
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
             @Parameter(description = "El CSV") @RequestPart("archivo") MultipartFile archivo,
-            @Parameter(example = "CSV-2026-09-24-01") @RequestParam("lote_id_externo") String loteId,
-            @Parameter(example = "2026-09-24") @RequestParam("fecha_corte") String fechaCorte,
+            @Parameter(example = "CARGA-20260924-101500")
+            @RequestParam(value = "lote_id_externo", required = false) String loteId,
+            @Parameter(example = "2026-09-24") @RequestParam(value = "fecha_corte", required = false) String fechaCorte,
             @Parameter(example = "76418902-7") @RequestParam("acreedor_rut") String acreedorRut,
             @Parameter(example = "APX-CMP-8") @RequestParam(value = "campana_id_externo", required = false) String campana
     ) throws IOException {
         return cargas.subir(user, archivo.getBytes(), loteId, fechaCorte, acreedorRut, campana);
+    }
+
+    @PostMapping(value = "/revision", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Revisar una planilla antes de cargarla",
+            description = """
+                    Lo mismo que la carga, sin guardar nada: la planilla pasa por la misma ingesta, en una \
+                    transaccion que se deshace siempre. Responde lo que pasaria con cada deuda y cuanto \
+                    entraria por moneda. No deja deudas, lote ni contactos, y no invita a nadie.""")
+    @ApiResponse(responseCode = "200", description = "Lo que pasaria con cada deuda, y cuanto entraria")
+    @ApiResponse(responseCode = "400",
+            description = "Falta la campana, al archivo le faltan columnas o sus filas no calzan",
+            content = @Content(schema = @Schema(implementation = ErrorContrato.class)))
+    @ApiResponse(responseCode = "409", description = "La campana esta terminada",
+            content = @Content(schema = @Schema(implementation = ErrorContrato.class)))
+    public RevisionResponse revisar(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
+            @Parameter(description = "El CSV") @RequestPart("archivo") MultipartFile archivo,
+            @Parameter(example = "CARGA-20260924-101500")
+            @RequestParam(value = "lote_id_externo", required = false) String loteId,
+            @Parameter(example = "2026-09-24") @RequestParam(value = "fecha_corte", required = false) String fechaCorte,
+            @Parameter(example = "76418902-7") @RequestParam("acreedor_rut") String acreedorRut,
+            @Parameter(example = "APX-CMP-8") @RequestParam(value = "campana_id_externo", required = false) String campana
+    ) throws IOException {
+        return cargas.revisar(user, archivo.getBytes(), loteId, fechaCorte, acreedorRut, campana);
     }
 }

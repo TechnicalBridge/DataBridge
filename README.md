@@ -69,7 +69,8 @@ Adentro tiene además:
 **La empresa que gestiona la cartera** —la agencia, o el acreedor que cobra directo— la ve al
 día desde el mismo portal:
 
-- carga deudas por API o arrastrando un CSV;
+- carga a sus deudores **dentro de una campaña**, con una planilla. Antes de confirmar ve qué
+  entraría, qué se rechazaría y por qué, sin que nada quede guardado;
 - ve cuándo se le escribió por última vez a cada deudor y le **reenvía el código** si lo perdió,
   dentro de lo que permite la ley;
 - **resuelve los reclamos**, reanudando el cobro o retirando la deuda;
@@ -1088,7 +1089,7 @@ flowchart LR
     U5 --- TBK
 
     EMP --> U8["Ver la cartera al día"]
-    EMP --> U9["Cargar cartera por CSV"]
+    EMP --> U9["Cargar deudores en una campaña"]
     EMP --> U10["Reenviarle el código al deudor"]
     EMP --> U23["Resolver un reclamo"]
     EMP --> U11["Ver el panel de recuperación"]
@@ -1767,13 +1768,13 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**791 pruebas**, todas en Java y sin fallos:
+**800 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 191 |
-| `ms-debt` | 356 |
+| `ms-debt` | 365 |
 | `ms-payments` | 183 |
 | `ms-ai` | 42 |
 

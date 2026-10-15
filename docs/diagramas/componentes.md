@@ -160,7 +160,7 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 155 tipos en 12 paquetes.
+`com.tbridge.debt` · 156 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
@@ -171,7 +171,7 @@ flowchart LR
     repository["repository<br/>19 clases"]
     model["model<br/>17 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>53 clases"]
+    dto["dto<br/>54 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>4 clases"]
@@ -280,13 +280,13 @@ flowchart LR
 | `repository` | El acceso a la base, con Spring Data JPA | 6 | 19 | 4 | — | — |
 | `model` | Las entidades, una por tabla | 6 | 17 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
-| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 16 | 53 | 13 | 4 | — |
+| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 16 | 54 | 13 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
 | `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 7 | 6 | 3 | 1 | 1 |
 | `exception` | Los errores propios y su forma de respuesta | 4 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **58** | **155** | **53** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **58** | **156** | **53** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 
@@ -337,7 +337,7 @@ flowchart LR
         direction TB
         Layout
         Chatbot
-        CargaCsv
+        FormCampana
         AdminPersonas
     end
 
@@ -367,7 +367,8 @@ flowchart LR
     Historial & Pasarela & PagosRecibidos --> pagos
     DataBridge --> deudas & analitica
     EnRiesgo --> deudas
-    Cargar --> CargaCsv --> deudas
+    Cargar --> deudas
+    Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
     Claves --> claves
     AdminInicio & AdminEmpresas & AdminReglas --> admin
@@ -383,10 +384,10 @@ flowchart LR
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
 | `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 22 pantallas |
-| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `CargaCsv`, `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
+| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `FormCampana` (crear o cambiar una campaña, en Campañas y en Cargar cartera), `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
-| `utils/` | Cómo se escriben montos, RUT y fechas en Chile, y las descargas | `formato.js`, `calendario.js`, `exportar.js` |
+| `utils/` | Cómo se escriben montos, RUT y fechas en Chile, y las descargas | `formato.js`, `calendario.js`, `exportar.js` y `plantillaCartera.js` (las columnas de la planilla) |
 
 Qué módulo de `api/` habla con qué servicio:
 
