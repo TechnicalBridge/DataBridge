@@ -1767,13 +1767,13 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**790 pruebas**, todas en Java y sin fallos:
+**791 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 191 |
-| `ms-debt` | 355 |
+| `ms-debt` | 356 |
 | `ms-payments` | 183 |
 | `ms-ai` | 42 |
 

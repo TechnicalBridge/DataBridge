@@ -50,7 +50,13 @@ public class ReglasService {
                 Regla.de("El recordatorio de una cuota llega", dias(diasAntes) + " antes de que venza",
                         "RECORDATORIO_DIAS_ANTES")));
         Grupo contacto = new Grupo("Contacto con el deudor", List.of(
-                Regla.fija("Cuándo se le puede escribir", "De lunes a sábado, de 8:00 a 20:00, y nunca un feriado", LEY),
+                horario.apagado()
+                        ? new Regla("Cuándo se le puede escribir",
+                                "APAGADO PARA PROBAR: se le escribe a cualquier hora. La ley pide de lunes a sábado, "
+                                        + "de 8:00 a 20:00, y nunca un feriado",
+                                List.of(), "CONTACTO_SIN_HORARIO", LEY + ". Nunca en producción")
+                        : Regla.fija("Cuándo se le puede escribir",
+                                "De lunes a sábado, de 8:00 a 20:00, y nunca un feriado", LEY),
                 Regla.fija("Cuántas veces", LimiteDeContacto.POR_SEMANA + " correos por semana, con al menos "
                         + dias(LimiteDeContacto.DIAS_ENTRE) + " entre uno y otro", LEY),
                 feriados(hoy.getYear()),

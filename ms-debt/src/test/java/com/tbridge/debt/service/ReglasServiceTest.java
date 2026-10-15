@@ -48,6 +48,20 @@ class ReglasServiceTest {
     }
 
     @Test
+    void si_el_horario_esta_apagado_para_probar_lo_dice_a_gritos() {
+        ReglasResponse conElHorarioApagado = new ReglasService(45, new BigDecimal("2.50"), 5,
+                new HorarioDeContacto("", true)).reglas(LocalDate.of(2026, 10, 15));
+        Regla cuando = conElHorarioApagado.grupos().stream()
+                .flatMap(grupo -> grupo.reglas().stream())
+                .filter(r -> r.que().equals("Cuándo se le puede escribir"))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(cuando.valor().startsWith("APAGADO PARA PROBAR"), cuando.valor());
+        assertEquals("CONTACTO_SIN_HORARIO", cuando.variable());
+    }
+
+    @Test
     void los_feriados_son_los_mismos_que_usan_las_campanas_y_dicen_cual_se_decreto() {
         Regla de2026 = regla("Feriados de 2026");
         Regla de2027 = regla("Feriados de 2027");
