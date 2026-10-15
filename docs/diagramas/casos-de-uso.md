@@ -205,9 +205,10 @@ flowchart LR
         A6(["Quitarle o devolverle<br/>el acceso a una persona"])
         A7(["Dar de alta a otro admin"])
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
+        A9(["Ver las reglas que rigen"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -227,6 +228,7 @@ flowchart LR
 | Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
 | Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
+| Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
 
 ---
 
@@ -342,13 +344,14 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **83 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
 
 ### ms-auth
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/auth/estado` | Si ms-auth responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/auth/reglas` | Las reglas de acceso y de correo que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/auth/empresas/{rut}/personal` | Las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.personalDeEmpresa` |
 | `POST /api/admin/auth/empresas/{rut}/personal` | Dar de alta a una persona de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.crearUsuario` |
 | `GET /api/admin/auth/empresas/{rut}/historial` | Lo que se hizo con las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.historialDeEmpresa` |
@@ -371,6 +374,7 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/debt/estado` | Si ms-debt responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/debt/reglas` | Las reglas de cobranza y de contacto que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/debt/empresas` | Las empresas registradas | Admin de DataBridge | JWT | Sí | `AdminController.empresas` |
 | `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
 | `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
@@ -418,6 +422,7 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
+| `GET /api/admin/payments/reglas` | Las reglas de pago que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/payments/estado` | Si ms-payments responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
 | `POST /internal/uf` | Cargar a mano la UF de un día | Operación de DataBridge | Clave interna | No | `InternalController.cargarAMano` |
 | `POST /internal/uf/cargar` | Cargar ahora la UF desde el Banco Central | Operación de DataBridge | Clave interna | No | `InternalController.cargarAhora` |

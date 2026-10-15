@@ -2,7 +2,9 @@ package com.tbridge.payments.controller;
 
 import com.tbridge.payments.config.OpenApiConfig;
 import com.tbridge.payments.dto.response.EstadoResponse;
+import com.tbridge.payments.dto.response.ReglasResponse;
 import com.tbridge.payments.exception.ApiError;
+import com.tbridge.payments.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -26,6 +28,22 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Panel de administracion", description = "Solo para el admin de DataBridge")
 @SecurityRequirement(name = OpenApiConfig.JWT)
 public class AdminController {
+
+    private final ReglasService reglas;
+
+    public AdminController(ReglasService reglas) {
+        this.reglas = reglas;
+    }
+
+    @GetMapping("/reglas")
+    @Operation(summary = "Las reglas de pago que rigen",
+            description = "Que pasarelas cobran de verdad y cuales quedan simuladas, en cuanto vence un cobro en "
+                    + "cada una y de donde sale la UF. De las credenciales dice solo si estan. Cada regla dice de "
+                    + "que variable sale. Se leen al arrancar: cambiar una pide reiniciar el servicio.")
+    @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
+    public ReglasResponse reglas() {
+        return reglas.reglas();
+    }
 
     @GetMapping("/estado")
     @Operation(summary = "Si ms-payments responde",

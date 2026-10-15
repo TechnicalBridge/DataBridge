@@ -94,6 +94,14 @@ export const IconoAlerta = (p) => (
   <Trazo {...p}><path d="M12 3.5l9 15.5H3z" /><path d="M12 10v4M12 16.8h.01" /></Trazo>
 );
 
+/** Una balanza: las reglas que rigen. */
+export const IconoReglas = (p) => (
+  <Trazo {...p}>
+    <path d="M12 4v16M8 20h8M5 7h14" />
+    <path d="M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z" />
+  </Trazo>
+);
+
 export const IconoSubir = (p) => <Trazo {...p}><path d="M12 16V4M6 10l6-6 6 6M4 20h16" /></Trazo>;
 
 export const IconoDescargar = (p) => <Trazo {...p}><path d="M12 4v12M6 10l6 6 6-6M4 20h16" /></Trazo>;

@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -99,6 +100,18 @@ public class HorarioDeContacto {
     /** Un feriado nacional de cualquier ano, o uno decretado. */
     boolean esFeriado(LocalDate dia) {
         return decretados.contains(dia) || nacionalesDe(dia.getYear()).contains(dia);
+    }
+
+    /** Los feriados de un ano en que no se le escribe a nadie: los nacionales y los decretados, en orden. */
+    public SortedSet<LocalDate> feriadosDe(int ano) {
+        SortedSet<LocalDate> todos = new TreeSet<>(nacionalesDe(ano));
+        decretados.stream().filter(dia -> dia.getYear() == ano).forEach(todos::add);
+        return todos;
+    }
+
+    /** Si un feriado es de los que se decretan ({@code CONTACTO_FERIADOS}) y no de los que se calculan. */
+    public boolean esDecretado(LocalDate dia) {
+        return decretados.contains(dia) && !nacionalesDe(dia.getYear()).contains(dia);
     }
 
     private Set<LocalDate> nacionalesDe(int ano) {

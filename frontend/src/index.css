@@ -640,6 +640,37 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .fecha-caja.vencida b, .fecha-caja.vencida span { color: var(--warn); }
 .fila-acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
 
+/* ---- Reglas (panel de administracion) ---------------------------------------------------------- */
+
+.reglas { display: grid; gap: 18px; }
+.reglas-servicio { color: var(--muted); font-size: 14px; font-weight: 500; margin-left: 6px; }
+.regla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 0.9fr);
+  gap: 6px 18px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+.regla:last-child { border-bottom: 0; }
+.regla-que { font-weight: 600; }
+.regla-valor { color: var(--ink-2); }
+.regla-valor .hint { margin-top: 6px; font-size: 13.5px; }
+.regla-origen { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.regla-origen code {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.regla-ley { color: var(--muted); font-size: 13.5px; text-align: right; }
+.regla details summary { cursor: pointer; color: var(--brand); font-size: 14.5px; margin-top: 4px; width: fit-content; }
+.regla-lista { margin: 8px 0 0; padding-left: 18px; columns: 2; column-gap: 28px; font-size: 14.5px; }
+.regla-lista li { break-inside: avoid; }
+
 /* ---- Campañas ---------------------------------------------------------------------------------- */
 
 .campanas { display: grid; gap: 12px; }
@@ -1077,6 +1108,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 
 @media (max-width: 620px) {
+  .regla { grid-template-columns: 1fr; }
+  .regla-origen { justify-content: flex-start; }
+  .regla-ley { text-align: left; }
+  .regla-lista { columns: 1; }
   .deuda { padding: 20px 18px; }
   .deuda-cab { flex-direction: column; }
   .deuda-monto { text-align: left; }

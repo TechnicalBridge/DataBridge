@@ -3,10 +3,12 @@ package com.tbridge.auth.controller;
 import com.tbridge.auth.config.SecurityConfig;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
+import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.service.PersonalService;
+import com.tbridge.auth.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +50,7 @@ class AdminControllerTest {
     @Autowired private MockMvc mvc;
     @Autowired private JwtService jwt;
     @MockitoBean private PersonalService personal;
+    @MockitoBean private ReglasService reglas;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -64,6 +67,17 @@ class AdminControllerTest {
     private static PersonaResponse persona(long id, String correo, String rol, String empresa, boolean habilitada) {
         return new PersonaResponse(id, correo, "Alguien", rol, empresa, habilitada,
                 Instant.parse("2026-10-13T15:00:00Z"), null, habilitada ? null : Instant.parse("2026-10-13T16:00:00Z"));
+    }
+
+    @Test
+    void las_reglas_las_ve_el_admin_y_una_empresa_no() throws Exception {
+        when(reglas.reglas()).thenReturn(new ReglasResponse("ms-auth", List.of()));
+
+        mvc.perform(get("/api/admin/auth/reglas").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.servicio").value("ms-auth"));
+        mvc.perform(get("/api/admin/auth/reglas").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

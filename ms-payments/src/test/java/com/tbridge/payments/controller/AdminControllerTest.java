@@ -1,14 +1,20 @@
 package com.tbridge.payments.controller;
 
 import com.tbridge.payments.config.SecurityConfig;
+import com.tbridge.payments.dto.response.ReglasResponse;
 import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +29,7 @@ class AdminControllerTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private JwtService jwt;
+    @MockitoBean private ReglasService reglas;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -42,6 +49,17 @@ class AdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.servicio").value("ms-payments"))
                 .andExpect(jsonPath("$.ok").value(true));
+    }
+
+    @Test
+    void las_reglas_las_ve_el_admin_y_una_empresa_no() throws Exception {
+        when(reglas.reglas()).thenReturn(new ReglasResponse("ms-payments", List.of()));
+
+        mvc.perform(get("/api/admin/payments/reglas").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.servicio").value("ms-payments"));
+        mvc.perform(get("/api/admin/payments/reglas").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

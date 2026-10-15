@@ -5,9 +5,12 @@ import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
+import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.HorarioDeContacto;
+import com.tbridge.debt.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -27,6 +30,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 
@@ -49,9 +54,11 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 public class AdminController {
 
     private final EmpresaService empresas;
+    private final ReglasService reglas;
 
-    public AdminController(EmpresaService empresas) {
+    public AdminController(EmpresaService empresas, ReglasService reglas) {
         this.empresas = empresas;
+        this.reglas = reglas;
     }
 
     @GetMapping("/estado")
@@ -60,6 +67,16 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "El servicio responde")
     public EstadoResponse estado() {
         return new EstadoResponse("ms-debt", true);
+    }
+
+    @GetMapping("/reglas")
+    @Operation(summary = "Las reglas de cobranza y de contacto que rigen",
+            description = "La mora minima, la tasa maxima, el aviso antes de una cuota, el horario y el limite de "
+                    + "contacto de la ley, y los feriados de este ano y del siguiente: los mismos que usan las "
+                    + "campanas. Cada una dice de que variable sale. Se leen al arrancar: cambiar una pide reiniciar.")
+    @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
+    public ReglasResponse reglas() {
+        return reglas.reglas(LocalDate.now(HorarioDeContacto.CHILE));
     }
 
     @GetMapping("/empresas")
