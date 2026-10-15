@@ -55,8 +55,8 @@ export default function Login({ portal }) {
             <>
               <h1 className="aparece" style={{ "--i": 1 }}>La cartera que gestionas, al día</h1>
               <p className="aparece" style={{ "--i": 2 }}>
-                Quién debe, quién está en convenio y qué pagos llegaron. La cartera entra por la API
-                del contrato o cargando un archivo, y cada pago vuelve firmado a tu sistema.
+                Quién debe, quién está en convenio y qué pagos llegaron. Cargas a tus deudores en una
+                campaña y DataBridge les escribe, les cobra y te muestra cada pago.
               </p>
             </>
           )}

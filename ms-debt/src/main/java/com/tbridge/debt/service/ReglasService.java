@@ -30,20 +30,26 @@ public class ReglasService {
     private final BigDecimal tasaMaxima;
     private final int diasAntes;
     private final HorarioDeContacto horario;
+    private final boolean entregaPorApi;
 
     public ReglasService(@Value("${app.cartera.min-dias-mora:30}") int minDiasMora,
                          @Value("${app.intereses.tasa-maxima-mensual:3.0}") BigDecimal tasaMaxima,
                          @Value("${app.recordatorios.dias-antes:3}") int diasAntes,
-                         HorarioDeContacto horario) {
+                         HorarioDeContacto horario,
+                         @Value("${app.integracion.api:false}") boolean entregaPorApi) {
         this.minDiasMora = minDiasMora;
         this.tasaMaxima = tasaMaxima;
         this.diasAntes = diasAntes;
         this.horario = horario;
+        this.entregaPorApi = entregaPorApi;
     }
 
     /** Lo que rige hoy: los feriados son los de este ano y los del siguiente. */
     public ReglasResponse reglas(LocalDate hoy) {
         Grupo cobranza = new Grupo("Cobranza", List.of(
+                Regla.de("Cómo entran los deudores", entregaPorApi
+                        ? "Por campaña, desde el portal, y también por la API con una clave"
+                        : "Solo por campaña, cargados desde el portal", "INTEGRACION_API"),
                 Regla.de("Una deuda entra a cobranza con", dias(minDiasMora) + " de mora, o más", "MIN_DIAS_MORA"),
                 Regla.de("Tasa de interés máxima", tasaMaxima.stripTrailingZeros().toPlainString().replace('.', ',')
                         + " % mensual", "INTERES_TASA_MAXIMA_MENSUAL"),

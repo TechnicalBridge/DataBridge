@@ -1524,6 +1524,7 @@ classDiagram
         }
         class HorarioDeContacto {
             <<component>>
+            +apagado() boolean
             +permite(LocalDateTime) boolean
             +permiteAhora() boolean
             +esDiaDeContacto(LocalDate) boolean
@@ -1758,6 +1759,7 @@ classDiagram
         }
         class HorarioDeContacto {
             <<component>>
+            +apagado() boolean
             +permite(LocalDateTime) boolean
             +permiteAhora() boolean
             +esDiaDeContacto(LocalDate) boolean

@@ -29,9 +29,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Lo que Swagger publica del contrato v1. Lo leen sistemas de otras empresas,
- * asi que una operacion mal documentada es un contrato mal publicado.
+ * asi que una operacion mal documentada es un contrato mal publicado. Con la
+ * entrega por API encendida: apagada, no hay contrato que publicar.
  */
-@WebMvcTest(IntegracionController.class)
+@WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
 @Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})

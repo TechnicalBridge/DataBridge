@@ -5,6 +5,13 @@ que el otro esté funcionando.
 
 Proyecto de Capstone. Las empresas, personas, RUT y montos de los ejemplos son ficticios.
 
+> **En DataBridge, la entrega por API está apagada por omisión.** Los deudores entran solo por
+> campaña, cargados desde el portal con la planilla de §6.6. Mientras `INTEGRACION_API` no sea
+> `true`, todo `/api/v1` y `/api/claves` de DataBridge responde `404`, así que APOFYX no le puede
+> entregar carteras. Encendida, funciona como dice este contrato, salvo que el portal ya no tiene
+> *Claves de API*: la clave se emite con `POST /api/claves`, con la sesión de la empresa, o por
+> dentro con `POST /internal/claves`.
+
 ---
 
 ## 1. La cadena
@@ -407,7 +414,8 @@ POST /api/v1/carteras   (multipart/form-data)
   columnas de la deuda, se repite en cada fila de sus cargos; acepta `1,5` o `1.5`.
 
 Desde el portal de empresas de DataBridge la misma planilla se carga **dentro de una campaña**:
-`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API.
+`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API. Es la única
+entrada mientras la entrega por API esté apagada (`INTEGRACION_API`).
 
 - **La campaña es obligatoria:** sin `campana_id_externo` responde `400` (`sin_campana`), y en
   una terminada, `409` (`campana_terminada`).

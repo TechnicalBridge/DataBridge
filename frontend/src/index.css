@@ -970,44 +970,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .preguntas summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--muted); transition: transform 0.25s var(--ease); }
 .preguntas details[open] summary::after { transform: rotate(45deg); }
 .preguntas details p { margin: 0 2px 16px; color: var(--ink-2); max-width: 70ch; }
-.codigo {
-  margin: 10px 0 0;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: var(--paper-2);
-  border: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 13.5px;
-  line-height: 1.6;
-  overflow-x: auto;
-  white-space: pre;
-}
 .columnas-csv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .columnas-csv code { padding: 2px 8px; border-radius: 6px; background: var(--paper-2); border: 1px solid var(--line); }
-
-/* ---- Claves de API ------------------------------------------------------------------------- */
-
-.clave-nueva {
-  padding: 16px 18px;
-  border-radius: var(--radius);
-  background: var(--brand-soft);
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
-  animation: subir 0.4s var(--ease) both;
-}
-.clave-nueva .clave-texto {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 0 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 14px;
-  word-break: break-all;
-}
-.clave-nueva .clave-texto code { flex: 1; }
 
 /* ---- Asistente ------------------------------------------------------------------------------- */
 
