@@ -21,16 +21,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.boot.env.PropertiesPropertySourceLoader;
-import org.springframework.core.io.ClassPathResource;
 
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -73,7 +69,7 @@ class ContactoServiceTest {
     @BeforeEach
     void preparar() {
         servicio = new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones, new ObjectMapper(),
-                "2026-10-12");
+                new HorarioDeContacto("2026-10-12"));
         when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(0, false));
 
         Organization patrimonio = new Organization();
@@ -319,55 +315,5 @@ class ContactoServiceTest {
         ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
         verify(auth).emitirCodigo(pedido.capture());
         assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
-    }
-
-    // ------------------------------------------------------------------
-    //  Los feriados de la configuracion
-    // ------------------------------------------------------------------
-
-    /**
-     * Con la configuracion tal como la lee Spring Boot de application.properties
-     * (con el mismo cargador), mas lo que sume CONTACTO_FERIADOS.
-     */
-    private ContactoService conLaConfiguracion(String contactoFeriados) throws IOException {
-        Object feriados = new PropertiesPropertySourceLoader()
-                .load("configuracion", new ClassPathResource("application.properties"))
-                .getFirst()
-                .getProperty("app.contacto.feriados");
-        String conLaVariable = String.valueOf(feriados).replace("${CONTACTO_FERIADOS:}", contactoFeriados);
-        return new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones, new ObjectMapper(),
-                conLaVariable);
-    }
-
-    @Test
-    void los_feriados_se_calculan_para_cualquier_ano() throws IOException {
-        ContactoService conFeriados = conLaConfiguracion("");
-        //  Los de 2027, con el viernes 17 de septiembre (Ley 20.983) que faltaba en la lista a mano.
-        List<LocalDate> feriados = Stream.of("2027-01-01", "2027-03-26", "2027-03-27", "2027-05-01",
-                        "2027-05-21", "2027-06-21", "2027-06-28", "2027-07-16", "2027-08-15", "2027-09-17",
-                        "2027-09-18", "2027-09-19", "2027-10-11", "2027-10-31", "2027-11-01", "2027-12-08",
-                        "2027-12-25")
-                .map(LocalDate::parse)
-                .toList();
-
-        for (LocalDate dia : feriados) {
-            assertFalse(conFeriados.horaDeContacto(dia.atTime(10, 0)), dia + " es feriado");
-        }
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 6, 29, 10, 0)),
-                "San Pedro y San Pablo cae martes y se corre al lunes 28");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 10, 12, 10, 0)),
-                "el Encuentro de Dos Mundos cae martes y se corre al lunes 11");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 1, 4, 10, 0)), "un lunes cualquiera");
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2031, 1, 1, 10, 0)),
-                "y un ano que nadie cargo: el miercoles 1 de enero de 2031");
-    }
-
-    @Test
-    void un_feriado_decretado_se_suma_a_los_calculados() throws IOException {
-        ContactoService conFeriados = conLaConfiguracion("2027-11-22");
-
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2027, 11, 22, 10, 0)), "el decretado");
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2026, 10, 12, 10, 0)), "los calculados siguen");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 11, 23, 10, 0)), "el dia siguiente, no");
     }
 }

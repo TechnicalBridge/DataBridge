@@ -33,6 +33,10 @@ import java.util.Set;
  * cartera. Si ms-auth no responde, la deuda queda igual y la agencia envia el
  * codigo a mano.
  *
+ * <p>Fuera del horario de la ley ({@link HorarioDeContacto}) no sale: una
+ * cartera que llega de noche o un domingo deja sus deudas sin invitar, y las
+ * invita la primera pasada de contacto dentro del horario.
+ *
  * <p>Si el correo no sale, no queda como enviado: el motivo queda en el
  * deudor. Cada pasada de contacto invita a las deudas que todavia no
  * recibieron ningun correo ({@link #invitarPendientes}): asi, corregido el
@@ -54,13 +58,15 @@ public class InvitacionService {
     private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final HorarioDeContacto horario;
 
     public InvitacionService(DebtRepository debts, ContactRepository contactos, AuthClient auth,
-                             LimiteDeContacto limite) {
+                             LimiteDeContacto limite, HorarioDeContacto horario) {
         this.debts = debts;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.horario = horario;
     }
 
     @Async
@@ -79,6 +85,12 @@ public class InvitacionService {
         }
         if (deudor.correoConProblemas()) {
             log.info("La deuda {} no se invita: la direccion de su deudor tiene problemas", deuda.getId());
+            return;
+        }
+        if (!horario.permiteAhora()) {
+            //  De noche, un domingo o un feriado: la invita la primera pasada
+            //  de contacto dentro del horario (invitarPendientes).
+            log.info("La deuda {} se invita en la proxima pasada: ahora no es horario de cobranza", deuda.getId());
             return;
         }
         if (!limite.permite(deudor, Instant.now())) {

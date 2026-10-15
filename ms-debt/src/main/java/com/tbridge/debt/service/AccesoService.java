@@ -26,6 +26,9 @@ import java.util.List;
  * <p><b>El codigo nunca vuelve a quien lo pidio.</b> ms-auth lo genera y lo
  * manda al correo del deudor; esta respuesta solo dice a donde se mando.
  *
+ * <p>Fuera del horario de la ley ({@link HorarioDeContacto}) no sale: la
+ * empresa recibe un {@code 409} que dice cuando se puede.
+ *
  * <p>Si el correo no sale, la empresa lo sabe en el momento ({@code 502}, con
  * el motivo). La empresa puede insistir aunque la direccion tenga problemas:
  * lo que se deja de hacer solo, se puede hacer a mano.
@@ -38,12 +41,15 @@ public class AccesoService {
     private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final HorarioDeContacto horario;
 
-    public AccesoService(DebtService debts, ContactRepository contactos, AuthClient auth, LimiteDeContacto limite) {
+    public AccesoService(DebtService debts, ContactRepository contactos, AuthClient auth, LimiteDeContacto limite,
+                         HorarioDeContacto horario) {
         this.debts = debts;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.horario = horario;
     }
 
     //  Un correo que no sale responde con un error, pero lo que se anoto en el
@@ -61,6 +67,10 @@ public class AccesoService {
         if (deudor.getEmail() == null || deudor.getEmail().isBlank()) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "El deudor no tiene correo registrado, y el envio por WhatsApp aun no esta conectado");
+        }
+        if (!horario.permiteAhora()) {
+            throw new ApiException(HttpStatus.CONFLICT, "La ley solo deja escribirle a un deudor "
+                    + HorarioDeContacto.REGLA + ". Intentalo dentro de ese horario");
         }
         if (!limite.permite(deudor, Instant.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Ya se le escribio lo que permite la ley: dos veces por "

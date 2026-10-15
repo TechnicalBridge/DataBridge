@@ -27,10 +27,43 @@ import static org.mockito.Mockito.when;
 
 class AccesoServiceTest {
 
+    /** Dentro del horario de la ley, que es lo que prueba casi todo esto. */
+    private static HorarioDeContacto enHorario() {
+        HorarioDeContacto horario = mock(HorarioDeContacto.class);
+        when(horario.permiteAhora()).thenReturn(true);
+        return horario;
+    }
+
     @Test
     void elCorreoSeReconoceSinExponerse() {
         assertEquals("fe**********@correo.cl", AccesoService.enmascarar("felipe.rojas@correo.cl"));
         assertEquals("***@x.cl", AccesoService.enmascarar("ab@x.cl"));
+    }
+
+    @Test
+    void la_empresa_no_puede_reenviar_el_codigo_fuera_del_horario_de_la_ley() {
+        DebtService debts = mock(DebtService.class);
+        AuthClient auth = mock(AuthClient.class);
+        LimiteDeContacto limite = mock(LimiteDeContacto.class);
+        ContactRepository contactos = mock(ContactRepository.class);
+        HorarioDeContacto deNoche = mock(HorarioDeContacto.class);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, deNoche);
+        JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        Debtor deudor = new Debtor();
+        deudor.setEmail("felipe.rojas@correo.cl");
+        Debt deuda = new Debt();
+        deuda.setDebtor(deudor);
+        deuda.setStatus(Debt.Status.open);
+        when(debts.requireVisible(empresa, 3L)).thenReturn(deuda);
+        when(limite.permite(any(), any())).thenReturn(true);
+        when(deNoche.permiteAhora()).thenReturn(false);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertTrue(error.getMessage().contains("de lunes a sabado, de 8:00 a 20:00"), error.getMessage());
+        verify(auth, never()).emitirCodigo(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test
@@ -39,7 +72,7 @@ class AccesoServiceTest {
         AuthClient auth = mock(AuthClient.class);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Debtor deudor = new Debtor();
         deudor.setEmail("felipe.rojas@correo.cl");
@@ -63,7 +96,7 @@ class AccesoServiceTest {
         AuthClient auth = mock(AuthClient.class);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -91,7 +124,7 @@ class AccesoServiceTest {
         DebtService debts = mock(DebtService.class);
         AuthClient auth = mock(AuthClient.class);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
-        AccesoService servicio = new AccesoService(debts, mock(ContactRepository.class), auth, limite);
+        AccesoService servicio = new AccesoService(debts, mock(ContactRepository.class), auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -119,7 +152,7 @@ class AccesoServiceTest {
         AuthClient auth = mock(AuthClient.class);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");

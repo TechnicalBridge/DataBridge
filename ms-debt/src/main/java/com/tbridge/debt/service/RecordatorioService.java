@@ -34,6 +34,10 @@ import java.util.Set;
  * razon que el primer aviso, un correo que llega a quien no es no debe decir
  * cuanto debe alguien ni a quien, ni llevarlo a ninguna parte.
  *
+ * <p>Solo dentro del horario de la ley ({@link HorarioDeContacto}): un domingo
+ * o un feriado no sale ninguno. No se pierde ninguno, porque la pasada del dia
+ * siguiente en que se puede avisa las cuotas que vencen en sus proximos dias.
+ *
  * <p>Cada cuota se avisa una sola vez: que ya se aviso es que existe su
  * contacto, y la base no deja que haya dos. Si ms-auth no responde, o el
  * correo no sale, no queda ninguno y el aviso sale en la pasada siguiente, al
@@ -43,28 +47,35 @@ import java.util.Set;
 public class RecordatorioService {
 
     private static final Logger log = LoggerFactory.getLogger(RecordatorioService.class);
-    private static final ZoneId CHILE = ZoneId.of("America/Santiago");
+    private static final ZoneId CHILE = HorarioDeContacto.CHILE;
     private static final List<Debt.Status> EN_COBRANZA = List.of(Debt.Status.open, Debt.Status.repacted);
 
     private final InstallmentRepository installments;
     private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final HorarioDeContacto horario;
     private final int diasAntes;
 
     public RecordatorioService(InstallmentRepository installments, ContactRepository contactos, AuthClient auth,
-                               LimiteDeContacto limite,
+                               LimiteDeContacto limite, HorarioDeContacto horario,
                                @Value("${app.recordatorios.dias-antes:3}") int diasAntes) {
         this.installments = installments;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.horario = horario;
         this.diasAntes = diasAntes;
     }
 
     @Scheduled(cron = "${app.recordatorios.cron:0 0 9 * * *}", zone = "America/Santiago")
     @Transactional
     public void programado() {
+        if (!horario.permiteAhora()) {
+            //  Tambien si alguien movio el cron fuera del horario.
+            log.info("Recordatorios de cuota: hoy, a esta hora, la ley no deja escribirle a nadie");
+            return;
+        }
         RecordatoriosResponse pasada = enviar(LocalDate.now(CHILE));
         if (pasada.enviados() + pasada.omitidos() > 0) {
             log.info("Recordatorios de cuota: {} enviados, {} omitidos", pasada.enviados(), pasada.omitidos());
@@ -74,6 +85,9 @@ public class RecordatorioService {
     /** Una pasada, como si hoy fuera {@code hoy}. */
     @Transactional
     public RecordatoriosResponse enviar(LocalDate hoy) {
+        if (!horario.esDiaDeContacto(hoy)) {
+            return new RecordatoriosResponse(0, 0);
+        }
         int enviados = 0;
         int omitidos = 0;
         Set<Debtor> fallaron = Collections.newSetFromMap(new IdentityHashMap<>());

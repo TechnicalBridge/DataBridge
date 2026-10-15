@@ -333,8 +333,12 @@ no deshace lo que el deudor ya acordó:
 
 **La invitación.** Cuando una deuda entra —o vuelve— a cobranza en DataBridge, al deudor le llega
 solo su código de acceso por correo, sin monto ni enlace. La agencia lo puede reenviar desde su
-portal. Si en ese momento no sale (la ley ya no deja escribirle esa semana, o el correo falla),
-DataBridge lo vuelve a intentar solo, dentro del horario de cobranza, hasta que sale.
+portal. Si en ese momento no sale, DataBridge lo vuelve a intentar solo, dentro del horario de
+cobranza, hasta que sale. No sale cuando:
+
+- es de noche, un domingo o un feriado;
+- la ley ya no deja escribirle esa semana;
+- el correo falla.
 
 ### 6.5 Respuesta
 
