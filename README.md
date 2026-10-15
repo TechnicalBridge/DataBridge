@@ -395,9 +395,11 @@ propios datos de ejemplo, así que los tres sistemas cuentan lo mismo:
 | 13.579.246-2 | Patricio Muñoz Salas | Clínica Dental Sonrisa Norte | Debe una ortodoncia de un solo cargo, vencida hace 75 días |
 | 16.789.012-1 | Fernanda Silva Rojas | Clínica Dental Sonrisa Norte | En convenio de 6 cuotas por un implante, con la primera pagada |
 
-Instituto Andes entregó su cartera en la planilla CSV y Sonrisa Norte por API. Las deudas de
-Sonrisa Norte son de un solo cargo: muestran que la regla de los 30 días sirve también fuera de
-los cobros mensuales.
+Estos datos los carga ms-debt al arrancar (`DEMO_DATOS`), directo en su base: no llegan por
+ningún canal. En la historia que cuentan, Instituto Andes subió una planilla y Sonrisa Norte
+entregó por la API, que hoy viene apagada; una cartera nueva entra por *Cargar cartera*, en una
+campaña. Las deudas de Sonrisa Norte son de un solo cargo: muestran que la regla de los 30 días
+sirve también fuera de los cobros mensuales.
 
 Para conseguir un código, la empresa toca **Reenviar código** en su cartera y el código llega al
 buzón. También se puede pedir directo a ms-auth:
