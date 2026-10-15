@@ -198,6 +198,8 @@ services:
       INTERES_TASA_MAXIMA_MENSUAL: ${INTERES_TASA_MAXIMA_MENSUAL:-3.0}
       #  Feriados que se suman a los de 2026, en que las campanas no contactan.
       CONTACTO_FERIADOS: ${CONTACTO_FERIADOS:-}
+      #  Solo para probar: true apaga el horario de la ley (nunca en produccion).
+      CONTACTO_SIN_HORARIO: ${CONTACTO_SIN_HORARIO:-false}
       #  Cifra en la base el secreto de las suscripciones a los avisos.
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
       DEMO_DATOS: ${DEMO_DATOS:-true}

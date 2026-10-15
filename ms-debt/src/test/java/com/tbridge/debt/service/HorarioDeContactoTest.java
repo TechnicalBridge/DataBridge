@@ -31,6 +31,19 @@ class HorarioDeContactoTest {
     }
 
     @Test
+    void apagado_para_probar_deja_escribir_a_cualquier_hora() {
+        HorarioDeContacto apagado = new HorarioDeContacto("", true);
+
+        assertTrue(apagado.apagado());
+        assertTrue(apagado.permite(LocalDateTime.of(2026, 10, 15, 2, 30)), "de madrugada");
+        assertTrue(apagado.permite(LocalDateTime.of(2026, 10, 11, 10, 0)), "un domingo");
+        assertTrue(apagado.esDiaDeContacto(LocalDate.of(2026, 10, 12)), "un feriado");
+        //  Los feriados se siguen sabiendo: es el horario el que no se aplica.
+        assertTrue(apagado.esFeriado(LocalDate.of(2026, 10, 12)));
+        assertFalse(horario.apagado(), "por omision, encendido");
+    }
+
+    @Test
     void un_dia_de_contacto_no_es_domingo_ni_feriado() {
         assertTrue(horario.esDiaDeContacto(LocalDate.of(2026, 10, 17)), "un sabado");
         assertFalse(horario.esDiaDeContacto(LocalDate.of(2026, 10, 18)), "un domingo");
