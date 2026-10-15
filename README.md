@@ -905,6 +905,10 @@ falta uno, el servicio no arranca y dice cuál. `application-dev.properties` es 
 describe aquí, salvo que el portal ya no tiene *Claves de API*: la clave se emite con
 `POST /api/claves`, con la sesión de la empresa, o por dentro con `POST /internal/claves`.
 
+**La cadena con APOFYX la necesita encendida.** APOFYX entrega la cartera por `/api/v1`, así que
+para correr los tres sistemas juntos ms-debt arranca con `INTEGRACION_API=true`. Los scripts de la
+demo de la cadena la encienden solos.
+
 ```
 Contrato v1, de sistema a sistema (con clave de API, solo con INTEGRACION_API=true):
   APOFYX ── GET /api/v1/cuenta ───────────────────────────────────────────► ms-debt
