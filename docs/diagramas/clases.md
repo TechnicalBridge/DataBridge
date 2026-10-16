@@ -3023,7 +3023,7 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `ChatController` | `controller` | `POST /api/ai/chat`: una pregunta del deudor. |
-| `SaludController` | `controller` | `GET /api/health`: si el asistente tiene un LLM configurado. |
+| `SaludController` | `controller` | `GET /api/ai/salud`: si el asistente tiene un LLM configurado. |
 | `AsistenteService` | `service` | Trae las deudas del deudor y responde: con el LLM si hay, con reglas si no. |
 | `LlmService` | `service` | La respuesta con un LLM, por el SDK de OpenAI para Java. |
 | `MotorLocal` | `service` | Las respuestas por reglas, y el ánimo del mensaje. |

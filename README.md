@@ -829,8 +829,12 @@ pide a ms-debt con la sesión del deudor), `dto/` y `exception/`.
 
 **Swagger.** Cada servicio documenta sus endpoints en grupos según quién los llama —el **portal**,
 el **panel de administración**, el **contrato de integración** y lo **interno**—, y el gateway los junta en una sola
-página: http://localhost:8080/swagger-ui.html. El botón *Authorize* recibe el JWT del portal, la
-clave de API del contrato o la clave interna.
+página: http://localhost:8080/swagger-ui.html. Cada grupo ofrece en *Authorize* solo la llave que
+usa: el JWT del portal, la clave de API del contrato o la clave interna. Lo público se llama por la
+misma dirección desde la que se abrió Swagger, sea `localhost:8080` o el dominio. Lo interno apunta
+directo al servicio, porque el gateway no expone `/internal`: con Docker ese puerto no se publica,
+así que *Try it out* no llega desde el navegador, y el grupo dice cómo llamarlo desde dentro del
+contenedor, como en [§3](#3-cómo-ejecutar-el-proyecto-localmente).
 
 <details>
 <summary><b>HATEOAS y configuración</b>: los enlaces de cada respuesta y de dónde sale cada valor</summary>
@@ -3646,15 +3650,15 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**826 pruebas**, todas en Java y sin fallos:
+**833 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 191 |
-| `ms-debt` | 391 |
-| `ms-payments` | 183 |
-| `ms-ai` | 42 |
+| `ms-auth` | 193 |
+| `ms-debt` | 393 |
+| `ms-payments` | 185 |
+| `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
@@ -3682,6 +3686,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De la carga por campaña** | Sin campaña no entra nada ni se revisa; en una campaña terminada tampoco. La planilla entra en su campaña, con el lote y el corte armados solos o con los que manda el portal. La revisión deshace siempre lo que hizo y dice cuánto entraría por moneda, también cuando la ingesta rechaza el lote |
 | **De la planilla de Excel** | Sobre la plantilla de verdad, con celdas de su tipo: una persona que debe tres meses es una deuda con tres cargos; el RUT con o sin puntos; UF con decimales y CLP entero, exactos; el cliente al día sin cargos y el retiro con su motivo; meses, fechas y montos escritos como texto (`jul-2026`, `350.000`). Cada problema con su hoja, fila y columna, y todos juntos: un RUT que no está en *Deudores*, un mes, una fecha o un monto mal escritos, una deuda que cambia de moneda entre meses, un mes repetido, un CLP con decimales, un monto en cero, un al día con meses, un retiro sin motivo, un deudor repetido o sin correo. La plantilla trae sus tres hojas, las listas, los tipos y la mora mínima vigente; solo una empresa la descarga, y los problemas salen en `error.detalles` |
 | **De la entrega por API apagada** | Sin `INTEGRACION_API`, `/api/v1` y `/api/claves` responden `404` sin mirar la clave, y Swagger muestra el contrato vacío y por qué. Con `INTEGRACION_API=true`, el contrato y las claves funcionan como antes |
+| **De Swagger** | Cada grupo ofrece en *Authorize* solo la llave que usan sus operaciones, sin quitársela a los otros grupos; lo público se llama por la dirección desde la que se abrió Swagger, y lo interno dice que con Docker no se alcanza desde el navegador y cómo llamarlo. ms-ai solo publica rutas que el gateway le manda (`/api/ai/**`) |
 | **De las reglas del panel** | Cada regla dice cuánto vale y de qué variable sale, o que la fija la ley; cómo entran los deudores; el horario apagado para probar, a gritos; y los feriados, los mismos que usan las campañas |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo de [`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
@@ -3762,14 +3767,14 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 15 de octubre de 2026
 
-**826 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
+**833 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **826**, sin fallos ([§11](#11-pruebas)) |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **833**, sin fallos ([§11](#11-pruebas)) |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
 | Build del portal | Correcto, 762 módulos |
