@@ -2,13 +2,13 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **281 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **287 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 56 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 153 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
-| [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
+| [ms-auth](#ms-auth--el-acceso) | 58 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-debt](#ms-debt--la-cartera) | 155 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-payments](#ms-payments--los-cobros) | 53 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
 
@@ -250,6 +250,7 @@ classDiagram
         class AdminController {
             <<controller>>
             +estado() EstadoResponse
+            +reglas() ReglasResponse
             +personalDeEmpresa(JwtPrincipal, String) List~PersonaResponse~
             +crearUsuario(JwtPrincipal, String, NuevaPersonaRequest) PersonaResponse
             +historialDeEmpresa(String) List~AccionResponse~
@@ -300,6 +301,10 @@ classDiagram
             +deshabilitar(Long, JwtPrincipal) PersonaResponse
             +habilitar(Long, JwtPrincipal) PersonaResponse
         }
+        class ReglasService {
+            <<service>>
+            +reglas() ReglasResponse
+        }
         class SessionService {
             <<service>>
             +abrir(Session.Role, String, String, String) Llave
@@ -323,14 +328,24 @@ classDiagram
         }
         class MailService {
             <<service>>
+            +comoSalen() ComoSalen
             +enviarCodigo(String, String, String) void
             +enviarRecordatorio(String, String, String, LocalDate) void
             +enviarEnlace(String, String, long) void
             +enviarInvitacion(String, String, String, String, long, String) void
             +probar(String) PruebaDeCorreoResponse
         }
+        class MailService_ComoSalen["MailService.ComoSalen"] {
+            <<record>>
+            +por : String
+            +variables : String
+            +modo : String
+            +remitente : String
+        }
         class ModoDePrueba {
             <<utility>>
+            +cuantosPermitidos() int
+            +desvia() boolean
             +activo() boolean
             +para(String, String) Optional~Destino~
             +descripcion() String
@@ -414,6 +429,7 @@ classDiagram
     AuthService ..> AuthService_Sesion
     SessionService ..> SessionService_Llave
     SessionService ..> SessionService_Renovada
+    MailService ..> MailService_ComoSalen
     ModoDePrueba ..> ModoDePrueba_Destino
     PlantillasDeCorreo ..> PlantillasDeCorreo_Carta
     DeudasClient ..> DeudasClient_Empresa
@@ -422,6 +438,7 @@ classDiagram
     AuthController --> JwtService
     AuthController --> SesionModelAssembler
     AdminController --> PersonalService
+    AdminController --> ReglasService
     InternalController --> AuthService
     InternalController --> MailService
     AuthService --> AccessCodeRepository
@@ -438,6 +455,7 @@ classDiagram
     PersonalService --> SessionService
     PersonalService --> DeudasClient
     PersonalService --> MailService
+    ReglasService --> MailService
     SessionService --> SessionRepository
     MailService ..> ModoDePrueba : pregunta a quién
     MailService ..> PlantillasDeCorreo : escribe con
@@ -446,11 +464,12 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta y las reglas de acceso y correo. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
+| `ReglasService` | `service` | Las reglas de acceso y de correo que rigen, para la pantalla Reglas del panel. Del correo dice por dónde y en qué modo: ninguna clave ni dirección entera. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
 | `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
@@ -609,7 +628,7 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `ReglasResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 
@@ -1500,6 +1519,8 @@ classDiagram
             +permite(LocalDateTime) boolean
             +permiteAhora() boolean
             +esDiaDeContacto(LocalDate) boolean
+            +feriadosDe(int) SortedSet~LocalDate~
+            +esDecretado(LocalDate) boolean
         }
         class LimiteDeContacto {
             <<service>>
@@ -1693,7 +1714,7 @@ classDiagram
 
 ### El panel de administración
 
-Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor.
+Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor. Las reglas salen de la configuración y de `HorarioDeContacto`, el mismo que usan las campañas.
 
 ```mermaid
 classDiagram
@@ -1702,6 +1723,7 @@ classDiagram
         class AdminController {
             <<controller>>
             +estado() EstadoResponse
+            +reglas() ReglasResponse
             +empresas() List~EmpresaResponse~
             +empresa(String) EmpresaResponse
             +crear(JwtPrincipal, NuevaEmpresaRequest) EmpresaResponse
@@ -1721,6 +1743,18 @@ classDiagram
             <<record>>
             +deudas : Map
             +porCobrar : Map
+        }
+        class ReglasService {
+            <<service>>
+            +reglas(LocalDate) ReglasResponse
+        }
+        class HorarioDeContacto {
+            <<component>>
+            +permite(LocalDateTime) boolean
+            +permiteAhora() boolean
+            +esDiaDeContacto(LocalDate) boolean
+            +feriadosDe(int) SortedSet~LocalDate~
+            +esDecretado(LocalDate) boolean
         }
     }
     namespace repository {
@@ -1754,10 +1788,13 @@ classDiagram
     }
     EmpresaService ..> EmpresaService_Totales
     AdminController --> EmpresaService
+    AdminController --> ReglasService
+    AdminController ..> HorarioDeContacto
     EmpresaService --> OrganizationRepository
     EmpresaService --> MandateRepository
     EmpresaService --> DebtRepository
     EmpresaService --> AdminLogRepository
+    ReglasService --> HorarioDeContacto
     EmpresaService ..> ConteoDeDeudas : lee
     EmpresaService ..> SaldoPendiente : lee
     DebtRepository ..> ConteoDeDeudas : arma
@@ -1766,8 +1803,10 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas y las reglas de cobranza. Solo para el admin. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, y dar de alta una empresa usuaria. |
+| `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
+| `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `ConteoDeDeudas` | `repository` | Cuántas deudas hay de un acreedor, entregadas por un emisor, en un estado. Un total, sin deudas. |
 | `SaldoPendiente` | `repository` | Lo que falta por cobrar de un acreedor, entregado por un emisor, en una moneda. Un total. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
@@ -2155,7 +2194,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
 | `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 
@@ -2346,6 +2385,7 @@ classDiagram
         }
         class AdminController {
             <<controller>>
+            +reglas() ReglasResponse
             +estado() EstadoResponse
         }
     }
@@ -2415,6 +2455,9 @@ classDiagram
             +configurada() boolean
             +valida(String, String) boolean
         }
+        class ReglasService {
+            <<service>>
+        }
     }
     namespace repository {
         class PaymentRepository {
@@ -2452,6 +2495,7 @@ classDiagram
     WebhookController --> PaymentService
     InternalController --> UfService
     InternalController --> UfLoader
+    AdminController --> ReglasService
     PaymentService --> PaymentRepository
     PaymentService --> PaymentEventRepository
     PaymentService --> DebtNotificationRepository
@@ -2476,7 +2520,7 @@ classDiagram
 | `PaymentController` | `controller` | Los pagos del portal, la página de la pasarela, la ida y vuelta de Webpay y Mercado Pago, y el aviso de Khipu. |
 | `WebhookController` | `controller` | Donde avisa la pasarela simulada, con firma. |
 | `InternalController` | `controller` | Cargar la UF a mano o desde el Banco Central. Con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago. Solo para el admin. |
 | `PaymentModelAssembler` | `assembler` | Los enlaces HATEOAS de un pago. |
 | `PaymentService` | `service` | El cobro: abrirlo, confirmarlo con la pasarela, vencerlo y dejar el aviso. |
 | `ConciliacionPasarelas` | `service` | Cada 10 segundos pregunta a las pasarelas por los cobros abiertos, y cada 5 minutos por los vencidos. |
@@ -2489,11 +2533,17 @@ classDiagram
 
 ### Las pasarelas y los otros sistemas
 
-Un cliente por cada sistema de afuera. Cada uno sabe si está configurado de verdad (`real()`); sin credenciales, el cobro se simula.
+Un cliente por cada sistema de afuera. Cada uno sabe si está configurado de verdad (`real()`); sin credenciales, el cobro se simula. `ReglasService` les pregunta eso para la pantalla Reglas del panel.
 
 ```mermaid
 classDiagram
     direction LR
+    namespace service {
+        class ReglasService {
+            <<service>>
+            +reglas() ReglasResponse
+        }
+    }
     namespace client {
         class DebtClient {
             <<client>>
@@ -2549,6 +2599,7 @@ classDiagram
         class WebpayClient {
             <<client>>
             +real() boolean
+            +produccion() boolean
             +plazoDePago() Duration
             +paginaDePago() String
             +createTransaction(String, String, long, String) WebpayCreateResponse
@@ -2648,6 +2699,10 @@ classDiagram
     MercadoPagoClient ..> MercadoPagoClient_Item
     MercadoPagoClient ..> MercadoPagoClient_Payer
     MercadoPagoClient ..> MercadoPagoClient_BackUrls
+    ReglasService --> WebpayClient
+    ReglasService --> KhipuClient
+    ReglasService --> MercadoPagoClient
+    ReglasService --> BancoCentralClient
     DebtClient ..> TiemposDePasarela
     KhipuClient ..> TiemposDePasarela
     WebpayClient ..> TiemposDePasarela
@@ -2656,6 +2711,7 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
+| `ReglasService` | `service` | Las reglas de pago que rigen, para la pantalla Reglas del panel: qué pasarelas cobran de verdad, en cuánto vence un cobro y de dónde sale la UF. De las credenciales dice solo si están. |
 | `DebtClient` | `client` | Le pregunta a ms-debt cuánto se debe y de quién es. |
 | `KhipuClient` | `client` | Khipu, por su API de pagos v3. |
 | `WebpayClient` | `client` | Transbank Webpay Plus. |
@@ -2808,7 +2864,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.gateway` | Lo que se habla con Transbank | `WebpayCommitResponse`, `WebpayCreateRequest`, `WebpayCreateResponse` |
 | `dto.request` | Lo que entra | `CheckoutRequest`, `UfManualRequest`, `WebhookRequest` |
-| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `PaymentEventResponse`, `PaymentResponse`, `UfCargaResponse`, `UfResponse` |
+| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `PaymentEventResponse`, `PaymentResponse`, `ReglasResponse`, `UfCargaResponse`, `UfResponse` |
 
 ---
 

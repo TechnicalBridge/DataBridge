@@ -127,17 +127,17 @@ utilidades se usan desde todas las capas.
 
 ### ms-auth
 
-`com.tbridge.auth` · 55 tipos en 11 paquetes.
+`com.tbridge.auth` · 58 tipos en 11 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>3 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>5 clases"]
+    service["service<br/>7 clases"]
     client["client<br/>1 clase"]
     repository["repository<br/>6 clases"]
     model["model<br/>6 clases"]
-    dto["dto<br/>15 clases"]
+    dto["dto<br/>16 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
@@ -160,18 +160,18 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 152 tipos en 12 paquetes.
+`com.tbridge.debt` · 155 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>11 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>29 clases"]
+    service["service<br/>31 clases"]
     client["client<br/>2 clases"]
     repository["repository<br/>19 clases"]
     model["model<br/>17 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>52 clases"]
+    dto["dto<br/>53 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>4 clases"]
@@ -198,18 +198,18 @@ flowchart LR
 
 ### ms-payments
 
-`com.tbridge.payments` · 51 tipos en 12 paquetes.
+`com.tbridge.payments` · 53 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>4 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>8 clases"]
+    service["service<br/>9 clases"]
     client["client<br/>6 clases"]
     repository["repository<br/>4 clases"]
     model["model<br/>4 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>12 clases"]
+    dto["dto<br/>13 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
@@ -275,18 +275,18 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `controller` | Los endpoints. Traducen HTTP y delegan: no tienen reglas de negocio | 3 | 11 | 4 | 2 | — |
 | `assembler` | Los enlaces HATEOAS de cada respuesta | 1 | 1 | 1 | — | — |
-| `service` | Las reglas de negocio, y las tareas programadas | 5 | 29 | 8 | 3 | — |
+| `service` | Las reglas de negocio, y las tareas programadas | 7 | 31 | 9 | 3 | — |
 | `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 2 | 6 | 1 | — |
 | `repository` | El acceso a la base, con Spring Data JPA | 6 | 19 | 4 | — | — |
 | `model` | Las entidades, una por tabla | 6 | 17 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
-| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 15 | 52 | 12 | 4 | — |
+| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 16 | 53 | 13 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
 | `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 7 | 6 | 3 | 1 | 1 |
 | `exception` | Los errores propios y su forma de respuesta | 4 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **55** | **152** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **58** | **155** | **53** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 
@@ -329,6 +329,7 @@ flowchart LR
             AdminEmpresas
             AdminEmpresa
             AdminEquipo
+            AdminReglas
         end
     end
 
@@ -369,7 +370,7 @@ flowchart LR
     Cargar --> CargaCsv --> deudas
     Campanas --> campanas & deudas
     Claves --> claves
-    AdminInicio & AdminEmpresas --> admin
+    AdminInicio & AdminEmpresas & AdminReglas --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
@@ -381,7 +382,7 @@ flowchart LR
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 22 pantallas |
 | `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `CargaCsv`, `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |

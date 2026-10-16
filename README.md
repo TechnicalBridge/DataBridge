@@ -808,6 +808,11 @@ El panel está en `/admin`, y se entra por `/admin/login` con el correo del `adm
   con su primera persona, y ver las que hay. De cada una se ven totales (cuántas deudas y cuánto
   falta por cobrar), sus mandatos y quiénes entran en su nombre. Nunca una deuda ni un deudor.
 - **Equipo de DataBridge**, para dar de alta a otro `admin`.
+- **Reglas**, de solo lectura: lo que rige en cada servicio y de qué variable del `.env` sale. La
+  mora mínima, la tasa máxima, el aviso antes de una cuota, el horario y el límite de contacto de
+  la ley con los feriados de este año y del siguiente (los mismos que usan las campañas), cuánto
+  duran el código, el enlace y la sesión, por dónde salen los correos, qué pasarelas cobran de
+  verdad y en cuánto vence un cobro, y de dónde sale la UF. De las credenciales dice solo si están.
 
 Dar de alta a una persona es darle acceso: le llega una **invitación** a su correo, con un enlace de
 un solo uso que dura 24 horas (`INVITACION_TTL_HORAS`) y que dice por dónde entrar las veces
@@ -1762,14 +1767,14 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**776 pruebas**, todas en Java y sin fallos:
+**791 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 186 |
-| `ms-debt` | 351 |
-| `ms-payments` | 178 |
+| `ms-auth` | 191 |
+| `ms-debt` | 356 |
+| `ms-payments` | 183 |
 | `ms-ai` | 42 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que

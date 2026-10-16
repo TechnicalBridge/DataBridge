@@ -47,6 +47,16 @@ public final class ModoDePrueba {
         this.desvio = desviarA == null || desviarA.isBlank() ? null : desviarA.strip().toLowerCase(Locale.ROOT);
     }
 
+    /** Cuantas direcciones o dominios reciben directo. */
+    public int cuantosPermitidos() {
+        return permitidos.size();
+    }
+
+    /** Si lo que no esta permitido se desvia a un buzon, en vez de no salir. */
+    public boolean desvia() {
+        return desvio != null;
+    }
+
     /** Si hay alguna restriccion. Sin ninguna, se le escribe a cualquiera. */
     public boolean activo() {
         return !permitidos.isEmpty() || desvio != null;

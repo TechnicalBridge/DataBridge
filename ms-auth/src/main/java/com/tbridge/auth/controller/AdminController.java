@@ -5,9 +5,11 @@ import com.tbridge.auth.dto.request.NuevaPersonaRequest;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.EstadoResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
+import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiError;
 import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.service.PersonalService;
+import com.tbridge.auth.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -51,9 +53,11 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 public class AdminController {
 
     private final PersonalService personal;
+    private final ReglasService reglas;
 
-    public AdminController(PersonalService personal) {
+    public AdminController(PersonalService personal, ReglasService reglas) {
         this.personal = personal;
+        this.reglas = reglas;
     }
 
     @GetMapping("/estado")
@@ -62,6 +66,16 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "El servicio responde")
     public EstadoResponse estado() {
         return new EstadoResponse("ms-auth", true);
+    }
+
+    @GetMapping("/reglas")
+    @Operation(summary = "Las reglas de acceso y de correo que rigen",
+            description = "Cuanto duran el codigo, el enlace, la invitacion y la sesion, y por donde salen los correos "
+                    + "y en que modo. Cada una dice de que variable sale. Ninguna clave ni direccion completa. Se leen "
+                    + "al arrancar: cambiar una pide reiniciar el servicio.")
+    @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
+    public ReglasResponse reglas() {
+        return reglas.reglas();
     }
 
     // ------------------------------------------------------------------

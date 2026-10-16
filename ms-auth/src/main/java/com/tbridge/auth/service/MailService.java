@@ -78,6 +78,7 @@ public class MailService {
     private final String clave;
     private final String claveDeBrevo;
     private final boolean porBrevo;
+    private final boolean alBuzonDePrueba;
     private final ModoDePrueba modo;
 
     @Autowired
@@ -106,6 +107,8 @@ public class MailService {
         this.clave = clave;
         this.claveDeBrevo = claveDeBrevo;
         this.modo = new ModoDePrueba(soloA, desviarA);
+        this.alBuzonDePrueba = conServidor && !porBrevo && StringUtils.hasText(buzonDePrueba)
+                && buzonDePrueba.strip().startsWith(host.strip());
         decirComoQuedo(host, buzonDePrueba);
     }
 
@@ -133,13 +136,59 @@ public class MailService {
         } else if (porBrevo) {
             log.warn("Correo: por la API de Brevo, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
                     + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", from);
-        } else if (StringUtils.hasText(buzonDePrueba) && buzonDePrueba.strip().startsWith(host.strip())) {
+        } else if (alBuzonDePrueba) {
             log.info("Correo: al buzon de prueba ({}). Nada sale hacia afuera", servidor);
         } else if (modo.activo()) {
             log.info("Correo: servidor real {}, remitente {}; {}", servidor, from, modo.descripcion());
         } else {
             log.warn("Correo: servidor real {}, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
                     + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", servidor, from);
+        }
+    }
+
+    /**
+     * Por donde salen los correos, en que modo y quien los firma, para la
+     * pantalla Reglas del panel: sin la clave ni la contrasena, y sin las
+     * direcciones del modo de prueba, que solo se cuentan.
+     */
+    public record ComoSalen(String por, String variables, String modo, String remitente) {
+    }
+
+    public ComoSalen comoSalen() {
+        String por;
+        String variables;
+        if (!conServidor) {
+            por = "Por ningún servidor: los códigos y los enlaces quedan en el registro del servicio";
+            variables = "BREVO_API_KEY · SMTP_HOST";
+        } else if (porBrevo) {
+            por = "Por la API de Brevo";
+            variables = "BREVO_API_KEY";
+        } else if (alBuzonDePrueba) {
+            por = "Al buzón de prueba (" + servidor + "): no le llegan a nadie";
+            variables = "SMTP_HOST";
+        } else {
+            por = "Por el servidor SMTP " + servidor;
+            variables = "SMTP_HOST · SMTP_PORT";
+        }
+        int cuantos = modo.cuantosPermitidos();
+        String enModo = !modo.activo() ? "Apagado: se le escribe a cualquier dirección"
+                : "Encendido: " + (cuantos == 0 ? "ninguna dirección recibe" : cuantos == 1
+                ? "una dirección o dominio recibe" : cuantos + " direcciones o dominios reciben")
+                + " directo, y lo demás " + (modo.desvia() ? "va al buzón de desvío" : "no sale");
+        return new ComoSalen(por, variables, enModo, remitenteTapado());
+    }
+
+    /** {@code DataBridge <da***@gmail.com>}: se reconoce sin exponer la cuenta. */
+    private String remitenteTapado() {
+        try {
+            InternetAddress direccion = new InternetAddress(remitente, false);
+            String cuenta = direccion.getAddress();
+            int arroba = cuenta.indexOf('@');
+            String tapada = arroba > 2 ? cuenta.substring(0, 2) + "***" + cuenta.substring(arroba)
+                    : "***" + cuenta.substring(Math.max(arroba, 0));
+            return direccion.getPersonal() == null ? tapada : direccion.getPersonal() + " <" + tapada + ">";
+        } catch (AddressException mal) {
+            return "MAIL_FROM no es una dirección válida";
         }
     }
 
