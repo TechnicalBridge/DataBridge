@@ -134,13 +134,15 @@ Las tablas y cómo se relacionan están en el [diagrama entidad-relación](#72-e
 
 ### Cloud y servicios externos
 
-El despliegue de referencia es **local, con contenedores**. Las mismas imágenes están preparadas para
-**Railway** ([§10](#en-railway)). Ningún servicio externo es obligatorio: sin sus llaves, cada uno se
-simula o se reemplaza.
+El despliegue de referencia es **local, con contenedores**. Para la demo, el mismo compose corre en un
+**VPS de Namecheap**, en `https://technicalbridge.site`, hasta diciembre ([§10](#en-un-servidor)). Ningún
+servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reemplaza.
 
 | Servicio | Para qué | Sin configurarlo |
 | --- | --- | --- |
-| **Railway** | Desplegar las imágenes en la nube: cada servicio trae su `railway.json`, y la guía está en [`docs/railway`](docs/railway/README.md) | Todo corre en el equipo, con Docker |
+| **Namecheap** · un VPS (4 núcleos, 6 GB) y el dominio `technicalbridge.site` | Donde corre la demo hasta diciembre, con HTTPS de Let's Encrypt y despliegue automático desde `main`. La guía está en [`docs/despliegue`](docs/despliegue/README.md) | Todo corre en el equipo, con Docker |
+| **GitHub Container Registry** | Guarda las imágenes que compila GitHub Actions, para que el servidor solo las descargue | Las imágenes se compilan en el equipo |
+| **Railway** | Una alternativa que quedó preparada: cada servicio trae su `railway.json`, y la guía está en [`docs/railway`](docs/railway/README.md). Se descartó por costo (#173) | — |
 | **Transbank** · Webpay Plus, API REST v1.2 | Cobrar con tarjeta, en la página real de Transbank | Funciona igual, contra su ambiente de integración y con tarjetas de prueba. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` |
 | **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
@@ -540,6 +542,13 @@ después, el pago queda como no completado y la deuda sigue igual.
 Khipu no puede avisarle a un DataBridge que corre en `localhost`, así que ms-payments le pregunta
 a Khipu por los cobros abiertos cada 10 segundos. Con una dirección pública, `KHIPU_URL_AVISOS` y
 `KHIPU_SECRETO` activan el aviso firmado de Khipu.
+
+### En un servidor, para la demo
+
+Para la demo, DataBridge corre en un VPS con el mismo `docker compose`, más
+[`docker-compose.prod.yml`](docker-compose.prod.yml): Caddy delante con HTTPS, y nada más publicado. La guía
+paso a paso, desde comprar el dominio hasta encender el despliegue automático, está en
+[`docs/despliegue`](docs/despliegue/README.md) ([§10](#en-un-servidor)).
 
 ### Para programar
 
@@ -3427,6 +3436,20 @@ solo la infraestructura (MySQL, RabbitMQ y el buzón); con `--profile app`, el s
 Los puertos publicados se cambian desde `.env` ([§3](#si-algo-falla-en-un-equipo-nuevo)). En un
 despliegue real, cada servicio puede ir en su propio nodo detrás del gateway, con las salvedades de
 [§9](#9-requisitos-no-funcionales).
+
+### En un servidor
+
+La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`, hasta diciembre (#172, #173):
+
+| Pieza | Qué hace |
+| --- | --- |
+| [`docker-compose.prod.yml`](docker-compose.prod.yml) | Se suma al compose de siempre. Caddy va delante y es lo único que publica puertos (80 y 443); MySQL, RabbitMQ y el portal quedan cerrados; el buzón de prueba no se levanta, y los servicios usan las imágenes de GHCR |
+| [`deploy/Caddyfile`](deploy/Caddyfile) | El HTTPS del dominio con Let's Encrypt, que Caddy renueva solo, y la IP del visitante hacia nginx |
+| [`deploy/preparar-servidor.sh`](deploy/preparar-servidor.sh) | Prepara el VPS una vez: Docker, firewall, swap, el usuario que despliega y un `.env` con claves nuevas |
+| [`deploy/respaldar.sh`](deploy/respaldar.sh) | Un respaldo de las tres bases cada madrugada, los últimos 7 días |
+| [`.github/workflows/desplegar.yml`](.github/workflows/desplegar.yml) | Compila las seis imágenes, las publica en GHCR y, por SSH, el servidor las descarga y se actualiza. **Apagado hasta que exista la variable `DESPLIEGUE_HOST`** |
+
+La guía completa está en [`docs/despliegue`](docs/despliegue/README.md).
 
 ### En Railway
 

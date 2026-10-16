@@ -162,7 +162,15 @@ Las pasarelas también le hablan a DataBridge: devuelven al deudor al portal, y 
 avisar un pago. Para eso DataBridge necesita una dirección pública; en un equipo local no la tiene, y por eso
 ms-payments no depende de esos avisos: les pregunta a las pasarelas cada 10 segundos.
 
+## En un servidor
+
+La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`: el mismo compose de arriba, con
+Caddy delante (el único que publica puertos) y las imágenes que compila GitHub Actions. El diagrama y la guía
+están en [`docs/despliegue`](../despliegue/README.md).
+
 ## En Railway
+
+Una alternativa que quedó preparada y se descartó por costo (#173).
 
 Las mismas imágenes, una por servicio, cada una desde su carpeta y con su `railway.json`. La guía, con las
 variables de cada servicio, está en [`docs/railway`](../railway/README.md), y lo que falta decidir, en #173.

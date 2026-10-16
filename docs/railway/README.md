@@ -1,5 +1,9 @@
 # DataBridge en Railway
 
+> **No es el despliegue de la demo.** En #173 se decidió un VPS de Namecheap, por costo: Railway siempre
+> encendido cuesta unos US$25–30 al mes. La demo corre como dice [`docs/despliegue`](../despliegue/README.md).
+> Esta guía queda por si algún día conviene volver a Railway: el repositorio sigue preparado.
+
 Cómo desplegar DataBridge en [Railway](https://railway.com), servicio por servicio. El repositorio ya está
 preparado; lo que falta es crear el proyecto allá y cargar las variables de esta guía.
 
