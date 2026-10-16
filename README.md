@@ -1951,7 +1951,7 @@ de una campaña nunca pasa del máximo que el acreedor autorizó en el mandato.
 #### De cada servicio
 
 <details>
-<summary><b>ms-auth</b>: el acceso: códigos, enlaces, sesiones y personas</summary>
+<summary><b>ms-auth</b> · el acceso: códigos, enlaces, sesiones y personas</summary>
 
 ```mermaid
 classDiagram
@@ -2078,7 +2078,7 @@ classDiagram
 </details>
 
 <details>
-<summary><b>ms-debt</b>: la cartera: deudas, cuotas, convenios, campañas y empresas</summary>
+<summary><b>ms-debt</b> · la cartera: deudas, cuotas, convenios, campañas y empresas</summary>
 
 ```mermaid
 classDiagram
@@ -2452,7 +2452,7 @@ classDiagram
 </details>
 
 <details>
-<summary><b>ms-payments</b>: los cobros: pagos, sus eventos, el aviso y la UF</summary>
+<summary><b>ms-payments</b> · los cobros: pagos, sus eventos, el aviso y la UF</summary>
 
 ```mermaid
 classDiagram
@@ -2592,7 +2592,7 @@ classDiagram
 </details>
 
 <details>
-<summary><b>ms-ai</b>: el asistente, todo el servicio</summary>
+<summary><b>ms-ai</b> · el asistente, todo el servicio</summary>
 
 ```mermaid
 classDiagram
@@ -2717,7 +2717,7 @@ classDiagram
 </details>
 
 <details>
-<summary><b>gateway</b>: la puerta, todo el servicio</summary>
+<summary><b>gateway</b> · la puerta, todo el servicio</summary>
 
 ```mermaid
 classDiagram
@@ -2843,7 +2843,7 @@ aviso de vuelta tampoco pasa por el navegador.
 #### De cada servicio
 
 <details>
-<summary><b>ms-auth</b>: el deudor entra con su RUT y su código</summary>
+<summary><b>ms-auth</b> · el deudor entra con su RUT y su código</summary>
 
 ```mermaid
 sequenceDiagram
@@ -2888,7 +2888,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary><b>ms-debt</b>: la empresa carga a sus deudores en una campaña</summary>
+<summary><b>ms-debt</b> · la empresa carga a sus deudores en una campaña</summary>
 
 ```mermaid
 sequenceDiagram
@@ -2943,7 +2943,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary><b>ms-payments</b>: pagar con Webpay</summary>
+<summary><b>ms-payments</b> · pagar con Webpay</summary>
 
 ```mermaid
 sequenceDiagram
@@ -2993,7 +2993,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary><b>ms-ai</b>: preguntarle al asistente</summary>
+<summary><b>ms-ai</b> · preguntarle al asistente</summary>
 
 ```mermaid
 sequenceDiagram
@@ -3094,7 +3094,7 @@ se prueba sin base de datos ([§11](#11-pruebas)).
 #### De cada servicio
 
 <details>
-<summary><b>ms-auth</b>: el acceso</summary>
+<summary><b>ms-auth</b> · el acceso</summary>
 
 ```mermaid
 flowchart LR
@@ -3128,7 +3128,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>ms-debt</b>: la cartera</summary>
+<summary><b>ms-debt</b> · la cartera</summary>
 
 ```mermaid
 flowchart LR
@@ -3167,7 +3167,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>ms-payments</b>: los cobros</summary>
+<summary><b>ms-payments</b> · los cobros</summary>
 
 ```mermaid
 flowchart LR
@@ -3205,7 +3205,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>ms-ai</b>: el asistente</summary>
+<summary><b>ms-ai</b> · el asistente</summary>
 
 ```mermaid
 flowchart LR
@@ -3228,7 +3228,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>gateway</b>: la puerta</summary>
+<summary><b>gateway</b> · la puerta</summary>
 
 ```mermaid
 flowchart LR
@@ -3243,7 +3243,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>portal</b>: React: páginas, componentes y llamadas a la API</summary>
+<summary><b>portal</b> · React: páginas, componentes y llamadas a la API</summary>
 
 ```mermaid
 flowchart LR
