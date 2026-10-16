@@ -264,7 +264,7 @@ también la de una cartera que llegó de noche, un domingo o un feriado: con la 
 horario.
 
 Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`), siempre en una campaña, hace el mismo recorrido:
-`CargaService` convierte la planilla con `CarteraCsv` y llama al mismo `CarteraIntakeService.recibir`.
+`CargaService` convierte la planilla, de Excel con `CarteraExcel` o CSV con `CarteraCsv`, y llama al mismo `CarteraIntakeService.recibir`.
 
 ---
 

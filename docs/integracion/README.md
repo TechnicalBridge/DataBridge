@@ -424,7 +424,44 @@ entrada mientras la entrega por API esté apagada (`INTEGRACION_API`).
   responde lo que pasaría con cada deuda y cuánto entraría por moneda. No guarda nada ni invita a
   nadie, porque corre la misma ingesta en una transacción que se deshace siempre.
 
-No es otra ingesta: el archivo se convierte a Cartera v1 y entra por el mismo camino.
+#### La planilla de Excel (desde el portal)
+
+En el portal la forma recomendada es un **Excel** (`.xlsx`), más fácil de llenar que el CSV. La plantilla se
+descarga con `GET /api/debts/cartera/plantilla` (o *Descargar la plantilla de Excel* en *Cargar cartera*) y
+se sube por los mismos `POST /api/debts/cartera` y `/revision`: DataBridge distingue el Excel del CSV por
+su contenido.
+
+| Hoja | Una fila por | Columnas |
+| --- | --- | --- |
+| **Instrucciones** | — | Cada columna con su tipo, si es obligatoria y un ejemplo, y un ejemplo completo |
+| **Deudores** | Persona o empresa que debe | `RUT`, `Tipo` (persona o empresa), `Nombre`, `Correo`, `Teléfono` |
+| **Deudas** | **Mes** que se debe | `Id de la deuda`, `RUT del deudor`, `Acción` (registrar, al día o retirar), `Moneda`, `Concepto de la deuda`, `Mes`, `Monto`, `Vencimiento`; opcionales: `Concepto del mes`, `Tasa de interés mensual`, `Motivo del retiro`, `Referencias` |
+
+- **Granularidad mensual.** Cada fila de *Deudas* es un mes: quien debe tres meses lleva tres filas con el
+  mismo `Id de la deuda`. Cada fila se vuelve un cargo de la Cartera v1, con `periodo` = el mes
+  (`2026-07`). Sin `Concepto del mes`, el cargo se llama como la deuda más el mes (*Arriendo · julio de
+  2026*).
+- **Tipos de verdad.** `Mes` y `Vencimiento` son fechas, `Monto` y `Tasa` son números (en CLP sin
+  decimales, en UF hasta dos), y `Tipo`, `Acción`, `Moneda` y `Motivo` son listas desplegables. Escritos
+  como texto también se leen: `jul-2026`, `2026-07` o `julio de 2026`; `05-07-2026` o `2026-07-05`;
+  `350000` o `350.000`.
+- **Un cliente al día** va con la acción `al día`, sin mes ni monto (`cargos: []`). **Un retiro**, con
+  `retirar`, el `Id` y el `Motivo del retiro`, en una sola fila.
+- **Cada problema con su lugar.** Lo que no calza con la plantilla responde `400 excel_invalido`, y si son
+  varios, **todos** juntos en `error.detalles`, cada uno con su hoja, su fila y su columna:
+
+  ```json
+  {"error": {"codigo": "excel_invalido",
+             "mensaje": "La planilla tiene 2 problemas. Corrígelos y vuelve a revisarla",
+             "detalles": ["Hoja Deudas, fila 2, columna RUT del deudor: el RUT 11111111-1 no está en la hoja Deudores",
+                          "Hoja Deudas, fila 3, columna Monto: '185.000,5' no es un número: va sin puntos de miles, como 185000 o 38,5"]}}
+  ```
+
+  Lo de negocio (el dígito del RUT, la mora mínima, la tasa) lo sigue decidiendo la ingesta, deuda por deuda,
+  como en el CSV. Ejemplos llenos, uno correcto y uno con errores a propósito, en
+  [`docs/cartera/ejemplos`](../cartera/ejemplos/README.md).
+
+No es otra ingesta: el archivo, en Excel o en CSV, se convierte a Cartera v1 y entra por el mismo camino.
 
 Reemplaza al CSV antiguo de ms-debt (`email,nombre,acreedor,monto,...`), que no traía RUT, ni id
 externo, ni forma de reenviar sin duplicar.

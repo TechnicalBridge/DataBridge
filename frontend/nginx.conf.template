@@ -50,6 +50,10 @@ server {
     real_ip_header   X-Real-IP;
 
     root  /usr/share/nginx/html;
+
+    #  La planilla de la cartera sube por aca: el mismo tope que ms-debt (5 MB).
+    #  Sin esto, nginx corta en 1 MB con un 413.
+    client_max_body_size 5m;
     index index.html;
 
     #  React maneja sus propias rutas. Si alguien recarga estando en

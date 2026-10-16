@@ -1319,6 +1319,15 @@ classDiagram
             <<utility>>
             +leer(byte[], Lote)$ ObjectNode
         }
+        class CarteraExcel {
+            <<utility>>
+            +esExcel(byte[])$ boolean
+            +leer(byte[], Lote)$ ObjectNode
+        }
+        class PlantillaExcel {
+            <<utility>>
+            +generar(int)$ byte[]
+        }
         class CarteraCsv_Lote["CarteraCsv.Lote"] {
             <<record>>
             +idExterno : String
@@ -1441,6 +1450,9 @@ classDiagram
     CargaService --> MandateRepository
     CargaService --> CampaignRepository
     CargaService ..> CarteraCsv
+    CargaService ..> CarteraExcel
+    CargaService ..> PlantillaExcel
+    CarteraExcel ..> CarteraCsv_Lote
     MandatoService --> OrganizationRepository
     MandatoService --> MandateRepository
     MandatoService --> CampaignRepository
@@ -1469,6 +1481,8 @@ classDiagram
 | `AnalyticsController` | `controller` | El resumen de la cartera de una empresa. |
 | `CarteraIntakeService` | `service` | Recibe una Cartera v1: la valida, la guarda y responde deuda por deuda. |
 | `CarteraCsv` | `service` | Convierte la planilla CSV al JSON del contrato. |
+| `CarteraExcel` | `service` | Convierte la planilla de Excel (hojas Deudores y Deudas, una fila por mes) al mismo JSON, y junta cada problema con su hoja, fila y columna. |
+| `PlantillaExcel` | `service` | Arma la plantilla de Excel: Instrucciones, Deudores y Deudas, con listas, fechas y números. |
 | `CargaService` | `service` | La carga desde el portal: siempre en una campaña. La revisión corre la misma ingesta en una transacción que se deshace siempre. |
 | `MandatoService` | `service` | Registra mandatos y campañas. |
 | `CampanaService` | `service` | Las campañas desde el portal: crear, cambiar y pausar. |

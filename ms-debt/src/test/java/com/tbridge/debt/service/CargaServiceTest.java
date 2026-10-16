@@ -82,6 +82,36 @@ class CargaServiceTest {
     }
 
     @Test
+    void una_planilla_de_excel_entra_por_la_misma_ingesta_en_su_campana() {
+        byte[] excel = new PlanillaDePrueba()
+                .deudor("16.482.337-7", "persona", "Felipe Rojas", "felipe@example.com", null)
+                .deuda("CTR-1", "16482337-7", "registrar", "CLP", "Arriendo", java.time.YearMonth.of(2026, 8), 520000,
+                        LocalDate.of(2026, 8, 5))
+                .deuda("CTR-1", "16482337-7", "registrar", "CLP", "Arriendo", java.time.YearMonth.of(2026, 9), 520000,
+                        LocalDate.of(2026, 9, 5))
+                .bytes();
+
+        servicio.subir(empresa, excel, "CARGA-X", null, "76418902-7", "CMP-1");
+
+        ArgumentCaptor<JsonNode> cartera = ArgumentCaptor.forClass(JsonNode.class);
+        verify(ingesta).recibir(eq(patrimonio), cartera.capture(), eq(Batch.Source.file));
+        assertEquals("CMP-1", cartera.getValue().at("/lote/campana_id_externo").asText());
+        assertEquals("CARGA-X", cartera.getValue().at("/lote/id_externo").asText());
+        assertEquals(2, cartera.getValue().at("/deudas/0/cargos").size());
+    }
+
+    @Test
+    void la_plantilla_de_excel_es_solo_para_una_empresa() {
+        byte[] plantilla = servicio.plantilla(empresa);
+        assertTrue(CarteraExcel.esExcel(plantilla));
+
+        JwtPrincipal deudor = new JwtPrincipal("16482337-7", null, "DEBTOR", "Felipe", null);
+        com.tbridge.debt.exception.ApiException fallo = assertThrows(com.tbridge.debt.exception.ApiException.class,
+                () -> servicio.plantilla(deudor));
+        assertEquals(403, fallo.getStatus().value());
+    }
+
+    @Test
     void sin_campana_no_entra_nada() {
         for (String sinCampana : new String[]{null, "  "}) {
             CarteraInvalida fallo = assertThrows(CarteraInvalida.class,

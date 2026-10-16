@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { cargarCartera, opcionesDeCarga, revisarCartera } from "../api/deudas";
+import { cargarCartera, descargarPlantillaExcel, opcionesDeCarga, revisarCartera } from "../api/deudas";
 import { dinero } from "../utils/formato";
-import { COLUMNAS, descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
+import { descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
 import FormCampana from "../components/FormCampana";
 import Cargando from "../components/Cargando";
 
 const PASOS = ["La campaña", "La planilla", "La revisión", "Listo"];
 const ENTRAN = ["registrada", "actualizada", "sin_cambios"];
+
+/** Las columnas de la plantilla de Excel: las mismas que lee ms-debt (CarteraExcel). */
+const COLUMNAS_DEUDORES = ["RUT", "Tipo", "Nombre", "Correo", "Teléfono"];
+const COLUMNAS_DEUDAS = ["Id de la deuda", "RUT del deudor", "Acción", "Moneda", "Concepto de la deuda", "Mes", "Monto",
+  "Vencimiento"];
+const OPCIONALES_DEUDAS = ["Concepto del mes", "Tasa de interés mensual", "Motivo del retiro", "Referencias"];
 
 /**
  * Cargar deudores: es la unica forma en que los datos entran a DataBridge.
@@ -28,6 +34,8 @@ export default function Cargar() {
   const [resultado, setResultado] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  //  Los problemas de una planilla de Excel, cada uno con su hoja, fila y columna.
+  const [detalles, setDetalles] = useState([]);
 
   /** Las campañas de cada acreedor, y cuál queda elegida. */
   async function leerOpciones(elegir) {
@@ -57,11 +65,25 @@ export default function Cargar() {
   const disponibles = (elegido?.campanas || []).filter((c) => c.estado !== "terminada");
   const laCampana = disponibles.find((c) => c.idExterno === campana);
 
+  function fallo(err) {
+    setError(err.message);
+    setDetalles(err.detalles || []);
+  }
+
   function elegirArchivo(nuevo) {
     setArchivo(nuevo);
     setLote(nuevo ? idDeCarga() : "");
     setRevision(null);
     setError("");
+    setDetalles([]);
+  }
+
+  async function plantilla() {
+    try {
+      await descargarPlantillaExcel();
+    } catch (err) {
+      fallo(err);
+    }
   }
 
   function formulario() {
@@ -76,11 +98,12 @@ export default function Cargar() {
   async function revisar() {
     setBusy(true);
     setError("");
+    setDetalles([]);
     try {
       setRevision(await revisarCartera(formulario()));
       setPaso(2);
     } catch (err) {
-      setError(err.message);
+      fallo(err);
     } finally {
       setBusy(false);
     }
@@ -89,11 +112,12 @@ export default function Cargar() {
   async function confirmar() {
     setBusy(true);
     setError("");
+    setDetalles([]);
     try {
       setResultado(await cargarCartera(formulario()));
       setPaso(3);
     } catch (err) {
-      setError(err.message);
+      fallo(err);
     } finally {
       setBusy(false);
     }
@@ -133,7 +157,16 @@ export default function Cargar() {
         ))}
       </ol>
 
-      {error ? <div className="error" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="error" role="alert">
+          {error}
+          {detalles.length ? (
+            <ul className="lista-revision problemas-planilla">
+              {detalles.map((d) => <li key={d}>{d}</li>)}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
@@ -147,7 +180,7 @@ export default function Cargar() {
           {paso === 1 ? (
             <PasoPlanilla campana={laCampana} archivo={archivo} elegirArchivo={elegirArchivo}
                           arrastrando={arrastrando} setArrastrando={setArrastrando} busy={busy}
-                          onRevisar={revisar} onVolver={() => setPaso(0)} />
+                          onRevisar={revisar} onVolver={() => setPaso(0)} onPlantilla={plantilla} />
           ) : null}
 
           {paso === 2 && revision ? (
@@ -237,7 +270,8 @@ function PasoCampana({
   );
 }
 
-function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastrando, busy, onRevisar, onVolver }) {
+function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastrando, busy, onRevisar, onVolver,
+  onPlantilla }) {
   return (
     <div
       className={`dropzone zona-planilla ${arrastrando ? "on" : ""}`}
@@ -251,7 +285,7 @@ function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastr
     >
       <div className="card-cab">
         <h3>La planilla</h3>
-        <button type="button" className="link-btn" onClick={descargarPlantilla}>Descargar plantilla</button>
+        <button type="button" className="link-btn" onClick={onPlantilla}>Descargar la plantilla de Excel</button>
       </div>
       <p className="hint" style={{ marginTop: -6 }}>
         Entran en <b>{campana?.nombre}</b>.{" "}
@@ -260,12 +294,13 @@ function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastr
       <p className="hint" style={{ margin: "4px 0 12px" }}>
         {archivo
           ? <>Archivo: <b>{archivo.name}</b> ({Math.ceil(archivo.size / 1024)} KB)</>
-          : "Arrastra aquí la planilla en CSV, o elígela. Separada por punto y coma, como la plantilla."}
+          : "Arrastra aquí la planilla de Excel (.xlsx), o elígela. También sirve el CSV del contrato."}
       </p>
       <div className="acciones-fila">
         <label className="btn btn-ghost btn-sm">
           Elegir archivo
-          <input type="file" accept=".csv,text/csv" hidden onChange={(e) => elegirArchivo(e.target.files?.[0] || null)} />
+          <input type="file" hidden onChange={(e) => elegirArchivo(e.target.files?.[0] || null)}
+                 accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
         </label>
         <button type="button" className="btn btn-primary btn-sm" disabled={!archivo || busy} onClick={onRevisar}>
           {busy ? <><span className="girando" /> Revisando…</> : "Revisar la planilla"}
@@ -377,17 +412,28 @@ function Formato({ minDiasMora }) {
     <div className="card">
       <h3>La planilla</h3>
       <p style={{ margin: 0 }}>
-        Separada por punto y coma, con una fila por cargo: una deuda de tres meses son tres filas con el
-        mismo <code>deuda_id</code>. Las fechas van como 2026-09-05 y los montos en UF con coma decimal.
-        Desde Excel: <i>Guardar como</i>, <i>CSV UTF-8</i>.
+        Un Excel con dos hojas. En <b>Deudores</b>, una fila por persona. En <b>Deudas</b>, una fila por cada
+        <b> mes</b> que se debe, con el RUT de su deudor: quien debe tres meses de arriendo lleva tres filas, con el
+        mismo id de la deuda. La plantilla trae las listas desplegables, las fechas y los montos con su tipo, y una
+        hoja de <i>Instrucciones</i> con cada columna y un ejemplo.
       </p>
+      <h4 className="lista-grupo">Deudores</h4>
       <div className="columnas-csv">
-        {COLUMNAS.map((c) => <code key={c}>{c}</code>)}
+        {COLUMNAS_DEUDORES.map((c) => <code key={c}>{c}</code>)}
+      </div>
+      <h4 className="lista-grupo">Deudas</h4>
+      <div className="columnas-csv">
+        {COLUMNAS_DEUDAS.map((c) => <code key={c}>{c}</code>)}
+        {OPCIONALES_DEUDAS.map((c) => <code key={c} className="opcional">{c}</code>)}
       </div>
       <p className="hint">
-        Solo deudores morosos: una deuda entra cuando su cargo impago más antiguo lleva al menos{" "}
-        {minDiasMora} días vencido, y las demás se rechazan con su motivo. Para sacar una deuda de la cobranza (el deudor pagó
-        en tu oficina), manda una fila con acción <code>retirar</code> y el motivo.
+        Solo deudores morosos: una deuda entra cuando su mes impago más antiguo lleva al menos {minDiasMora} días
+        vencido, y las demás se rechazan con su motivo. Un cliente al día va con la acción <code>al día</code>, sin
+        mes, y para sacar una deuda de la cobranza (pagó en tu oficina), con <code>retirar</code> y el motivo.
+      </p>
+      <p className="hint">
+        ¿Tu sistema exporta CSV? También sirve, con las columnas del contrato:{" "}
+        <button type="button" className="link-btn" onClick={descargarPlantilla}>plantilla en CSV</button>.
       </p>
     </div>
   );
