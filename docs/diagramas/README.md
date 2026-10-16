@@ -45,6 +45,7 @@ datos y lo que los conecta.
 | [entidad-relacion.md](entidad-relacion.md) | 5 | Las 25 tablas de las tres bases, con todas sus columnas y llaves, las 3 vistas, las 67 reglas que exige la base y cómo se unen las bases entre sí |
 | [estados.md](estados.md) | 8 | La deuda, la cuota, el pago, la campaña, el aviso por entregar, el código de acceso, la llave de renovación y la persona con cuenta |
 | [secuencia.md](secuencia.md) | 16 | Entrar, renovar la sesión, entregar una cartera, repactar, pagar con cada pasarela, el aviso del pago, la campaña, el reclamo, el asistente, el panel, la UF y el alta de una empresa con su gente |
+| [procesos.md](procesos.md) | 4 | El negocio en BPMN, de la deuda atrasada a la plata de vuelta; las decisiones de cada sistema cuando llega la cartera; cómo DataBridge ejecuta una campaña, y lo que corre solo en cada servicio. Estaban en el README del repositorio |
 | [componentes.md](componentes.md) | 8 | Los componentes y lo que se dicen, las rutas del gateway, los paquetes de cada servicio, el portal por dentro y el repositorio |
 | [despliegue.md](despliegue.md) | 3 | Los contenedores, sus puertos, el orden de arranque, lo que queda guardado, con qué se configura y cómo queda en Railway |
 
