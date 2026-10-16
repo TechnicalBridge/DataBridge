@@ -107,9 +107,14 @@ INTERNAL_KEY=${{shared.INTERNAL_KEY}}
 CIFRADO_LLAVE=${{shared.CIFRADO_LLAVE}}
 AUTH_URI=http://${{ms-auth.RAILWAY_PRIVATE_DOMAIN}}:8081
 DEMO_DATOS=true
+CONTACTO_SIN_HORARIO=true
+CONTACTO_SIN_LIMITE=true
 ```
 
-`DEMO_DATOS`: `true` con los datos de la demo, `false` sin ellos (#173, pregunta 3).
+- **`DEMO_DATOS`:** `true` con los datos de la demo, `false` sin ellos (#173, pregunta 3).
+- **`CONTACTO_SIN_HORARIO` y `CONTACTO_SIN_LIMITE`:** `true` mientras sea una demo, para pedir códigos con
+  *Reenviar código* a cualquier hora y cuantas veces haga falta. **Cuando DataBridge salga a cobrar de
+  verdad, van en `false`**: la ley pide de lunes a sábado, de 8:00 a 20:00, y dos correos por semana.
 
 ### `ms-payments`
 

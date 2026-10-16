@@ -38,6 +38,17 @@ class LimiteDeContactoTest {
     }
 
     @Test
+    void apagado_para_probar_deja_escribirle_aunque_ya_van_dos_y_fue_ayer() {
+        escritoHace(3);
+        escritoHace(1);
+        when(contactos.cuandoSeLeEscribio(eq(deudor), any())).thenReturn(enviados);
+
+        assertTrue(new LimiteDeContacto(contactos, true).permite(deudor, AHORA.atZone(CHILE).toInstant()));
+        //  Encendido, que es lo por omision, no lo deja.
+        assertFalse(permite());
+    }
+
+    @Test
     void sin_nada_esta_semana_se_le_puede_escribir() {
         assertTrue(permite());
     }

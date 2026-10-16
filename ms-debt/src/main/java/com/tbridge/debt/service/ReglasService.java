@@ -30,17 +30,20 @@ public class ReglasService {
     private final BigDecimal tasaMaxima;
     private final int diasAntes;
     private final HorarioDeContacto horario;
+    private final LimiteDeContacto limite;
     private final boolean entregaPorApi;
 
     public ReglasService(@Value("${app.cartera.min-dias-mora:30}") int minDiasMora,
                          @Value("${app.intereses.tasa-maxima-mensual:3.0}") BigDecimal tasaMaxima,
                          @Value("${app.recordatorios.dias-antes:3}") int diasAntes,
                          HorarioDeContacto horario,
+                         LimiteDeContacto limite,
                          @Value("${app.integracion.api:false}") boolean entregaPorApi) {
         this.minDiasMora = minDiasMora;
         this.tasaMaxima = tasaMaxima;
         this.diasAntes = diasAntes;
         this.horario = horario;
+        this.limite = limite;
         this.entregaPorApi = entregaPorApi;
     }
 
@@ -63,8 +66,14 @@ public class ReglasService {
                                 List.of(), "CONTACTO_SIN_HORARIO", LEY + ". Nunca en producción")
                         : Regla.fija("Cuándo se le puede escribir",
                                 "De lunes a sábado, de 8:00 a 20:00, y nunca un feriado", LEY),
-                Regla.fija("Cuántas veces", LimiteDeContacto.POR_SEMANA + " correos por semana, con al menos "
-                        + dias(LimiteDeContacto.DIAS_ENTRE) + " entre uno y otro", LEY),
+                limite.apagado()
+                        ? new Regla("Cuántas veces",
+                                "APAGADO PARA PROBAR: se le escribe cuantas veces se pida. La ley pide "
+                                        + LimiteDeContacto.POR_SEMANA + " correos por semana, con al menos "
+                                        + dias(LimiteDeContacto.DIAS_ENTRE) + " entre uno y otro",
+                                List.of(), "CONTACTO_SIN_LIMITE", LEY + ". Nunca en producción")
+                        : Regla.fija("Cuántas veces", LimiteDeContacto.POR_SEMANA + " correos por semana, con al menos "
+                                + dias(LimiteDeContacto.DIAS_ENTRE) + " entre uno y otro", LEY),
                 feriados(hoy.getYear()),
                 feriados(hoy.getYear() + 1)));
         return new ReglasResponse("ms-debt", List.of(cobranza, contacto));

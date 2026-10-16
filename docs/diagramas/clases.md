@@ -1533,6 +1533,7 @@ classDiagram
         }
         class LimiteDeContacto {
             <<service>>
+            +apagado() boolean
             +permite(Debtor, Instant) boolean
         }
         class FeriadosDeChile {
@@ -1805,6 +1806,7 @@ classDiagram
     EmpresaService --> DebtRepository
     EmpresaService --> AdminLogRepository
     ReglasService --> HorarioDeContacto
+    ReglasService --> LimiteDeContacto
     EmpresaService ..> ConteoDeDeudas : lee
     EmpresaService ..> SaldoPendiente : lee
     DebtRepository ..> ConteoDeDeudas : arma
