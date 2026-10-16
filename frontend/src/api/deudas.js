@@ -41,8 +41,12 @@ export const cambiarRecordatorios = (recordatorios) =>
 /** Por cuenta de quien puede cargar cartera la empresa de la sesion. */
 export const opcionesDeCarga = () => pedir("/debts/cartera/opciones");
 
-/** Cargar la cartera en el CSV del contrato. */
+/** Cargar la cartera en el CSV del contrato, dentro de una campaña. */
 export const cargarCartera = (formulario) => pedir("/debts/cartera", { method: "POST", body: formulario });
+
+/** Lo que pasaría al cargar esa planilla, sin cargarla: no guarda nada ni invita a nadie. */
+export const revisarCartera = (formulario) =>
+  pedir("/debts/cartera/revision", { method: "POST", body: formulario });
 
 /** El certificado de deuda pagada, descargado como archivo. */
 export async function descargarCertificado(id) {

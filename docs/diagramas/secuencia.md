@@ -263,7 +263,7 @@ que antes de las campañas invita a toda deuda en cobranza que todavía no recib
 también la de una cartera que llegó de noche, un domingo o un feriado: con la primera pasada dentro del
 horario.
 
-Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`) hace el mismo recorrido:
+Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`), siempre en una campaña, hace el mismo recorrido:
 `CargaService` convierte la planilla con `CarteraCsv` y llama al mismo `CarteraIntakeService.recibir`.
 
 ---

@@ -40,8 +40,8 @@ datos y lo que los conecta.
 
 | Archivo | Diagramas | Qué trae |
 | --- | --- | --- |
-| [casos-de-uso.md](casos-de-uso.md) | 6 | Los actores y lo que hace cada uno: el deudor, el usuario de una empresa, el admin de DataBridge, el sistema de una empresa, la operación y el reloj. Al final, los 83 endpoints con quién los usa |
-| [clases.md](clases.md) | 17 | Los 287 tipos de Java, por servicio: el modelo, las capas de controlador a repositorio, el panel de administración, las pasarelas y lo que rodea a las reglas |
+| [casos-de-uso.md](casos-de-uso.md) | 6 | Los actores y lo que hace cada uno: el deudor, el usuario de una empresa, el admin de DataBridge, el sistema de una empresa, la operación y el reloj. Al final, los 84 endpoints con quién los usa |
+| [clases.md](clases.md) | 17 | Los 288 tipos de Java, por servicio: el modelo, las capas de controlador a repositorio, el panel de administración, las pasarelas y lo que rodea a las reglas |
 | [entidad-relacion.md](entidad-relacion.md) | 5 | Las 25 tablas de las tres bases, con todas sus columnas y llaves, las 3 vistas, las 67 reglas que exige la base y cómo se unen las bases entre sí |
 | [estados.md](estados.md) | 8 | La deuda, la cuota, el pago, la campaña, el aviso por entregar, el código de acceso, la llave de renovación y la persona con cuenta |
 | [secuencia.md](secuencia.md) | 16 | Entrar, renovar la sesión, entregar una cartera, repactar, pagar con cada pasarela, el aviso del pago, la campaña, el reclamo, el asistente, el panel, la UF y el alta de una empresa con su gente |
