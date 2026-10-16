@@ -47,6 +47,7 @@ class InvitacionServiceTest {
     @Mock private ContactRepository contactos;
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
+    @Mock private HorarioDeContacto horario;
 
     private InvitacionService servicio;
     private Debt deuda;
@@ -54,8 +55,9 @@ class InvitacionServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new InvitacionService(debts, contactos, auth, limite);
+        servicio = new InvitacionService(debts, contactos, auth, limite, horario);
         when(limite.permite(any(), any())).thenReturn(true);
+        when(horario.permiteAhora()).thenReturn(true);
 
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -73,6 +75,18 @@ class InvitacionServiceTest {
 
     private void invitar() {
         servicio.invitar(new InvitacionService.DeudaEnCobranza(7L));
+    }
+
+    @Test
+    void una_cartera_que_llega_de_noche_o_un_domingo_no_invita_hasta_el_horario_de_la_ley() {
+        when(horario.permiteAhora()).thenReturn(false);
+
+        invitar();
+
+        //  Queda sin invitar: la primera pasada de contacto dentro del horario
+        //  la invita (invitarPendientes, que solo corre en horario).
+        verify(auth, never()).emitirCodigo(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test

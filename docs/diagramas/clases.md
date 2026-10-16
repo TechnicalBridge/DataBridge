@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **280 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **281 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
 | [ms-auth](#ms-auth--el-acceso) | 56 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 152 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-debt](#ms-debt--la-cartera) | 153 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
 | [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -1134,6 +1134,9 @@ classDiagram
         class LimiteDeContacto {
             <<service>>
         }
+        class HorarioDeContacto {
+            <<component>>
+        }
     }
     namespace repository {
         class DebtRepository {
@@ -1205,6 +1208,7 @@ classDiagram
     AccesoService --> ContactRepository
     AccesoService --> AuthClient
     AccesoService --> LimiteDeContacto
+    AccesoService --> HorarioDeContacto
     CuotaService --> DebtService
     CuotaService --> InstallmentRepository
     HistorialService --> DebtService
@@ -1231,7 +1235,7 @@ classDiagram
 | `Intereses` | `service` | Calcula el interés de mora de una deuda a una fecha. |
 | `DescuentoService` | `service` | El descuento por pronto pago: lo que ofrece la campaña, hasta el tope del mandato. |
 | `DisputaService` | `service` | El reclamo del deudor y su resolución por la empresa. |
-| `AccesoService` | `service` | Reenviarle el código al deudor, dentro del límite legal. |
+| `AccesoService` | `service` | Reenviarle el código al deudor, dentro del horario y el límite de la ley. |
 | `CuotaService` | `service` | Las cuotas mirando al calendario. |
 | `HistorialService` | `service` | Los pagos abonados de quien pregunta. |
 | `MisDatosService` | `service` | Los datos del deudor y sus recordatorios. |
@@ -1447,7 +1451,7 @@ classDiagram
 
 ### Lo que corre solo y lo que se habla con otros servicios
 
-Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments. Todo lo que se le escribe al deudor pasa por `LimiteDeContacto` y queda en `ContactRepository`: de ahí salen el límite legal y los toques que lleva cada deuda (`ToquesHechos`).
+Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments. Todo lo que se le escribe al deudor pasa por `HorarioDeContacto` y `LimiteDeContacto`, y queda en `ContactRepository`: de ahí salen el límite legal y los toques que lleva cada deuda (`ToquesHechos`).
 
 ```mermaid
 classDiagram
@@ -1484,13 +1488,18 @@ classDiagram
         class ContactoService {
             <<service>>
             +pasar() void
-            +horaDeContacto(LocalDateTime) boolean
             +contactar(LocalDateTime, String) ContactosResponse
         }
         class RecordatorioService {
             <<service>>
             +programado() void
             +enviar(LocalDate) RecordatoriosResponse
+        }
+        class HorarioDeContacto {
+            <<component>>
+            +permite(LocalDateTime) boolean
+            +permiteAhora() boolean
+            +esDiaDeContacto(LocalDate) boolean
         }
         class LimiteDeContacto {
             <<service>>
@@ -1634,6 +1643,7 @@ classDiagram
     InvitacionService --> ContactRepository
     InvitacionService --> AuthClient
     InvitacionService --> LimiteDeContacto
+    InvitacionService --> HorarioDeContacto
     InvitacionService ..> CorreoNoSalio
     ContactoService --> CampaignRepository
     ContactoService --> DebtRepository
@@ -1641,13 +1651,15 @@ classDiagram
     ContactoService --> AuthClient
     ContactoService --> LimiteDeContacto
     ContactoService --> InvitacionService
+    ContactoService --> HorarioDeContacto
     ContactoService ..> CorreoNoSalio
-    ContactoService ..> FeriadosDeChile
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
     RecordatorioService --> AuthClient
     RecordatorioService --> LimiteDeContacto
+    RecordatorioService --> HorarioDeContacto
     RecordatorioService ..> CorreoNoSalio
+    HorarioDeContacto ..> FeriadosDeChile
     LimiteDeContacto --> ContactRepository
     EventosService --> SubscriptionRepository
     EventosService --> OutboxEventRepository
@@ -1663,9 +1675,10 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `InternalController` | `controller` | Lo que le piden o le avisan los otros servicios, con la clave interna. |
-| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
+| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
-| `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto. |
+| `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
+| `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
 | `FeriadosDeChile` | `service` | Los feriados de Chile de cualquier año. |
 | `ContactRepository` | `repository` | Los contactos al deudor: cuándo se le escribió, cuántos toques lleva cada deuda y el último de cada una. |

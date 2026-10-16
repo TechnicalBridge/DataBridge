@@ -310,7 +310,7 @@ flowchart LR
 
 | Caso de uso | Cuándo | Quién lo hace | La regla que importa |
 | --- | --- | --- | --- |
-| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, y solo si la ley lo deja esa semana. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
+| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, solo dentro del horario de la ley y si la ley lo deja esa semana; si no, la manda la primera pasada de contacto que pueda. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
 | Escribirle según la campaña | Cada 15 minutos | `ContactoService`, ms-debt | De lunes a sábado, de 8:00 a 20:00, sin feriados. Según la cadencia de la campaña (por omisión, los días 1, 4, 11, 25 y 45) y hasta sus intentos |
 | Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio. Una cuota se recuerda una sola vez: la base no deja que tenga dos contactos |
 | Publicar el avance de las campañas | Todos los días, 8:00 | `CampanaAvanceService`, ms-debt | Deja el evento `campana.avance` en la bandeja de salida |

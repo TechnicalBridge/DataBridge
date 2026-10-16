@@ -53,7 +53,7 @@ class RecordatorioServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new RecordatorioService(installments, contactos, auth, limite, 3);
+        servicio = new RecordatorioService(installments, contactos, auth, limite, new HorarioDeContacto(""), 3);
         when(limite.permite(any(), any())).thenReturn(true);
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -91,6 +91,18 @@ class RecordatorioServiceTest {
         assertEquals("fe**********@correo.cl", contacto.getValue().getDestination());
         assertNull(contacto.getValue().getCampaign());
         assertEquals(1, pasada.enviados());
+    }
+
+    @Test
+    void un_domingo_o_un_feriado_no_sale_ningun_recordatorio() {
+        //  El domingo 18 y el lunes 12 de octubre de 2026 (Encuentro de Dos Mundos).
+        for (LocalDate dia : List.of(LocalDate.of(2026, 10, 18), LocalDate.of(2026, 10, 12))) {
+            RecordatoriosResponse pasada = servicio.enviar(dia);
+
+            assertEquals(0, pasada.enviados() + pasada.omitidos(), dia.toString());
+        }
+        verify(installments, never()).porRecordar(any(), any(), any(), any());
+        verify(auth, never()).emitirCodigo(any());
     }
 
     @Test

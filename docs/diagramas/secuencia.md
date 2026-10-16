@@ -241,8 +241,9 @@ sequenceDiagram
 
     Note over IV: después de confirmar la transacción, en segundo plano
     IV->>B: la deuda sigue abierta y el deudor tiene correo
+    IV->>IV: HorarioDeContacto: ¿de lunes a sábado, de 8:00 a 20:00, y no es feriado?
     IV->>B: LimiteDeContacto: gestiones de los últimos 7 días
-    opt la ley deja escribirle, y su dirección no tiene problemas
+    opt es horario de la ley, la semana deja escribirle, y su dirección no tiene problemas
         IV->>AU: POST /internal/codigos, con la clave interna
         AU->>AU: guarda la huella del código, vigente 24 horas
         AU->>C: correo con el código: sin monto y sin enlace
@@ -258,7 +259,9 @@ sequenceDiagram
 ```
 
 Una invitación que no salió la vuelve a intentar la pasada de contacto ([10](#10-la-campaña-le-escribe-al-deudor)),
-que antes de las campañas invita a toda deuda en cobranza que todavía no recibió ningún correo.
+que antes de las campañas invita a toda deuda en cobranza que todavía no recibió ningún correo. Así sale
+también la de una cartera que llegó de noche, un domingo o un feriado: con la primera pasada dentro del
+horario.
 
 Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`) hace el mismo recorrido:
 `CargaService` convierte la planilla con `CarteraCsv` y llama al mismo `CarteraIntakeService.recibir`.
