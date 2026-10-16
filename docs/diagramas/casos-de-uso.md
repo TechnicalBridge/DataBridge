@@ -451,5 +451,5 @@ Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La l
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/ai/chat` | Preguntarle al asistente | Deudor | JWT | Sí | `ChatController.chat` |
-| `GET /api/health` | Estado del asistente | Monitoreo | Ninguna | No | `SaludController.salud` |
+| `GET /api/ai/salud` | Estado del asistente | Monitoreo | Ninguna | Sí | `SaludController.salud` |
 
