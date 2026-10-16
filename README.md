@@ -653,39 +653,76 @@ De DevOps se tomaron tres prácticas, cada una porque resolvía un problema conc
 
 ## 6. Arquitectura de la solución
 
-Cinco servicios detrás de una sola puerta. El navegador solo habla con el portal; el portal manda
-todo lo que empiece con `/api` al **gateway**, y el gateway decide a qué servicio le toca. Ningún
-servicio queda expuesto hacia afuera.
+DataBridge es una **arquitectura de microservicios**: cuatro servicios de negocio, cada uno con su
+base, detrás de un **API Gateway**. El navegador solo habla con el portal; el portal manda todo lo
+que empiece con `/api` al gateway, y el gateway decide a qué servicio le toca. Ningún servicio
+queda expuesto hacia afuera.
 
 ```mermaid
-flowchart TD
-    N["Navegador"] --> P["Portal · React servido por nginx<br/>puerto 8080"]
-    P -->|"/api/*"| G["Gateway · Spring Cloud Gateway<br/>CORS · límite de peticiones · enrutamiento"]
+flowchart TB
+    NAV(["Navegador<br/>deudor · empresa · admin"])
 
-    G -->|"/api/auth/** · /api/me · /api/admin/auth/**"| A["ms-auth<br/>códigos de acceso, JWT y correos"]
-    G -->|"/api/debts/** · /api/analytics/** · /api/admin/debt/**"| D["ms-debt<br/>deudas, cuotas, reclamos,<br/>cartera y campañas"]
-    G -->|"/api/payments/** · /api/admin/payments/**"| Y["ms-payments<br/>cobros y UF"]
-    G -->|"/api/ai/**"| I["ms-ai<br/>asistente, solo lectura"]
+    subgraph ENTRADA["Entrada: una sola puerta"]
+        direction LR
+        POR["Portal<br/>React, servido por nginx"]
+        GW["API Gateway<br/>Spring Cloud Gateway<br/>CORS · límite de peticiones"]
+        POR -->|"/api"| GW
+    end
 
-    A --- BA[("tb_auth")]
-    D --- BD[("tb_debt")]
-    Y --- BY[("tb_payments")]
+    subgraph SERVICIOS["Microservicios: Java 25 y Spring Boot 3.5"]
+        direction LR
+        AUTH["ms-auth<br/>acceso, sesiones<br/>y correos"]
+        DEBT["ms-debt<br/>deudas, convenios,<br/>campañas y reclamos"]
+        PAY["ms-payments<br/>cobros y UF"]
+        AI["ms-ai<br/>asistente"]
+    end
 
-    Y -.->|"pago.confirmado"| R{{"RabbitMQ"}}
-    R -.-> D
-    D -->|"el código y el recordatorio"| A
-    A -->|"Brevo o SMTP"| C["Correo del deudor"]
-    I -->|"con la sesión del deudor"| D
-    Y <==>|"crear y confirmar la transacción"| W["Transbank<br/>Webpay"]
-    Y <==>|"crear el cobro y preguntar en qué va"| T["Khipu y<br/>Mercado Pago"]
+    subgraph ABAJO["Datos de cada servicio y servicios externos"]
+        direction LR
+        BA[("tb_auth")]
+        CORREO(["Brevo o SMTP"])
+        BD[("tb_debt")]
+        MQ{{"RabbitMQ"}}
+        BP[("tb_payments")]
+        PAS(["Transbank · Khipu<br/>Mercado Pago"])
+        BC(["Banco Central"])
+        LLM(["LLM"])
+    end
 
-    AP["Sistema de una empresa<br/>(APOFYX)"] -.->|"/api/v1 y /api/claves · clave de API<br/>apagado por omisión"| G
-    D -.->|"eventos firmados con HMAC"| AP
+    NAV -->|"HTTPS"| POR
+    GW --> AUTH & DEBT & PAY & AI
+    AUTH --- BA
+    AUTH -->|"correos"| CORREO
+    DEBT --- BD
+    DEBT -.-|"escucha"| MQ
+    PAY -.->|"pago.confirmado"| MQ
+    PAY --- BP
+    PAY -->|"cobros"| PAS
+    PAY -->|"la UF"| BC
+    AI -->|"respuestas"| LLM
 ```
 
-Las flechas punteadas de abajo son la entrega por API: **apagada por omisión**, porque los
-deudores entran por campaña desde el portal. `INTEGRACION_API=true` la enciende
-([§7.1](#71-comunicación-entre-servicios)).
+**Qué la hace de microservicios:**
+
+- **Una sola puerta.** El API Gateway es lo único que recibe peticiones de afuera: aplica CORS y el
+  límite de peticiones, y enruta a cada servicio por el comienzo de la ruta.
+- **Una base por servicio.** ms-auth, ms-debt y ms-payments tienen cada uno la suya (`tb_auth`,
+  `tb_debt`, `tb_payments`) y ninguno lee la de otro. Lo que necesitan de otro servicio se lo piden
+  por HTTP con la clave interna: ms-debt le pide a ms-auth que mande un correo, ms-payments le
+  pregunta a ms-debt cuánto cobrar y ms-auth le pregunta a ms-debt si existe una empresa. ms-ai no
+  tiene base: lee las deudas en ms-debt con la sesión del deudor.
+- **Mensajes asíncronos.** El aviso de pago viaja de ms-payments a ms-debt por RabbitMQ
+  (`pago.confirmado`). Sale de una bandeja con reintentos y, si RabbitMQ está apagado, va por HTTP.
+- **Cada uno por su cuenta.** Cada servicio tiene su `pom.xml`, su `Dockerfile`, su workflow y su
+  imagen, y se compila, se prueba y se despliega sin los demás.
+- **Por dentro, en capas.** Cada microservicio se ordena igual: `controller` → `service` →
+  `repository` ([cómo está organizado cada servicio](#cómo-está-organizado-cada-servicio)). Las
+  capas son la forma de cada servicio; la solución completa es de microservicios.
+
+Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
+[§7.1](#71-comunicación-entre-servicios). La entrega por API para los sistemas de otras empresas
+(`/api/v1`) está **apagada por omisión**, porque los deudores entran por campaña desde el portal;
+`INTEGRACION_API=true` la enciende.
 
 ### Los componentes
 
