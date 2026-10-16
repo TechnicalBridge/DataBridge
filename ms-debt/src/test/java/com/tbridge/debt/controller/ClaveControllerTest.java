@@ -30,8 +30,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Las claves de API desde el portal: solo la empresa, y solo las suyas. */
-@WebMvcTest(ClaveController.class)
+/** Las claves de API desde el portal: solo la empresa, y solo las suyas. Con la entrega por API encendida. */
+@WebMvcTest(controllers = ClaveController.class, properties = "app.integracion.api=true")
 @Import({SecurityConfig.class, JwtService.class})
 @ActiveProfiles("test")
 class ClaveControllerTest {

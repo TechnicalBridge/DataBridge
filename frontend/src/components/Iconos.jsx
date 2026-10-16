@@ -106,14 +106,6 @@ export const IconoSubir = (p) => <Trazo {...p}><path d="M12 16V4M6 10l6-6 6 6M4 
 
 export const IconoDescargar = (p) => <Trazo {...p}><path d="M12 4v12M6 10l6 6 6-6M4 20h16" /></Trazo>;
 
-export const IconoLlave = (p) => (
-  <Trazo {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3M14 9l2 2" /></Trazo>
-);
-
-export const IconoCopiar = (p) => (
-  <Trazo {...p}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></Trazo>
-);
-
 /** El check que se dibuja solo, para cuando un pago queda listo. */
 export function CheckAnimado({ size = 72 }) {
   return (

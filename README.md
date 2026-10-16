@@ -75,8 +75,12 @@ día desde el mismo portal:
   dentro de lo que permite la ley;
 - **resuelve los reclamos**, reanudando el cobro o retirando la deuda;
 - revisa los pagos que entraron y sigue los **convenios en riesgo** (con una cuota vencida);
-- mira en un panel cuánto se ha recuperado y exporta la cartera a Excel;
-- emite y revoca sus propias claves de API.
+- mira en un panel cuánto se ha recuperado y exporta la cartera a Excel.
+
+**Los deudores entran solo por campaña,** cargados desde el portal. La entrega por API
+(`/api/v1`, con clave de API), pensada para que el sistema de una empresa entregue solo, está
+**apagada por omisión** y responde `404`. `INTEGRACION_API=true` la enciende
+([§6](#comunicación-entre-servicios)).
 
 **La campaña se cumple sola:** DataBridge le escribe a cada deudor los días que fijó quien cobra
 (la agencia o, si cobra sin agencia, el mismo acreedor), dentro de lo que permite la ley.
@@ -896,8 +900,17 @@ falta uno, el servicio no arranca y dice cuál. `application-dev.properties` es 
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
 | APOFYX ↔ DataBridge | HTTP con clave de API, y eventos firmados con HMAC-SHA256 | Son empresas distintas: ninguna entra en la base de la otra |
 
+**Apagado por omisión.** Desde que los deudores entran solo por campaña, todo `/api/v1` y
+`/api/claves` responde `404` mientras `INTEGRACION_API` no sea `true`. Encendido funciona como se
+describe aquí, salvo que el portal ya no tiene *Claves de API*: la clave se emite con
+`POST /api/claves`, con la sesión de la empresa, o por dentro con `POST /internal/claves`.
+
+**La cadena con APOFYX la necesita encendida.** APOFYX entrega la cartera por `/api/v1`, así que
+para correr los tres sistemas juntos ms-debt arranca con `INTEGRACION_API=true`. Los scripts de la
+demo de la cadena la encienden solos.
+
 ```
-Contrato v1, de sistema a sistema (con clave de API):
+Contrato v1, de sistema a sistema (con clave de API, solo con INTEGRACION_API=true):
   APOFYX ── GET /api/v1/cuenta ───────────────────────────────────────────► ms-debt
   APOFYX ── POST /api/v1/carteras, /mandatos, /campanas, /suscripciones ──► ms-debt
   ms-debt ── eventos firmados (pago.confirmado, deuda.disputada, ...) ────► APOFYX
@@ -907,8 +920,8 @@ Entre servicios (clave interna, no expuesto por el gateway):
   ms-debt ───── /internal/codigos ──────────────────► ms-auth   (el código y el recordatorio de cuota)
 ```
 
-**Nada de esto se configura a mano.** La empresa emite la clave de su agencia en *Claves de API*.
-La agencia la pega en su panel, y al conectarse comprueba la clave con `GET /api/v1/cuenta` y se
+**Nada de esto se configura a mano.** La empresa emite la clave de su agencia, la agencia la pega
+en su panel, y al conectarse comprueba la clave con `GET /api/v1/cuenta` y se
 suscribe a los avisos. Un acreedor que DataBridge no conoce **lo registra el mandato** de su
 agencia, que trae su RUT, su razón social y su nombre. Solo la agencia, APOFYX, existe desde el
 arranque.
@@ -1069,7 +1082,7 @@ de uso, clases, entidad-relación, estados, secuencia, componentes y despliegue)
 flowchart LR
     DEU(("Deudor"))
     EMP(("Personal de<br/>la agencia"))
-    SIS(("APOFYX<br/>otro sistema"))
+    SIS(("APOFYX<br/>otro sistema<br/>(con INTEGRACION_API)"))
     KHP(("Khipu"))
     TBK(("Transbank"))
     REL(("Reloj<br/>cada 15 min"))
@@ -1096,7 +1109,6 @@ flowchart LR
     EMP --> U18["Revisar los pagos recibidos"]
     EMP --> U19["Seguir los convenios en riesgo"]
     EMP --> U20["Exportar la cartera a Excel"]
-    EMP --> U21["Emitir y revocar claves de API"]
     EMP --> U25["Crear, pausar y terminar campañas"]
 
     SIS --> U12["Entregar cartera por API"]
@@ -1113,7 +1125,7 @@ en saldo cero, y certificar eso sería decir algo falso.
 
 | Escenario | Lo dispara | Vista lógica | Vista de procesos | Vista física |
 | --- | --- | --- | --- | --- |
-| **E1. Entregar la cartera** | El acreedor, cada mes | `Batch`, `Debt`, `DebtCharge`, `Mandate` | [Flujo de la cartera](#flujo-la-cartera-de-cada-mes) | APOFYX → portal → gateway → ms-debt |
+| **E1. Entregar la cartera** | La empresa, en una campaña | `Batch`, `Debt`, `DebtCharge`, `Campaign` | [Flujo de la cartera](#flujo-la-cartera-de-cada-mes) | portal → gateway → ms-debt |
 | **E2. Invitar y recordar** | La deuda que entra, y el reloj | `Campaign`, `DebtEvent` | [Actividad de la campaña](#actividad-cómo-databridge-ejecuta-una-campaña) | ms-debt → ms-auth → correo |
 | **E3. Pagar** | El deudor | `Payment`, `Installment` | [Secuencia del pago](#secuencia-el-pago-con-khipu-que-es-la-funcionalidad-principal) | portal → gateway → ms-payments ↔ pasarela, RabbitMQ → ms-debt |
 | **E4. Repactar** | El deudor | `Repactation`, `Installment` | [Proceso completo](#el-proceso-completo-en-bpmn-to-be) | portal → gateway → ms-debt |
@@ -1714,6 +1726,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `INTERES_TASA_MAXIMA_MENSUAL` | `3.0` | El tope de la tasa que pacta el acreedor, en % mensual: la tasa máxima convencional vigente. Una deuda con una tasa mayor se rechaza (`tasa_sobre_maxima`) |
 | `CONTACTO_FERIADOS` | vacía | Los feriados que se decretan y no se pueden calcular (una elección, un plebiscito, un feriado especial), separados por coma. Se suman a los nacionales, que se calculan solos para cualquier año. Las campañas no contactan esos días |
 | `CONTACTO_SIN_HORARIO` | `false` | **Solo para probar.** Con `true` se le escribe al deudor a cualquier hora, también de noche, los domingos y los feriados: sirve para probar la invitación o el reenvío del código fuera del horario. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro. El límite de dos por semana sigue igual |
+| `INTEGRACION_API` | `false` | La entrega por API (`/api/v1`, con clave) y las claves (`/api/claves`). Apagada, responden `404` y los deudores entran solo por campaña, desde el portal. `true` la enciende, por si una empresa necesita automatizar |
 | `DEMO_DATOS` | `true` | Carga al arrancar la cartera de ejemplo. Solo agrega lo que falte: una base con datos propios no pierde nada |
 | `RATE_AUTH_CAPACITY`, `RATE_GLOBAL_CAPACITY` | `10` / `120` | Peticiones por minuto |
 | `EVENTS_RABBIT` | `true` en Docker, `false` con Maven | Si el aviso de pago va por RabbitMQ o por HTTP. En Docker está fijo en `true` |
@@ -1768,13 +1781,13 @@ equipo: Transbank y Khipu se reemplazan por un servidor HTTP local.
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
 
-**800 pruebas**, todas en Java y sin fallos:
+**804 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 191 |
-| `ms-debt` | 365 |
+| `ms-debt` | 369 |
 | `ms-payments` | 183 |
 | `ms-ai` | 42 |
 
@@ -1812,11 +1825,11 @@ sola.
 
 ## Recorrido de demostración
 
-1. **La cartera llega por API o por archivo.** APOFYX la entrega con `POST /api/v1/carteras` (en
-   Swagger: *Deudas - contrato de integracion v1*); quien no tiene integración arrastra el CSV
-   del contrato al portal. Las dos entradas usan la misma ingesta.
-2. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su enlace, que
-   llega al buzón. Ve la cartera que APOFYX entregó, aunque el acreedor sea otro.
+1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su enlace, que
+   llega al buzón, y ve la cartera de ejemplo.
+2. **Carga a sus deudores en una campaña.** En *Cargar cartera* elige una campaña o la crea, sube
+   la planilla (la plantilla se descarga ahí) y ve qué entraría y qué no, con su motivo. Recién al
+   confirmar entran.
 3. **El deudor recibe su código solo.** Al entrar la deuda, la invitación sale a su correo, y la
    cartera muestra *Invitado el …*. La pantalla no muestra el código: quien lo viera podría entrar
    en su lugar.

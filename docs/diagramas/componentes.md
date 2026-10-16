@@ -42,7 +42,7 @@ flowchart LR
     LLM{{"LLM"}}
 
     NAV -->|"HTTP: las páginas y /api"| POR
-    SIS -->|"/api/v1, con clave de API"| POR
+    SIS -.->|"/api/v1, con clave de API<br/>(apagado por omisión)"| POR
     POR -->|"/api · /v3/api-docs · /swagger-ui"| GW
 
     GW -->|"/api/auth/** · /api/me<br/>/api/admin/auth/**"| AUTH
@@ -86,9 +86,9 @@ en los mismos grupos:
 
 | Interfaz | Rutas | Para quién | Con qué se entra | ¿La publica el gateway? |
 | --- | --- | --- | --- | --- |
-| **Portal** | `/api/auth/**`, `/api/me`, `/api/debts/**`, `/api/analytics/**`, `/api/claves/**`, `/api/payments/**`, `/api/ai/**` | El deudor y el usuario de una empresa, desde el navegador | JWT de una sesión `DEBTOR` o `CREDITOR` | Sí |
+| **Portal** | `/api/auth/**`, `/api/me`, `/api/debts/**`, `/api/analytics/**`, `/api/payments/**`, `/api/ai/**` | El deudor y el usuario de una empresa, desde el navegador | JWT de una sesión `DEBTOR` o `CREDITOR` | Sí |
 | **Panel de administración** | `/api/admin/auth/**`, `/api/admin/debt/**`, `/api/admin/payments/**` | El admin de DataBridge | JWT de una sesión `ADMIN` | Sí |
-| **Contrato de integración** | `/api/v1/**` | El sistema de una empresa | Clave de API | Sí |
+| **Contrato de integración** | `/api/v1/**`, y las claves en `/api/claves/**` | El sistema de una empresa | Clave de API | Sí, pero apagado por omisión (`INTEGRACION_API`): responde `404` |
 | **Interno** | `/internal/**` | Otro servicio, o la operación | Clave interna (`X-Internal-Key`) | No |
 
 Los avisos y las vueltas de las pasarelas (`/api/payments/public/**`) entran por el portal sin sesión: se
@@ -322,7 +322,6 @@ flowchart LR
             EnRiesgo
             Cargar
             Campanas
-            Claves
         end
         subgraph ADM["/admin · DataBridge"]
             AdminInicio
@@ -352,7 +351,6 @@ flowchart LR
         pagos["pagos.js"]
         analitica["analitica.js"]
         campanas["campanas.js"]
-        claves["claves.js"]
         asistente["asistente.js"]
         admin["admin.js"]
         client["client.js<br/>el JWT en memoria<br/>y la renovación"]
@@ -370,20 +368,19 @@ flowchart LR
     Cargar --> deudas
     Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
-    Claves --> claves
     AdminInicio & AdminEmpresas & AdminReglas --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
     Chatbot --> asistente
 
-    sesion & deudas & pagos & analitica & campanas & claves & asistente & admin --> client
+    sesion & deudas & pagos & analitica & campanas & asistente & admin --> client
     client -->|"/api"| GW
 ```
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 22 pantallas |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
 | `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `FormCampana` (crear o cambiar una campaña, en Campañas y en Cargar cartera), `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
@@ -398,7 +395,6 @@ Qué módulo de `api/` habla con qué servicio:
 | `deudas.js` | `/api/debts/**` | ms-debt |
 | `analitica.js` | `/api/analytics/summary` | ms-debt |
 | `campanas.js` | `/api/debts/campanas/**` | ms-debt |
-| `claves.js` | `/api/claves/**` | ms-debt |
 | `pagos.js` | `/api/payments/**`, y `/api/debts/pagos/**` para el historial y el comprobante | ms-payments y ms-debt |
 | `asistente.js` | `/api/ai/chat` | ms-ai |
 | `admin.js` | `/api/admin/<servicio>/estado`, `/api/admin/debt/empresas/**` y `/api/admin/auth/**` | ms-auth, ms-debt y ms-payments |

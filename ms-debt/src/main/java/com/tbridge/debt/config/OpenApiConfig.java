@@ -19,7 +19,8 @@ import java.util.List;
  * <ul>
  *   <li><b>portal</b>: el navegador del deudor o de la empresa, con el JWT.</li>
  *   <li><b>integracion</b>: el contrato v1, que usan los sistemas de las
- *       agencias y acreedores con su clave de API.</li>
+ *       agencias y acreedores con su clave de API. Con la entrega por API
+ *       apagada, que es lo por omision, queda sin operaciones y lo dice.</li>
  *   <li><b>interno</b>: los otros servicios, con la clave interna. El gateway
  *       no lo expone, asi que apunta directo al servicio.</li>
  * </ul>
@@ -54,8 +55,9 @@ public class OpenApiConfig {
                         .addSecuritySchemes(CLAVE_API, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("tbk_...")
                                 .description("""
-                                        La clave de API del emisor. La empresa la emite en el portal, en \
-                                        *Claves de API*, y se comprueba con `GET /api/v1/cuenta`."""))
+                                        La clave de API del emisor, y se comprueba con `GET /api/v1/cuenta`. \
+                                        Solo con `INTEGRACION_API=true`: por omision la entrega por API esta \
+                                        apagada."""))
                         .addSecuritySchemes(CLAVE_INTERNA, new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY).in(SecurityScheme.In.HEADER).name("X-Internal-Key")
                                 .description("La clave que comparten los servicios (`INTERNAL_KEY`).")));
@@ -81,12 +83,22 @@ public class OpenApiConfig {
     }
 
     @Bean
-    public GroupedOpenApi integracion() {
-        return GroupedOpenApi.builder()
+    public GroupedOpenApi integracion(@Value("${app.integracion.api:false}") boolean encendida) {
+        GroupedOpenApi.Builder grupo = GroupedOpenApi.builder()
                 .group("integracion")
                 .displayName("Integracion (contrato v1)")
-                .pathsToMatch("/api/v1/**")
-                .build();
+                .pathsToMatch("/api/v1/**");
+        //  Apagada no hay controlador, y el grupo queda vacio. Sigue existiendo
+        //  para que Swagger diga por que, en vez de un error al elegirlo.
+        if (!encendida) {
+            grupo.addOpenApiCustomizer(api -> api.info(new Info()
+                    .title("ms-debt · Contrato v1 (apagado)")
+                    .version(api.getInfo().getVersion())
+                    .description("""
+                            La entrega por API esta apagada: los deudores entran por campana, cargados desde \
+                            el portal. Se enciende con `INTEGRACION_API=true`.""")));
+        }
+        return grupo.build();
     }
 
     @Bean

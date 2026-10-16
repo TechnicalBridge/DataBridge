@@ -16,7 +16,6 @@ import ComoFunciona from "./pages/ComoFunciona";
 import PagosRecibidos from "./pages/PagosRecibidos";
 import EnRiesgo from "./pages/EnRiesgo";
 import Cargar from "./pages/Cargar";
-import Claves from "./pages/Claves";
 import Campanas from "./pages/Campanas";
 import AdminInicio from "./pages/AdminInicio";
 import AdminEmpresas from "./pages/AdminEmpresas";
@@ -102,7 +101,6 @@ export default function App() {
         <Route path="en-riesgo" element={<EnRiesgo />} />
         <Route path="cargar" element={<Cargar />} />
         <Route path="campanas" element={<Campanas />} />
-        <Route path="claves" element={<Claves />} />
         <Route path="como-funciona" element={<ComoFunciona para="empresa" />} />
       </Route>
       {/* El panel de administracion: solo el admin de DataBridge. A otro rol lo devuelve a su portal. */}

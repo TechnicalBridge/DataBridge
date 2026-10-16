@@ -19,7 +19,7 @@ controlador; las reglas, de los servicios que los atienden.
 | **Deudor** | El cliente de una empresa usuaria, con una deuda en cobranza. No tiene cuenta ni contraseña | Su RUT y un código de 6 caracteres, de un solo uso, que le llega por correo. De respaldo, un enlace a su correo registrado | El portal de pago, `/app` |
 | **Usuario de una empresa** | Una persona de una empresa usuaria: una agencia de cobranza, o un acreedor que cobra directo | Un enlace de un solo uso a su correo. Rol `usuario`; su sesión lleva `CREDITOR` y el RUT de su empresa | El portal de empresas, `/databridge` |
 | **Admin de DataBridge** | El equipo de DataBridge. Ninguna otra empresa puede tener uno | Un enlace de un solo uso a su correo. Rol `admin`; su sesión lleva `ADMIN` y ningún RUT | El panel de administración, `/admin` |
-| **Sistema de una empresa** | El software de la agencia o del acreedor, que entrega la cartera y recibe los avisos | Una clave de API (`tbk_…`), que la empresa emite en su portal | El contrato de integración, `/api/v1` |
+| **Sistema de una empresa** | El software de la agencia o del acreedor, que entrega la cartera y recibe los avisos. Solo con la entrega por API encendida: por omisión está apagada (`INTEGRACION_API`) | Una clave de API (`tbk_…`) | El contrato de integración, `/api/v1` |
 | **Operación de DataBridge** | Quien opera la plataforma desde dentro de la red de los servicios | La clave interna (`X-Internal-Key`) | `/internal`, que el gateway no publica |
 | **El reloj** | Las tareas programadas de ms-debt y ms-payments | — | Corren solas |
 
@@ -49,8 +49,7 @@ flowchart LR
         G5(["Preguntarle al asistente"])
         G6(["Seguir la cartera y sus pagos"])
         G7(["Cargar cartera y llevar campañas"])
-        G8(["Emitir y revocar claves de API"])
-        G9(["Entregar cartera, mandatos<br/>y campañas por la API"])
+        G9(["Entregar cartera, mandatos<br/>y campañas por la API<br/>(apagado por omisión)"])
         G10(["Avisar lo que pasa con cada deuda"])
         G11(["Ver si la plataforma responde"])
         G15(["Dar de alta empresas y personas,<br/>y quitarles el acceso"])
@@ -65,7 +64,7 @@ flowchart LR
     LLM{{"LLM"}}
 
     DEU --> G1 & G2 & G3 & G4 & G5
-    USU --> G1 & G6 & G7 & G8
+    USU --> G1 & G6 & G7
     ADM --> G1 & G11 & G15
     G15 --- COR
     SIS --> G9
@@ -154,14 +153,13 @@ flowchart LR
         E5(["Resolver un reclamo"])
         E6(["Revisar los pagos recibidos<br/>y los pagos para devolver"])
         E7(["Seguir los convenios en riesgo"])
-        E8(["Cargar una cartera en CSV"])
+        E8(["Cargar deudores<br/>en una campaña"])
         E9(["Crear, pausar y terminar campañas"])
-        E10(["Emitir y revocar claves de API"])
         E11(["Exportar la cartera a un archivo"])
     end
     COR{{"Servidor de correo"}}
 
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E10 & E11
+    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11
     E3 -. "«include»" .-> E2
     E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
     E5 -. "«extend»<br/>si está en reclamo" .-> E3
@@ -179,9 +177,8 @@ flowchart LR
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
 | Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
-| Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. La planilla pasa por las mismas reglas que la API |
+| Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. Es la única entrada de deudores mientras la entrega por API esté apagada |
 | Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
-| Emitir y revocar claves de API | `Claves` | `GET` y `POST /api/claves`, `DELETE /api/claves/{id}` | La clave se muestra una sola vez. En la base queda su huella |
 | Exportar la cartera | `DataBridge` | — | Se arma en el navegador con lo que ya está en pantalla |
 
 ---
@@ -237,10 +234,15 @@ flowchart LR
 De sistema a sistema, con una clave de API. Es el contrato de integración, publicado en
 [`docs/integracion`](../integracion/README.md).
 
+**Apagado por omisión.** Los deudores entran por campaña, desde el portal. Mientras `INTEGRACION_API` no sea
+`true`, todo `/api/v1` y `/api/claves` responde `404`. Encendido funciona como se describe aquí; la clave se
+emite con `POST /api/claves`, con la sesión de la empresa, o por dentro con `POST /internal/claves`, porque el
+portal ya no tiene la pantalla.
+
 ```mermaid
 flowchart LR
     SIS(("Sistema de<br/>una empresa"))
-    subgraph API["Contrato de integración · /api/v1"]
+    subgraph API["Contrato de integración · /api/v1 · apagado por omisión"]
         direction TB
         S1(["Comprobar su clave y<br/>con quién se conecta"])
         S2(["Registrar un mandato"])
@@ -322,7 +324,7 @@ flowchart LR
 | Avisar cada pago confirmado | Cada 15 segundos | `NotificationDispatcher`, ms-payments | Por RabbitMQ, o por HTTP si no está. El aviso se guardó junto con el pago, así que no se pierde |
 | Traer la UF del día | Al arrancar y todos los días, 9:30 | `UfLoader`, ms-payments | Desde el Banco Central. Se guarda, para que un pago se pueda reconstruir después |
 | Cargar la UF a mano | Cuando haga falta | `POST /internal/uf` | Para que el cobro en UF no se detenga si la fuente está caída |
-| Emitir una clave de API | Cuando haga falta | `POST /internal/claves` | El camino de antes de que la empresa pudiera emitir la suya en su portal |
+| Emitir una clave de API | Cuando haga falta | `POST /internal/claves` | Solo sirve con la entrega por API encendida. El portal ya no tiene *Claves de API* |
 | Mandar un correo de prueba | Al cambiar el servidor de correo | `POST /internal/correo/prueba` | Dice si salió, adónde llegó de verdad y con qué remitente, o lo que respondió el servidor. Nunca muestra la clave |
 
 ---
@@ -344,7 +346,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -386,9 +388,9 @@ Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La l
 | `GET /api/debts/cartera/opciones` | Por cuenta de quién puedo cargar | Usuario de una empresa | JWT | Sí | `CargaController.opciones` |
 | `POST /api/debts/cartera` | Cargar una cartera en CSV, en una campaña | Usuario de una empresa | JWT | Sí | `CargaController.subir` |
 | `POST /api/debts/cartera/revision` | Revisar una planilla antes de cargarla | Usuario de una empresa | JWT | Sí | `CargaController.revisar` |
-| `GET /api/claves` | Las claves de la empresa | Usuario de una empresa | JWT | Sí | `ClaveController.listar` |
-| `POST /api/claves` | Emitir una clave | Usuario de una empresa | JWT | Sí | `ClaveController.emitir` |
-| `DELETE /api/claves/{id}` | Revocar una clave | Usuario de una empresa | JWT | Sí | `ClaveController.revocar` |
+| `GET /api/claves` | Las claves de la empresa | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.listar` |
+| `POST /api/claves` | Emitir una clave | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.emitir` |
+| `DELETE /api/claves/{id}` | Revocar una clave | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.revocar` |
 | `GET /api/debts/vencimientos` | Las cuotas por pagar del deudor, por fecha | Deudor | JWT | Sí | `CuotaController.vencimientos` |
 | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas | Usuario de una empresa | JWT | Sí | `CuotaController.enRiesgo` |
 | `GET /api/debts` | Las deudas de quién pregunta | Deudor y usuario de una empresa | JWT | Sí | `DebtController.list` |
@@ -401,12 +403,12 @@ Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La l
 | `GET /api/debts/{id}/certificate` | Certificado de deuda pagada (PDF) | Deudor y usuario de una empresa | JWT | Sí | `DebtController.certificate` |
 | `GET /api/debts/pagos` | Los pagos de quién pregunta | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.pagos` |
 | `GET /api/debts/pagos/{id}/comprobante` | El comprobante de un pago (PDF) | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.comprobante` |
-| `POST /api/v1/carteras` | Entregar una cartera, en JSON | Sistema de una empresa | Clave de API | Sí | `IntegracionController.carteras` |
-| `POST /api/v1/carteras` | Entregar una cartera, en CSV | Sistema de una empresa | Clave de API | Sí | `IntegracionController.carterasCsv` |
-| `GET /api/v1/cuenta` | Quién es el dueño de la clave | Sistema de una empresa | Clave de API | Sí | `IntegracionController.cuenta` |
-| `POST /api/v1/mandatos` | Registrar un mandato | Sistema de una empresa | Clave de API | Sí | `IntegracionController.mandatos` |
-| `POST /api/v1/campanas` | Registrar o actualizar una campaña | Sistema de una empresa | Clave de API | Sí | `IntegracionController.campanas` |
-| `POST /api/v1/suscripciones` | Suscribirse a los eventos (contrato 3) | Sistema de una empresa | Clave de API | Sí | `IntegracionController.suscripciones` |
+| `POST /api/v1/carteras` | Entregar una cartera, en JSON | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.carteras` |
+| `POST /api/v1/carteras` | Entregar una cartera, en CSV | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.carterasCsv` |
+| `GET /api/v1/cuenta` | Quién es el dueño de la clave | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.cuenta` |
+| `POST /api/v1/mandatos` | Registrar un mandato | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.mandatos` |
+| `POST /api/v1/campanas` | Registrar o actualizar una campaña | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.campanas` |
+| `POST /api/v1/suscripciones` | Suscribirse a los eventos (contrato 3) | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.suscripciones` |
 | `GET /internal/debts/{id}` | Cuánto se debe y a quién (para ms-payments) | ms-payments | Clave interna | No | `InternalController.deuda` |
 | `GET /internal/deudores/{rut}/correo` | El correo registrado de un deudor (para ms-auth) | ms-auth | Clave interna | No | `InternalController.correoDelDeudor` |
 | `GET /internal/cartera/{rut}` | Las deudas de la cartera de una empresa (para ms-payments) | ms-payments | Clave interna | No | `InternalController.cartera` |

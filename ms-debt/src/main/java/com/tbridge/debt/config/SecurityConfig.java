@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/internal/**").permitAll()
                         //  La clave de API la valida el controlador: el emisor sale de ella.
+                        //  Con la entrega por API apagada (INTEGRACION_API), no hay
+                        //  controlador y responde 404.
                         .requestMatchers("/api/v1/**").permitAll()
                         //  El panel de administracion es solo del admin de DataBridge.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ReglasServiceTest {
 
     private final HorarioDeContacto horario = new HorarioDeContacto("2026-12-24");
-    private final ReglasService servicio = new ReglasService(45, new BigDecimal("2.50"), 5, horario);
+    private final ReglasService servicio = new ReglasService(45, new BigDecimal("2.50"), 5, horario, false);
     private final ReglasResponse reglas = servicio.reglas(LocalDate.of(2026, 10, 15));
 
     private Regla regla(String que) {
@@ -39,6 +39,16 @@ class ReglasServiceTest {
     }
 
     @Test
+    void dice_que_los_deudores_entran_solo_por_campana_salvo_que_se_encienda_la_api() {
+        assertEquals("Solo por campaña, cargados desde el portal", regla("Cómo entran los deudores").valor());
+        assertEquals("INTEGRACION_API", regla("Cómo entran los deudores").variable());
+
+        Regla conLaApi = new ReglasService(45, new BigDecimal("2.50"), 5, horario, true)
+                .reglas(LocalDate.of(2026, 10, 15)).grupos().getFirst().reglas().getFirst();
+        assertEquals("Por campaña, desde el portal, y también por la API con una clave", conLaApi.valor());
+    }
+
+    @Test
     void lo_que_fija_la_ley_lo_dice_en_vez_de_una_variable() {
         Regla cuando = regla("Cuándo se le puede escribir");
         assertEquals("De lunes a sábado, de 8:00 a 20:00, y nunca un feriado", cuando.valor());
@@ -50,7 +60,7 @@ class ReglasServiceTest {
     @Test
     void si_el_horario_esta_apagado_para_probar_lo_dice_a_gritos() {
         ReglasResponse conElHorarioApagado = new ReglasService(45, new BigDecimal("2.50"), 5,
-                new HorarioDeContacto("", true)).reglas(LocalDate.of(2026, 10, 15));
+                new HorarioDeContacto("", true), false).reglas(LocalDate.of(2026, 10, 15));
         Regla cuando = conElHorarioApagado.grupos().stream()
                 .flatMap(grupo -> grupo.reglas().stream())
                 .filter(r -> r.que().equals("Cuándo se le puede escribir"))
