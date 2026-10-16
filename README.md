@@ -1,54 +1,20 @@
-# Technical Bridge — DataBridge
+# DataBridge
 
 [![gateway](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml)
 
-Plataforma donde el deudor en cobranza **paga, repacta o reclama** su deuda, sea del rubro que
-sea: arriendos, aranceles, tratamientos, planes mensuales. Proyecto de Capstone; las empresas, las
-personas y los RUT son ficticios.
-
-**Contexto.** Kobra fue el cliente directo original del equipo y se retiró. Para continuar el
-Capstone se creó **APOFYX**, una agencia de cobranza ficticia. DataBridge es la solución
-tecnológica, y se demuestra con APOFYX y tres acreedores ficticios de rubros distintos:
-
-- Patrimonio Inmuebles (arriendos);
-- Instituto Andes (aranceles);
-- Clínica Dental Sonrisa Norte (tratamientos).
-
-**Tres pasarelas cobran de verdad:**
-
-- **Webpay**, contra el ambiente de integración de Transbank, con tarjetas de prueba y sin
-  configurar nada;
-- **Khipu**, cuando DataBridge tiene la llave de una cuenta de cobro: el deudor paga con una
-  transferencia, y con una cuenta en modo desarrollador lo hace contra un banco ficticio.
-- **Mercado Pago**, con Checkout Pro, cuando DataBridge tiene el access token de una cuenta de
-  Mercado Pago: el deudor paga con tarjeta en la página de Mercado Pago.
-
-Sin esas llaves, Khipu y Mercado Pago quedan simuladas.
-
-**Todo el sistema se levanta con una orden** y queda en http://localhost:8080. Solo hace falta
-Docker; no hay que instalar JDK ni Node:
+**La plataforma donde el deudor en cobranza paga, repacta o reclama su deuda, sin llamar a nadie**, sea
+del rubro que sea: arriendos, aranceles, tratamientos, planes mensuales. Proyecto de Capstone del equipo
+**Technical Bridge**; las empresas, las personas y los RUT son ficticios.
 
 ```powershell
-docker compose --profile app up -d --build --wait
+docker compose --profile app up -d --build --wait    # y queda en http://localhost:8080
 ```
 
-**Contenido**
+## Índice
 
-1. [Descripción](#1-descripción): qué hace, sus reglas, a quién va dirigido y qué resuelve
-2. [Tecnologías utilizadas](#2-tecnologías-utilizadas)
-3. [Cómo ejecutar el proyecto localmente](#3-cómo-ejecutar-el-proyecto-localmente): con Docker, cómo entrar y cómo conectar el correo y las pasarelas
-4. [Integrantes del equipo](#4-integrantes-del-equipo)
-5. [Metodología de trabajo](#5-metodología-de-trabajo)
-6. [Arquitectura de la solución](#6-arquitectura-de-la-solución): la arquitectura y la comunicación entre servicios
-7. [Modelo de datos](#7-modelo-de-datos): el diagrama entidad-relación general y el de cada base
-8. [Diagramas](#8-diagramas): casos de uso, clases, secuencias y componentes, generales y de cada servicio
-9. [Requisitos no funcionales](#9-requisitos-no-funcionales)
-10. [Docker](#10-docker): imágenes, contenedores y variables de entorno
-11. [Pruebas](#11-pruebas)
-12. [Innovación](#12-innovación)
-
-Y al final: el [recorrido de demostración](#recorrido-de-demostración) y el
-[estado al 15 de octubre de 2026](#estado-al-15-de-octubre-de-2026).
+| El proyecto | Los diagramas | En detalle |
+| :--- | :--- | :--- |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-15-de-octubre-de-2026) |
 
 ---
 
@@ -91,7 +57,7 @@ día desde el mismo portal:
 **Los deudores entran solo por campaña,** cargados desde el portal. La entrega por API
 (`/api/v1`, con clave de API), pensada para que el sistema de una empresa entregue solo, está
 **apagada por omisión** y responde `404`. `INTEGRACION_API=true` la enciende
-([§6](#comunicación-entre-servicios)).
+([§7.1](#71-comunicación-entre-servicios)).
 
 **La campaña se cumple sola:** DataBridge le escribe a cada deudor los días que fijó quien cobra
 (la agencia o, si cobra sin agencia, el mismo acreedor), dentro de lo que permite la ley.
@@ -101,193 +67,6 @@ sistema propio y la entrega por API está encendida, le llega ahí como un aviso
 acreedor se entera sin entrar. Con la API apagada nadie se puede suscribir a esos avisos, porque
 la suscripción se hace por `/api/v1/suscripciones`.
 
-### Las reglas de la cartera
-
-**El alcance son los deudores morosos.** Una deuda entra a cobranza cuando su cargo impago más
-antiguo lleva al menos **30 días vencido** (`MIN_DIAS_MORA`). Con menos todavía no es mora, y se
-rechaza al recibir la cartera con el código `bajo_umbral_mora`. Se mide en días, y no en meses
-impagos, para que sirva en cualquier rubro: un arriendo con dos meses atrasados y un tratamiento
-dental de un solo cargo vencido hace 75 días son igual de morosos.
-
-**Llegan todos los clientes, deban o no.** El acreedor entrega cada mes a todos sus clientes con
-contrato, y DataBridge detecta al moroso. El que está al día viene con `cargos: []`:
-
-| La deuda | Qué pasa |
-| --- | --- |
-| Es nueva | Resultado `al_dia`: no se guarda nada |
-| Estaba en cobranza | Se cierra como retirada, motivo `pago_directo`: pagó directo al acreedor |
-| Ya estaba pagada o retirada | Nada |
-
-**El mes siguiente no deshace lo acordado.**
-
-- Un convenio sigue en pie: el mes nuevo se agrega como una cuota aparte, que el portal marca
-  *Fuera del convenio*.
-- Una deuda pagada se reabre si el deudor se vuelve a atrasar, con el mismo mínimo de 30 días.
-- La que pasa los 120 días de mora, APOFYX la devuelve al acreedor y DataBridge deja de cobrarla
-  (`fuera_de_mandato`).
-
-**La invitación sale sola.** Cuando una deuda entra o se reabre, DataBridge le manda al deudor su
-código por correo, sin monto ni enlace. Si el envío falla, la cartera entra igual, y desde el
-portal se reenvía.
-
-El detalle está en las [reglas del contrato](docs/integracion/README.md#64-reglas-de-validación).
-
-### Los intereses
-
-**Solo generan interés las deudas en que el acreedor lo pactó.** El acreedor manda la tasa en cada
-deuda (`tasa_interes_mensual`, en porcentaje mensual), por ejemplo porque su contrato de arriendo
-comercial la incluye. Ni la agencia ni DataBridge ponen una tasa: cobran la que el acreedor pactó.
-Sin tasa, la deuda vale lo que mandó el acreedor y el convenio es sin interés, como siempre.
-
-**Hay un tope legal.** Ningún interés puede superar la tasa máxima convencional, que publica la CMF
-cada mes (`INTERES_TASA_MAXIMA_MENSUAL`, hoy 3% mensual). Una deuda con una tasa mayor se rechaza al
-entrar, con `tasa_sobre_maxima`.
-
-**La mora: cada cargo atrasado crece todos los días**, desde el día siguiente a su vencimiento:
-
-> interés de un día = monto atrasado × tasa mensual ÷ 30
-
-Es interés simple: el interés no genera más interés, porque la ley (Ley 18.010) no lo permite.
-
-**El pago fija el interés y lo devuelve aparte.** El monto se fija al abrir el cobro: si la pasarela
-confirma días después, no se cobra la diferencia. El aviso del pago (`pago.confirmado`) dice cuánto
-fue capital y cuánto interés, y el acreedor abona el capital a sus cargos y anota el interés por
-separado: Patrimonio deja los tres arriendos pagados y *$18.800 de intereses cobrados*. El recorrido
-completo está en la [secuencia del pago](#el-pago-con-khipu-la-funcionalidad-principal).
-
-**El convenio: se repacta lo que debe más la mora de ese día**, en cuotas iguales (sistema francés):
-cada cuota paga el interés del mes sobre lo que falta y el resto baja la deuda. Por eso al principio
-se paga más interés y al final menos. Antes de aceptar, el portal muestra la tasa, la
-cuota y el total a pagar. Si una cuota del convenio se atrasa, genera mora solo sobre la parte que
-baja la deuda, no sobre su interés.
-
-<details>
-<summary><b>Los ejemplos, probados en vivo</b>: la mora de tres arriendos y un convenio en 6 cuotas</summary>
-
-**La mora.** Tres arriendos de $300.000 al 2% mensual, pagados el 6 de octubre. Cada
-uno crece $300.000 × 2% ÷ 30 = **$200 por día**:
-
-| Arriendo | Venció el | Días de atraso | Interés |
-| --- | --- | --- | --- |
-| Agosto | 5 de agosto | 62 | $12.400 |
-| Septiembre | 5 de septiembre | 31 | $6.200 |
-| Octubre | 5 de octubre | 1 | $200 |
-| **Total** | | | **$18.800** |
-
-El deudor ve **$918.800**, con la línea *Incluye $18.800 de intereses por mora (2% mensual)*, y al
-pagar, el desglose: *$900.000 de capital y $18.800 de intereses por mora*.
-
-**El convenio.** Otro contrato, al 1,5% mensual, con tres arriendos de $300.000
-y $14.100 de mora (94 días × $150), repactó **$914.100** en 6 cuotas:
-
-| Cuota | Deuda al empezar el mes | Interés del mes | Baja la deuda en | Cuota |
-| --- | --- | --- | --- | --- |
-| 1 | $914.100 | $13.712 | $146.736 | $160.448 |
-| 2 | $767.364 | $11.510 | $148.938 | $160.448 |
-| 3 | $618.426 | $9.276 | $151.172 | $160.448 |
-| 4 | $467.254 | $7.009 | $153.439 | $160.448 |
-| 5 | $313.815 | $4.707 | $155.741 | $160.448 |
-| 6 | $158.074 | $2.371 | $158.074 | $160.445 |
-| **Total** | | **$48.585** | **$914.100** | **$962.685** |
-
-La última cuota absorbe el redondeo de los pesos.
-
-</details>
-
-| Otros casos | Qué pasa con el interés |
-| --- | --- |
-| La deuda no trae tasa | Nada cambia: se cobra lo que mandó el acreedor, y el convenio es sin interés |
-| El deudor reclama | La mora **sigue corriendo**. Si la empresa le da la razón, la deuda se retira y no se cobra nada; si no, se cobra con los días que pasaron |
-| La deuda está en UF | Igual, con dos decimales |
-
-### Las campañas
-
-**Quien cobra decide la estrategia y DataBridge la cumple.** Una campaña es el plan para
-recordarles a los deudores de una cartera que deben: por qué medio, cuántas veces y cada cuántos
-días. La crea quien cobra, en el portal de empresas, en *Campañas*: una empresa de cobranza con
-mandato sobre el acreedor, o **el mismo acreedor cuando cobra sin agencia**, sin mandato. Ahí
-mismo la cambia, la pausa y la termina, y en ella carga a sus deudores. Con la entrega por API
-encendida, un sistema también la registra por `/api/v1/campanas` (en la demo de la cadena, APOFYX
-desde su panel), con las mismas reglas. DataBridge manda cada recordatorio, que es el mismo correo
-de la invitación: un código para entrar, sin el monto ni un enlace. Si alguien reenvía o roba el correo, no le sirve de
-nada, y no hay un enlace que se pueda imitar.
-
-| Dato de la campaña | Qué hace DataBridge |
-| --- | --- |
-| **Cadencia** (por ejemplo, días 1, 4, 11, 25, 45) | El recordatorio *n* sale ese día, contado desde que la deuda entró a la campaña |
-| **Intentos** | Cuántos recordatorios recibe cada deudor como máximo |
-| **Inicio y fin** | Fuera de esas fechas no se contacta |
-| **Estado** | Solo una campaña en curso contacta. Si quien cobra la pausa o la termina, en el portal (o por la API, si está encendida), DataBridge deja de contactar al instante |
-| **Canales** | Hoy solo correo. WhatsApp y SMS se suman cuando estén conectados |
-
-Una deuda que se paga, se repacta, se reclama o se retira deja de recibir recordatorios de la
-campaña. La repactada sigue con el recordatorio de cada cuota.
-
-**La ley manda sobre la cadencia** (Ley 19.496, art. 37, con los cambios de la Ley 21.320):
-
-| Regla | Qué exige |
-| --- | --- |
-| Días | De lunes a sábado. Nunca un domingo ni un feriado: los nacionales se calculan para cualquier año con las reglas de la ley, y `CONTACTO_FERIADOS` suma los que se decretan |
-| Horario | De 8:00 a 20:00 |
-| Cantidad | Como máximo **dos correos por semana** a una misma persona: los últimos siete días, hoy incluido |
-| Separación | Al menos **dos días** entre un correo y el siguiente |
-| Registro | Cada correo queda en la historia de la deuda |
-
-Las reglas valen para todos los correos: la invitación, los de la campaña, el recordatorio de una
-cuota y el código que reenvía la empresa. Un correo que cae en un momento prohibido no se pierde:
-sale en la primera oportunidad permitida.
-
-- **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera
-  pasada de contacto dentro del horario.
-- **El recordatorio de cuota** no sale un domingo ni un feriado. Lo manda la pasada del día
-  siguiente en que se puede, que avisa las cuotas que vencen en los próximos tres días.
-- **El código que reenvía la empresa** fuera de horario no sale, y la empresa ve el aviso *La ley
-  solo deja escribirle a un deudor de lunes a sábado, de 8:00 a 20:00*. Si ya se le escribió lo
-  que permite la semana, ve *Ya se le escribió lo que permite la ley*. Cómo decide DataBridge si escribe
-  está en el [diagrama de actividad](docs/diagramas/procesos.md#actividad-cómo-databridge-ejecuta-una-campaña).
-
-<details>
-<summary><b>Un ejemplo, día por día</b>: una campaña de cadencia 1, 4, 11 frente a la ley</summary>
-
-**Un ejemplo, día por día**, probado con una campaña de cadencia 1, 4, 11 y 3 intentos, para una
-deuda que entró el martes 6 de octubre:
-
-| Día | Qué pasó | Por qué |
-| --- | --- | --- |
-| Martes 6 | **Sale la invitación** | La deuda entró |
-| Miércoles 7 | Nada | Tocaba el correo 1 (día 1), pero la invitación salió ayer: no hay dos días entre uno y otro |
-| Jueves 8 | **Sale el correo 1** | Ya pasaron dos días |
-| Sábado 10 | Nada | Tocaba el correo 2 (día 4), pero ya van dos correos en la semana |
-| Domingo 11 | Nada | Domingo |
-| Lunes 12 | Nada | Feriado |
-| Martes 13, 7:30 | Nada | Antes de las 8:00 |
-| Martes 13, 10:00 | **Sale el correo 2** | La invitación del 6 ya quedó fuera de los últimos siete días |
-| Martes 20 | Nada | El correo 3 tocaba el sábado 17 (día 11), pero la agencia pausó la campaña en APOFYX |
-
-Tres correos en total, todos dentro de la ley, aunque la cadencia pedía más seguido. Si la agencia
-reanuda la campaña, sigue donde quedó, sin repetir los correos que ya salieron.
-
-</details>
-
-DataBridge revisa las campañas cada 15 minutos.
-
-<details>
-<summary><b>Para probar una cadencia</b> sin esperar semanas</summary>
-
-Para probar una cadencia sin esperar semanas:
-
-```powershell
-docker compose --profile app exec -T ms-debt sh -c 'curl -s -X POST http://127.0.0.1:8083/internal/campanas/contactos?ahora=2026-10-08T10:00:00\&campana=APX-CMP-8 -H X-Internal-Key:$INTERNAL_KEY'
-```
-
-La clave interna no se escribe: el contenedor la tiene en su entorno (`$INTERNAL_KEY`), sacada del
-`.env`.
-
-`ahora` es la hora de Chile que se simula y `campana` limita la pasada a una sola campaña. Cada
-correo queda fechado a esa hora.
-
-</details>
-
 ### A quién va dirigido
 
 | Quién | Qué hace acá |
@@ -296,6 +75,14 @@ correo queda fechado a esa hora.
 | **La empresa que cobra**: una agencia de cobranza (APOFYX) o el acreedor que cobra sin agencia | Crea sus campañas, carga a sus deudores en ellas, reenvía el código, resuelve los reclamos y sigue la recuperación, todo desde el portal de empresas. Los códigos los manda DataBridge |
 | **El acreedor** (una inmobiliaria, un instituto, una clínica), si cobra por una agencia | No entra: su agencia ve la cartera. Con la entrega por API encendida, recibe en su propio sistema el aviso de cada pago, convenio o reclamo |
 | **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, y mira el estado y las reglas en el panel de administración |
+
+**Contexto.** Kobra fue el cliente directo original del equipo y se retiró. Para continuar el
+Capstone se creó **APOFYX**, una agencia de cobranza ficticia. DataBridge es la solución
+tecnológica, y se demuestra con APOFYX y tres acreedores ficticios de rubros distintos:
+
+- Patrimonio Inmuebles (arriendos);
+- Instituto Andes (aranceles);
+- Clínica Dental Sonrisa Norte (tratamientos).
 
 ### Qué problema resuelve
 
@@ -314,36 +101,62 @@ solo, a las 11 de la noche si quiere. El acreedor se entera sin que nadie escrib
 
 ## 2. Tecnologías utilizadas
 
-| Capa | Tecnología | Por qué |
+### Lenguajes
+
+| Lenguaje | Versión | Dónde se usa |
 | --- | --- | --- |
-| **Lenguajes** | Java 25 · JavaScript (ES2022) | |
-| **Backend** | Spring Boot 3.5 · Spring Cloud Gateway · Spring Security · Spring Data JPA · Bean Validation | Cuatro microservicios de Spring (ms-auth, ms-debt, ms-payments y ms-ai) y un gateway |
+| **Java** | 25 | Los cinco servicios del backend: gateway, ms-auth, ms-debt, ms-payments y ms-ai |
+| **JavaScript** | ES2022, con JSX | El portal |
+| **SQL** | El de MySQL 8.4 | Las migraciones de cada base |
+
+### Frameworks y librerías
+
+| Capa | Tecnología | Para qué |
+| --- | --- | --- |
+| **Backend** | Spring Boot 3.5 · Spring Security · Spring Data JPA · Bean Validation | Cuatro microservicios de Spring: ms-auth, ms-debt, ms-payments y ms-ai |
+| **Gateway** | Spring Cloud Gateway · Bucket4j | La única puerta: enruta, limita las peticiones y revisa CORS |
 | **API** | springdoc-openapi (Swagger) · Spring HATEOAS · Spring Boot Actuator | Todos los endpoints en una página; respuestas que dicen qué se puede hacer después; salud para Docker |
-| **Asistente** | SDK oficial de OpenAI para Java (`openai-java`) | Le habla a Grok (xAI), o a cualquier API compatible con la de OpenAI. Sin llave, el asistente responde con sus reglas |
-| **Frontend** | React 18 · React Router 7 · Vite · Zustand · Recharts · CSS propio | |
-| **Base de datos** | **MySQL 8.4**, una base por servicio | El mismo motor que usa APOFYX |
-| **Migraciones** | Flyway, con `ddl-auto: validate` | El esquema se versiona; Hibernate no lo cambia a espaldas de nadie |
-| **Mensajería** | RabbitMQ 3.13 | Lleva el aviso de pago entre servicios |
-| **Pagos** | Webpay Plus, API REST v1.2 de Transbank · Khipu, API de pagos v3 · Mercado Pago, Checkout Pro | Cobro real con tarjeta y por transferencia. Sin credenciales, simuladas |
+| **Frontend** | React 18 · React Router 7 · Vite · Zustand · Recharts · CSS propio | El portal del deudor, el de las empresas y el panel de administración |
 | **Autenticación** | JWT (JJWT) · códigos de un solo uso | Sin contraseñas |
 | **Cifrado** | AES-256-GCM, de la JCA | Los secretos que hay que leer de vuelta se guardan cifrados |
-| **Contenedores** | Docker · Docker Compose | Nueve contenedores, una orden |
-| **Pruebas** | JUnit 5 · Mockito · MockMvc · k6 | Unitarias, de la capa web y de rendimiento |
-| **Integración continua** | GitHub Actions · CodeQL · Dependabot | Pruebas y análisis de seguridad en cada push |
-| **Servidor web** | nginx (sin privilegios) | Sirve el portal compilado y hace de proxy al gateway |
-| **Correo** | API de Brevo o SMTP (Jakarta Mail) · Thymeleaf · Mailpit | De verdad, por Brevo o por un servidor SMTP; las plantillas en HTML y texto, con Thymeleaf. Sin configurar nada, al buzón de prueba (Mailpit), sin mandárselos a nadie |
+| **Correo** | Jakarta Mail · Thymeleaf | Los correos en HTML y en texto, por Brevo o por un servidor SMTP |
+| **Mensajería** | RabbitMQ 3.13 | Lleva el aviso de pago entre servicios |
+| **Asistente** | SDK oficial de OpenAI para Java (`openai-java`) | Le habla a Grok (xAI), o a cualquier API compatible con la de OpenAI. Sin llave, el asistente responde con sus reglas |
 
-**Nube:** el despliegue de referencia es local, con contenedores. Las mismas imágenes están
-preparadas para Railway ([§10](#en-railway)). Las dependencias externas son seis, y ninguna es
-obligatoria:
+### Base de datos
 
-- **Transbank**, para Webpay. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` vuelve a la pasarela
-  simulada.
-- **Khipu**, para cobrar de verdad. Sin `KHIPU_LLAVE`, Khipu queda simulada.
-- **Mercado Pago**, para cobrar de verdad. Sin `MERCADOPAGO_ACCESS_TOKEN`, queda simulada.
-- **Brevo o un servidor SMTP**, para mandar correos de verdad. Sin ellos, van al buzón de prueba.
-- **El Banco Central**, para la UF. Sin credenciales, la UF se carga a mano.
-- **Un LLM** para el asistente (`XAI_API_KEY`). Sin él, responde con reglas.
+| Tecnología | Cómo se usa |
+| --- | --- |
+| **MySQL 8.4** | Una base por servicio: `tb_auth`, `tb_debt` y `tb_payments`. Es el mismo motor que usa APOFYX |
+| **Flyway** | Versiona el esquema. Cada servicio arranca con `ddl-auto: validate`: si las entidades y las tablas no calzan, no parte |
+
+Las tablas y cómo se relacionan están en el [diagrama entidad-relación](#72-entidad-relación).
+
+### Cloud y servicios externos
+
+El despliegue de referencia es **local, con contenedores**. Las mismas imágenes están preparadas para
+**Railway** ([§10](#en-railway)). Ningún servicio externo es obligatorio: sin sus llaves, cada uno se
+simula o se reemplaza.
+
+| Servicio | Para qué | Sin configurarlo |
+| --- | --- | --- |
+| **Railway** | Desplegar las imágenes en la nube: cada servicio trae su `railway.json`, y la guía está en [`docs/railway`](docs/railway/README.md) | Todo corre en el equipo, con Docker |
+| **Transbank** · Webpay Plus, API REST v1.2 | Cobrar con tarjeta, en la página real de Transbank | Funciona igual, contra su ambiente de integración y con tarjetas de prueba. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` |
+| **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
+| **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
+| **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Los correos van al buzón de prueba (Mailpit) |
+| **Banco Central** | La UF de cada día | La UF se carga a mano |
+| **Un LLM** (Grok, de xAI) | Las respuestas del asistente | Responde con sus reglas |
+
+### Herramientas
+
+| Para qué | Tecnología |
+| --- | --- |
+| **Contenedores** | Docker · Docker Compose: nueve contenedores, una orden |
+| **Servidor web** | nginx sin privilegios: sirve el portal compilado y hace de proxy al gateway |
+| **Integración continua** | GitHub Actions · CodeQL · Dependabot: pruebas y análisis de seguridad en cada push |
+| **Pruebas** | JUnit 5 · Mockito · MockMvc · k6: unitarias, de la capa web y de rendimiento |
+| **Correo de prueba** | Mailpit: recibe los correos sin mandárselos a nadie |
 
 ---
 
@@ -768,23 +581,27 @@ El portal queda en http://localhost:5173, servido por Vite con recarga automáti
 
 | Integrante | Rol |
 | --- | --- |
-| Flavio Henríquez | Product Owner y líder técnico |
-| Esteban Maino | Scrum Master |
-| Pedro Campos | Equipo de desarrollo |
-| Martín Gutiérrez | Equipo de desarrollo |
+| **Flavio Henríquez** | Product Owner |
+| **Martín Gutiérrez** | Scrum Master |
+| **Esteban Maino** | Desarrollador fullstack y Project Coordinator |
+| **Pedro Campos** | Desarrollador fullstack y QA Tester |
 
 ---
 
 ## 5. Metodología de trabajo
 
-**Scrumban**: los roles de **Scrum** y el flujo de trabajo de **Kanban**, con prácticas de **DevOps**
-para la entrega.
+**Scrumban.** Usamos los **roles de Scrum**, pero el trabajo fluye como en **Kanban**: sin sprints, cada
+tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas prácticas ligeras de **DevOps**.
 
-- **Roles (Scrum).** Flavio Henríquez es el Product Owner: prioriza el backlog, escribe los
-  criterios de aceptación y decide qué pasa a *Ready*. Además es el líder técnico: la arquitectura,
-  la integración entre los tres sistemas y la revisión de los PRs que se le piden. Esteban Maino es
-  el Scrum Master: cuida que el trabajo fluya, que nadie tenga más de dos tarjetas en curso, y abre
-  las retrospectivas. Pedro Campos y Martín Gutiérrez son el equipo de desarrollo, junto con Flavio.
+- **Roles (Scrum).**
+  - **Flavio Henríquez, Product Owner:** prioriza el backlog, escribe los criterios de aceptación y decide qué
+    pasa a *Ready*.
+  - **Martín Gutiérrez, Scrum Master:** cuida que el trabajo fluya, que nadie tenga más de dos tarjetas en
+    curso, y abre las retrospectivas.
+  - **Esteban Maino, desarrollador fullstack y Project Coordinator:** programa en el backend y el portal, y
+    coordina el proyecto.
+  - **Pedro Campos, desarrollador fullstack y QA Tester:** programa en el backend y el portal, y prueba lo
+    que se entrega.
 - **Revisión.** Cada autor elige quién revisa su PR. En los de Flavio, las dos cuentas se reparten
   el trabajo:
   1. **`4mnesia` hace:** el issue, la rama, los commits y el PR, a nombre de Flavio.
@@ -859,7 +676,7 @@ flowchart TD
 
 Las flechas punteadas de abajo son la entrega por API: **apagada por omisión**, porque los
 deudores entran por campaña desde el portal. `INTEGRACION_API=true` la enciende
-([§6](#comunicación-entre-servicios)).
+([§7.1](#71-comunicación-entre-servicios)).
 
 ### Los componentes
 
@@ -874,7 +691,7 @@ deudores entran por campaña desde el portal. `INTEGRACION_API=true` la enciende
 | **MySQL 8.4** | Una base por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
 | **RabbitMQ** | Lleva el aviso de pago de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
-### Quién es quién: los roles
+### Los roles de acceso
 
 Hay dos roles para las personas que trabajan con DataBridge, y el control lo tiene solo DataBridge:
 
@@ -991,7 +808,31 @@ falta uno, el servicio no arranca y dice cuál. `application-dev.properties` es 
 
 </details>
 
-### Comunicación entre servicios
+---
+
+## 7. Diagramas
+
+Los diagramas que hicimos, cada uno con su **vista general** y, desplegable, el de **cada servicio**.
+Salen del código: los nombres son las clases, las rutas y las tablas de verdad.
+
+| Diagrama | General | De cada servicio | Dónde |
+| --- | --- | --- | --- |
+| Comunicación entre servicios | Quién le habla a quién, por dónde y con qué llave | — (cada par está en la tabla) | [§7.1](#71-comunicación-entre-servicios) |
+| Entidad-relación | Las 25 tablas de las tres bases | `tb_auth`, `tb_debt` y `tb_payments` | [§7.2](#72-entidad-relación) |
+| Casos de uso | El sistema completo | De cada actor | [§7.3](#73-casos-de-uso) |
+| Clases | El dominio | ms-auth, ms-debt, ms-payments, ms-ai y gateway | [§7.4](#74-clases) |
+| Secuencias | El pago, de punta a punta | ms-auth, ms-debt, ms-payments y ms-ai | [§7.5](#75-secuencias) |
+| Componentes | El repositorio y las capas | ms-auth, ms-debt, ms-payments, ms-ai, gateway y el portal | [§7.6](#76-componentes) |
+
+Los demás están en [`docs/diagramas`](docs/diagramas/README.md): los
+[estados](docs/diagramas/estados.md) de una deuda, una cuota, un pago y una campaña; los
+[procesos](docs/diagramas/procesos.md) (el BPMN del negocio, el flujo de la cartera, la actividad de una
+campaña y lo que corre solo); el [despliegue](docs/diagramas/despliegue.md), y todas las clases, secuencias y
+casos de uso con su detalle.
+
+La arquitectura está en [§6](#6-arquitectura-de-la-solución).
+
+### 7.1 Comunicación entre servicios
 
 Quién le habla a quién y por dónde. Las flechas continuas son llamadas HTTP; las punteadas, lo que va por
 la cola o lo que está apagado por omisión.
@@ -1097,9 +938,7 @@ El contrato completo, con sus ejemplos y su esquema JSON, está en
 
 </details>
 
----
-
-## 7. Modelo de datos
+### 7.2 Entidad-relación
 
 **Una base por servicio**, las tres en el mismo MySQL 8.4. No comparten tablas: si ms-payments
 necesita saber cuánto se debe, se lo **pregunta** a ms-debt. Así cada servicio cambia su esquema
@@ -1120,7 +959,7 @@ llave foránea y `UK` un valor que no se repite; en las líneas, `||` es *uno*, 
 muchos* y `|o` es *cero o uno*. Las reglas que exige cada base (`CHECK`) están en
 [`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
-### El diagrama general: las tres bases
+#### El diagrama general: las tres bases
 
 Todas las tablas de DataBridge en un solo diagrama, cada una con el nombre de su base. Las **líneas
 continuas** son llaves foráneas dentro de una base. Las **punteadas** cruzan de una base a otra: no
@@ -1202,7 +1041,7 @@ erDiagram
 | `tb_debt.debt_events.detail` | `tb_payments.payments.id` | El id del pago aplicado | Lo trae el aviso `pago.confirmado` |
 | `admin_log`, en las dos bases | `tb_auth.staff_users.email` y `tb_debt.organizations.rut` | Quién lo hizo y sobre qué empresa | Sale del JWT de la sesión del `admin`, no del cuerpo de la petición |
 
-### `tb_debt` — la cartera
+#### `tb_debt` — la cartera
 
 ```mermaid
 erDiagram
@@ -1466,7 +1305,7 @@ Quince tablas y dos vistas (`v_debt_balance`, `v_creditor_portfolio`). Lo que co
   hecho que los provoca. Si el sistema se cae entre "cobré" y "avisé", el aviso sigue ahí.
 - **`subscriptions.secret`** va **cifrado** ([§9](#9-requisitos-no-funcionales)).
 
-### `tb_auth` — quién entra
+#### `tb_auth` — quién entra
 
 ```mermaid
 erDiagram
@@ -1539,7 +1378,7 @@ la IP, nunca la IP. Las seis tablas no tienen llaves foráneas entre sí: cada u
 propia huella, o por el RUT o el correo de alguien. `staff_users` guarda a la gente de las
 empresas (`usuario`) y a los `admin` de DataBridge, y `admin_log` lo que un `admin` hizo con ellas.
 
-### `tb_payments` — la plata
+#### `tb_payments` — la plata
 
 ```mermaid
 erDiagram
@@ -1598,30 +1437,7 @@ confirmación de Transbank, o lo que dijo Khipu) queda entero en `payment_events
 repita el aviso. `debt_notifications` es el aviso a ms-debt, con sus reintentos, y la vista
 `v_collection` suma lo recaudado por acreedor y por mes.
 
----
-
-## 8. Diagramas
-
-Los diagramas del proyecto, cada uno con su **vista general** y, desplegable, el de **cada servicio**.
-Salen del código: los nombres son las clases, las rutas y las tablas de verdad.
-
-| Diagrama | General | De cada servicio | Dónde |
-| --- | --- | --- | --- |
-| Arquitectura | Los servicios detrás del portal y el gateway | — (es la vista de todo) | [§6](#6-arquitectura-de-la-solución) |
-| Comunicación entre servicios | Quién le habla a quién, por dónde y con qué llave | — (cada par está en la tabla) | [§6](#comunicación-entre-servicios) |
-| Entidad-relación | Las 25 tablas de las tres bases | `tb_auth`, `tb_debt` y `tb_payments` | [§7](#7-modelo-de-datos) |
-| Casos de uso | El sistema completo | De cada actor | [§8.1](#81-casos-de-uso) |
-| Clases | El dominio | ms-auth, ms-debt, ms-payments, ms-ai y gateway | [§8.2](#82-clases) |
-| Secuencias | El pago, de punta a punta | ms-auth, ms-debt, ms-payments y ms-ai | [§8.3](#83-secuencias) |
-| Componentes | El repositorio y las capas | ms-auth, ms-debt, ms-payments, ms-ai, gateway y el portal | [§8.4](#84-componentes) |
-
-Los demás están en [`docs/diagramas`](docs/diagramas/README.md): los
-[estados](docs/diagramas/estados.md) de una deuda, una cuota, un pago y una campaña; los
-[procesos](docs/diagramas/procesos.md) (el BPMN del negocio, el flujo de la cartera, la actividad de una
-campaña y lo que corre solo); el [despliegue](docs/diagramas/despliegue.md), y todas las clases, secuencias y
-casos de uso con su detalle.
-
-### 8.1 Casos de uso
+### 7.3 Casos de uso
 
 ```mermaid
 flowchart LR
@@ -1846,13 +1662,13 @@ Cada caso con su endpoint está en [`docs/diagramas/casos-de-uso.md`](docs/diagr
 
 | Escenario | Lo dispara | Clases | Dónde se ve | Servicios |
 | --- | --- | --- | --- | --- |
-| **E1. Cargar la cartera** | La empresa, en una campaña | `Batch`, `Debt`, `DebtCharge`, `Campaign` | [Secuencia de ms-debt](#83-secuencias) | portal → gateway → ms-debt |
+| **E1. Cargar la cartera** | La empresa, en una campaña | `Batch`, `Debt`, `DebtCharge`, `Campaign` | [Secuencia de ms-debt](#75-secuencias) | portal → gateway → ms-debt |
 | **E2. Invitar y recordar** | La deuda que entra, y el reloj | `Campaign`, `Contact` | [Actividad de la campaña](docs/diagramas/procesos.md#actividad-cómo-databridge-ejecuta-una-campaña) | ms-debt → ms-auth → correo |
 | **E3. Pagar** | El deudor | `Payment`, `Installment` | [Secuencia del pago](#el-pago-con-khipu-la-funcionalidad-principal) | portal → gateway → ms-payments ↔ pasarela, RabbitMQ → ms-debt |
 | **E4. Repactar** | El deudor | `Repactation`, `Installment` | [Secuencia del convenio](docs/diagramas/secuencia.md#5-simular-y-aceptar-un-convenio) | portal → gateway → ms-debt |
 | **E5. Reclamar** | El deudor; la empresa resuelve | `Debt` en `disputed`, `DebtEvent` | [Estados de una deuda](docs/diagramas/estados.md#una-deuda) | portal → gateway → ms-debt |
 
-### 8.2 Clases
+### 7.4 Clases
 
 #### El dominio
 
@@ -1944,7 +1760,7 @@ classDiagram
 ```
 
 Lo que se guarda y lo que se calcula: el **saldo** y la **mora** no son atributos, se calculan con
-los cargos, las cuotas y la tasa ([§7](#7-modelo-de-datos)). Lo que sí queda escrito es lo que ya se
+los cargos, las cuotas y la tasa ([§7.2](#72-entidad-relación)). Lo que sí queda escrito es lo que ya se
 fijó: el interés de cada cuota del convenio, y el interés y el descuento de cada pago. El descuento
 de una campaña nunca pasa del máximo que el acreedor autorizó en el mandato.
 
@@ -2762,7 +2578,7 @@ classDiagram
 Las demás clases de cada servicio (controladores, servicios, repositorios, seguridad) están en
 [`docs/diagramas/clases.md`](docs/diagramas/clases.md).
 
-### 8.3 Secuencias
+### 7.5 Secuencias
 
 #### El pago con Khipu, la funcionalidad principal
 
@@ -3038,7 +2854,7 @@ sequenceDiagram
 El gateway aparece en la de ms-auth: es por donde pasa toda petición, con su límite por origen. Las
 16 secuencias del sistema están en [`docs/diagramas/secuencia.md`](docs/diagramas/secuencia.md).
 
-### 8.4 Componentes
+### 7.6 Componentes
 
 #### El repositorio y las capas
 
@@ -3332,6 +3148,200 @@ Qué hay en cada paquete, y cómo se conecta cada componente, está en
 
 ---
 
+## 8. Reglas del negocio
+
+Lo que DataBridge exige a una cartera, cómo cobra los intereses que pactó el acreedor, y cómo cumple una
+campaña dentro de lo que permite la ley.
+
+### Las reglas de la cartera
+
+**El alcance son los deudores morosos.** Una deuda entra a cobranza cuando su cargo impago más
+antiguo lleva al menos **30 días vencido** (`MIN_DIAS_MORA`). Con menos todavía no es mora, y se
+rechaza al recibir la cartera con el código `bajo_umbral_mora`. Se mide en días, y no en meses
+impagos, para que sirva en cualquier rubro: un arriendo con dos meses atrasados y un tratamiento
+dental de un solo cargo vencido hace 75 días son igual de morosos.
+
+**Llegan todos los clientes, deban o no.** El acreedor entrega cada mes a todos sus clientes con
+contrato, y DataBridge detecta al moroso. El que está al día viene con `cargos: []`:
+
+| La deuda | Qué pasa |
+| --- | --- |
+| Es nueva | Resultado `al_dia`: no se guarda nada |
+| Estaba en cobranza | Se cierra como retirada, motivo `pago_directo`: pagó directo al acreedor |
+| Ya estaba pagada o retirada | Nada |
+
+**El mes siguiente no deshace lo acordado.**
+
+- Un convenio sigue en pie: el mes nuevo se agrega como una cuota aparte, que el portal marca
+  *Fuera del convenio*.
+- Una deuda pagada se reabre si el deudor se vuelve a atrasar, con el mismo mínimo de 30 días.
+- La que pasa los 120 días de mora, APOFYX la devuelve al acreedor y DataBridge deja de cobrarla
+  (`fuera_de_mandato`).
+
+**La invitación sale sola.** Cuando una deuda entra o se reabre, DataBridge le manda al deudor su
+código por correo, sin monto ni enlace. Si el envío falla, la cartera entra igual, y desde el
+portal se reenvía.
+
+El detalle está en las [reglas del contrato](docs/integracion/README.md#64-reglas-de-validación).
+
+### Los intereses
+
+**Solo generan interés las deudas en que el acreedor lo pactó.** El acreedor manda la tasa en cada
+deuda (`tasa_interes_mensual`, en porcentaje mensual), por ejemplo porque su contrato de arriendo
+comercial la incluye. Ni la agencia ni DataBridge ponen una tasa: cobran la que el acreedor pactó.
+Sin tasa, la deuda vale lo que mandó el acreedor y el convenio es sin interés, como siempre.
+
+**Hay un tope legal.** Ningún interés puede superar la tasa máxima convencional, que publica la CMF
+cada mes (`INTERES_TASA_MAXIMA_MENSUAL`, hoy 3% mensual). Una deuda con una tasa mayor se rechaza al
+entrar, con `tasa_sobre_maxima`.
+
+**La mora: cada cargo atrasado crece todos los días**, desde el día siguiente a su vencimiento:
+
+> interés de un día = monto atrasado × tasa mensual ÷ 30
+
+Es interés simple: el interés no genera más interés, porque la ley (Ley 18.010) no lo permite.
+
+**El pago fija el interés y lo devuelve aparte.** El monto se fija al abrir el cobro: si la pasarela
+confirma días después, no se cobra la diferencia. El aviso del pago (`pago.confirmado`) dice cuánto
+fue capital y cuánto interés, y el acreedor abona el capital a sus cargos y anota el interés por
+separado: Patrimonio deja los tres arriendos pagados y *$18.800 de intereses cobrados*. El recorrido
+completo está en la [secuencia del pago](#el-pago-con-khipu-la-funcionalidad-principal).
+
+**El convenio: se repacta lo que debe más la mora de ese día**, en cuotas iguales (sistema francés):
+cada cuota paga el interés del mes sobre lo que falta y el resto baja la deuda. Por eso al principio
+se paga más interés y al final menos. Antes de aceptar, el portal muestra la tasa, la
+cuota y el total a pagar. Si una cuota del convenio se atrasa, genera mora solo sobre la parte que
+baja la deuda, no sobre su interés.
+
+<details>
+<summary><b>Los ejemplos, probados en vivo</b>: la mora de tres arriendos y un convenio en 6 cuotas</summary>
+
+**La mora.** Tres arriendos de $300.000 al 2% mensual, pagados el 6 de octubre. Cada
+uno crece $300.000 × 2% ÷ 30 = **$200 por día**:
+
+| Arriendo | Venció el | Días de atraso | Interés |
+| --- | --- | --- | --- |
+| Agosto | 5 de agosto | 62 | $12.400 |
+| Septiembre | 5 de septiembre | 31 | $6.200 |
+| Octubre | 5 de octubre | 1 | $200 |
+| **Total** | | | **$18.800** |
+
+El deudor ve **$918.800**, con la línea *Incluye $18.800 de intereses por mora (2% mensual)*, y al
+pagar, el desglose: *$900.000 de capital y $18.800 de intereses por mora*.
+
+**El convenio.** Otro contrato, al 1,5% mensual, con tres arriendos de $300.000
+y $14.100 de mora (94 días × $150), repactó **$914.100** en 6 cuotas:
+
+| Cuota | Deuda al empezar el mes | Interés del mes | Baja la deuda en | Cuota |
+| --- | --- | --- | --- | --- |
+| 1 | $914.100 | $13.712 | $146.736 | $160.448 |
+| 2 | $767.364 | $11.510 | $148.938 | $160.448 |
+| 3 | $618.426 | $9.276 | $151.172 | $160.448 |
+| 4 | $467.254 | $7.009 | $153.439 | $160.448 |
+| 5 | $313.815 | $4.707 | $155.741 | $160.448 |
+| 6 | $158.074 | $2.371 | $158.074 | $160.445 |
+| **Total** | | **$48.585** | **$914.100** | **$962.685** |
+
+La última cuota absorbe el redondeo de los pesos.
+
+</details>
+
+| Otros casos | Qué pasa con el interés |
+| --- | --- |
+| La deuda no trae tasa | Nada cambia: se cobra lo que mandó el acreedor, y el convenio es sin interés |
+| El deudor reclama | La mora **sigue corriendo**. Si la empresa le da la razón, la deuda se retira y no se cobra nada; si no, se cobra con los días que pasaron |
+| La deuda está en UF | Igual, con dos decimales |
+
+### Las campañas
+
+**Quien cobra decide la estrategia y DataBridge la cumple.** Una campaña es el plan para
+recordarles a los deudores de una cartera que deben: por qué medio, cuántas veces y cada cuántos
+días. La crea quien cobra, en el portal de empresas, en *Campañas*: una empresa de cobranza con
+mandato sobre el acreedor, o **el mismo acreedor cuando cobra sin agencia**, sin mandato. Ahí
+mismo la cambia, la pausa y la termina, y en ella carga a sus deudores. Con la entrega por API
+encendida, un sistema también la registra por `/api/v1/campanas` (en la demo de la cadena, APOFYX
+desde su panel), con las mismas reglas. DataBridge manda cada recordatorio, que es el mismo correo
+de la invitación: un código para entrar, sin el monto ni un enlace. Si alguien reenvía o roba el correo, no le sirve de
+nada, y no hay un enlace que se pueda imitar.
+
+| Dato de la campaña | Qué hace DataBridge |
+| --- | --- |
+| **Cadencia** (por ejemplo, días 1, 4, 11, 25, 45) | El recordatorio *n* sale ese día, contado desde que la deuda entró a la campaña |
+| **Intentos** | Cuántos recordatorios recibe cada deudor como máximo |
+| **Inicio y fin** | Fuera de esas fechas no se contacta |
+| **Estado** | Solo una campaña en curso contacta. Si quien cobra la pausa o la termina, en el portal (o por la API, si está encendida), DataBridge deja de contactar al instante |
+| **Canales** | Hoy solo correo. WhatsApp y SMS se suman cuando estén conectados |
+
+Una deuda que se paga, se repacta, se reclama o se retira deja de recibir recordatorios de la
+campaña. La repactada sigue con el recordatorio de cada cuota.
+
+**La ley manda sobre la cadencia** (Ley 19.496, art. 37, con los cambios de la Ley 21.320):
+
+| Regla | Qué exige |
+| --- | --- |
+| Días | De lunes a sábado. Nunca un domingo ni un feriado: los nacionales se calculan para cualquier año con las reglas de la ley, y `CONTACTO_FERIADOS` suma los que se decretan |
+| Horario | De 8:00 a 20:00 |
+| Cantidad | Como máximo **dos correos por semana** a una misma persona: los últimos siete días, hoy incluido |
+| Separación | Al menos **dos días** entre un correo y el siguiente |
+| Registro | Cada correo queda en la historia de la deuda |
+
+Las reglas valen para todos los correos: la invitación, los de la campaña, el recordatorio de una
+cuota y el código que reenvía la empresa. Un correo que cae en un momento prohibido no se pierde:
+sale en la primera oportunidad permitida.
+
+- **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera
+  pasada de contacto dentro del horario.
+- **El recordatorio de cuota** no sale un domingo ni un feriado. Lo manda la pasada del día
+  siguiente en que se puede, que avisa las cuotas que vencen en los próximos tres días.
+- **El código que reenvía la empresa** fuera de horario no sale, y la empresa ve el aviso *La ley
+  solo deja escribirle a un deudor de lunes a sábado, de 8:00 a 20:00*. Si ya se le escribió lo
+  que permite la semana, ve *Ya se le escribió lo que permite la ley*. Cómo decide DataBridge si escribe
+  está en el [diagrama de actividad](docs/diagramas/procesos.md#actividad-cómo-databridge-ejecuta-una-campaña).
+
+<details>
+<summary><b>Un ejemplo, día por día</b>: una campaña de cadencia 1, 4, 11 frente a la ley</summary>
+
+**Un ejemplo, día por día**, probado con una campaña de cadencia 1, 4, 11 y 3 intentos, para una
+deuda que entró el martes 6 de octubre:
+
+| Día | Qué pasó | Por qué |
+| --- | --- | --- |
+| Martes 6 | **Sale la invitación** | La deuda entró |
+| Miércoles 7 | Nada | Tocaba el correo 1 (día 1), pero la invitación salió ayer: no hay dos días entre uno y otro |
+| Jueves 8 | **Sale el correo 1** | Ya pasaron dos días |
+| Sábado 10 | Nada | Tocaba el correo 2 (día 4), pero ya van dos correos en la semana |
+| Domingo 11 | Nada | Domingo |
+| Lunes 12 | Nada | Feriado |
+| Martes 13, 7:30 | Nada | Antes de las 8:00 |
+| Martes 13, 10:00 | **Sale el correo 2** | La invitación del 6 ya quedó fuera de los últimos siete días |
+| Martes 20 | Nada | El correo 3 tocaba el sábado 17 (día 11), pero la agencia pausó la campaña en APOFYX |
+
+Tres correos en total, todos dentro de la ley, aunque la cadencia pedía más seguido. Si la agencia
+reanuda la campaña, sigue donde quedó, sin repetir los correos que ya salieron.
+
+</details>
+
+DataBridge revisa las campañas cada 15 minutos.
+
+<details>
+<summary><b>Para probar una cadencia</b> sin esperar semanas</summary>
+
+Para probar una cadencia sin esperar semanas:
+
+```powershell
+docker compose --profile app exec -T ms-debt sh -c 'curl -s -X POST http://127.0.0.1:8083/internal/campanas/contactos?ahora=2026-10-08T10:00:00\&campana=APX-CMP-8 -H X-Internal-Key:$INTERNAL_KEY'
+```
+
+La clave interna no se escribe: el contenedor la tiene en su entorno (`$INTERNAL_KEY`), sacada del
+`.env`.
+
+`ahora` es la hora de Chile que se simula y `campana` limita la pasada a una sola campaña. Cada
+correo queda fechado a esa hora.
+
+</details>
+
+---
+
 ## 9. Requisitos no funcionales
 
 **Seguridad**
@@ -3583,7 +3593,7 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
-([estado](#estado-al-15-de-octubre-de-2026)).
+([estado](#14-estado-al-15-de-octubre-de-2026)).
 
 <details>
 <summary><b>Qué cubre cada tipo de prueba</b></summary>
@@ -3645,7 +3655,7 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 
 ---
 
-## Recorrido de demostración
+## 13. Recorrido de demostración
 
 1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su enlace, que
    llega al buzón, y ve la cartera de ejemplo.
@@ -3682,7 +3692,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## Estado al 15 de octubre de 2026
+## 14. Estado al 15 de octubre de 2026
 
 **804 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
 

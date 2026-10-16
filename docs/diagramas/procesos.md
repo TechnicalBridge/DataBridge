@@ -10,7 +10,7 @@ inicio, el rojo doble el fin, el rombo una decisión, y la flecha punteada un me
 
 **La cadena con APOFYX y Patrimonio** necesita la entrega por API encendida (`INTEGRACION_API=true`): por
 omisión, los deudores entran por campaña desde el portal, como cuenta la
-[secuencia de ms-debt del README](../../README.md#83-secuencias).
+[secuencia de ms-debt del README](../../README.md#75-secuencias).
 
 ## El proceso completo, en BPMN (*to-be*)
 
