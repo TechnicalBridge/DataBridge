@@ -135,7 +135,15 @@ public class CargaService {
         boolean propia = organizacion.getRut().equalsIgnoreCase(acreedorRut);
         CarteraCsv.Lote cabecera = new CarteraCsv.Lote(lote, corte, acreedorRut,
                 propia ? null : organizacion.getRut(), idCampana);
-        return new Carga(organizacion, CarteraCsv.leer(archivo, cabecera));
+        //  La misma Cartera v1, venga en Excel (#201) o en el CSV de siempre.
+        return new Carga(organizacion, CarteraExcel.esExcel(archivo)
+                ? CarteraExcel.leer(archivo, cabecera) : CarteraCsv.leer(archivo, cabecera));
+    }
+
+    /** La plantilla en Excel, vacia y lista para llenar. Solo para una empresa. */
+    public byte[] plantilla(JwtPrincipal user) {
+        empresaDe(user);
+        return PlantillaExcel.generar(ingesta.minDiasMora());
     }
 
     private Organization empresaDe(JwtPrincipal user) {
