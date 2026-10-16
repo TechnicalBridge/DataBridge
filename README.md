@@ -3289,6 +3289,10 @@ Las reglas valen para todos los correos: la invitación, los de la campaña, el 
 cuota y el código que reenvía la empresa. Un correo que cae en un momento prohibido no se pierde:
 sale en la primera oportunidad permitida.
 
+**Para una demo se pueden apagar** las dos, solo para probar: `CONTACTO_SIN_HORARIO=true` deja escribir a
+cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, y
+en producción van en `false` ([§10](#variables-de-entorno)).
+
 - **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera
   pasada de contacto dentro del horario.
 - **El recordatorio de cuota** no sale un domingo ni un feriado. Lo manda la pasada del día
@@ -3536,6 +3540,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `INTERES_TASA_MAXIMA_MENSUAL` | `3.0` | El tope de la tasa que pacta el acreedor, en % mensual: la tasa máxima convencional vigente. Una deuda con una tasa mayor se rechaza (`tasa_sobre_maxima`) |
 | `CONTACTO_FERIADOS` | vacía | Los feriados que se decretan y no se pueden calcular (una elección, un plebiscito, un feriado especial), separados por coma. Se suman a los nacionales, que se calculan solos para cualquier año. Las campañas no contactan esos días |
 | `CONTACTO_SIN_HORARIO` | `false` | **Solo para probar.** Con `true` se le escribe al deudor a cualquier hora, también de noche, los domingos y los feriados: sirve para probar la invitación o el reenvío del código fuera del horario. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro. El límite de dos por semana sigue igual |
+| `CONTACTO_SIN_LIMITE` | `false` | **Solo para probar.** Con `true` se le escribe al deudor cuantas veces se pida, sin el tope de dos correos por semana: sirve para pedir códigos en una demo con *Reenviar código*. Cada correo se sigue anotando. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro, y *Reglas* lo muestra |
 | `INTEGRACION_API` | `false` | La entrega por API (`/api/v1`, con clave) y las claves (`/api/claves`). Apagada, responden `404` y los deudores entran solo por campaña, desde el portal. `true` la enciende, por si una empresa necesita automatizar |
 | `DEMO_DATOS` | `true` | Carga al arrancar la cartera de ejemplo. Solo agrega lo que falte: una base con datos propios no pierde nada |
 
@@ -3581,13 +3586,13 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**804 pruebas**, todas en Java y sin fallos:
+**806 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 191 |
-| `ms-debt` | 369 |
+| `ms-debt` | 371 |
 | `ms-payments` | 183 |
 | `ms-ai` | 42 |
 
@@ -3694,14 +3699,14 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 15 de octubre de 2026
 
-**804 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
+**806 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **804**, sin fallos ([§11](#11-pruebas)) |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **806**, sin fallos ([§11](#11-pruebas)) |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
 | Build del portal | Correcto, 762 módulos |

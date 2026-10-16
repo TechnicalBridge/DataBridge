@@ -2,6 +2,7 @@ package com.tbridge.debt.service;
 
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.dto.response.ReglasResponse.Regla;
+import com.tbridge.debt.repository.ContactRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -11,12 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /** La pantalla Reglas: lo que rige en ms-debt, de que variable sale, y los mismos feriados que usan las campanas. */
 class ReglasServiceTest {
 
     private final HorarioDeContacto horario = new HorarioDeContacto("2026-12-24");
-    private final ReglasService servicio = new ReglasService(45, new BigDecimal("2.50"), 5, horario, false);
+    private final LimiteDeContacto limite = new LimiteDeContacto(mock(ContactRepository.class));
+    private final ReglasService servicio = new ReglasService(45, new BigDecimal("2.50"), 5, horario, limite, false);
     private final ReglasResponse reglas = servicio.reglas(LocalDate.of(2026, 10, 15));
 
     private Regla regla(String que) {
@@ -43,7 +46,7 @@ class ReglasServiceTest {
         assertEquals("Solo por campaña, cargados desde el portal", regla("Cómo entran los deudores").valor());
         assertEquals("INTEGRACION_API", regla("Cómo entran los deudores").variable());
 
-        Regla conLaApi = new ReglasService(45, new BigDecimal("2.50"), 5, horario, true)
+        Regla conLaApi = new ReglasService(45, new BigDecimal("2.50"), 5, horario, limite, true)
                 .reglas(LocalDate.of(2026, 10, 15)).grupos().getFirst().reglas().getFirst();
         assertEquals("Por campaña, desde el portal, y también por la API con una clave", conLaApi.valor());
     }
@@ -60,7 +63,7 @@ class ReglasServiceTest {
     @Test
     void si_el_horario_esta_apagado_para_probar_lo_dice_a_gritos() {
         ReglasResponse conElHorarioApagado = new ReglasService(45, new BigDecimal("2.50"), 5,
-                new HorarioDeContacto("", true), false).reglas(LocalDate.of(2026, 10, 15));
+                new HorarioDeContacto("", true), limite, false).reglas(LocalDate.of(2026, 10, 15));
         Regla cuando = conElHorarioApagado.grupos().stream()
                 .flatMap(grupo -> grupo.reglas().stream())
                 .filter(r -> r.que().equals("Cuándo se le puede escribir"))
@@ -69,6 +72,23 @@ class ReglasServiceTest {
 
         assertTrue(cuando.valor().startsWith("APAGADO PARA PROBAR"), cuando.valor());
         assertEquals("CONTACTO_SIN_HORARIO", cuando.variable());
+    }
+
+    @Test
+    void si_el_limite_esta_apagado_para_probar_tambien_lo_dice_a_gritos() {
+        ReglasResponse conElLimiteApagado = new ReglasService(45, new BigDecimal("2.50"), 5, horario,
+                new LimiteDeContacto(mock(ContactRepository.class), true), false).reglas(LocalDate.of(2026, 10, 15));
+        Regla cuantas = conElLimiteApagado.grupos().stream()
+                .flatMap(grupo -> grupo.reglas().stream())
+                .filter(r -> r.que().equals("Cuántas veces"))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(cuantas.valor().startsWith("APAGADO PARA PROBAR"), cuantas.valor());
+        assertTrue(cuantas.valor().contains("2 correos por semana"), cuantas.valor());
+        assertEquals("CONTACTO_SIN_LIMITE", cuantas.variable());
+        //  Y encendido, como siempre: lo fija la ley.
+        assertNull(regla("Cuántas veces").variable());
     }
 
     @Test

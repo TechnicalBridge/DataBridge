@@ -200,6 +200,7 @@ services:
       CONTACTO_FERIADOS: ${CONTACTO_FERIADOS:-}
       #  Solo para probar: true apaga el horario de la ley (nunca en produccion).
       CONTACTO_SIN_HORARIO: ${CONTACTO_SIN_HORARIO:-false}
+      CONTACTO_SIN_LIMITE: ${CONTACTO_SIN_LIMITE:-false}
       #  La entrega por API (/api/v1, con clave) y las claves (/api/claves):
       #  apagadas, los deudores entran solo por campana. true las enciende.
       INTEGRACION_API: ${INTEGRACION_API:-false}
