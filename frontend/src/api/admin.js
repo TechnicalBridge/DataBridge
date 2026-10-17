@@ -68,3 +68,6 @@ export async function historialDeEmpresa(rut) {
 }
 
 export const historialDeAdmins = () => pedir("/admin/auth/admins/historial").then(acciones);
+
+/** Lo que DataBridge le cobra a cada empresa en un mes (2026-10): el modelo de negocio, #200. */
+export const comisionesDelMes = (mes) => pedir("/admin/debt/comisiones", { params: { mes } });

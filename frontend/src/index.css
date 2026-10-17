@@ -335,6 +335,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 /* ---- Portal: marco ------------------------------------------------------------------------- */
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 256px 1fr; }
+.app-shell > * { min-width: 0; }
 .sidebar {
   position: sticky;
   top: 0;
@@ -705,6 +706,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .cifra span { color: var(--muted); font-size: 13.5px; }
 .cifra.entran b { color: var(--brand); }
 .cifra.rechazo b { color: var(--danger); }
+/* El modelo de negocio (#200): la tarjeta va sobre la grilla, a lo ancho. */
+.comision-del-mes { margin-bottom: 16px; }
+.selector-mes { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.selector-mes input { width: auto; }
+.table.tramos caption { caption-side: top; text-align: left; padding: 0 0 6px; }
+.table.tramos tr.vigente td { background: var(--brand-soft); font-weight: 600; }
+.table.tramos .badge { margin-left: 8px; }
 .lista-revision { margin: 4px 0 14px; padding-left: 20px; max-height: 260px; overflow: auto; font-size: 14.5px; }
 .lista-revision li { margin: 4px 0; overflow-wrap: anywhere; }
 

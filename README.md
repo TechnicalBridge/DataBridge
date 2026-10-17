@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-15-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-16-de-octubre-de-2026) |
 
 ---
 
@@ -597,7 +597,7 @@ El portal queda en http://localhost:5173, servido por Vite con recarga automáti
 
 ---
 
-## 5. Metodología de trabajo
+## 5. Metodología de trabajo: Scrumban
 
 **Scrumban.** Usamos los **roles de Scrum**, pero el trabajo fluye como en **Kanban**: sin sprints, cada
 tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas prácticas ligeras de **DevOps**.
@@ -1593,11 +1593,12 @@ flowchart LR
         E7(["Seguir los convenios en riesgo"])
         E8(["Cargar deudores<br/>en una campaña"])
         E9(["Crear, pausar y terminar campañas"])
+        E12(["Consultar la comisión mensual<br/>y lo recuperado por campaña"])
         E11(["Exportar la cartera a un archivo"])
     end
     COR{{"Servidor de correo"}}
 
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11
+    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12
     E3 -. "«include»" .-> E2
     E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
     E5 -. "«extend»<br/>si está en reclamo" .-> E3
@@ -1625,9 +1626,10 @@ flowchart LR
         A7(["Dar de alta a otro admin"])
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
         A9(["Ver las reglas que rigen"])
+        A10(["Consultar la comisión mensual<br/>de cada empresa"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -1719,6 +1721,9 @@ Cada caso con su endpoint está en [`docs/diagramas/casos-de-uso.md`](docs/diagr
 | **E5. Reclamar** | El deudor; la empresa resuelve | `Debt` en `disputed`, `DebtEvent` | [Estados de una deuda](docs/diagramas/estados.md#una-deuda) | portal → gateway → ms-debt |
 
 ### 7.4 Clases
+
+El cálculo de la comisión mensual y sus dependencias se detallan en
+[El modelo de negocio](docs/diagramas/clases.md#el-modelo-de-negocio).
 
 #### El dominio
 
@@ -3203,6 +3208,51 @@ Qué hay en cada paquete, y cómo se conecta cada componente, está en
 Lo que DataBridge exige a una cartera, cómo cobra los intereses que pactó el acreedor, y cómo cumple una
 campaña dentro de lo que permite la ley.
 
+### El modelo de negocio
+
+DataBridge calcula una comisión mensual por empresa usuaria sobre lo que recupera con la plataforma.
+La paga quien cargó la deuda: la agencia de cobranza o el acreedor que cobra directamente. El deudor
+no paga esta comisión y un mismo pago no se atribuye a dos empresas.
+
+`G` es la suma en pesos de los pagos abonados durante el mes calendario, con la hora de Chile,
+en todas las campañas de esa empresa. En UF cuentan los pesos cobrados por la pasarela, no una
+conversión con la UF de hoy. Los pagos fallidos, anulados o duplicados no se abonan y no suman.
+
+| Recuperado por la empresa en el mes (G) | Porcentaje p(G) |
+| --- | --- |
+| Más de $0 y hasta $1.000.000 | 6 % |
+| Más de $1.000.000 y hasta $5.000.000 | 10 % |
+| Más de $5.000.000 y hasta $10.000.000 | 12 % |
+| Más de $10.000.000 | 15 % |
+
+**Comisión de DataBridge:** `P(G) = G × p(G) / 100`, con `p(G)` expresado como 6, 10, 12 o 15.
+**Para la empresa:** `G − P(G)`. La comisión se redondea al peso más cercano; medio peso sube.
+Sin recuperación, ambos montos y el porcentaje son cero y no hay tramo vigente.
+
+| Recuperado | Porcentaje | Comisión | Para la empresa |
+| --- | --- | --- | --- |
+| $800.000 | 6 % | $48.000 | $752.000 |
+| $1.000.001 | 10 % | $100.000 | $900.001 |
+| $12.000.000 | 15 % | $1.800.000 | $10.200.000 |
+
+**El porcentaje va sobre todo G, no por tramos escalonados.** Al pasar un corte aumenta la comisión
+sobre el total: con $1.000.000 quedan $940.000 para la empresa y con $1.000.001 quedan $900.001.
+Es el modelo acordado por el equipo y se conserva ese salto.
+
+La empresa ve el mes en *Campañas*, puede consultar uno anterior y ve lo recuperado por cada campaña.
+El admin ve la comisión por empresa en *Empresas*. El tramo depende del total de la empresa,
+no de cada campaña por separado. Esto calcula y muestra la comisión: no emite una factura ni
+descuenta dinero automáticamente de los pagos de las pasarelas.
+
+| Consulta | Quién la usa | Respuesta |
+| --- | --- | --- |
+| `GET /api/analytics/comision?mes=2026-10` | Empresa autenticada | Solo su recuperación, comisión, tramos y campañas |
+| `GET /api/admin/debt/comisiones?mes=2026-10` | Admin de DataBridge | Las empresas con pagos en el mes y los totales |
+
+Sin `mes` se consulta el actual en Chile. En el JSON el mes es una fecha (su primer día), los
+montos son números enteros en pesos y los porcentajes son números. El detalle del cálculo está en
+[las clases del modelo de negocio](docs/diagramas/clases.md#el-modelo-de-negocio).
+
 ### Las reglas de la cartera
 
 **El alcance son los deudores morosos.** Una deuda entra a cobranza cuando su cargo impago más
@@ -3301,6 +3351,26 @@ La última cuota absorbe el redondeo de los pesos.
 | La deuda no trae tasa | Nada cambia: se cobra lo que mandó el acreedor, y el convenio es sin interés |
 | El deudor reclama | La mora **sigue corriendo**. Si la empresa le da la razón, la deuda se retira y no se cobra nada; si no, se cobra con los días que pasaron |
 | La deuda está en UF | Igual, con dos decimales |
+
+### Cómo crear una campaña con descuento por pronto pago
+
+El descuento beneficia al deudor y se aplica sobre los intereses de mora; es independiente de la
+comisión que la empresa paga a DataBridge. Para configurarlo desde el portal:
+
+1. Entra como usuario de la empresa y abre *Campañas*.
+2. En *Nueva campaña*, escribe el nombre y elige el acreedor si tienes más de uno.
+3. Define inicio, fin, número de contactos y días de contacto. El canal actual es correo.
+4. En los descuentos por mora, indica un porcentaje de 0 a 100 para cada tramo: *1 a 30 días*,
+   *31 a 90 días* y *Más de 90 días*. Por ejemplo, 0, 50 y 100. Vacío equivale a no ofrecer descuento.
+5. Guarda. Si cobras como agencia, ningún porcentaje puede superar el máximo que el acreedor
+   autorizó en su mandato; si cobras tu propia cartera, el máximo es 100 %.
+6. Usa *Cargar deudores* en esa campaña, sube la planilla y revisa lo que entraría antes de confirmar.
+7. El deudor ve la oferta vigente al consultar su deuda. Solo se ofrece en una campaña en curso,
+   dentro de sus fechas, al pagar la deuda completa: no al pagar una parte ni una cuota de convenio.
+
+Por ejemplo, sobre $900.000 de capital y $18.800 de mora, un descuento del 50 % de esa mora
+rebaja $9.400: el deudor paga $909.400. Lo que se descuenta no es el 50 % del capital. Si la empresa
+recuperó solo ese pago en el mes, la comisión de DataBridge es el 6 % de $909.400: $54.564.
 
 ### Las campañas
 
@@ -3650,25 +3720,26 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**833 pruebas**, todas en Java y sin fallos:
+**847 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 193 |
-| `ms-debt` | 393 |
+| `ms-debt` | 407 |
 | `ms-payments` | 185 |
 | `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
-([estado](#14-estado-al-15-de-octubre-de-2026)).
+([estado](#14-estado-al-16-de-octubre-de-2026)).
 
 <details>
 <summary><b>Qué cubre cada tipo de prueba</b></summary>
 
 | Tipo | Qué cubre |
 | --- | --- |
+| **Del modelo de negocio** | Los cuatro tramos, los límites y el redondeo en pesos; el total mensual de todas las campañas, con la zona horaria de Chile; los pagos en UF con sus pesos guardados; los meses vacíos, el aislamiento de la empresa y la vista del admin. Un detalle antiguo nulo o mal formado no impide calcular un pago en pesos |
 | **Unitarias** (JUnit 5 + Mockito) | Las reglas de cada servicio con los repositorios simulados. Que cada quien vea solo lo suyo; que el monto salga de ms-debt y no del navegador; que un pago avisado dos veces se abone una; que las cuotas se paguen en orden; que solo entren deudores morosos; que un cliente al día cierre lo que estaba en cobranza; que el mandato registre al acreedor nuevo; que un convenio sobreviva al mes siguiente; el reclamo y sus dos resoluciones; el cifrado y que un secreto viejo se cifre al arrancar; la sesión revocable, el código de acceso, la UF, la firma de los eventos y el recordatorio |
 | **De Webpay** | El cliente contra un Transbank falso: crear, confirmar, consultar y sus errores, sin que el detalle de Transbank ni la llave lleguen a la persona; el plazo según el ambiente. El retorno aprobado; rechazado, sin código, con otro monto o con otra orden; anulado, con error de formulario y por tiempo; repetido; con Transbank caído; con un token ajeno. La página que manda el token una sola vez. La consulta periódica: el pago sin confirmar que se confirma, el confirmado que se registra, el fallido, reversado o anulado, el que sigue abierto, el que vence pasado el plazo y el que vence si Transbank no contesta en un día. Al abrir otro cobro, el anterior pagado se registra y frena el nuevo, y el anterior sin pagar se vence |
 | **De seguridad de las pasarelas** | La página de Webpay escapa lo que muestra; con la firma de otro pago no se abre ni se gasta el token; una vuelta por tiempo con una sesión inventada no hace fallar el cobro de otro; la respuesta del cobro no muestra el token; un cobro vencido que se pagó no se confirma (para no cobrar dos veces); la consulta no acepta otro monto ni otra orden; la vuelta, la página y la consulta bloquean la fila del pago, y entre la consulta y la vuelta se confirma una sola vez |
@@ -3765,19 +3836,20 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 15 de octubre de 2026
+## 14. Estado al 16 de octubre de 2026
 
-**833 pruebas sin fallos**, el portal compila, y cada pieza se probó en vivo y en Edge: las pasarelas de verdad (Webpay, Khipu y Mercado Pago), los intereses y el descuento, las campañas frente a la ley, el correo por Brevo, el panel, la carga en una campaña y la API apagada.
+**847 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **833**, sin fallos ([§11](#11-pruebas)) |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **847**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los seis diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
-| Build del portal | Correcto, 762 módulos |
+| Build del portal | Correcto, 764 módulos |
 | Cadena completa, sobre los contenedores reconstruidos | **16 de 16** comprobaciones: el cliente moroso nuevo llega desde Patrimonio, DataBridge registra al acreedor y lo invita, el deudor reclama y la disputa llega al acreedor, la agencia reanuda, el pago vuelve hasta el contrato y un lote repetido no se procesa dos veces |
 | Khipu | Contra un Khipu falso con la forma de la API v3, con los contenedores reconstruidos y en Edge: el deudor se arrepiente y el portal dice *El pago no se completó*; paga y dice *Pago aprobado*; paga y cierra la ventana sin volver, y la consulta periódica lo registra sola. En los tres casos el contrato de Patrimonio queda con lo que corresponde. Y contra **Khipu real**, con una cuenta en modo desarrollador: se pagó con DemoBank, Khipu lo concilió (4 min 20 s desde que se abrió el cobro, contando lo que tarda la persona en Khipu) y ms-payments lo registró 21 s después, cuando todavía revisaba cada 30 s Al cancelar, el cobro se anula en Khipu: probado contra Khipu real, donde queda `deleted` y ya no se puede pagar |
 | Mercado Pago | Contra el Mercado Pago real con credenciales de prueba, con ms-payments reconstruido y en Edge: la preferencia se crea con vencimiento a 30 minutos; el deudor paga con la tarjeta de prueba y no vuelve al portal, y la consulta periódica registra el pago en unos 10 s: queda `paid` y la deuda del contrato en Patrimonio baja a $0 |

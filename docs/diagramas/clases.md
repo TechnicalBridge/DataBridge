@@ -2,12 +2,12 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **288 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **296 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
 | [ms-auth](#ms-auth--el-acceso) | 58 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 156 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
+| [ms-debt](#ms-debt--la-cartera) | 164 | La cartera: empresas, deudas, convenios, campañas, comisiones y eventos | 8 |
 | [ms-payments](#ms-payments--los-cobros) | 53 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
@@ -1300,6 +1300,7 @@ classDiagram
         class AnalyticsController {
             <<controller>>
             +summary(JwtPrincipal) ResumenResponse
+            +comision(JwtPrincipal, YearMonth) ComisionResponse
         }
     }
     namespace service {
@@ -1489,6 +1490,57 @@ classDiagram
 | `CampanaAvanceService` | `service` | El avance de cada campaña, publicado una vez al día. |
 | `ApiKeyService` | `service` | Emite, revoca y autentica las claves de API. |
 | `AnalyticsService` | `service` | Los números de una cartera, y de ninguna otra. |
+
+### El modelo de negocio
+
+La comisión de una empresa en un mes se calcula sobre los eventos `payment_applied`, en pesos y
+con los límites del mes en Chile. La base no guarda otra comisión ni se consulta ms-payments:
+el detalle del evento ya conserva los pesos cobrados. Los DTO `ComisionResponse` (con los tipos
+`PorCampana` y `TramoResponse`) y `ComisionesResponse` (con `Empresa`) documentan el resultado en Swagger.
+
+```mermaid
+classDiagram
+    direction LR
+    class AnalyticsController {
+        <<controller>>
+        +comision(JwtPrincipal, YearMonth) ComisionResponse
+    }
+    class AdminController {
+        <<controller>>
+        +comisiones(YearMonth) ComisionesResponse
+    }
+    class ComisionService {
+        <<service>>
+        +deLaEmpresa(JwtPrincipal, YearMonth) ComisionResponse
+        +deTodas(YearMonth) ComisionesResponse
+    }
+    class ModeloDeNegocio {
+        <<utility>>
+        +tramoDe(long)$ Optional~Tramo~
+        +porcentaje(long)$ BigDecimal
+        +comision(long)$ long
+    }
+    class Tramo {
+        <<record>>
+        +desde : long
+        +hasta : Long
+        +porcentaje : BigDecimal
+    }
+    class DebtEventRepository {
+        <<repository>>
+        +entre(Type, Instant, Instant) List~DebtEvent~
+        +deLaEmpresaEntre(Organization, Type, Instant, Instant) List~DebtEvent~
+    }
+    class DebtService {
+        <<service>>
+    }
+    AnalyticsController --> ComisionService
+    AdminController --> ComisionService
+    ComisionService --> DebtEventRepository
+    ComisionService --> DebtService
+    ComisionService ..> ModeloDeNegocio
+    ModeloDeNegocio ..> Tramo
+```
 
 ### Lo que corre solo y lo que se habla con otros servicios
 
@@ -2220,7 +2272,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
 | `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ComisionResponse`, `ComisionesResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 
