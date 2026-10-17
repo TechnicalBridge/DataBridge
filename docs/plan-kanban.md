@@ -129,7 +129,7 @@ mismas preguntas: responden lo mismo.
 
 **D8. El asistente con una cascada de LLMs.** El asistente no depende de un solo proveedor: prueba
 varios, compatibles con la API de OpenAI, en el orden que diga `LLM_ORDEN` (por omisión Ollama,
-Groq y Gemini). Si uno falla o agota su cuota, pasa al siguiente y lo deja en enfriamiento unos
+Grok y Gemini). Si uno falla o agota su cuota, pasa al siguiente y lo deja en enfriamiento unos
 minutos para no reintentarlo en cada mensaje; si todos fallan, responde con las reglas locales.
 Ollama va primero porque es local: mientras responda, ninguna deuda sale del equipo.
 
