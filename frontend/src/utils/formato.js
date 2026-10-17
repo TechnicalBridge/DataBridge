@@ -104,6 +104,13 @@ export const MOTIVOS_DISPUTA = {
   otro: "Otro motivo",
 };
 
+/** Que es una empresa para DataBridge, como se le dice a una persona. */
+export const TIPO_DE_EMPRESA = {
+  agencia: "Agencia de cobranza",
+  acreedor: "Acreedor",
+  ambos: "Acreedor y agencia",
+};
+
 export const ESTADO_DEUDA = {
   open: "Pendiente",
   repacted: "En convenio",

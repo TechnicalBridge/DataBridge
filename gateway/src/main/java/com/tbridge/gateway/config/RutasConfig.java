@@ -34,6 +34,12 @@ public class RutasConfig {
                 .route("ms-payments", r -> r.path("/api/payments/**").uri(payments))
                 .route("ms-ai", r -> r.path("/api/ai/**").uri(ai))
 
+                //  El panel de administracion de DataBridge. Cada servicio atiende
+                //  su parte y exige el mismo que la sesion sea de un admin.
+                .route("panel-ms-auth", r -> r.path("/api/admin/auth/**").uri(auth))
+                .route("panel-ms-debt", r -> r.path("/api/admin/debt/**").uri(debt))
+                .route("panel-ms-payments", r -> r.path("/api/admin/payments/**").uri(payments))
+
                 .route("docs-ms-auth", r -> r.path("/v3/api-docs/ms-auth/**")
                         .filters(f -> f.rewritePath("/v3/api-docs/ms-auth/(?<grupo>.*)", "/v3/api-docs/${grupo}"))
                         .uri(auth))

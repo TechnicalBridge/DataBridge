@@ -43,6 +43,18 @@ final class SesionesEnMemoria {
             }
             return revocadas;
         });
+        when(repositorio.revocarDeCorreo(any(), any())).thenAnswer(llamada -> {
+            String correo = llamada.getArgument(0);
+            Instant ahora = llamada.getArgument(1);
+            int revocadas = 0;
+            for (Session sesion : filas) {
+                if (correo.equalsIgnoreCase(sesion.getEmail()) && sesion.getRevokedAt() == null) {
+                    sesion.setRevokedAt(ahora);
+                    revocadas++;
+                }
+            }
+            return revocadas;
+        });
     }
 
     private Optional<Session> buscar(String huella) {

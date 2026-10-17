@@ -19,13 +19,20 @@ import java.time.Instant;
 @Table(name = "staff_users")
 public class StaffUser {
 
-    public enum Role { operator, admin }
+    /**
+     * {@code admin} es de DataBridge y entra al panel de administracion;
+     * {@code usuario} es de una empresa usuaria y entra al portal de su empresa.
+     * Un admin nunca tiene empresa y una persona de una empresa nunca es admin:
+     * lo exige tambien la base (V4).
+     */
+    public enum Role { usuario, admin }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "org_rut", nullable = false, length = 12)
+    /** La empresa de un usuario. Un admin no tiene: es de DataBridge. */
+    @Column(name = "org_rut", length = 12)
     private String orgRut;
 
     @Column(nullable = false, length = 254, unique = true)
@@ -36,7 +43,7 @@ public class StaffUser {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    private Role role = Role.operator;
+    private Role role = Role.usuario;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
@@ -51,6 +58,21 @@ public class StaffUser {
         return disabledAt == null;
     }
 
+    public boolean esAdmin() {
+        return role == Role.admin;
+    }
+
+    /** Le quita el acceso. La persona no se borra: queda la cuenta y cuando se deshabilito. */
+    public void deshabilitar() {
+        if (disabledAt == null) {
+            disabledAt = Instant.now();
+        }
+    }
+
+    public void habilitar() {
+        disabledAt = null;
+    }
+
     public Long getId() { return id; }
     public String getOrgRut() { return orgRut; }
     public void setOrgRut(String orgRut) { this.orgRut = orgRut; }
@@ -62,5 +84,7 @@ public class StaffUser {
     public void setRole(Role role) { this.role = role; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Instant getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public Instant getDisabledAt() { return disabledAt; }
 }

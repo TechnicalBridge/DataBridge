@@ -87,7 +87,8 @@ services:
   #  http://localhost:8025 sin mandarlos a nadie. Asi la demo usa el camino de
   #  verdad (el codigo llega por correo) sin tener un SMTP real.
   #
-  #  Para que ms-auth le escriba:
+  #  ms-auth le escribe solo, mientras el .env no traiga un SMTP_HOST. Para
+  #  que le escriba corriendo con Maven:
   #      SMTP_HOST=localhost SMTP_PORT=1025 SMTP_AUTH=false SMTP_STARTTLS=false
   # ---------------------------------------------------------------------------
   mailpit:
@@ -139,13 +140,32 @@ services:
       COOKIE_SECURE:     ${COOKIE_SECURE:-false}
       CODE_TTL_HOURS:    ${CODE_TTL_HOURS:-24}
       MAGIC_TTL_MINUTES: ${MAGIC_TTL_MINUTES:-15}
+      INVITACION_TTL_HORAS: ${INVITACION_TTL_HORAS:-24}
+      #  El primer admin de DataBridge: entra al panel de administracion con un
+      #  enlace a este correo. Sin el no hay admin, y nadie entra al panel.
+      ADMIN_CORREO:      ${ADMIN_CORREO:-}
       MAIL_FROM:         ${MAIL_FROM:-noreply@technicalbridge.local}
-      #  Los correos van al buzon de prueba, no a nadie de verdad. En Docker
-      #  SMTP_* del .env no se usan: son para correr ms-auth con Maven.
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_AUTH: "false"
-      SMTP_STARTTLS: "false"
+      MAIL_FROM_NAME:    ${MAIL_FROM_NAME:-DataBridge}
+      MAIL_REPLY_TO:     ${MAIL_REPLY_TO:-}
+      #  Sin SMTP_HOST en el .env, los correos van al buzon de prueba de mas
+      #  abajo y no a nadie de verdad: el resto de SMTP_* se ignora. Con
+      #  SMTP_HOST van a ese servidor (Gmail, o un proveedor de correo).
+      SMTP_HOST:       ${SMTP_HOST:-}
+      SMTP_PORT:       ${SMTP_PORT:-587}
+      SMTP_USER:       ${SMTP_USER:-}
+      SMTP_PASSWORD:   ${SMTP_PASSWORD:-}
+      SMTP_AUTH:       ${SMTP_AUTH:-true}
+      SMTP_STARTTLS:   ${SMTP_STARTTLS:-true}
+      SMTP_SSL:        ${SMTP_SSL:-false}
+      SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
+      #  Con una clave de Brevo, los correos salen por su API y no por SMTP.
+      BREVO_API_KEY:   ${BREVO_API_KEY:-}
+      BREVO_URL:       ${BREVO_URL:-https://api.brevo.com/v3/smtp/email}
+      CORREO_BUZON_DE_PRUEBA: mailpit:1025
+      #  El modo de prueba, para un servidor real: a quien se le escribe
+      #  directo, y a donde se desvia lo demas. Vacias, se le escribe a todos.
+      CORREO_SOLO_A:    ${CORREO_SOLO_A:-}
+      CORREO_DESVIAR_A: ${CORREO_DESVIAR_A:-}
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8081/actuator/health || exit 1"]
       interval: 10s
@@ -178,6 +198,12 @@ services:
       INTERES_TASA_MAXIMA_MENSUAL: ${INTERES_TASA_MAXIMA_MENSUAL:-3.0}
       #  Feriados que se suman a los de 2026, en que las campanas no contactan.
       CONTACTO_FERIADOS: ${CONTACTO_FERIADOS:-}
+      #  Solo para probar: true apaga el horario de la ley (nunca en produccion).
+      CONTACTO_SIN_HORARIO: ${CONTACTO_SIN_HORARIO:-false}
+      CONTACTO_SIN_LIMITE: ${CONTACTO_SIN_LIMITE:-false}
+      #  La entrega por API (/api/v1, con clave) y las claves (/api/claves):
+      #  apagadas, los deudores entran solo por campana. true las enciende.
+      INTEGRACION_API: ${INTEGRACION_API:-false}
       #  Cifra en la base el secreto de las suscripciones a los avisos.
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
       DEMO_DATOS: ${DEMO_DATOS:-true}
@@ -325,7 +351,7 @@ services:
       #  una lista vacia hace que el gateway vuelva a borrar la IP del cliente,
       #  y todos los intentos fallidos se cuentan como si fueran de una sola
       #  persona.
-      TRUSTED_PROXIES: '${TRUSTED_PROXIES:-127\.0\.0\.1|0:0:0:0:0:0:0:1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*}'
+      TRUSTED_PROXIES: '${TRUSTED_PROXIES:-127\.0\.0\.1|0:0:0:0:0:0:0:1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*|f[cd][0-9a-f]{2}:.*}'
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8082/actuator/health || exit 1"]
       interval: 10s

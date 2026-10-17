@@ -7,6 +7,7 @@ import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.repository.CampaignRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.junit.jupiter.api.Test;
@@ -25,8 +26,9 @@ class CampanaAvanceTest {
     private final CampaignRepository campanas = mock(CampaignRepository.class);
     private final DebtRepository debts = mock(DebtRepository.class);
     private final DebtEventRepository eventos = mock(DebtEventRepository.class);
+    private final ContactRepository contactos = mock(ContactRepository.class);
     private final EventosService avisos = mock(EventosService.class);
-    private final CampanaAvanceService servicio = new CampanaAvanceService(campanas, debts, eventos, avisos);
+    private final CampanaAvanceService servicio = new CampanaAvanceService(campanas, debts, eventos, contactos, avisos);
 
     private static Debt deuda(Debt.Currency moneda) {
         Debt d = new Debt();
@@ -45,8 +47,9 @@ class CampanaAvanceTest {
     @Test
     void cuentaElEmbudoDeLaCampana() {
         Debt una = deuda(Debt.Currency.CLP);
+        //  Lo enviado se cuenta en la tabla de contactos: la invitacion, dos toques y un reenvio.
+        when(contactos.countByDebtIn(List.of(una))).thenReturn(4L);
         CampanaAvanceDatos datos = avanceCon(List.of(una), List.of(
-                DebtEvent.de(una, DebtEvent.Type.code_sent, DebtEvent.Actor.agency),
                 DebtEvent.de(una, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor),
                 DebtEvent.de(una, DebtEvent.Type.repacted, DebtEvent.Actor.debtor),
                 DebtEvent.de(una, DebtEvent.Type.payment_applied, DebtEvent.Actor.system)
@@ -54,7 +57,7 @@ class CampanaAvanceTest {
 
         assertEquals("APX-CMP-8", datos.campanaIdExterno());
         assertEquals(1, datos.deudas());
-        assertEquals(1, datos.enviados());
+        assertEquals(4, datos.enviados());
         assertEquals(1, datos.ingresosPortal());
         assertEquals(1, datos.repactaciones());
         assertEquals(1, datos.pagos());
@@ -88,6 +91,7 @@ class CampanaAvanceTest {
             assertFalse(comoViaja.has(noMedido), noMedido);
         }
         assertEquals(0, comoViaja.get("deudas").asInt());
+        assertEquals(0, comoViaja.get("enviados").asInt(), "sin cartera no hay a quien haberle escrito");
         assertEquals("APX-CMP-8", comoViaja.get("campana_id_externo").asText());
     }
 }

@@ -32,6 +32,29 @@ export const IconoChat = (p) => (
 
 export const IconoCerrar = (p) => <Trazo {...p}><path d="M6 6l12 12M18 6L6 18" /></Trazo>;
 
+export const IconoPanel = (p) => (
+  <Trazo {...p}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+  </Trazo>
+);
+
+export const IconoEmpresa = (p) => (
+  <Trazo {...p}>
+    <path d="M4 20.5V5.5a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 15 5.5v15M15 10h3.5A1.5 1.5 0 0 1 20 11.5v9M2.5 20.5h19" />
+    <path d="M8 8h3M8 12h3M8 16h3" />
+  </Trazo>
+);
+
+export const IconoEquipo = (p) => (
+  <Trazo {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.2a6.5 6.5 0 0 1 4 5.8" />
+  </Trazo>
+);
+
 export const IconoCandado = (p) => (
   <Trazo {...p}><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Trazo>
 );
@@ -71,17 +94,17 @@ export const IconoAlerta = (p) => (
   <Trazo {...p}><path d="M12 3.5l9 15.5H3z" /><path d="M12 10v4M12 16.8h.01" /></Trazo>
 );
 
+/** Una balanza: las reglas que rigen. */
+export const IconoReglas = (p) => (
+  <Trazo {...p}>
+    <path d="M12 4v16M8 20h8M5 7h14" />
+    <path d="M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z" />
+  </Trazo>
+);
+
 export const IconoSubir = (p) => <Trazo {...p}><path d="M12 16V4M6 10l6-6 6 6M4 20h16" /></Trazo>;
 
 export const IconoDescargar = (p) => <Trazo {...p}><path d="M12 4v12M6 10l6 6 6-6M4 20h16" /></Trazo>;
-
-export const IconoLlave = (p) => (
-  <Trazo {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3M14 9l2 2" /></Trazo>
-);
-
-export const IconoCopiar = (p) => (
-  <Trazo {...p}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></Trazo>
-);
 
 /** El check que se dibuja solo, para cuando un pago queda listo. */
 export function CheckAnimado({ size = 72 }) {

@@ -7,7 +7,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** GET /api/health: si el asistente esta arriba y si tiene un LLM. */
+/**
+ * GET /api/ai/salud: si el asistente esta arriba y si tiene un LLM. Va bajo
+ * /api/ai, como todo lo del asistente, porque es lo unico que el gateway le
+ * manda a ms-ai: en /api/health Swagger lo mostraba y respondia 404.
+ */
 @RestController
 @Tag(name = "Salud")
 public class SaludController {
@@ -18,7 +22,7 @@ public class SaludController {
         this.llm = llm;
     }
 
-    @GetMapping("/api/health")
+    @GetMapping("/api/ai/salud")
     @Operation(summary = "Estado del asistente")
     public Salud salud() {
         return new Salud(true, "ms-ai", llm.configurado(), llm.estado());

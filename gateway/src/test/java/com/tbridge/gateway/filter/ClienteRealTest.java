@@ -1,6 +1,10 @@
 package com.tbridge.gateway.filter;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.env.PropertiesPropertySourceLoader;
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -16,6 +20,36 @@ class ClienteRealTest {
     /** El mismo patron que trae el gateway por omision. */
     private final ClienteReal clientes =
             new ClienteReal("127\\.0\\.0\\.1|0:0:0:0:0:0:0:1|172\\.(1[6-9]|2[0-9]|3[01])\\..*");
+
+    /** El patron tal como lo trae application.properties, si nadie define TRUSTED_PROXIES. */
+    private static ClienteReal comoViene() throws IOException {
+        String crudo = String.valueOf(new PropertiesPropertySourceLoader()
+                .load("configuracion", new ClassPathResource("application.properties"))
+                .getFirst()
+                .getProperty("spring.cloud.gateway.server.webflux.trusted-proxies"));
+        //  ${TRUSTED_PROXIES:<patron>}: lo que va despues de los dos puntos, sin la llave final.
+        return new ClienteReal(crudo.substring(crudo.indexOf(':') + 1, crudo.length() - 1));
+    }
+
+    @Test
+    void el_portal_que_llega_por_la_red_privada_de_railway_es_de_confianza() throws IOException {
+        ClienteReal porOmision = comoViene();
+
+        //  Asi escribe Java una direccion privada de IPv6, la que tiene el portal en Railway.
+        assertEquals("203.0.113.7", porOmision.resolver("fd12:3456:789a:1:0:0:0:1", "203.0.113.7"));
+        assertEquals("203.0.113.7", porOmision.resolver("10.20.30.40", "203.0.113.7"));
+        assertEquals("203.0.113.7", porOmision.resolver("172.21.0.10", "203.0.113.7"));
+    }
+
+    @Test
+    void una_direccion_publica_no_es_de_confianza_tampoco_en_ipv6() throws IOException {
+        ClienteReal porOmision = comoViene();
+
+        assertEquals("198.51.100.4", porOmision.resolver("198.51.100.4", "1.2.3.4"));
+        assertEquals("2001:db8:0:0:0:0:0:1", porOmision.resolver("2001:db8:0:0:0:0:0:1", "1.2.3.4"));
+        assertEquals("fe80:0:0:0:0:0:0:1", porOmision.resolver("fe80:0:0:0:0:0:0:1", "1.2.3.4"),
+                "una de enlace local no es una red privada");
+    }
 
     @Test
     void detras_del_nginx_cuenta_la_ip_que_vio_nginx() {

@@ -4,10 +4,12 @@ import com.tbridge.debt.events.PagoConfirmado;
 import com.tbridge.debt.security.JwtService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.DebtSnapshotResponse;
+import com.tbridge.debt.dto.response.OrganizacionResponse;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
 import com.tbridge.debt.service.ApiKeyService;
 import com.tbridge.debt.service.CampanaAvanceService;
 import com.tbridge.debt.service.DebtService;
+import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ContactoService;
 import com.tbridge.debt.service.RecordatorioService;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,6 +51,27 @@ class InternalControllerTest {
     @MockitoBean private ApiKeyService claves;
     @MockitoBean private RecordatorioService recordatorios;
     @MockitoBean private ContactoService contactos;
+    @MockitoBean private EmpresaService empresas;
+
+    @Test
+    void ms_auth_pregunta_si_una_empresa_existe_antes_de_darle_una_persona() throws Exception {
+        when(empresas.buscar("77305118-6")).thenReturn(Optional.of(new OrganizacionResponse("77305118-6", "APOFYX", true)));
+        when(empresas.buscar("76086428-5")).thenReturn(Optional.empty());
+
+        mvc.perform(get("/internal/organizaciones/77305118-6").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("APOFYX"))
+                .andExpect(jsonPath("$.activa").value(true));
+        mvc.perform(get("/internal/organizaciones/76086428-5").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("No hay ninguna empresa con ese RUT"));
+    }
+
+    @Test
+    void sin_la_clave_interna_no_se_dice_que_empresas_existen() throws Exception {
+        mvc.perform(get("/internal/organizaciones/77305118-6")).andExpect(status().isUnauthorized());
+        verify(empresas, never()).buscar(any());
+    }
 
     @Test
     void sin_la_clave_interna_no_se_revela_ninguna_deuda() throws Exception {

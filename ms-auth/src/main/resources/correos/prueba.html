@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<!--/* El correo de prueba: lo manda el equipo para saber si la configuracion sirve. */-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta('Correo de prueba', 'Si lo estás leyendo, DataBridge ya puede mandar correos.', ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0 0 14px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Este es un correo de prueba de DataBridge. Si lo estás leyendo, el envío de correos quedó bien configurado.
+  </p>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    No tienes que hacer nada.
+  </p>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">
+  Te llegó porque alguien del equipo de DataBridge probó la configuración del correo.
+</p>
+</body>
+</html>

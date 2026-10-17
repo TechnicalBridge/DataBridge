@@ -66,6 +66,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-mail</artifactId>
     </dependency>
+    <!-- Las plantillas de los correos (HTML y texto), en resources/correos. Solo
+         el motor: sin el starter, Spring Boot no arma vistas web con el. -->
+    <dependency>
+      <groupId>org.thymeleaf</groupId>
+      <artifactId>thymeleaf</artifactId>
+    </dependency>
     <!-- Enlaces en las respuestas del portal: que se puede hacer despues. -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

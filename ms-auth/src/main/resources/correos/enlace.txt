@@ -1,0 +1,12 @@
+Hola,
+
+Este es tu enlace para entrar a DataBridge. Sirve una sola vez, por [(${dura})]:
+
+[(${url})]
+
+Si no lo pediste, ignora este correo: sin el enlace, nadie puede entrar.
+
+DataBridge
+
+--
+Te llegó porque se pidió un enlace para entrar a DataBridge con tus datos.

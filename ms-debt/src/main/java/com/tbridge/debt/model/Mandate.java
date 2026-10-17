@@ -70,6 +70,7 @@ public class Mandate {
     public void setCreditor(Organization creditor) { this.creditor = creditor; }
     public LocalDate getValidFrom() { return validFrom; }
     public void setValidFrom(LocalDate validFrom) { this.validFrom = validFrom; }
+    public LocalDate getValidTo() { return validTo; }
     public void setValidTo(LocalDate validTo) { this.validTo = validTo; }
     public Short getMaxOverdueDays() { return maxOverdueDays; }
     public void setMaxOverdueDays(Short maxOverdueDays) { this.maxOverdueDays = maxOverdueDays; }
