@@ -155,11 +155,12 @@ flowchart LR
         E7(["Seguir los convenios en riesgo"])
         E8(["Cargar deudores<br/>en una campaña"])
         E9(["Crear, pausar y terminar campañas"])
+        E12(["Consultar la comisión mensual<br/>y lo recuperado por campaña"])
         E11(["Exportar la cartera a un archivo"])
     end
     COR{{"Servidor de correo"}}
 
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11
+    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12
     E3 -. "«include»" .-> E2
     E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
     E5 -. "«extend»<br/>si está en reclamo" .-> E3
@@ -180,6 +181,7 @@ flowchart LR
 | Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `GET /api/debts/cartera/plantilla`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. Es la única entrada de deudores mientras la entrega por API esté apagada |
 | Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
 | Exportar la cartera | `DataBridge` | — | Se arma en el navegador con lo que ya está en pantalla |
+| Consultar su comisión mensual | `Campanas` | `GET /api/analytics/comision?mes=2026-10` | Solo la empresa de la sesión. El porcentaje sale del recuperado de todas sus campañas en el mes de Chile; la comisión se aplica sobre el total |
 
 ---
 
@@ -203,9 +205,10 @@ flowchart LR
         A7(["Dar de alta a otro admin"])
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
         A9(["Ver las reglas que rigen"])
+        A10(["Consultar la comisión mensual<br/>de cada empresa"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -220,6 +223,7 @@ flowchart LR
 | Entrar con un enlace a su correo | `Login` (`/admin/login`), `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El primer admin nace de `ADMIN_CORREO` al arrancar. Sin esa variable no hay admin y nadie entra al panel |
 | Ver si cada servicio responde | `AdminInicio` | `GET /api/admin/auth/estado`, `/api/admin/debt/estado`, `/api/admin/payments/estado` | Todo `/api/admin/**` exige una sesión `ADMIN`: a un usuario o a un deudor les responde `403`. Y al revés: el admin no entra a los otros portales |
 | Ver las empresas y sus totales | `AdminEmpresas`, `AdminEmpresa` | `GET /api/admin/debt/empresas`, `GET /api/admin/debt/empresas/{rut}` | De cada empresa se ven totales: cuántas deudas y cuánto falta por cobrar. Nunca una deuda ni un deudor |
+| Consultar las comisiones por empresa | `AdminEmpresas` | `GET /api/admin/debt/comisiones?mes=2026-10` | Solo el admin. Cada pago se atribuye a quien cargó la deuda, sin contar dos veces al acreedor y su agencia |
 | Dar de alta una empresa usuaria | `AdminEmpresas` | `POST /api/admin/debt/empresas`, y después `POST /api/admin/auth/empresas/{rut}/personal` | Una agencia, o un acreedor que cobra directo. El RUT tiene que ser válido y no existir. Son dos pasos, uno en cada servicio: si el segundo falla, la empresa ya quedó y la persona se agrega desde su ficha |
 | Darle acceso a una persona de una empresa | `AdminEmpresa` | `POST /api/admin/auth/empresas/{rut}/personal` | Queda como `usuario` de esa empresa: el rol lo decide la ruta, no un campo. Le llega una invitación con un enlace de un solo uso, que dura 24 horas |
 | Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
@@ -382,6 +386,8 @@ Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La l
 | `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
 | `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
 | `GET /api/analytics/summary` | El resumen de mi cartera | Usuario de una empresa | JWT | Sí | `AnalyticsController.summary` |
+| `GET /api/analytics/comision` | Lo recuperado y la comisión de mi empresa en un mes | Usuario de una empresa | JWT | Sí | `AnalyticsController.comision` |
+| `GET /api/admin/debt/comisiones` | La comisión mensual por empresa y el total | Admin de DataBridge | JWT | Sí | `AdminController.comisiones` |
 | `GET /api/debts/campanas` | Las campañas de la empresa | Usuario de una empresa | JWT | Sí | `CampanaController.listar` |
 | `POST /api/debts/campanas` | Crear o cambiar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.guardar` |
 | `POST /api/debts/campanas/{idExterno}/estado` | Pausar, reanudar o terminar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.estado` |

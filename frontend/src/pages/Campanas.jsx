@@ -4,6 +4,8 @@ import { cambiarEstadoCampana, listarCampanas } from "../api/campanas";
 import { opcionesDeCarga } from "../api/deudas";
 import { fecha } from "../utils/formato";
 import Cargando from "../components/Cargando";
+import ComisionDelMes, { mesEnPalabras } from "../components/ComisionDelMes";
+import { dinero } from "../utils/formato";
 import FormCampana, { TRAMOS } from "../components/FormCampana";
 
 const ESTADO = {
@@ -26,6 +28,8 @@ export default function Campanas() {
   const [cambiando, setCambiando] = useState("");
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState("");
+  //  Lo que recuperó cada campaña en el mes que muestra el modelo de negocio.
+  const [comision, setComision] = useState(null);
 
   const cargar = () => listarCampanas().then(setCampanas);
 
@@ -90,6 +94,8 @@ export default function Campanas() {
       {error ? <div className="error">{error}</div> : null}
       {hecho ? <div className="notice">{hecho}</div> : null}
 
+      <ComisionDelMes onDatos={setComision} />
+
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
           <h3>Tus campañas</h3>
@@ -122,6 +128,12 @@ export default function Campanas() {
                       <span><b className="num">{c.deudas}</b> {c.deudas === 1 ? "deuda" : "deudas"}</span>
                       <span><b className="num">{c.contactos}</b> {c.contactos === 1 ? "contacto enviado" : "contactos enviados"}</span>
                       <span><b className="num">{c.saldadas}</b> {c.saldadas === 1 ? "pagada" : "pagadas"}</span>
+                      {comision ? (
+                        <span>
+                          <b className="num">{dinero(comision.porCampana.find((p) => p.idExterno === c.idExterno)?.recuperado || 0)}</b>{" "}
+                          recuperado en {mesEnPalabras(comision.mes).split(" de ")[0]}
+                        </span>
+                      ) : null}
                     </div>
                     {c.estado !== "terminada" ? (
                       <div className="fila-acciones">

@@ -76,7 +76,17 @@ public class ReglasService {
                                 + dias(LimiteDeContacto.DIAS_ENTRE) + " entre uno y otro", LEY),
                 feriados(hoy.getYear()),
                 feriados(hoy.getYear() + 1)));
-        return new ReglasResponse("ms-debt", List.of(cobranza, contacto));
+        //  El modelo de negocio (#200): fijo, es el del equipo. Lo aplica ComisionService.
+        java.text.NumberFormat pesos = java.text.NumberFormat.getIntegerInstance(java.util.Locale.forLanguageTag("es-CL"));
+        Grupo negocio = new Grupo("Modelo de negocio", ModeloDeNegocio.TRAMOS.stream()
+                .map(t -> Regla.fija(t.hasta() == null
+                                ? "Si se recupera más de $" + pesos.format(t.desde())
+                                : "Si se recupera más de $" + pesos.format(t.desde()) + " y hasta $"
+                                        + pesos.format(t.hasta()),
+                        t.porcentaje().stripTrailingZeros().toPlainString() + " % de lo recuperado en el mes",
+                        "P(G) = G · p(G), sobre todo lo recuperado. La paga quien cargó la deuda"))
+                .toList());
+        return new ReglasResponse("ms-debt", List.of(cobranza, contacto, negocio));
     }
 
     private Regla feriados(int ano) {
