@@ -1,10 +1,12 @@
 node_modules/
 dist/
 .env
+env
 *.log
 .DS_Store
 target/
 .idea/
+.vscode/
 *.iml
 .mvn/wrapper/maven-wrapper.jar
 __pycache__/
@@ -22,6 +24,9 @@ target_*/
 
 # Credenciales de prueba de las pasarelas: son secretos, van solo en el .env.
 credenciales.md
+credenciales.py
+credentials.py
+.credenciales
 
 # Notas locales de commit: no se versionan.
 COMMIT.txt
