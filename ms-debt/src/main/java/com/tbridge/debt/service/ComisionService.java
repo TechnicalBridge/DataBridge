@@ -67,22 +67,23 @@ public class ComisionService {
         }
         Organization empresa = debts.organizacionDe(user);
         YearMonth elMes = mes != null ? mes : YearMonth.now(CHILE);
-        return respuesta(elMes, eventos.deLaEmpresaEntre(empresa, DebtEvent.Type.payment_applied, inicio(elMes),
-                inicio(elMes.plusMonths(1))));
+        return respuesta(elMes, eventos.entre(DebtEvent.Type.payment_applied, inicio(elMes),
+                inicio(elMes.plusMonths(1))).stream()
+                .filter(pago -> empresa.getRut().equals(empresaRut(pago))).toList());
     }
 
     /** La de cada empresa con pagos en ese mes, para el panel del admin: lo que DataBridge factura. */
     public ComisionesResponse deTodas(YearMonth mes) {
         YearMonth elMes = mes != null ? mes : YearMonth.now(CHILE);
-        Map<Organization, List<DebtEvent>> porEmpresa = new LinkedHashMap<>();
+        Map<String, List<DebtEvent>> porEmpresa = new LinkedHashMap<>();
         for (DebtEvent pago : eventos.entre(DebtEvent.Type.payment_applied, inicio(elMes), inicio(elMes.plusMonths(1)))) {
-            porEmpresa.computeIfAbsent(pago.getDebt().getLastBatch().getSender(), k -> new ArrayList<>()).add(pago);
+            porEmpresa.computeIfAbsent(empresaRut(pago), k -> new ArrayList<>()).add(pago);
         }
         List<ComisionesResponse.Empresa> empresas = new ArrayList<>();
         porEmpresa.forEach((empresa, pagos) -> {
             long recuperado = pagos.stream().mapToLong(this::enPesos).sum();
             long comision = ModeloDeNegocio.comision(recuperado);
-            empresas.add(new ComisionesResponse.Empresa(empresa.getRut(), empresa.getTradeName(), recuperado,
+            empresas.add(new ComisionesResponse.Empresa(empresa, empresaNombre(pagos.getLast()), recuperado,
                     pagos.size(), ModeloDeNegocio.porcentaje(recuperado), comision, recuperado - comision));
         });
         empresas.sort(Comparator.comparingLong(ComisionesResponse.Empresa::comision).reversed());
@@ -99,8 +100,12 @@ public class ComisionService {
             long pesos = enPesos(pago);
             recuperado += pesos;
             Campaign campana = pago.getDebt().getCampaign();
-            String clave = campana == null ? "" : campana.getExternalId();
-            nombres.putIfAbsent(clave, campana == null ? "Sin campaña" : campana.getName());
+            JsonNode detalle = leer(pago.getDetail());
+            boolean atribuido = detalle.path("empresa_rut").isTextual();
+            String clave = atribuido ? detalle.path("campana_id").asText("")
+                    : campana == null ? "" : campana.getExternalId();
+            nombres.putIfAbsent(clave, atribuido ? detalle.path("campana_nombre").asText("Sin campaña")
+                    : campana == null ? "Sin campaña" : campana.getName());
             long[] suma = porCampana.computeIfAbsent(clave, k -> new long[2]);
             suma[0] += pesos;
             suma[1]++;
@@ -127,8 +132,9 @@ public class ComisionService {
      */
     long enPesos(DebtEvent pago) {
         JsonNode detalle = leer(pago.getDetail());
-        if (detalle.path("montoClp").isNumber()) {
-            return detalle.path("montoClp").asLong();
+        JsonNode montoClp = campo(detalle, "monto_clp", "montoClp");
+        if (montoClp.isNumber()) {
+            return montoClp.asLong();
         }
         BigDecimal monto = pago.getAmount();
         if (monto == null) {
@@ -137,12 +143,27 @@ public class ComisionService {
         if (pago.getCurrency() == null || pago.getCurrency() == Debt.Currency.CLP) {
             return monto.setScale(0, RoundingMode.HALF_UP).longValueExact();
         }
-        if (detalle.path("valorUf").isNumber()) {
-            return monto.multiply(detalle.path("valorUf").decimalValue()).setScale(0, RoundingMode.HALF_UP)
+        JsonNode valorUf = campo(detalle, "valor_uf", "valorUf");
+        if (valorUf.isNumber()) {
+            return monto.multiply(valorUf.decimalValue()).setScale(0, RoundingMode.HALF_UP)
                     .longValueExact();
         }
         log.warn("El pago {} en UF no trae los pesos ni la UF del dia: no suma a la comision", pago.getReference());
         return 0;
+    }
+
+    private String empresaRut(DebtEvent pago) {
+        return leer(pago.getDetail()).path("empresa_rut")
+                .asText(pago.getDebt().getLastBatch().getSender().getRut());
+    }
+
+    private String empresaNombre(DebtEvent pago) {
+        return leer(pago.getDetail()).path("empresa_nombre")
+                .asText(pago.getDebt().getLastBatch().getSender().getTradeName());
+    }
+
+    private static JsonNode campo(JsonNode detalle, String nombre, String anterior) {
+        return detalle.hasNonNull(nombre) ? detalle.path(nombre) : detalle.path(anterior);
     }
 
     private JsonNode leer(String detalle) {

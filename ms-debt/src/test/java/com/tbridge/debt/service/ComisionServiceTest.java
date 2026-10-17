@@ -8,6 +8,7 @@ import com.tbridge.debt.model.Batch;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
+import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.security.JwtPrincipal;
@@ -88,7 +89,7 @@ class ComisionServiceTest {
 
     @Test
     void lo_recuperado_en_el_mes_decide_el_tramo_y_cada_campana_muestra_su_parte() {
-        when(eventos.deLaEmpresaEntre(eq(apofyx), eq(DebtEvent.Type.payment_applied), any(), any())).thenReturn(List.of(
+        when(eventos.entre(eq(DebtEvent.Type.payment_applied), any(), any())).thenReturn(List.of(
                 pago(apofyx, arriendos, "350000", Debt.Currency.CLP, "{\"pagoId\":1,\"montoClp\":350000}"),
                 pago(apofyx, arriendos, "350000", Debt.Currency.CLP, "{\"pagoId\":2,\"montoClp\":350000}"),
                 //  En UF cuenta por los pesos que cobro la pasarela.
@@ -115,7 +116,7 @@ class ComisionServiceTest {
 
         ArgumentCaptor<Instant> desde = ArgumentCaptor.forClass(Instant.class);
         ArgumentCaptor<Instant> hasta = ArgumentCaptor.forClass(Instant.class);
-        verify(eventos).deLaEmpresaEntre(eq(apofyx), eq(DebtEvent.Type.payment_applied), desde.capture(),
+        verify(eventos).entre(eq(DebtEvent.Type.payment_applied), desde.capture(),
                 hasta.capture());
         assertEquals(LocalDateTime.of(2026, 10, 1, 0, 0).atZone(ComisionService.CHILE).toInstant(), desde.getValue());
         assertEquals(LocalDateTime.of(2026, 11, 1, 0, 0).atZone(ComisionService.CHILE).toInstant(), hasta.getValue());
@@ -144,7 +145,7 @@ class ComisionServiceTest {
         assertEquals(BigDecimal.ZERO, vacio.porcentaje());
         assertTrue(vacio.tramos().stream().noneMatch(ComisionResponse.TramoResponse::vigente));
 
-        when(eventos.deLaEmpresaEntre(any(), any(), any(), any())).thenReturn(List.of(
+        when(eventos.entre(any(), any(), any())).thenReturn(List.of(
                 pago(apofyx, null, "800000", Debt.Currency.CLP, "{\"montoClp\":800000}")));
         ComisionResponse sinCampana = servicio.deLaEmpresa(camila, OCTUBRE);
         assertNull(sinCampana.porCampana().get(0).idExterno());
@@ -181,5 +182,54 @@ class ComisionServiceTest {
         assertEquals(30_000, segunda.comision());
         assertEquals(6_600_000, octubre.recuperado());
         assertEquals(762_000, octubre.comision());
+    }
+
+    @Test
+    void lee_los_pesos_del_detalle_real_serializado_en_snake_case() throws Exception {
+        String detalle = new ObjectMapper().writeValueAsString(new DetallePago(3L, 493_570L,
+                new BigDecimal("39485.65"), "webpay", List.of(1), 1, null, null));
+        assertEquals(493_570, servicio.enPesos(pago(apofyx, aranceles, "12.5", Debt.Currency.UF, detalle)),
+                "usa los pesos cobrados, no vuelve a calcularlos con otro redondeo");
+    }
+
+    @Test
+    void sin_pesos_lee_el_valor_uf_del_detalle_real() throws Exception {
+        String detalle = new ObjectMapper().writeValueAsString(new DetallePago(3L, null,
+                new BigDecimal("39485.65"), "webpay", List.of(1), 1, null, null));
+        assertEquals(493_571, servicio.enPesos(pago(apofyx, aranceles, "12.5", Debt.Currency.UF, detalle)));
+    }
+
+    @Test
+    void recargar_la_deuda_no_reasigna_el_pago_a_otra_empresa_ni_campana() throws Exception {
+        String detalle = new ObjectMapper().writeValueAsString(new DetallePago(3L, 800_000L, null,
+                "webpay", List.of(1), 1, null, null, null,
+                apofyx.getRut(), apofyx.getTradeName(), arriendos.getExternalId(), arriendos.getName()));
+        // La deuda ya fue cargada por otra empresa y en otra campana despues del pago.
+        DebtEvent anterior = pago(patrimonio, aranceles, "800000", Debt.Currency.CLP, detalle);
+        when(eventos.entre(any(), any(), any())).thenReturn(List.of(anterior));
+        JwtPrincipal otra = new JwtPrincipal("2", null, "CREDITOR", "Otra", patrimonio.getRut());
+        when(debts.organizacionDe(otra)).thenReturn(patrimonio);
+
+        ComisionResponse original = servicio.deLaEmpresa(camila, OCTUBRE);
+        assertEquals(800_000, original.recuperado());
+        assertEquals(arriendos.getExternalId(), original.porCampana().getFirst().idExterno());
+        assertEquals(arriendos.getName(), original.porCampana().getFirst().nombre());
+        assertEquals(0, servicio.deLaEmpresa(otra, OCTUBRE).recuperado());
+        ComisionesResponse admin = servicio.deTodas(OCTUBRE);
+        assertEquals(1, admin.empresas().size());
+        assertEquals(apofyx.getRut(), admin.empresas().getFirst().rut());
+        assertEquals(48_000, admin.comision());
+    }
+
+    @Test
+    void un_pago_sin_campana_no_adquiere_una_campana_posterior() throws Exception {
+        String detalle = new ObjectMapper().writeValueAsString(new DetallePago(3L, 800_000L, null,
+                "webpay", List.of(1), 1, null, null, null,
+                apofyx.getRut(), apofyx.getTradeName(), null, null));
+        when(eventos.entre(any(), any(), any())).thenReturn(List.of(
+                pago(apofyx, aranceles, "800000", Debt.Currency.CLP, detalle)));
+        ComisionResponse original = servicio.deLaEmpresa(camila, OCTUBRE);
+        assertNull(original.porCampana().getFirst().idExterno());
+        assertEquals("Sin campaña", original.porCampana().getFirst().nombre());
     }
 }

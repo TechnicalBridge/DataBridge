@@ -916,6 +916,10 @@ classDiagram
             +fuera : Integer
             +interes : BigDecimal
             +descuento : BigDecimal
+            +empresaRut : String
+            +empresaNombre : String
+            +campanaId : String
+            +campanaNombre : String
         }
         class Subscription {
             <<entity>>
@@ -1497,6 +1501,9 @@ La comisión de una empresa en un mes se calcula sobre los eventos `payment_appl
 con los límites del mes en Chile. La base no guarda otra comisión ni se consulta ms-payments:
 el detalle del evento ya conserva los pesos cobrados. Los DTO `ComisionResponse` (con los tipos
 `PorCampana` y `TramoResponse`) y `ComisionesResponse` (con `Empresa`) documentan el resultado en Swagger.
+`DetallePago` guarda la atribución de empresa y campaña al aplicar el pago, para que una recarga
+posterior no la cambie. Solo los eventos antiguos sin atribución usan las relaciones actuales de la
+deuda. Las dos consultas filtran y agrupan por esa atribución, no por el último lote de una deuda.
 
 ```mermaid
 classDiagram
@@ -1529,7 +1536,6 @@ classDiagram
     class DebtEventRepository {
         <<repository>>
         +entre(Type, Instant, Instant) List~DebtEvent~
-        +deLaEmpresaEntre(Organization, Type, Instant, Instant) List~DebtEvent~
     }
     class DebtService {
         <<service>>

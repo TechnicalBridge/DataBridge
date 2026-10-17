@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-16-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-17-de-octubre-de-2026) |
 
 ---
 
@@ -2227,6 +2227,10 @@ classDiagram
             +fuera : Integer
             +interes : BigDecimal
             +descuento : BigDecimal
+            +empresaRut : String
+            +empresaNombre : String
+            +campanaId : String
+            +campanaNombre : String
         }
         class Subscription {
             <<entity>>
@@ -3218,6 +3222,12 @@ no paga esta comisión y un mismo pago no se atribuye a dos empresas.
 en todas las campañas de esa empresa. En UF cuentan los pesos cobrados por la pasarela, no una
 conversión con la UF de hoy. Los pagos fallidos, anulados o duplicados no se abonan y no suman.
 
+Al aplicar un pago se guardan la empresa que cargó la deuda y su campaña en el detalle del evento.
+Recargar después esa deuda con otra empresa o campaña no reasigna ese pago. Para eventos antiguos
+sin esa atribución se usan la empresa y campaña actuales: no se puede reconstruir con certeza un
+historial que no se guardó. El detalle real usa `monto_clp` y `valor_uf`; también se admiten los nombres
+anteriores en camelCase.
+
 | Recuperado por la empresa en el mes (G) | Porcentaje p(G) |
 | --- | --- |
 | Más de $0 y hasta $1.000.000 | 6 % |
@@ -3720,19 +3730,19 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**847 pruebas**, todas en Java y sin fallos:
+**852 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 193 |
-| `ms-debt` | 407 |
+| `ms-debt` | 412 |
 | `ms-payments` | 185 |
 | `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
-([estado](#14-estado-al-16-de-octubre-de-2026)).
+([estado](#14-estado-al-17-de-octubre-de-2026)).
 
 <details>
 <summary><b>Qué cubre cada tipo de prueba</b></summary>
@@ -3836,17 +3846,17 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 16 de octubre de 2026
+## 14. Estado al 17 de octubre de 2026
 
-**847 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
+**852 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **847**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
-| Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los seis diagramas afectados se dibujaron con Mermaid 11 |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **852**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
 | Build del portal | Correcto, 764 módulos |

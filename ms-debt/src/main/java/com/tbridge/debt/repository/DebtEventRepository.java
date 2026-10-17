@@ -2,7 +2,6 @@ package com.tbridge.debt.repository;
 
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
-import com.tbridge.debt.model.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,10 +35,4 @@ public interface DebtEventRepository extends JpaRepository<DebtEvent, Long> {
     List<DebtEvent> entre(@Param("tipo") DebtEvent.Type tipo, @Param("desde") Instant desde,
                           @Param("hasta") Instant hasta);
 
-    /** Lo mismo, solo de las deudas que cargo esa empresa. */
-    @Query("select e from DebtEvent e join fetch e.debt d join fetch d.lastBatch b join fetch b.sender "
-            + "left join fetch d.campaign where e.type = :tipo and e.occurredAt >= :desde and e.occurredAt < :hasta "
-            + "and b.sender = :empresa")
-    List<DebtEvent> deLaEmpresaEntre(@Param("empresa") Organization empresa, @Param("tipo") DebtEvent.Type tipo,
-                                     @Param("desde") Instant desde, @Param("hasta") Instant hasta);
 }
