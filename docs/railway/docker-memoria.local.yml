@@ -1,0 +1,30 @@
+services:
+  mysql:
+    mem_limit: 512m
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_0900_ai_ci, --innodb-buffer-pool-size=96M, --max-connections=60, --performance-schema=OFF]
+  rabbitmq:
+    mem_limit: 256m
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbit vm_memory_high_watermark {absolute,134217728} +S 2:2'
+  mailpit:
+    mem_limit: 64m
+  ms-auth:
+    environment: &java
+      JAVA_TOOL_OPTIONS: '-Xms32m -Xmx224m -XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:ReservedCodeCacheSize=64m'
+    deploy: &limite
+      resources:
+        limits: {memory: 448M}
+  ms-debt:
+    environment: *java
+    deploy: *limite
+  ms-payments:
+    environment: *java
+    deploy: *limite
+  ms-ai:
+    environment: *java
+    deploy: *limite
+  gateway:
+    environment: *java
+    deploy:
+      resources:
+        limits: {memory: 384M}
