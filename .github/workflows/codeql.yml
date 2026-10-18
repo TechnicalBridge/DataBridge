@@ -26,7 +26,8 @@ jobs:
     timeout-minutes: 30
 
     permissions:
-      #  Lo minimo que necesita: leer el codigo y subir los resultados.
+      #  Leer codigo y ejecuciones para inicializar CodeQL, y subir resultados.
+      actions: read
       contents: read
       security-events: write
 
