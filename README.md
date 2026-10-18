@@ -282,8 +282,8 @@ $cuerpo = @{ rut = "16482337-7"; canales = @("correo"); correo = "felipe.rojas@c
 $cuerpo | docker compose --profile app exec -T ms-auth sh -c 'curl -s -X POST http://127.0.0.1:8081/internal/codigos -H X-Internal-Key:$INTERNAL_KEY -H Content-Type:application/json --data-binary @-'
 ```
 
-Responde con el `codigo`. Con él se entra al portal en **Tengo un código de acceso**, con el RUT
-`16.482.337-7`. El código sirve **una sola vez** y dura 24 horas.
+Responde con el `codigo`. En el portal de deudores se escribe junto al RUT `16.482.337-7` y se
+toca **Entrar**. El código de campaña sirve **una sola vez** y dura 24 horas.
 
 > El JSON va por la entrada estándar (`--data-binary "@-"`) y no como argumento a propósito:
 > PowerShell 5.1 parte en dos un argumento que trae comillas y espacios. Y se pide desde dentro
@@ -413,8 +413,9 @@ docker compose --profile app exec -T ms-auth sh -c 'curl -s -X POST "http://127.
 Al arrancar, ms-auth deja dicho en su registro por dónde manda y en qué modo está. Ni la
 contraseña ni la clave de Brevo aparecen ahí ni en la respuesta de la prueba.
 
-Para volver al buzón de prueba, se dejan vacías `BREVO_API_KEY` y `SMTP_HOST`, y se reinicia
-ms-auth.
+Para usar una captura de prueba externa, dejar vacía `BREVO_API_KEY` y configurar explícitamente
+`SMTP_HOST`, el puerto y las opciones SMTP que requiera ese servidor sin salida real. Reiniciar
+ms-auth y comprobar su proveedor. Vaciar ambas variables no activa un buzón: deja el correo sin entrega.
 
 </details>
 
@@ -598,7 +599,7 @@ Hace falta **Docker Desktop**, un **JDK 25** (no un JRE: Maven compila) y **Node
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # si todavía no tienes .env
-docker compose up -d                 # solo MySQL, RabbitMQ y el buzón
+docker compose up -d                 # solo MySQL y RabbitMQ; correo aparte
 ```
 
 Después, **una terminal por pieza**: cada servicio se compila y arranca solo, con su propio
@@ -3543,7 +3544,7 @@ correo queda fechado a esa hora.
 | **Enumeración** | Los pedidos de código y respaldo responden el mismo `202` exista o no la identidad. El envío es asíncrono y la respuesta no contiene credenciales. No se garantiza tiempo constante: resolver el destinatario requiere consultar ms-debt o la base local, según la identidad | `AuthService.pedirCodigo`, `AuthService.pedirEnlace` |
 | **Autorización** | Cada sesión se identifica por RUT. Un deudor ve, paga y reclama solo lo suyo; una agencia ve y resuelve solo la cartera de su mandato | `DebtService`, `DisputaService` |
 | **Integridad** | Los eventos van firmados con HMAC-SHA256, caducan a los 5 minutos y se descartan si llegan repetidos | `docs/integracion/README.md` §8 |
-| **Superficie** | De la aplicación, **solo el portal publica un puerto**. MySQL, RabbitMQ y el buzón publican el suyo **a propósito**, para revisarlos en desarrollo; en un despliegue real esas líneas `ports:` se borran | `docker-compose.yml` |
+| **Superficie** | De la aplicación, **solo el portal publica un puerto**. MySQL y RabbitMQ publican el suyo **a propósito**, para revisarlos en desarrollo; en un despliegue real esas líneas `ports:` se borran. No hay puertos de correo de prueba en Compose | `docker-compose.yml` |
 | **Contenedores** | Ninguna imagen corre como root: los servicios usan el usuario `10001` y el portal la nginx sin privilegios. Las imágenes de Java llevan solo el JRE, sin compilador ni código fuente | `*/Dockerfile` |
 | **Entradas** | Cada petición entra como un tipo con sus reglas (`@NotBlank`, `@Size`, `@Pattern`...), y lo que no cumple se responde con `400` y un mensaje para la persona. Un JSON mal escrito o una ruta que no existe responden `400` y `404`, no `500` | `dto/request/`, `exception/ApiExceptionHandler` de cada servicio |
 
@@ -3615,7 +3616,7 @@ La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`, hasta d
 
 | Pieza | Qué hace |
 | --- | --- |
-| [`docker-compose.prod.yml`](docker-compose.prod.yml) | Se suma al compose de siempre. Caddy va delante y es lo único que publica puertos (80 y 443); MySQL, RabbitMQ y el portal quedan cerrados; el buzón de prueba no se levanta, y los servicios usan las imágenes de GHCR |
+| [`docker-compose.prod.yml`](docker-compose.prod.yml) | Se suma al compose de siempre. Caddy va delante y es lo único que publica puertos (80 y 443); MySQL, RabbitMQ y el portal quedan cerrados; el correo requiere un proveedor explícito, y los servicios usan las imágenes de GHCR |
 | [`deploy/Caddyfile`](deploy/Caddyfile) | El HTTPS del dominio con Let's Encrypt, que Caddy renueva solo, y la IP del visitante hacia nginx |
 | [`deploy/preparar-servidor.sh`](deploy/preparar-servidor.sh) | Prepara el VPS una vez: Docker, firewall, swap, el usuario que despliega y un `.env` con claves nuevas |
 | [`deploy/respaldar.sh`](deploy/respaldar.sh) | Un respaldo de las tres bases cada madrugada, los últimos 7 días |
@@ -3861,7 +3862,7 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 ## 13. Recorrido de demostración
 
 1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su código, que
-   llega al buzón, y ve la cartera de ejemplo.
+   llega al correo registrado por el proveedor configurado, y ve la cartera de ejemplo.
 2. **Carga a sus deudores en una campaña.** En *Cargar cartera* elige una campaña o la crea, descarga
    la plantilla de Excel, la llena (una hoja de deudores y otra de deudas, una fila por mes) y la sube.
    Ve qué entraría y qué no, con su motivo; si la planilla tiene problemas, cada uno con su hoja, fila
@@ -3907,9 +3908,12 @@ simulan la caída y recuperan el mismo acceso sin crear sesiones durante el rech
 de ms-auth (222); los otros 659 casos del total conservan su ejecución anterior. No se repitió una caída
 de ms-debt en Docker ni se enviaron correos reales para esta corrección.
 
-La retirada de Mailpit se integra sobre ese acceso por código. La primera verificación independiente
-tenía 193 pruebas de ms-auth; la base integrada tiene 222, incluidas las dos regresiones de la revisión.
-No se detuvieron contenedores ni se enviaron correos reales para resolver esta integración.
+La retirada de Mailpit se integra sobre ese acceso por código. En la rama apilada se repitieron
+las **222 pruebas de ms-auth**, con JDK 25 y `clean test`, la instalación y compilación del portal,
+Compose local y de producción, los controles de carga simulados y 12 recorridos de Edge (24 capturas)
+en los tres portales, a 1360 y 390 px y en ambos temas. Sin aviso de buzón inexistente ni desborde,
+con reintentos tras `503` que conservan el código. La API del navegador estuvo simulada; no se
+detuvieron contenedores ni se enviaron correos reales para resolver esta integración.
 
 La revisión de `capacidad.js` agregó el filtro por destinatario y fecha del buzón compartido:
 con HTTP simulado, un correo ajeno o con fecha inválida no se canjea, y el caso correcto conserva

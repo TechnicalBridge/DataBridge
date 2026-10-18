@@ -4,7 +4,8 @@
 #  Dos formas de usarlo:
 #
 #    docker compose up -d
-#        Solo la infraestructura: MySQL, RabbitMQ y el buzon de prueba. Los
+#        Solo la infraestructura: MySQL y RabbitMQ. El correo se configura
+#        aparte con Brevo o SMTP explicito. Los
 #        servicios se levantan a mano con Maven, que es como se programa,
 #        porque recompilar una imagen en cada cambio seria insoportable.
 #

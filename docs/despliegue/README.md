@@ -30,7 +30,7 @@ flowchart LR
 - **Es el mismo `docker compose` de local**, más [`docker-compose.prod.yml`](../../docker-compose.prod.yml):
   - Caddy va delante y es lo único que publica puertos;
   - MySQL, RabbitMQ y el portal quedan cerrados;
-  - el buzón de prueba no se levanta.
+  - no hay buzón de prueba incluido, ni en local ni en producción: el correo se configura aparte.
 - **El servidor no compila nada.** GitHub Actions ([`desplegar.yml`](../../.github/workflows/desplegar.yml)) compila
   las seis imágenes y las publica en GHCR. El servidor solo las descarga: con 6 GB no le sobra memoria para Maven.
 - **Cada push a `main` se despliega solo**, una vez activado (paso 6). Un cambio solo de documentación no

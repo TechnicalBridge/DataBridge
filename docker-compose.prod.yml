@@ -7,7 +7,7 @@
 #    - Caddy va delante y es lo unico que publica puertos (80 y 443): saca el
 #      certificado de Let's Encrypt para DOMINIO y le pasa todo al portal.
 #    - MySQL, RabbitMQ y el portal ya no publican puertos: solo se ven por
-#      dentro. El buzon de prueba no se levanta: el correo sale por Brevo.
+#      dentro. No hay buzon de prueba: el correo usa Brevo o SMTP explicito.
 #    - Las imagenes no se compilan aqui: las compila GitHub Actions
 #      (.github/workflows/desplegar.yml) y el servidor las descarga de GHCR.
 #      VERSION es el commit; sin el, la ultima de main.
