@@ -263,6 +263,18 @@ public class MailService {
                 "dura", cuanto(minutos, "minuto", "minutos")));
     }
 
+    /** Un solo mensaje: codigo y, solo si se pidio respaldo, su enlace alternativo. */
+    @Async
+    public void enviarAcceso(String to, String codigo, String url, long minutos) {
+        if (!conServidor) {
+            log.info("Solicitud de acceso sin servidor de correo: no se entrega y no se registran credenciales");
+            return;
+        }
+        enviar(to, url == null ? "Tu código para entrar a DataBridge" : "Tu código y enlace de respaldo",
+                "acceso", datos("codigo", codigo, "url", url, "portal", portal,
+                        "dura", cuanto(minutos, "minuto", "minutos")));
+    }
+
     /**
      * La invitacion: a quien un admin de DataBridge acaba de dar de alta.
      *

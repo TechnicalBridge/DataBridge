@@ -221,8 +221,24 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 
 ### Para entrar como empresa
 
-En el portal, **Soy de una empresa**, con `camila.reyes@apofyx.cl`. El enlace para entrar llega
+En el portal, **Soy de una empresa**, con `camila.reyes@apofyx.cl`. El código para entrar llega
 al buzón de prueba.
+
+### Código primero en los tres portales
+
+**Enviar código** manda un solo correo con el código, sin enlace de acceso. El deudor indica
+su RUT; el usuario de empresa y el admin, su correo registrado. Lo canjean con **Entrar**.
+**¿No te llegó?** genera otro código y un enlace, juntos en un único correo; no envía dos mensajes.
+El código solicitado y su enlace opcional duran `MAGIC_TTL_MINUTES` (15 minutos por omisión),
+comparten cinco intentos y un solo uso: usar cualquiera invalida ambos. Pedir otro acceso invalida
+el solicitado anteriormente. No es doble factor: son dos formas de canjear la misma credencial.
+
+Rutas públicas: `POST /api/auth/codigo` solicita solo código; `POST /api/auth/enlace` solicita
+el respaldo. Ambas reciben `{rut}` para deudor o `{correo}` para personal y responden `202` sin
+revelar si existe esa identidad. `POST /api/auth/acceso` recibe esa identidad y `codigo`;
+`POST /api/auth/verify` canjea el `token` del enlace. El destinatario del deudor siempre se obtiene
+de ms-debt, no de un correo elegido en el navegador. Los códigos de campaña siguen durando
+`CODE_TTL_HOURS` (24 horas), y las invitaciones de alta del personal conservan su enlace de 24 h.
 
 ### Para entrar como deudor
 
@@ -251,7 +267,7 @@ entregó por la API, que hoy viene apagada; una cartera nueva entra por *Cargar 
 campaña. Las deudas de Sonrisa Norte son de un solo cargo: muestran que la regla de los 30 días
 sirve también fuera de los cobros mensuales.
 
-Para conseguir un código, la empresa toca **Reenviar código** en su cartera y el código llega al
+Para conseguir un código de campaña, la empresa toca **Reenviar código** en su cartera y el código llega al
 buzón.
 
 <details>
@@ -395,7 +411,8 @@ cliente que no muestra HTML muestra el texto, con el código.
 | --- | --- | --- |
 | El código de acceso | `codigo` | Al deudor: en la invitación, en cada toque de la campaña y cuando la empresa se lo reenvía |
 | El recordatorio de cuota | `recordatorio` | Al deudor con convenio, antes de que venza una cuota, con un código nuevo |
-| El enlace para entrar | `enlace` | A quien lo pide en el portal: el deudor que no recibió su código o el personal de una empresa |
+| El acceso solicitado | `acceso` | En los tres portales: **Enviar código** manda solo el código; **¿No te llegó?** manda código y enlace juntos en un único correo |
+| El enlace anterior | `enlace` | Plantilla conservada por compatibilidad; no es el envío habitual del login |
 | La invitación | `invitacion` | A quien un admin de DataBridge da de alta |
 | La prueba | `prueba` | A quien pide el correo de prueba |
 
@@ -403,9 +420,10 @@ cliente que no muestra HTML muestra el texto, con el código.
   tema oscuro (Apple Mail, Outlook). Están escritas como se escriben los correos, con tablas y el
   estilo en cada elemento, porque Gmail ignora parte del `<style>` y Outlook de escritorio dibuja
   con Word. No llevan imágenes, que casi todos los clientes bloquean.
-- **El correo del deudor no trae el monto ni un enlace:** solo la dirección del portal, para que
+- **El correo de campaña del deudor no trae el monto ni un enlace:** solo la dirección del portal, para que
   la escriba él. El nombre del acreedor se escapa, así que una empresa no puede meter etiquetas ni
-  enlaces en el correo de un deudor.
+  enlaces en el correo de un deudor. El acceso solicitado tampoco lleva enlace, salvo el respaldo
+  que pide expresamente con **¿No te llegó?**.
 - **El adelanto que muestra el buzón** antes de abrir el correo, que también se ve en la pantalla
   bloqueada del teléfono, nunca trae el código.
 
@@ -730,7 +748,7 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 | --- | --- |
 | **portal** | React con Zustand y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
 | **gateway** | La única puerta: CORS, límite de peticiones con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
-| **ms-auth** | Código de acceso (RUT + 6 caracteres, un solo uso, 24 h) y enlace de respaldo por correo, que es también como entra el personal de las empresas. Emite el JWT, maneja las sesiones y manda los correos, incluido el recordatorio de cuota |
+| **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT, maneja las sesiones y manda los correos, incluido el recordatorio de cuota |
 | **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados de vuelta a quien se suscribió |
 | **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt, nunca el navegador. En UF fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
 | **ms-ai** | Asistente de solo lectura. Lee las deudas con la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM si hay `XAI_API_KEY` (Grok, con el SDK oficial de OpenAI para Java); si no, o si el LLM falla, responde con reglas |
@@ -753,7 +771,7 @@ portal del deudor con su RUT y su código de acceso.
   la base, no solo el código: `staff_users` no deja guardar un `admin` con empresa ni un `usuario`
   sin ella.
 - **El primer `admin` sale de `ADMIN_CORREO`.** Al arrancar, si todavía no hay ninguno, ms-auth lo
-  crea con ese correo. Entra con un enlace que le llega ahí, sin contraseña, igual que un usuario.
+  crea con ese correo. Entra con el código que solicita ahí, sin contraseña, igual que un usuario.
   Sin esa variable no hay `admin` y nadie entra al panel.
 - **Cada sesión lleva su rol en el JWT:** `ADMIN`, `CREDITOR` (el usuario de una empresa) o
   `DEBTOR`. Todo lo que cuelga de `/api/admin` exige `ADMIN`, y todo lo demás exige `CREDITOR` o
@@ -1001,7 +1019,7 @@ las entidades con las tablas y se niega a partir si no calzan. En total son **25
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
 | [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale |
-| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel |
+| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso |
 | [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
@@ -1391,6 +1409,10 @@ erDiagram
     magic_links {
         bigint id PK
         char(64) token_hash UK "SHA-256 del enlace"
+        char(64) code_hash "opcional · SHA-256 de identidad y código solicitado"
+        smallint attempts "intentos fallidos compartidos"
+        smallint max_attempts "5 por omisión"
+        boolean link_enabled "false en el envío de solo código"
         varchar(12) debtor_rut "opcional · solo si el enlace es de un deudor"
         varchar(254) email
         datetime issued_at
@@ -1584,7 +1606,7 @@ flowchart LR
     USU(("Usuario de<br/>una empresa"))
     subgraph DBE["Portal de empresas · /databridge"]
         direction TB
-        E1(["Entrar con un enlace a su correo"])
+        E1(["Entrar con correo y código"])
         E2(["Ver la cartera y el<br/>resumen de recuperación"])
         E3(["Ver una deuda y su historia"])
         E4(["Reenviarle el código al deudor"])
@@ -1617,7 +1639,7 @@ flowchart LR
     ADM(("Admin de<br/>DataBridge"))
     subgraph PAN["Panel de administración · /admin"]
         direction TB
-        A1(["Entrar con un enlace a su correo"])
+        A1(["Entrar con correo y código"])
         A2(["Ver si cada servicio<br/>responde con su sesión"])
         A3(["Ver las empresas y los<br/>totales de su cartera"])
         A4(["Dar de alta una empresa usuaria<br/>con su primera persona"])
@@ -1847,12 +1869,17 @@ classDiagram
             <<entity>>
             -id : Long
             -tokenHash : String
+            -codeHash : String
+            -attempts : Short
+            -maxAttempts : Short
+            -linkEnabled : boolean
             -debtorRut : String
             -email : String
             -issuedAt : Instant
             -expiresAt : Instant
             -consumedAt : Instant
             +vigente() boolean
+            +fallo() void
         }
         class Session {
             <<entity>>
@@ -2740,7 +2767,8 @@ sequenceDiagram
         AC->>AS: entrarConCodigo(rut, codigo, ip)
         AS->>B: access_log: intentos fallidos de ese origen<br/>en los últimos 10 minutos
         Note over AS: con 10 o más, responde 429
-        AS->>B: el último código sin usar de ese RUT
+        AS->>B: bloquea el último código de campaña y el último solicitado del RUT
+        Note over AS: elige el más reciente, aunque esté usado:<br/>no revive códigos anteriores
         alt no hay código, venció, se agotó o no calza
             AS->>B: suma el intento y anota en access_log
             AS-->>P: 401 o 429, con el mismo mensaje
@@ -3482,13 +3510,13 @@ correo queda fechado a esa hora.
 
 | Requisito | Cómo se cumple | Dónde está |
 | --- | --- | --- |
-| **Autenticación** | El deudor entra con RUT + 6 caracteres, sin cuenta ni contraseña. Un solo uso, 24 h, 5 intentos. El alfabeto excluye `0 O 1 I L` porque el código se dicta por teléfono | `ms-auth/AuthService` |
+| **Autenticación** | Los tres portales entran por código: RUT del deudor o correo del personal. Un solo uso, 5 intentos; 15 min si se solicita en el portal y 24 h si viene de campaña. El alfabeto excluye `0 O 1 I L`. Usar el código o el enlace del respaldo consume ambos, incluso con solicitudes simultáneas | `ms-auth/AuthService`, `V6__codigo_y_enlace_del_mismo_acceso.sql` |
 | **Sesión** | El JWT dura **15 minutos** y vive en la memoria de la pestaña, no en `localStorage`. Mantiene a la persona adentro una llave de renovación de 256 bits en una cookie `HttpOnly` y `SameSite=Strict`, que ningún script puede leer. Cada uso la cambia por otra; cerrar sesión la revoca **en el servidor**, y si una llave usada reaparece, se revoca toda la sesión | `ms-auth/SessionService`, `V2__sesiones.sql` |
 | **Origen** | Cada freno cuenta por IP, así que la IP no se puede inventar: nginx sobrescribe `X-Forwarded-For`, y el gateway solo les cree a sus proxies (`TRUSTED_PROXIES`). CORS acepta solo los orígenes del portal (`CORS_ORIGINS`), no `*` | `frontend/nginx.conf.template`, `gateway/ClienteReal` |
 | **Secretos** | Lo que solo se compara se guarda como hash: códigos, tokens de enlace, llaves de renovación y claves de API. Lo que hay que leer de vuelta —el secreto con que se firman los avisos— va **cifrado con AES-256-GCM**, con una llave fuera de la base (`CIFRADO_LLAVE`). Un secreto en claro de antes se cifra solo al arrancar | `ms-debt/config/Cifrado`, `V3__secretos_cifrados.sql` |
 | **Pagos** | Nada de lo que traiga el navegador se aplica: ms-payments le pregunta a la pasarela. Un pago de Webpay se aprueba solo si Transbank confirma `AUTHORIZED` con código 0 **y** el monto y la orden calzan; un retorno repetido no se vuelve a confirmar. Uno de Khipu, solo si Khipu dice que está conciliado (`done`, sin reversa) **y** el monto y la transacción calzan; su aviso se verifica con firma HMAC. Un pago real no se puede confirmar por el camino de la simulación | `ms-payments/PaymentService`, `WebpayClient`, `KhipuClient`, `FirmaDeKhipu` |
-| **Enlace** | El enlace de respaldo va **solo al correo que registró el acreedor** para ese RUT (ms-auth se lo pregunta a ms-debt con la clave interna); el que se escribe no se usa, y el deudor lo pide solo con su RUT. Al personal le llega solo si su cuenta está habilitada. Si ms-debt no responde, no sale nada. Un enlace pedido con RUT abre solo la sesión de ese deudor, y la bitácora anota si el correo salió o no | `AuthService.pedirEnlace`, `DeudasClient`, `V3__enlace_pedido.sql` |
-| **Enumeración** | "No hay código" y "código incorrecto" responden **lo mismo**, para que nadie averigüe qué RUT tienen deuda. Pedir un enlace también responde siempre lo mismo, salga o no el correo, y el correo sale en segundo plano para que tampoco lo delate el tiempo de respuesta | `AuthService.entrarConCodigo`, `AuthService.pedirEnlace` |
+| **Enlace** | El respaldo reúne código y enlace en un único correo, **solo al correo registrado por el acreedor** para ese RUT; el deudor nunca elige otro destino. Al personal le llega solo si está habilitado. Un acceso pedido con RUT abre solo la sesión de ese deudor; `sent` indica que se agendó el envío, no que se entregó | `AuthService.pedirEnlace`, `DeudasClient`, `V6__codigo_y_enlace_del_mismo_acceso.sql` |
+| **Enumeración** | Los pedidos de código y respaldo responden el mismo `202` exista o no la identidad. El envío es asíncrono y la respuesta no contiene credenciales. No se garantiza tiempo constante: resolver el destinatario requiere consultar ms-debt o la base local, según la identidad | `AuthService.pedirCodigo`, `AuthService.pedirEnlace` |
 | **Autorización** | Cada sesión se identifica por RUT. Un deudor ve, paga y reclama solo lo suyo; una agencia ve y resuelve solo la cartera de su mandato | `DebtService`, `DisputaService` |
 | **Integridad** | Los eventos van firmados con HMAC-SHA256, caducan a los 5 minutos y se descartan si llegan repetidos | `docs/integracion/README.md` §8 |
 | **Superficie** | De la aplicación, **solo el portal publica un puerto**. MySQL, RabbitMQ y el buzón publican el suyo **a propósito**, para revisarlos en desarrollo; en un despliegue real esas líneas `ports:` se borran | `docker-compose.yml` |
@@ -3624,7 +3652,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `JWT_TTL_MINUTES` | `15` | Cuánto dura el JWT. Corto a propósito: no se puede revocar |
 | `REFRESH_TTL_HOURS` | `168` | Cuánto dura una sesión desde que se entra. Renovar no la alarga |
 | `COOKIE_SECURE` | `false` | **Encender detrás de HTTPS.** Una cookie `Secure` sobre HTTP el navegador la descarta sin avisar |
-| `CODE_TTL_HOURS`, `MAGIC_TTL_MINUTES` | `24`, `15` | Cuánto dura el código de acceso del deudor, y el enlace de respaldo |
+| `CODE_TTL_HOURS`, `MAGIC_TTL_MINUTES` | `24`, `15` | Horas del código de campaña; minutos del código solicitado y su enlace opcional de respaldo |
 | `INVITACION_TTL_HORAS` | `24` | Cuánto dura el enlace de la invitación que le llega a una persona recién dada de alta desde el panel |
 
 </details>
@@ -3730,12 +3758,12 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**852 pruebas**, todas en Java y sin fallos:
+**879 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 193 |
+| `ms-auth` | 220 |
 | `ms-debt` | 412 |
 | `ms-payments` | 185 |
 | `ms-ai` | 43 |
@@ -3809,7 +3837,7 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 
 ## 13. Recorrido de demostración
 
-1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su enlace, que
+1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su código, que
    llega al buzón, y ve la cartera de ejemplo.
 2. **Carga a sus deudores en una campaña.** En *Cargar cartera* elige una campaña o la crea, descarga
    la plantilla de Excel, la llena (una hoja de deudores y otra de deudas, una fila por mes) y la sube.
@@ -3846,16 +3874,17 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 17 de octubre de 2026
+## 14. Estado al 18 de octubre de 2026
 
-**852 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
+**879 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **852**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **879**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El nuevo correo no se probó contra Brevo ni en un buzón real |
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |

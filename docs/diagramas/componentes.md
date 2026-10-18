@@ -390,7 +390,7 @@ Qué módulo de `api/` habla con qué servicio:
 
 | Módulo | Rutas que llama | Servicio |
 | --- | --- | --- |
-| `sesion.js` | `/api/auth/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
+| `sesion.js` | `/api/auth/codigo`, `/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
 | `client.js` | `/api/auth/refresh`, cuando el JWT vence | ms-auth |
 | `deudas.js` | `/api/debts/**` | ms-debt |
 | `analitica.js` | `/api/analytics/summary` | ms-debt |

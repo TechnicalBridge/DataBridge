@@ -64,6 +64,28 @@ class MailServiceTest {
         return new MailService(proveedor, "noreply@technicalbridge.local", "http://localhost:8080/", host);
     }
 
+    @Test
+    void pedir_codigo_entrega_un_solo_correo_sin_enlace_de_acceso() {
+        correo("mailpit").enviarAcceso("persona@example.com", "K7M2QX", null, 15);
+        Enviado carta = enviado();
+        assertTrue(carta.texto().contains("K7M2QX"));
+        assertTrue(carta.html().contains("K7M2QX"));
+        assertFalse(carta.texto().contains("/magic"));
+        assertFalse(carta.html().contains("<a "));
+        assertTrue(carta.texto().contains("15 minutos"));
+    }
+
+    @Test
+    void el_respaldo_entrega_codigo_y_enlace_en_el_mismo_mensaje() {
+        String url = "http://localhost:8080/magic?token=token-ficticio";
+        correo("mailpit").enviarAcceso("persona@example.com", "K7M2QX", url, 15);
+        Enviado carta = enviado();
+        assertTrue(carta.texto().contains("K7M2QX"));
+        assertTrue(carta.texto().contains(url));
+        assertTrue(carta.html().contains("K7M2QX"));
+        assertTrue(carta.html().contains("href=\"" + url + "\""));
+    }
+
     /** Con un servidor real: una cuenta que manda, su nombre, y el modo de prueba que se pida. */
     private MailService real(String soloA, String desviarA) {
         when(proveedor.getIfAvailable()).thenReturn(smtp);

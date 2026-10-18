@@ -122,12 +122,17 @@ classDiagram
             <<entity>>
             -id : Long
             -tokenHash : String
+            -codeHash : String
+            -attempts : Short
+            -maxAttempts : Short
+            -linkEnabled : boolean
             -debtorRut : String
             -email : String
             -issuedAt : Instant
             -expiresAt : Instant
             -consumedAt : Instant
             +vigente() boolean
+            +fallo() void
         }
         class Session {
             <<entity>>
@@ -224,7 +229,7 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AccessCode` | `model` | El código que abre el portal del deudor. Se guarda su huella, no el código. |
-| `MagicLink` | `model` | El enlace de un solo uso al correo: para el personal y el admin, y de respaldo para el deudor. |
+| `MagicLink` | `model` | El acceso solicitado en los tres portales: código y enlace opcional con uso, intentos y vencimiento compartidos. Conserva los enlaces anteriores y las invitaciones sin código. |
 | `Session` | `model` | Una llave de renovación de la sesión. Cada uso la jubila y deja otra en la misma familia. |
 | `StaffUser` | `model` | Una persona con cuenta: `usuario` de una empresa o `admin` de DataBridge. |
 | `AccessLog` | `model` | Quién intentó entrar, cómo le fue y desde qué origen. |
@@ -241,6 +246,7 @@ classDiagram
         class AuthController {
             <<controller>>
             +acceso(AccesoRequest, HttpServletRequest) SesionResponse
+            +codigo(EnlaceRequest, HttpServletRequest) EnlaceResponse
             +enlace(EnlaceRequest, HttpServletRequest) EnlaceResponse
             +verify(VerifyRequest, HttpServletRequest) SesionResponse
             +refresh(String, HttpServletRequest) Object
@@ -279,6 +285,8 @@ classDiagram
             +emitirCodigo(String, List~String~, String) CodigoEmitidoResponse
             +anularCodigo(String, String) void
             +entrarConCodigo(String, String, String) Sesion
+            +entrarConCodigoDePersonal(String, String, String) Sesion
+            +pedirCodigo(String, String, String) EnlaceResponse
             +pedirEnlace(String, String, String) EnlaceResponse
             +entrarConEnlace(String, String) Sesion
             +renovar(String, String) Sesion
@@ -332,6 +340,7 @@ classDiagram
             +enviarCodigo(String, String, String) void
             +enviarRecordatorio(String, String, String, LocalDate) void
             +enviarEnlace(String, String, long) void
+            +enviarAcceso(String, String, String, long) void
             +enviarInvitacion(String, String, String, String, long, String) void
             +probar(String) PruebaDeCorreoResponse
         }
@@ -394,12 +403,16 @@ classDiagram
     namespace repository {
         class AccessCodeRepository {
             <<repository>>
-            +findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(String) Optional~AccessCode~
+            +findFirstByDebtorRutOrderByIssuedAtDescIdDesc(String) Optional~AccessCode~
             +deleteByCodeHash(String) long
         }
         class MagicLinkRepository {
             <<repository>>
             +findByTokenHash(String) Optional~MagicLink~
+            +findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(String) Optional~MagicLink~
+            +findFirstByEmailIgnoreCaseAndDebtorRutIsNullAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(String) Optional~MagicLink~
+            +anularPedidosDeRut(String, Instant) int
+            +anularPedidosDeCorreo(String, Instant) int
             +anularPendientesDe(String, Instant) int
         }
         class StaffUserRepository {

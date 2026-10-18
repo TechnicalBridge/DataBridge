@@ -17,10 +17,13 @@ import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.util.Hash;
 import com.tbridge.auth.util.Rut;
+import com.tbridge.auth.util.Correo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -32,19 +35,10 @@ import java.util.UUID;
 /**
  * Como entra cada quien.
  *
- * <p><b>El deudor entra con un codigo y sin cuenta.</b> No hay registro, no
- * hay contrasena. El codigo le llega por WhatsApp y por su correo registrado,
- * y el entra escribiendo la direccion del portal por su cuenta.
- *
- * <p>Por que importa: un phisher necesita que hagas clic en SU enlace. Si el
- * mensaje te manda a un sitio que puedes escribir, buscar o verificar antes de
- * entrar, el atacante pierde el control del destino, que era todo lo que
- * tenia. Es la separacion entre <i>donde vas</i> y <i>quien te escribio</i>,
- * que es la definicion de verificacion fuera de banda.
- *
- * <p><b>El RUT tambien se pide.</b> No es friccion gratuita: el codigo es
- * corto para poder dictarlo, y sin un segundo dato, probar codigos al azar
- * seria barato.
+ * <p>Los tres portales entran primero por codigo: RUT para el deudor,
+ * correo para el personal. El respaldo solicitado incluye codigo y enlace
+ * en un solo mensaje; ambos consumen el mismo acceso, no son dos factores.
+ * Los codigos emitidos por campana conservan su vigencia propia.
  */
 @Service
 public class AuthService {
@@ -157,26 +151,30 @@ public class AuthService {
     /**
      * Entrar con el codigo.
      *
-     * <p><b>No es transaccional a proposito.</b> Un intento fallido tiene que
-     * quedar contado, y si todo el metodo fuera una transaccion, la excepcion
-     * que rechaza el intento se llevaria el contador con ella: probar codigos
-     * al azar saldria gratis.
+     * Los rechazos conservan el contador, y el bloqueo de la fila evita que
+     * dos peticiones consuman a la vez el mismo codigo o su enlace hermano.
      */
+    @Transactional(noRollbackFor = ApiException.class)
     public Sesion entrarConCodigo(String rutCrudo, String codigoCrudo, String ip) {
         String ipHash = ip == null ? null : Hash.sha256(ip);
         frenarFuerzaBruta(ipHash);
 
         String rut = normalizarRut(rutCrudo);
-        String codigo = (codigoCrudo == null ? "" : codigoCrudo)
-                .trim().toUpperCase(Locale.ROOT).replace(" ", "").replace("-", "");
+        String codigo = normalizarCodigo(codigoCrudo);
+
+        MagicLink pedido = enlaces.findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(rut)
+                .orElse(null);
 
         AccessCode registro = codigos
-                .findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(rut)
+                .findFirstByDebtorRutOrderByIssuedAtDescIdDesc(rut)
                 .orElse(null);
+        if (pedido != null && (registro == null || !pedido.getIssuedAt().isBefore(registro.getIssuedAt()))) {
+            return consumirCodigoPedido(pedido, codigo, ipHash);
+        }
 
         //  El mismo mensaje para "no hay codigo" y para "no corresponde": si
         //  fueran distintos, se podria averiguar que RUT tienen deuda.
-        if (registro == null) {
+        if (registro == null || registro.getConsumedAt() != null) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
         }
@@ -201,9 +199,44 @@ public class AuthService {
         codigos.save(registro);
         anotar(rut, AccessLog.Method.code, AccessLog.Outcome.granted, ipHash);
 
-        //  La sesion se abre en su propia transaccion (SessionService), porque
-        //  este metodo no tiene una a proposito: ver el comentario de arriba.
         return sesionDeDeudor(rut, ipHash);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public Sesion entrarConCodigoDePersonal(String email, String codigo, String ip) {
+        String direccion = correoValido(email);
+        String ipHash = ip == null ? null : Hash.sha256(ip);
+        frenarFuerzaBruta(ipHash);
+        MagicLink pedido = enlaces
+                .findFirstByEmailIgnoreCaseAndDebtorRutIsNullAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(direccion)
+                .orElse(null);
+        if (pedido == null) {
+            anotar(null, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
+        }
+        return consumirCodigoPedido(pedido, normalizarCodigo(codigo), ipHash);
+    }
+
+    private Sesion consumirCodigoPedido(MagicLink pedido, String codigo, String ipHash) {
+        String rut = pedido.getDebtorRut();
+        if (pedido.getAttempts() >= pedido.getMaxAttempts()) {
+            anotar(rut, AccessLog.Method.code, AccessLog.Outcome.exhausted, ipHash);
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos con ese código. Pide uno nuevo.");
+        }
+        if (!pedido.vigente()) {
+            anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde, venció o ya se usó");
+        }
+        String identidad = rut == null ? pedido.getEmail() : rut;
+        if (!Hash.igualesEnTiempoConstante(pedido.getCodeHash(), huella(identidad, codigo))) {
+            pedido.fallo();
+            enlaces.save(pedido);
+            anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
+        }
+        pedido.setConsumedAt(Instant.now());
+        enlaces.save(pedido);
+        return abrirSesionDePedido(pedido, AccessLog.Method.code, ipHash);
     }
 
     // ------------------------------------------------------------------
@@ -211,7 +244,8 @@ public class AuthService {
     // ------------------------------------------------------------------
 
     /** Lo que se le responde a quien pide un enlace, salga o no: no revela quien es deudor ni quien es personal. */
-    static final String RESPUESTA_ENLACE = "Si tus datos estan registrados, te llegara un enlace de acceso.";
+    static final String RESPUESTA_ENLACE = "Si tus datos están registrados, recibirás un código y un enlace en el mismo correo.";
+    static final String RESPUESTA_CODIGO = "Si tus datos están registrados, recibirás un código de acceso por correo.";
 
     /**
      * El camino de excepcion, para quien no logra entrar con el codigo.
@@ -220,70 +254,108 @@ public class AuthService {
      * eso dura quince minutos y no veinticuatro horas, y nunca va a un correo
      * que elija quien lo pide:
      * <ul>
-     *   <li><b>Con RUT</b> es un deudor: el enlace va solo al correo que
+     *   <li><b>Con RUT</b> es un deudor: el mensaje va solo al correo que
      *       registro el acreedor, que se le pregunta a ms-debt. El que se
      *       escribe no se usa. Sin correo registrado, no sale nada.</li>
      *   <li><b>Sin RUT</b> es el personal de una empresa: sale solo si el
      *       correo es de una cuenta habilitada.</li>
      * </ul>
-     * La respuesta es siempre la misma, y el correo sale en segundo plano para
-     * que el tiempo de respuesta tampoco lo delate. La bitacora anota si salio.
+     * La respuesta no revela si existe la identidad. El envio se agenda en
+     * segundo plano despues de guardar; sent indica que se agendo, no entrega.
      */
     @Transactional
     public EnlaceResponse pedirEnlace(String rutCrudo, String email, String ip) {
+        return pedirAcceso(rutCrudo, email, ip, true);
+    }
+
+    @Transactional
+    public EnlaceResponse pedirCodigo(String rutCrudo, String email, String ip) {
+        return pedirAcceso(rutCrudo, email, ip, false);
+    }
+
+    private EnlaceResponse pedirAcceso(String rutCrudo, String email, String ip, boolean conEnlace) {
         String ipHash = ip == null ? null : Hash.sha256(ip);
+        frenarFuerzaBruta(ipHash);
         String rut = rutCrudo == null || rutCrudo.isBlank() ? null : normalizarRut(rutCrudo);
+        AccessLog.Method metodo = conEnlace ? AccessLog.Method.magic_link : AccessLog.Method.code;
         String destino;
         if (rut != null) {
             destino = deudas.correoDelDeudor(rut).map(c -> c.trim().toLowerCase(Locale.ROOT)).orElse(null);
         } else {
-            if (email == null || !email.contains("@")) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Correo no valido");
-            }
-            destino = personal.findByEmailIgnoreCase(email.trim())
+            destino = personal.findByEmailIgnoreCase(correoValido(email))
                     .filter(StaffUser::habilitado)
                     .map(s -> s.getEmail().toLowerCase(Locale.ROOT))
                     .orElse(null);
         }
 
         if (destino == null) {
-            anotar(rut, AccessLog.Method.magic_link, AccessLog.Outcome.refused, ipHash);
+            anotar(rut, metodo, AccessLog.Outcome.refused, ipHash);
         } else {
+            if (rut == null) enlaces.anularPedidosDeCorreo(destino, Instant.now());
+            else enlaces.anularPedidosDeRut(rut, Instant.now());
             String token = UUID.randomUUID().toString();
+            String codigo = generarCodigo();
             MagicLink enlace = new MagicLink();
             enlace.setTokenHash(Hash.sha256(token));
             enlace.setDebtorRut(rut);
             enlace.setEmail(destino);
             enlace.setExpiresAt(Instant.now().plus(magicTtlMinutes, ChronoUnit.MINUTES));
+            enlace.setCodeHash(huella(rut == null ? destino : rut, codigo));
+            enlace.setLinkEnabled(conEnlace);
             enlaces.save(enlace);
-            correo.enviarEnlace(destino, publicUrl + "/magic?token=" + token, magicTtlMinutes);
-            anotar(rut, AccessLog.Method.magic_link, AccessLog.Outcome.sent, ipHash);
+            Runnable enviar = () -> correo.enviarAcceso(destino, codigo,
+                    conEnlace ? publicUrl + "/magic?token=" + token : null, magicTtlMinutes);
+            //  No entregar credenciales de una transaccion que aun puede fallar.
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override public void afterCommit() { enviar.run(); }
+                });
+            } else {
+                enviar.run();
+            }
+            anotar(rut, metodo, AccessLog.Outcome.sent, ipHash);
         }
-        return new EnlaceResponse(true, RESPUESTA_ENLACE, magicTtlMinutes);
+        return new EnlaceResponse(true, conEnlace ? RESPUESTA_ENLACE : RESPUESTA_CODIGO, magicTtlMinutes);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public Sesion entrarConEnlace(String token, String ip) {
         String ipHash = ip == null ? null : Hash.sha256(ip);
         MagicLink enlace = enlaces.findByTokenHash(Hash.sha256(token == null ? "" : token.trim()))
                 .orElse(null);
-        if (enlace == null || !enlace.vigente()) {
+        if (enlace == null || !enlace.isLinkEnabled() || !enlace.vigente()) {
             anotar(enlace == null ? null : enlace.getDebtorRut(),
                     AccessLog.Method.magic_link, AccessLog.Outcome.invalid, ipHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace invalido o vencido");
         }
         enlace.setConsumedAt(Instant.now());
         enlaces.save(enlace);
-        anotar(enlace.getDebtorRut(), AccessLog.Method.magic_link, AccessLog.Outcome.granted, ipHash);
+        return abrirSesionDePedido(enlace, AccessLog.Method.magic_link, ipHash);
+    }
 
+    private Sesion abrirSesionDePedido(MagicLink pedido, AccessLog.Method metodo, String ipHash) {
+        try {
+            Sesion sesion = sesionDePedido(pedido, ipHash);
+            anotar(pedido.getDebtorRut(), metodo, AccessLog.Outcome.granted, ipHash);
+            return sesion;
+        } catch (ApiException ex) {
+            anotar(pedido.getDebtorRut(), metodo, AccessLog.Outcome.refused, ipHash);
+            throw ex;
+        }
+    }
+
+    private Sesion sesionDePedido(MagicLink enlace, String ipHash) {
         //  Un enlace pedido con RUT es del deudor, y abre solo su sesion: aunque
         //  su correo fuera tambien el de alguien del personal, no entra como empresa.
         if (enlace.getDebtorRut() != null) {
             return sesionDeDeudor(enlace.getDebtorRut(), ipHash);
         }
-        //  El personal de una empresa tambien entra por enlace, si sigue habilitado.
+        //  Codigo o enlace no reemplazan la habilitacion actual del personal.
         StaffUser staff = personal.findByEmailIgnoreCase(enlace.getEmail()).orElse(null);
         if (staff == null || !staff.habilitado()) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso");
+        }
+        if (!staff.esAdmin() && deudas.empresa(staff.getOrgRut()).filter(DeudasClient.Empresa::activa).isEmpty()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso");
         }
         staff.setLastLoginAt(Instant.now());
@@ -406,5 +478,13 @@ public class AuthService {
             return "[]";
         }
         return "[\"" + String.join("\",\"", canales) + "\"]";
+    }
+
+    private static String correoValido(String email) {
+        return Correo.normalizar(email).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Correo no valido"));
+    }
+
+    private static String normalizarCodigo(String codigo) {
+        return (codigo == null ? "" : codigo).trim().toUpperCase(Locale.ROOT).replace(" ", "").replace("-", "");
     }
 }

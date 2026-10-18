@@ -162,6 +162,21 @@ cada push a `main` se despliega solo.
   ```
 
 - Un deudor entra con su código, paga con Webpay (tarjeta de prueba) y la empresa ve el pago.
+- En los tres portales, **Enviar código** manda solo código; **¿No te llegó?** manda código y
+  enlace en un único mensaje. El acceso solicitado dura `MAGIC_TTL_MINUTES` (15 por omisión), y
+  usar una opción invalida ambas. Las invitaciones iniciales del personal conservan su enlace.
+  Probar solo con destinatarios autorizados y el modo de prueba activo.
+- Antes de desplegar este cambio de acceso, respaldar `tb_auth`: Flyway aplica V6 sobre
+  `magic_links` sin borrar registros. Para revertir la aplicación, volver al código anterior
+  conservando los archivos de migración hasta V6; no borrar columnas ni modificar su historial.
+  Antes de arrancar la versión anterior, invalidar solo los pedidos nuevos aún pendientes, tras
+  el respaldo y con autorización de quien opera la base:
+
+  ```sql
+  UPDATE tb_auth.magic_links
+  SET consumed_at = UTC_TIMESTAMP(6)
+  WHERE code_hash IS NOT NULL AND consumed_at IS NULL;
+  ```
 - En *Reglas*, el horario y el límite de la ley salen **apagados para probar**.
 
 ## 8. En diciembre: apagarlo

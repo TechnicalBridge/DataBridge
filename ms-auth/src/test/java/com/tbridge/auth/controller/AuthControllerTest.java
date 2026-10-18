@@ -73,6 +73,34 @@ class AuthControllerTest {
     }
 
     @Test
+    void solicitar_codigo_es_202_y_no_entrega_el_secreto() throws Exception {
+        when(auth.pedirCodigo(eq(RUT), eq(null), any())).thenReturn(new EnlaceResponse(true,
+                "Si tus datos están registrados, recibirás un código de acceso por correo.", 15));
+        mvc.perform(post("/api/auth/codigo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.expiraEnMinutos").value(15))
+                .andExpect(jsonPath("$.codigo").doesNotExist())
+                .andExpect(jsonPath("$.token").doesNotExist());
+    }
+
+    @Test
+    void entrar_con_correo_y_codigo_usa_el_acceso_de_personal() throws Exception {
+        when(auth.entrarConCodigoDePersonal(eq("persona@example.com"), eq("K7M2QX"), any())).thenReturn(sesion());
+        mvc.perform(post("/api/auth/acceso").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"persona@example.com\",\"codigo\":\"K7M2QX\"}"))
+                .andExpect(status().isOk());
+        verify(auth).entrarConCodigoDePersonal(eq("persona@example.com"), eq("K7M2QX"), any());
+    }
+
+    @Test
+    void entrar_no_acepta_rut_y_correo_a_la_vez() throws Exception {
+        mvc.perform(post("/api/auth/acceso").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\",\"correo\":\"persona@example.com\",\"codigo\":\"K7M2QX\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void entrar_devuelve_el_jwt_la_cookie_y_los_enlaces_con_la_direccion_publica() throws Exception {
         when(auth.entrarConCodigo(eq(RUT), eq("K7M2QX"), any())).thenReturn(sesion());
 

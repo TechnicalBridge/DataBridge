@@ -196,7 +196,10 @@ stateDiagram-v2
 | Agotado | `attempts` llegó a `max_attempts`, que es 5 | `429`: pide uno nuevo |
 | Vencido | `expires_at` ya pasó | `401`: pide uno nuevo |
 
-El enlace de respaldo (`MagicLink`) es más simple: sin usar, usado o vencido a los 15 minutos.
+El acceso solicitado (`MagicLink`) tiene los mismos estados: el código y el enlace opcional
+comparten `consumed_at`, `expires_at` y el contador de cinco intentos. Dura 15 minutos por omisión;
+usar cualquiera consume ambos. Solicitar otro marca como usado el pedido anterior. Los enlaces
+antiguos y de invitación conservan `code_hash` vacío y su vencimiento original.
 
 ---
 
@@ -242,7 +245,7 @@ stateDiagram-v2
 
 | Estado | Cómo se sabe | Qué puede hacer |
 | --- | --- | --- |
-| Con acceso | `disabled_at` vacío | Pedir su enlace, entrar y renovar su sesión |
+| Con acceso | `disabled_at` vacío | Pedir su código o respaldo, entrar y renovar su sesión |
 | Sin acceso | `disabled_at` con la fecha desde cuando | Nada: no le llegan enlaces, los que tenía sin abrir quedaron usados y sus sesiones, revocadas |
 
 La cuenta nunca se borra: queda la persona y desde cuándo no entra. Cada cambio lo anota `admin_log`, con el
