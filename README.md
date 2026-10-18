@@ -320,6 +320,8 @@ La prueba `rendimiento/capacidad.js` necesita `MAIL_URI`, la URL de un buzón ex
 compatible `/api/v1/messages`, y ms-auth configurado para entregarle a ese mismo buzón. Sin esa
 variable se detiene antes de hacer peticiones. Si no llega el acceso de empresa, falla en vez de
 omitir la medición del resumen. No usar un buzón Gmail ni Brevo para esa prueba.
+El listado compatible incluye `ID`, `Created` y `To[].Address`: solo se canjea un mensaje reciente
+con fecha válida y destinado a `CORREO_EMPRESA`. Un mensaje ajeno no autoriza medir otra cartera.
 
 <details>
 <summary><b>Con Brevo</b>, paso a paso</summary>
@@ -3908,6 +3910,10 @@ de ms-debt en Docker ni se enviaron correos reales para esta corrección.
 La retirada de Mailpit se integra sobre ese acceso por código. La primera verificación independiente
 tenía 193 pruebas de ms-auth; la base integrada tiene 222, incluidas las dos regresiones de la revisión.
 No se detuvieron contenedores ni se enviaron correos reales para resolver esta integración.
+
+La revisión de `capacidad.js` agregó el filtro por destinatario y fecha del buzón compartido:
+con HTTP simulado, un correo ajeno o con fecha inválida no se canjea, y el caso correcto conserva
+las cuatro lecturas. No es una ejecución de carga ni una comprobación de un SMTP externo.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>

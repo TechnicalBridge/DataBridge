@@ -27,7 +27,7 @@ if (!BUZON) throw new Error('Falta MAIL_URI: capacidad.js necesita un buzon exte
 const CLAVE_INTERNA = __ENV.INTERNAL_KEY;
 if (!CLAVE_INTERNA) throw new Error('Falta INTERNAL_KEY: corre la prueba con el compose, que la toma del .env');
 const RUT_DEUDOR = __ENV.RUT_DEUDOR || '16482337-7';
-const CORREO_EMPRESA = __ENV.CORREO_EMPRESA || 'camila.reyes@apofyx.cl';
+const CORREO_EMPRESA = (__ENV.CORREO_EMPRESA || 'camila.reyes@apofyx.cl').trim().toLowerCase();
 
 //  Si el limitador del gateway responde aunque sea una vez, la prueba mide el
 //  limitador y no el sistema. Pasa facil: un "docker compose up" de cualquier
@@ -111,7 +111,11 @@ function sesionEmpresa() {
     const bandeja = http.get(`${BUZON}/api/v1/messages?limit=5`);
     if (bandeja.status !== 200) continue;
     for (const mensaje of bandeja.json('messages') || []) {
-      if (new Date(mensaje.Created).getTime() < antes - 5000) continue;
+      const creado = new Date(mensaje.Created).getTime();
+      const destinatarios = Array.isArray(mensaje.To) ? mensaje.To : [];
+      if (!Number.isFinite(creado) || creado < antes - 5000
+          || !destinatarios.some(d => typeof d.Address === 'string'
+            && d.Address.trim().toLowerCase() === CORREO_EMPRESA)) continue;
       const cuerpo = http.get(`${BUZON}/api/v1/message/${mensaje.ID}`);
       const texto = `${cuerpo.body}`;
       const ficha = texto.match(/magic\?token=([0-9a-f-]{36})/);
