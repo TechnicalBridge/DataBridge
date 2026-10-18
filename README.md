@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-17-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-18-de-octubre-de-2026) |
 
 ---
 
@@ -177,6 +177,7 @@ git clone https://github.com/TechnicalBridge/TB_web.git
 cd TB_web
 powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # una sola vez: el .env con claves al azar
 docker compose --profile app up -d --build --wait
+powershell -NoProfile -ExecutionPolicy Bypass -File .\preparar-env.ps1 -Verificar
 ```
 
 `--wait` devuelve el control recién cuando los nueve contenedores están **sanos**, no cuando
@@ -193,6 +194,13 @@ conexión; después son segundos.
 
 Para apagar: `docker compose --profile app down`. Con `-v` borra además los datos.
 
+Cada instalación conserva sus propios secretos internos. Para compartir correo, pasarelas y Banco Central se indica
+un perfil privado con `preparar-env.ps1 -Proveedores ..\.env.proveedores`; nunca se copia todo el `.env` de
+otro PC sobre una base ya creada. El preparador respalda antes de escribir y `-Verificar` comprueba MySQL
+sin cambiar datos. Detalle, formato y recuperación en [Configuración por instalación](docs/configuracion/README.md).
+Banco Central requiere `BCENTRAL_USER` y `BCENTRAL_PASS` juntos. Preparar el archivo no autentica la cuenta
+ni actualiza el contenedor de pagos: aplicar esa configuración es una operación separada.
+
 ### Si algo falla en un equipo nuevo
 
 <details>
@@ -200,9 +208,10 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 
 | Qué pasa | Qué hacer |
 | --- | --- |
-| `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | No hay `.env`, o le falta ese secreto: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1` lo completa sin tocar lo que ya tiene |
-| Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia, también las claves dentro de MySQL si la base está arriba, sin perder datos. Después, `docker compose --profile app up -d` |
-| Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes, también dentro de MySQL si es una de sus claves. Después, `docker compose --profile app up -d` |
+| `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | Sin infraestructura previa, `preparar-env.ps1` genera lo que falta. Si ya hay datos o contenedores, se recupera el `.env` de esa instalación: no se inventan claves nuevas |
+| Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Son públicos. Revisar la renovación con acceso root válido; `-Renovar` selecciona esos valores, pero se detiene ante RabbitMQ o cifrado si falta el procedimiento específico. No basta editar el archivo; ver [rotación autorizada](docs/configuracion/README.md#desajustes-y-recuperacion) |
+| Una clave se filtró (quedó en una captura, en un registro, en un chat) | Planificar y autorizar `-Cambiar NOMBRE`; MySQL necesita root válido. RabbitMQ y cifrado requieren pasos especiales, no solo editar `.env`. Ver [recuperación](docs/configuracion/README.md#desajustes-y-recuperacion) |
+| MySQL responde `Access denied` aunque aparece saludable | `preparar-env.ps1 -Verificar` distingue el acceso de root, la cuenta de aplicación y los servicios con claves antiguas. `mysqladmin ping` no acreditaba autenticación; el healthcheck ahora consulta las tres bases con la cuenta de aplicación. No borrar volúmenes |
 | `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
 | La construcción se cae bajando dependencias | Sin internet, o un proxy que la corta. Se vuelve a correr la misma orden: lo que ya bajó queda en caché |
@@ -3605,7 +3614,7 @@ no es secreto sí tiene un valor de desarrollo.
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
 | `MYSQL_USER` | `tbridge` | El usuario de la base para los servicios |
-| `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` | el `.env` | Las claves de la base. Una vez creada la base, se cambian con `preparar-env.ps1 -Renovar`, que las cambia también dentro de MySQL |
+| `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` | el `.env` de esa instalación | Claves internas, distintas por PC. No se actualizan por reconstruir imágenes ni editar el archivo. Ver [preparación y rotación autorizada](docs/configuracion/README.md) |
 | `RABBIT_USER` | `guest` | El usuario de RabbitMQ |
 | `RABBIT_PASSWORD` | el `.env` | Su clave |
 | `EVENTS_RABBIT` | `true` en Docker, `false` con Maven | Si el aviso de pago va por RabbitMQ o por HTTP. En Docker está fijo en `true` |
@@ -3707,6 +3716,11 @@ para nada que no sea una demostración.**
 ---
 
 ## 11. Pruebas
+
+La herramienta de configuración tiene **60 pruebas locales independientes**, ejecutadas con
+`node --test pruebas\entorno.test.cjs`: PowerShell 5.1 y Docker simulado, sin bases ni proveedores reales.
+No se suman al total Java. El alcance de la comprobación real de configuración está en
+[Estado](#14-estado-al-18-de-octubre-de-2026).
 
 ```powershell
 .\mvnw.cmd -f ms-debt\pom.xml clean test                        # un servicio (lo mismo con gateway, ms-auth, ms-payments o ms-ai)
@@ -3846,9 +3860,13 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 17 de octubre de 2026
+## 14. Estado al 18 de octubre de 2026
 
 **852 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
+
+La preparación de entornos suma **60 pruebas locales de PowerShell 5.1**, separadas de las cifras Java.
+La revisión de configuración no repitió las suites Java ni los recorridos del portal; la CI de esta rama
+se consulta en su PR. La evidencia local no acredita CI ni atribuye esas pruebas históricas a esta corrección.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
@@ -3856,6 +3874,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 | Verificación | Resultado |
 | --- | --- |
 | Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **852**, sin fallos ([§11](#11-pruebas)). En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Preparación y verificación del entorno ([#230](https://github.com/TechnicalBridge/TB_web/issues/230)) | **60 pruebas locales**, sin fallos, en PowerShell 5.1 con Docker simulado. Dos regresiones fallan con la versión anterior. Ordenamiento real con respaldo: 32 variables iniciales conservadas y luego 2 de Banco Central incorporadas; valores previos y comentarios intactos, segunda ejecución sin cambios. Compose resuelve ambas variables nuevas sin aplicarlas; `-Verificar` detecta que ms-payments todavía no las tiene. No se comprobó la autenticación ante Banco Central ni se recrearon servicios. MySQL y sus claves se comprobaron sin escrituras. El asistente responde `llm=false` y tampoco recibe las nuevas variables de IA; la cascada del PR #214 no se integró ni se probaron proveedores. No se acredita todavía el arranque limpio en el otro PC |
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |

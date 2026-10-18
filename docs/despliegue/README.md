@@ -109,6 +109,12 @@ Se puede volver a correr: no pisa lo que ya existe.
 
 ## 5. El correo, las pasarelas y el DNS
 
+Las claves internas del servidor son propias: no se reemplazan copiando todo el `.env` de un PC. Para preparar
+el perfil privado de correo y pasarelas, revisar [Configuración por instalación](../configuracion/README.md).
+`preparar-env.ps1` es la herramienta de Windows, no sustituye el preparador Linux de este VPS. Cambiar un
+archivo no cambia las cuentas guardadas en MySQL; una rotación en el servidor requiere respaldo y un plan
+específico antes de recrear contenedores. Los proveedores no se validan enviando correos o pagos sin autorización.
+
 **Las claves del correo y de las pasarelas** se copian del `.env` del equipo al del servidor, sin que se vean en
 la pantalla:
 

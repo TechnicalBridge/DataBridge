@@ -52,9 +52,9 @@ services:
       # Corre solo la primera vez, cuando el volumen esta vacio.
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      #  La clave la lee del propio contenedor: asi no queda en la linea de
-      #  comando, donde la mostraria docker inspect.
-      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -u root"]
+      #  No basta mysqladmin ping: devuelve exito incluso ante Access denied.
+      #  Se comprueban la cuenta real y las tres bases, sin claves en argumentos.
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u \"$$MYSQL_USER\" --batch --skip-column-names -e \"USE tb_auth; USE tb_debt; USE tb_payments; SELECT 1;\" >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 20
