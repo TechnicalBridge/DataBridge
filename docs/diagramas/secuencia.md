@@ -69,10 +69,15 @@ sequenceDiagram
             Note over AS: «no hay código» y «no corresponde» responden igual:<br/>así no se puede averiguar qué RUT tienen deuda
         else el código calza
             Note over AS: compara la huella SHA-256(rut:codigo),<br/>en tiempo constante
-            AS->>B: consume el código y anota granted
+            opt es código de campaña
+                AS->>B: consume el código y anota granted
+            end
             AS->>SS: abrir(DEBTOR, rut)
             SS->>B: sessions: familia nueva, con la huella de la llave
             SS-->>AS: la llave de renovación, en claro una sola vez
+            opt es código solicitado
+                AS->>B: consume el pedido y anota granted
+            end
             AS-->>AC: Sesion(JWT de 15 minutos, usuario, llave)
             AC-->>P: 200 {token, user, expiraEnSegundos}<br/>y la cookie tb_renovacion
         end
@@ -132,13 +137,14 @@ sequenceDiagram
     P->>AC: POST /api/auth/verify {token}
     AC->>AS: entrarConEnlace(token, ip)
     AS->>B: bloquea magic_links por huella: habilitado, sin usar, vigente y con intentos
-    AS->>B: consume el pedido: su código también deja de servir
     alt el enlace era de un deudor
         AS->>AS: sesión DEBTOR con su RUT
     else era de personal
         AS->>B: staff_users: que siga habilitado y empresa activa si no es admin
         AS->>AS: sesión CREDITOR con el RUT de su empresa,<br/>o ADMIN sin RUT
     end
+    Note over AS,B: si ms-debt no responde: 503, sin sesión ni consumo<br/>el mismo acceso puede reintentarse mientras siga vigente
+    AS->>B: solo si abrió sesión, consume el pedido y su código
     AS->>B: access_log granted si abrió sesión, refused si no está habilitado
     AS-->>P: JWT y cookie de renovación, como en la secuencia 1
     P-->>U: su portal: /app, /databridge o /admin

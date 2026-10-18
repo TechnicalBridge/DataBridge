@@ -234,8 +234,6 @@ public class AuthService {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
         }
-        pedido.setConsumedAt(Instant.now());
-        enlaces.save(pedido);
         return abrirSesionDePedido(pedido, AccessLog.Method.code, ipHash);
     }
 
@@ -328,14 +326,15 @@ public class AuthService {
                     AccessLog.Method.magic_link, AccessLog.Outcome.invalid, ipHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace invalido o vencido");
         }
-        enlace.setConsumedAt(Instant.now());
-        enlaces.save(enlace);
         return abrirSesionDePedido(enlace, AccessLog.Method.magic_link, ipHash);
     }
 
     private Sesion abrirSesionDePedido(MagicLink pedido, AccessLog.Method metodo, String ipHash) {
         try {
             Sesion sesion = sesionDePedido(pedido, ipHash);
+            //  Una falla al comprobar la empresa no gasta un acceso correcto.
+            pedido.setConsumedAt(Instant.now());
+            enlaces.save(pedido);
             anotar(pedido.getDebtorRut(), metodo, AccessLog.Outcome.granted, ipHash);
             return sesion;
         } catch (ApiException ex) {

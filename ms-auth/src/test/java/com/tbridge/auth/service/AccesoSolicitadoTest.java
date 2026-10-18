@@ -217,6 +217,36 @@ class AccesoSolicitadoTest {
         assertEquals("DEBTOR", auth.entrarConCodigo(RUT, ultimo().codigo(), "127.0.0.1").user().role());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void una_caida_de_deudas_no_consume_el_acceso_correcto(boolean porEnlace) {
+        StaffUser staff = new StaffUser();
+        staff.setEmail("persona@example.com");
+        staff.setOrgRut("76000000-0");
+        when(personal.findByEmailIgnoreCase(staff.getEmail())).thenReturn(Optional.of(staff));
+        auth.pedirEnlace(null, staff.getEmail(), "127.0.0.1");
+        MagicLink pedido = pedidos.getLast();
+        when(deudas.empresa(staff.getOrgRut()))
+                .thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Deudas no responde"))
+                .thenReturn(Optional.of(new DeudasClient.Empresa(staff.getOrgRut(), "Empresa", true)));
+
+        ApiException error = assertThrows(ApiException.class, () -> {
+            if (porEnlace) auth.entrarConEnlace(token(), "127.0.0.1");
+            else auth.entrarConCodigoDePersonal(staff.getEmail(), ultimo().codigo(), "127.0.0.1");
+        });
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, error.getStatus());
+        assertNull(pedido.getConsumedAt(), "Sin sesion no se debe consumir una credencial correcta");
+        assertTrue(sesiones.filas.isEmpty());
+        assertEquals(0, pedido.getAttempts().intValue());
+        verify(bitacora, never()).save(argThat(r -> r.getOutcome() == AccessLog.Outcome.granted));
+
+        var sesion = porEnlace ? auth.entrarConEnlace(token(), "127.0.0.1")
+                : auth.entrarConCodigoDePersonal(staff.getEmail(), ultimo().codigo(), "127.0.0.1");
+        assertEquals("CREDITOR", sesion.user().role());
+        assertNotNull(pedido.getConsumedAt());
+        assertEquals(1, sesiones.filas.size());
+    }
+
     @Test
     void los_intentos_fallidos_agotan_tambien_el_enlace_del_respaldo() {
         auth.pedirEnlace(RUT, null, "127.0.0.1");

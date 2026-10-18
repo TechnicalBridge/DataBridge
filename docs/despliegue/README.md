@@ -166,6 +166,9 @@ cada push a `main` se despliega solo.
   enlace en un único mensaje. El acceso solicitado dura `MAGIC_TTL_MINUTES` (15 por omisión), y
   usar una opción invalida ambas. Las invitaciones iniciales del personal conservan su enlace.
   Probar solo con destinatarios autorizados y el modo de prueba activo.
+- Si comprobar la empresa responde `503` porque ms-debt no está disponible, no debe abrirse sesión
+  ni consumirse el código o enlace correcto. Al recuperarse el servicio, se puede reintentar el
+  mismo acceso mientras siga vigente. Los intentos incorrectos sí siguen contando.
 - Antes de desplegar este cambio de acceso, respaldar `tb_auth`: Flyway aplica V6 sobre
   `magic_links` sin borrar registros. Para revertir la aplicación, volver al código anterior
   conservando los archivos de migración hasta V6; no borrar columnas ni modificar su historial.
