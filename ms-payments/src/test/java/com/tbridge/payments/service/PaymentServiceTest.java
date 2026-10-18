@@ -1226,22 +1226,11 @@ class PaymentServiceTest {
 
     @Test
     void retorno_mercadopago_aprobado_confirma_el_pago() {
-        Payment pago = new Payment();
-        pago.setId(41L);
-        pago.setDebtId(3L);
-        pago.setAmount(new BigDecimal("410000"));
-        pago.setCurrency(Payment.Currency.CLP);
-        pago.setAmountClp(410000L);
-        pago.setGateway(Payment.Gateway.mercadopago);
-        pago.setStatus(Payment.Status.created);
-        pago.setGatewayTxnId("pref_123");
+        Payment pago = abiertoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
 
-        when(payments.findById(41L)).thenReturn(Optional.of(pago));
-        when(mercadopago.consultarPago("pay_999"))
-                .thenReturn(new com.tbridge.payments.client.MercadoPagoClient.PagoInfo(
-                        999L, "approved", "accredited", new BigDecimal("410000"), "CLP", "41", null));
-
-        String destino = servicio.retornoMercadoPago("pay_999", "approved", "approved", "41", "pref_123");
+        String destino = servicio.retornoMercadoPago(41L, firmaDe(pago));
 
         assertEquals(Payment.Status.paid, pago.getStatus());
         assertTrue(destino.startsWith("http://localhost:8080/pasarela/41?sig="));
@@ -1386,7 +1375,7 @@ class PaymentServiceTest {
         //  Pagado, pero por otro monto y otra referencia: no es este cobro.
         when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "1", "99"));
 
-        assertEquals(Payment.Status.failed, servicio.verificar(41L, firmaDe(pago)).status());
+        assertEquals(Payment.Status.created, servicio.verificar(41L, firmaDe(pago)).status());
     }
 
     @Test

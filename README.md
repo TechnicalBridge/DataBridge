@@ -549,6 +549,14 @@ cierre la ventana. La preferencia vence a los 30 minutos (`MERCADOPAGO_VENCE_EN`
 Mercado Pago ya no la deja pagar y el cobro queda vencido también aquí. Con un túnel https la vuelta
 automática funciona.
 
+La vuelta lleva `pago` y `sig`, generados por ms-payments al abrir el cobro. La firma permite mostrar ese
+resultado, pero no autoriza un abono: retorno, aviso y consulta periódica verifican la preferencia
+guardada y el pago de esa preferencia (identificador, referencia, monto en pesos y moneda CLP).
+Los estados que agregue el navegador no se usan para confirmar ni rechazar pagos. Si la pasarela
+no responde, se reintenta sin abonar; un intento rechazado permite probar otra tarjeta. Los cobros
+abiertos antes de este cambio, sin firma en su dirección de vuelta, regresan a `/app` sin revelar
+el enlace del pago y siguen conciliándose en segundo plano.
+
 ### Para pagar con Khipu de verdad
 
 Sin configurar nada, Khipu es simulada. Para que cobre de verdad hace falta la llave de una cuenta
@@ -3801,6 +3809,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De seguridad de las pasarelas** | La página de Webpay escapa lo que muestra; con la firma de otro pago no se abre ni se gasta el token; una vuelta por tiempo con una sesión inventada no hace fallar el cobro de otro; la respuesta del cobro no muestra el token; un cobro vencido que se pagó no se confirma (para no cobrar dos veces); la consulta no acepta otro monto ni otra orden; la vuelta, la página y la consulta bloquean la fila del pago, y entre la consulta y la vuelta se confirma una sola vez |
 | **De las pasarelas lentas o caídas** | Webpay, Khipu, Mercado Pago y ms-debt, contra un servidor que tarda más que el tiempo máximo y contra un puerto donde no escucha nadie: cada cliente corta en menos de dos segundos, sin mostrar el detalle técnico |
 | **De Mercado Pago** | El cliente contra un Mercado Pago falso: la preferencia con el token, la vuelta (con `auto_return` solo si es https) y el `init_point`, y sus errores; la preferencia vence a la hora pedida. La conciliación por las órdenes de la preferencia, también la periódica que vence lo abandonado: sin pagos, con un pago aprobado (también después de una tarjeta rechazada), con una tarjeta rechazada que deja el cobro abierto para reintentar, con Mercado Pago caído o con una preferencia que no existe; la vuelta y el aviso, sin sesión |
+| **De la confirmación de Mercado Pago** | Retorno firmado; sin firma no revela el enlace ni cambia el cobro. Retorno y aviso rechazan monto, moneda, referencia, identificador o pasarela ajenos. Solo abona el pago de la preferencia guardada; admite reintentos, avisos repetidos y aprobaciones posteriores al vencimiento. Una caída no aprueba pagos y el aviso devuelve error para reintentarlo |
 | **De Khipu** | El cliente contra un Khipu falso: crear el cobro, preguntar en qué va y sus errores. El pago conciliado, el que sigue en verificación, el rechazado, el revertido y el arrepentido (con el cobro anulado en Khipu, o pagado justo antes de anularlo); que otro monto u otra transacción no se aprueben; que un pago real no se confirme por la simulación; la consulta periódica que cierra lo pagado y vence lo abandonado, y la firma de los avisos |
 | **Del doble pago** | Un segundo pago mientras otro se verifica se rechaza; el abierto sin pagar se anula (Khipu lo borra, la preferencia de Mercado Pago vence en el acto) y queda vencido; una cuota pagada que ms-debt todavía no abona no se cobra de nuevo; el cobro guarda las cuotas que cubre, y ms-debt las informa en orden. Si igual se paga dos veces, el segundo queda `duplicated`, sin abonar y con la referencia y el RUT para devolverlo; pagar otras cuotas de la misma deuda no es duplicado. La consulta periódica no vence lo que Khipu o Mercado Pago están verificando y anula en Khipu lo que vence; un vencido que se paga después se registra, por la revisión de vencidos o por el aviso de Khipu |
 | **De los intereses** | La mora de cada cargo atrasado desde el día siguiente a su vencimiento, con lo pagado imputado a lo más antiguo; la cuota del convenio que crece solo sobre su capital; el redondeo en pesos y en UF; el convenio en sistema francés, con la última cuota que absorbe el redondeo; que sin tasa todo quede como antes; que el cobro fije el capital y el interés y el aviso los lleve separados; la tasa que no es un número o que supera el tope |
@@ -3907,6 +3916,10 @@ La demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/19
 proyecto de Docker aparte, con su propia base vacía y el correo solo al buzón de prueba: se repitieron
 las suites completas de ms-auth y ms-debt, y el recorrido de la empresa en Edge. Las demás
 verificaciones de la tabla son anteriores y no se repitieron para estos cambios.
+
+La confirmación de Mercado Pago (GHSA-c9xr) se verificó con clientes simulados y pruebas HTTP del
+controlador: solo se abona el pago de la preferencia guardada, con su identificador, referencia, monto en
+pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>

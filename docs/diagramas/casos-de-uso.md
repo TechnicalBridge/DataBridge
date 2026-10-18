@@ -449,8 +449,8 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | `POST /api/payments/public/{id}/confirm` | Confirmar el pago desde la pasarela simulada | La página de pago | La firma del enlace de pago | Sí | `PaymentController.confirm` |
 | `GET /api/payments/public/{id}/webpay` | Ir a pagar a Webpay | La página de pago | La firma del enlace de pago | Sí | `PaymentController.webpay` |
 | `GET/POST /api/payments/public/webpay/retorno` | La vuelta desde Webpay | El navegador, al volver de Webpay | El token de la pasarela | Sí | `PaymentController.retornoWebpay` |
-| `GET/POST /api/payments/public/mercadopago/retorno` | La vuelta desde Mercado Pago | El navegador, al volver de Mercado Pago | El token de la pasarela | Sí | `PaymentController.retornoMercadoPago` |
-| `GET/POST /api/payments/public/mercadopago/aviso` | El aviso de Mercado Pago (Webhook) | Mercado Pago | La firma de la pasarela, y se le vuelve a preguntar | Sí | `PaymentController.avisoDeMercadoPago` |
+| `GET/POST /api/payments/public/mercadopago/retorno` | La vuelta desde Mercado Pago | El navegador, al volver de Mercado Pago | `pago` y `sig`; se consulta la preferencia guardada. Sin firma vuelve al portal | Sí | `PaymentController.retornoMercadoPago` |
+| `GET/POST /api/payments/public/mercadopago/aviso` | El aviso de Mercado Pago (Webhook) | Mercado Pago | Se consulta el pago a la pasarela y se concilia la preferencia guardada; el cuerpo no autoriza abonos | Sí | `PaymentController.avisoDeMercadoPago` |
 | `POST /api/payments/public/{id}/verificar` | Preguntarle a Khipu en qué va el pago | La página de pago | La firma del enlace de pago | Sí | `PaymentController.verificar` |
 | `POST /api/payments/public/{id}/cancelar` | El deudor se arrepintió en Khipu | La página de pago | La firma del enlace de pago | Sí | `PaymentController.cancelar` |
 | `POST /api/payments/public/khipu/aviso` | El aviso de Khipu | Khipu | La firma de la pasarela, y se le vuelve a preguntar | Sí | `PaymentController.avisoDeKhipu` |
