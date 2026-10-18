@@ -70,6 +70,7 @@ class ChatControllerTest {
 
         mvc.perform(get("/api/ai/salud"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"ok\":true,\"service\":\"ms-ai\",\"llm\":false}", true));
+                .andExpect(content().json("""
+                        {"ok":true,"service":"ms-ai","llm":false,"proveedores":[]}""", true));
     }
 }

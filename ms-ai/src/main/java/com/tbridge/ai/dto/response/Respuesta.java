@@ -6,7 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record Respuesta(
         @Schema(description = "La respuesta para el deudor")
         String reply,
-        @Schema(description = "spacexai si respondio el LLM; local-nlp si las reglas", example = "local-nlp")
+        @Schema(description = "El proveedor del LLM que respondio (ollama, groq, gemini) o local-nlp si las reglas",
+                example = "local-nlp")
         String source,
         @Schema(description = "Cuantas deudas vio el asistente", example = "2")
         int debts,

@@ -47,12 +47,13 @@ class AsistenteServiceTest {
 
     @Test
     void con_llm_responde_el_llm() {
-        when(llm.responder(anyList(), anyList(), anyString())).thenReturn(Optional.of("Debes dos deudas."));
+        when(llm.responder(anyList(), anyList(), anyString()))
+                .thenReturn(Optional.of(new LlmService.Contestacion("Debes dos deudas.", "groq")));
 
         Respuesta respuesta = asistente.responder(new Pregunta("cuánto debo?", List.of()), "Bearer jwt");
 
         assertEquals("Debes dos deudas.", respuesta.reply());
-        assertEquals("spacexai", respuesta.source());
+        assertEquals("groq", respuesta.source());
     }
 
     @Test

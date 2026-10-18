@@ -116,6 +116,11 @@ solo, a las 11 de la noche si quiere. El acreedor se entera sin que nadie escrib
 | **Backend** | Spring Boot 3.5 · Spring Security · Spring Data JPA · Bean Validation | Cuatro microservicios de Spring: ms-auth, ms-debt, ms-payments y ms-ai |
 | **Gateway** | Spring Cloud Gateway · Bucket4j | La única puerta: enruta, limita las peticiones y revisa CORS |
 | **API** | springdoc-openapi (Swagger) · Spring HATEOAS · Spring Boot Actuator | Todos los endpoints en una página; respuestas que dicen qué se puede hacer después; salud para Docker |
+| **Asistente** | SDK oficial de OpenAI para Java (`openai-java`) | Una cascada de proveedores compatibles con la de OpenAI (Ollama, Groq y Gemini, en ese orden por omisión). Si uno falla o agota su cuota, responde el siguiente; si ninguno responde, las reglas locales |
+| **Base de datos** | **MySQL 8.4**, una base por servicio | El mismo motor que usa APOFYX |
+| **Migraciones** | Flyway, con `ddl-auto: validate` | El esquema se versiona; Hibernate no lo cambia a espaldas de nadie |
+| **Mensajería** | RabbitMQ 3.13 | Lleva el aviso de pago entre servicios |
+| **Pagos** | Webpay Plus, API REST v1.2 de Transbank · Khipu, API de pagos v3 · Mercado Pago, Checkout Pro | Cobro real con tarjeta y por transferencia. Sin credenciales, simuladas |
 | **Frontend** | React 18 · React Router 7 · Vite · Zustand · Recharts · CSS propio | El portal del deudor, el de las empresas y el panel de administración |
 | **Autenticación** | JWT (JJWT) · códigos de un solo uso | Sin contraseñas |
 | **Cifrado** | AES-256-GCM, de la JCA | Los secretos que hay que leer de vuelta se guardan cifrados |
@@ -147,8 +152,7 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
 | **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Los correos van al buzón de prueba (Mailpit) |
-| **Banco Central** | La UF de cada día | La UF se carga a mano |
-| **Un LLM** (Grok, de xAI) | Las respuestas del asistente | Responde con sus reglas |
+  **Un LLM** para el asistente (Ollama local, o `GROQ_API_KEY` / `GEMINI_API_KEY`). Sin ninguno, responde con reglas.
 
 ### Herramientas
 
@@ -685,7 +689,6 @@ flowchart TB
         MQ{{"RabbitMQ"}}
         BP[("tb_payments")]
         PAS(["Transbank · Khipu<br/>Mercado Pago"])
-        BC(["Banco Central"])
         LLM(["LLM"])
     end
 
@@ -731,9 +734,9 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 | **portal** | React con Zustand y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
 | **gateway** | La única puerta: CORS, límite de peticiones con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
 | **ms-auth** | Código de acceso (RUT + 6 caracteres, un solo uso, 24 h) y enlace de respaldo por correo, que es también como entra el personal de las empresas. Emite el JWT, maneja las sesiones y manda los correos, incluido el recordatorio de cuota |
-| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados de vuelta a quien se suscribió |
-| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt, nunca el navegador. En UF fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
-| **ms-ai** | Asistente de solo lectura. Lee las deudas con la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM si hay `XAI_API_KEY` (Grok, con el SDK oficial de OpenAI para Java); si no, o si el LLM falla, responde con reglas |
+| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; ingesta de la cartera v1 por API o CSV; eventos de vuelta a quien entregó la cartera; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer; claves de API de cada empresa |
+| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt, nunca el navegador. En UF fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu |
+| **ms-ai** | Asistente de solo lectura. Lee las deudas con la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Responde con una cascada de LLMs (Ollama, Groq, Gemini): el que falle o agote su cuota deja el turno al siguiente; si ninguno responde, usa reglas |
 | **MySQL 8.4** | Una base por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
 | **RabbitMQ** | Lleva el aviso de pago de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
@@ -811,7 +814,7 @@ com/tbridge/<servicio>/
 ├── dto/request/   lo que entra, validado con Bean Validation
 ├── dto/response/  lo que sale, documentado para Swagger
 ├── assembler/     los enlaces de HATEOAS de cada recurso
-├── client/        las llamadas a otros sistemas (otro servicio, Transbank, Khipu, el Banco Central)
+├── client/        las llamadas a otros sistemas (otro servicio, Transbank, Khipu)
 └── exception/     los errores propios del servicio
 ```
 
@@ -905,7 +908,6 @@ flowchart LR
 
     CORREO{{"Brevo o SMTP<br/>(Mailpit sin configurar)"}}
     PAS{{"Transbank · Khipu<br/>Mercado Pago"}}
-    BCC{{"Banco Central"}}
     LLM{{"LLM"}}
 
     NAV -->|"las páginas y /api, con JWT"| POR
@@ -1689,7 +1691,6 @@ flowchart LR
     end
     COR{{"Servidor de correo"}}
     PAS{{"Webpay · Khipu<br/>Mercado Pago"}}
-    BCC{{"Banco Central"}}
     SIS{{"Sistema de<br/>una empresa"}}
 
     REL --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8
@@ -1703,7 +1704,6 @@ flowchart LR
     R5 --- PAS
     R6 --- PAS
     R8 --- BCC
-    O1 -. "«extend»<br/>si el Banco Central no responde" .-> R8
 ```
 
 </details>
@@ -3670,7 +3670,10 @@ no es secreto sí tiene un valor de desarrollo.
 | `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY` | vacías | Las credenciales de una cuenta de Mercado Pago. Con ellas, Mercado Pago cobra de verdad; vacías, es simulada. **El token es un secreto: solo en el `.env`** |
 | `MERCADOPAGO_ENVIRONMENT`, `MERCADOPAGO_URL` | `TEST`, `https://api.mercadopago.com` | `TEST` con credenciales de prueba, `PRODUCCION` con las reales, `SIMULADA` sin internet |
 | `MERCADOPAGO_VENCE_EN` | `30m` | Cuándo vence un cobro de Mercado Pago que nadie pagó: la preferencia expira a esa hora y el pago queda vencido |
-| `BCENTRAL_USER`, `BCENTRAL_PASS` | vacías | La UF del Banco Central. Sin ellas, se carga a mano |
+| `LLM_ORDEN` | `ollama,groq,gemini` | La cascada de LLMs del asistente: se prueban en este orden y el que falle o agote su cuota pasa al siguiente |
+| `LLM_ENFRIAMIENTO_MINUTOS` | `60` | Cuántos minutos se salta un proveedor que falló o agotó su cuota. `0` = sin memoria |
+| `GROQ_API_KEY`, `GEMINI_API_KEY` | vacías | Las llaves de Groq y Gemini. Sin ellas esos proveedores quedan fuera de la cascada. **Son secretos: solo en el `.env`** |
+| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | `http://host.docker.internal:11434/v1`, `llama3.3` | Ollama, local y sin llave. Va primero si está en `LLM_ORDEN` |
 
 </details>
 
@@ -3760,7 +3763,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De los intereses** | La mora de cada cargo atrasado desde el día siguiente a su vencimiento, con lo pagado imputado a lo más antiguo; la cuota del convenio que crece solo sobre su capital; el redondeo en pesos y en UF; el convenio en sistema francés, con la última cuota que absorbe el redondeo; que sin tasa todo quede como antes; que el cobro fije el capital y el interés y el aviso los lleve separados; la tasa que no es un número o que supera el tope |
 | **De las campañas** | Que cada recordatorio salga el día que dice la cadencia y no antes; los intentos, las fechas y el estado de la campaña; que pare con el pago, el convenio, el reclamo o el retiro; el horario, el domingo y el feriado; los feriados calculados contra los publicados (2023, 2026 y 2027 completos, y cada regla contra un año real: el 2 de enero, el 17 y el 20 de septiembre, los que se corren al lunes, el 31 de octubre y el solsticio al minuto); el límite de dos por semana con dos días entre uno y otro, y el horario de la ley, que frenan también la invitación, el recordatorio de cuota y el reenvío del código; el estado que manda APOFYX; el acreedor que cobra sin agencia: registra, pausa y termina su campaña sin mandato, no puede registrar la de otro, sus carteras (JSON y planilla) la nombran en el lote, y el avance le llega a él; desde el portal, solo una empresa ve y cambia sus campañas, sin un id DataBridge le pone uno, cambiar el estado no pisa el nombre ni el inicio, y se rechazan la cadencia que no crece o trae ceros, los intentos fuera de 1 a 10, el fin antes del inicio y un id de más de 64 caracteres |
 | **Del descuento por pronto pago** | El tramo por los días del cargo impago más antiguo (30, 31, 62, 100 y 150 días); el % de la campaña recortado al máximo vigente del mandato, que baja si el acreedor lo baja; sin máximo, con el mandato vencido, con la campaña pausada o fuera de sus fechas, nada; el acreedor sin agencia se autoriza hasta 100. El mandato guarda su máximo y lo cambia al reenviarse; la campaña rechaza un tramo que no existe o un valor fuera de 0 a 100 (`descuento_invalido`) y uno sobre el máximo (`descuento_sobre_tope`), y `{}` le quita el descuento. Al cobrar: el ejemplo del contrato ($900.000 + $18.800 − $9.400 = $909.400), sin descuento en un pago de parte de la deuda ni en convenio, la oferta que ve el deudor con su fecha, el descuento fijo en ms-payments desde que se abre el cobro, y el aviso que lo lleva hasta el acreedor, también cuando se condona toda la mora |
-| **Del asistente** | Las reglas: los montos en pesos y en UF sin sumarlos entre sí, el ánimo (la desconfianza pesa más que la cortesía) y el tono de cada respuesta. Lo que dice de la plata, igual que el portal: el total de hoy con la mora, la tasa que pactó el acreedor (también en las cuotas), que sin tasa no hay interés, y el descuento por pronto pago con su fecha. El LLM contra un servidor falso con la forma de la API de xAI: responde con la API de Responses, usa la de chat si no la hay, y si falla o contesta en blanco responde con las reglas; viajan los últimos doce mensajes. Las deudas se piden con la sesión del deudor, y si ms-debt dice que no o no responde, el asistente sigue sin deudas. Arranca solo y publica su salud y su Swagger |
+| **Del asistente** | Las reglas: los montos en pesos y en UF sin sumarlos entre sí, el ánimo (la desconfianza pesa más que la cortesía) y el tono de cada respuesta. La cascada de LLMs contra un servidor falso con la forma de la API de OpenAI: responde con la API de Responses, usa la de chat si no la hay, pasa al siguiente proveedor si el primero falla o agota su cuota (y lo deja en enfriamiento), y si todos fallan o contestan en blanco responde con las reglas; viajan los últimos doce mensajes. Las deudas se piden con la sesión del deudor, y si ms-debt dice que no o no responde, el asistente sigue sin deudas. Arranca solo y publica su salud y su Swagger |
 | **De los roles** | El `admin` de DataBridge entra con su propio rol y sin empresa, y el usuario de una empresa sigue entrando como antes; una llave de empresa no renueva como `admin`. El primer `admin` sale de `ADMIN_CORREO` una sola vez, y a una persona de una empresa no se le da ese rol. En los tres servicios, el panel responde al `admin`, `403` a una empresa y a un deudor, y `401` sin sesión, también en una ruta que todavía no existe; y el `admin` recibe `403` en las deudas y en los pagos. En el gateway, cada tramo del panel llega a su servicio y `/internal` sigue sin puerta |
 | **Del alta de empresas y personas** | Los totales de una empresa cuentan lo suyo como acreedora y lo que entregó como agencia, sin mezclar pesos con UF y sin leer una deuda. Una empresa nueva pide un RUT válido y que no exista. Una persona creada bajo una empresa queda como `usuario`, aunque el cuerpo pida otro rol, y un correo de una empresa no puede pasar a `admin`. Sin la empresa en ms-debt, o si ms-debt no responde, no se crea a nadie. Quitar el acceso cierra las sesiones de esa persona y anula sus enlaces sin abrir, y un `admin` no se lo puede quitar a sí mismo. Cada alta y cada cambio quedan anotados con quién los hizo |
 | **Del correo** | Brevo contra un servidor falso: lo que pide su API, con la clave en su cabecera y nunca en un error. De quién es la culpa de un correo que no sale: la dirección (rechazada o mal escrita) o el servicio (una clave mala, el cupo, una IP bloqueada, un servidor que no responde, un remitente mal configurado). El modo de prueba: lo que se desvía, el alias de la cuenta del equipo, y que lo que no deja salir no es un fallo. Cada correo en texto y en HTML; el del deudor trae el código y el acreedor pero ningún enlace, ni el monto; el nombre del acreedor no mete HTML; el adelanto del buzón no trae el código. El correo de prueba dice adónde llegó o por qué no |
