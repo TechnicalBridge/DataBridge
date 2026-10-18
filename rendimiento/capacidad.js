@@ -20,7 +20,9 @@ import { Counter, Trend } from 'k6/metrics';
 
 const PORTAL = __ENV.PORTAL_URI || 'http://portal:8080';
 const AUTH = __ENV.AUTH_URI || 'http://ms-auth:8081';
-const BUZON = __ENV.MAIL_URI || 'http://mailpit:8025';
+const BUZON = (__ENV.MAIL_URI || '').trim().replace(/\/$/, '');
+if (!BUZON) throw new Error('Falta MAIL_URI: capacidad.js necesita un buzon externo de prueba compatible con '
+  + '/api/v1/messages. Docker Compose ya no incluye un buzon. No uses Gmail ni Brevo para esta carga.');
 //  La clave interna llega del .env por el compose: no se escribe aqui.
 const CLAVE_INTERNA = __ENV.INTERNAL_KEY;
 if (!CLAVE_INTERNA) throw new Error('Falta INTERNAL_KEY: corre la prueba con el compose, que la toma del .env');
@@ -101,7 +103,7 @@ function sesionEmpresa() {
   const antes = Date.now();
   const pedido = http.post(`${PORTAL}/api/auth/enlace`,
     JSON.stringify({ correo: CORREO_EMPRESA }), json());
-  if (pedido.status !== 202) return null;
+  if (pedido.status !== 202) fail(`no se pudo pedir el acceso de empresa: ${pedido.status}`);
 
   //  El correo no es instantáneo: se espera a que llegue, sin pasar de ahí.
   for (let intento = 0; intento < 20; intento++) {
@@ -119,7 +121,7 @@ function sesionEmpresa() {
       if (canje.status === 200) return canje.json('token');
     }
   }
-  return null;
+  fail('el acceso de empresa no llego al buzon externo de prueba: no se medira una carga parcial');
 }
 
 export function setup() {
@@ -133,9 +135,6 @@ export function setup() {
   if (deudas.length === 0) fail('el deudor de la prueba no tiene deudas: no hay nada que medir');
 
   const empresa = sesionEmpresa();
-  if (!empresa) {
-    console.warn('sin sesión de empresa: se salta /api/analytics/summary');
-  }
   return { deudor, empresa, deuda: deudas[0].id };
 }
 

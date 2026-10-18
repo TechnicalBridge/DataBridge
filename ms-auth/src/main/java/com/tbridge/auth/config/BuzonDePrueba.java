@@ -12,8 +12,8 @@ import java.util.Map;
 /**
  * Sin servidor de correo configurado, el buzon de prueba.
  *
- * <p>En Docker, ms-auth tiene a mano un buzon de prueba (Mailpit), que el
- * compose le anuncia en {@code CORREO_BUZON_DE_PRUEBA}. Si no hay
+ * <p>Un entorno de pruebas puede anunciar un buzon externo de forma explicita
+ * en {@code CORREO_BUZON_DE_PRUEBA}. Docker Compose no incluye ninguno. Si no hay
  * {@code SMTP_HOST}, el correo va ahi, y lo demas de {@code SMTP_*} se ignora:
  * el puerto, la autenticacion y STARTTLS de un {@code .env} son los de un
  * servidor real, y con el buzon de prueba no calzan. Con {@code SMTP_HOST}, o

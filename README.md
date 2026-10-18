@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-17-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-18-de-octubre-de-2026) |
 
 ---
 
@@ -135,8 +135,9 @@ Las tablas y cómo se relacionan están en el [diagrama entidad-relación](#72-e
 ### Cloud y servicios externos
 
 El despliegue de referencia es **local, con contenedores**. Para la demo, el mismo compose corre en un
-**VPS de Namecheap**, en `https://technicalbridge.site`, hasta diciembre ([§10](#en-un-servidor)). Ningún
-servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reemplaza.
+**VPS de Namecheap**, en `https://technicalbridge.site`, hasta diciembre ([§10](#en-un-servidor)). Ninguna
+pasarela externa es obligatoria: sin sus llaves, se simula o se reemplaza. El correo sí requiere
+Brevo o un SMTP configurado para entregar códigos e invitaciones.
 
 | Servicio | Para qué | Sin configurarlo |
 | --- | --- | --- |
@@ -146,7 +147,7 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Transbank** · Webpay Plus, API REST v1.2 | Cobrar con tarjeta, en la página real de Transbank | Funciona igual, contra su ambiente de integración y con tarjetas de prueba. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` |
 | **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
-| **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Los correos van al buzón de prueba (Mailpit) |
+| **Brevo**, o un servidor SMTP | Entregar códigos e invitaciones | No hay entrega de correo ni buzón de prueba incluido |
 | **Banco Central** | La UF de cada día | La UF se carga a mano |
 | **Un LLM** (Grok, de xAI) | Las respuestas del asistente | Responde con sus reglas |
 
@@ -154,11 +155,11 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 
 | Para qué | Tecnología |
 | --- | --- |
-| **Contenedores** | Docker · Docker Compose: nueve contenedores, una orden |
+| **Contenedores** | Docker · Docker Compose: ocho contenedores, una orden |
 | **Servidor web** | nginx sin privilegios: sirve el portal compilado y hace de proxy al gateway |
 | **Integración continua** | GitHub Actions · CodeQL · Dependabot: pruebas y análisis de seguridad en cada push |
 | **Pruebas** | JUnit 5 · Mockito · MockMvc · k6: unitarias, de la capa web y de rendimiento |
-| **Correo de prueba** | Mailpit: recibe los correos sin mandárselos a nadie |
+| **Correo de prueba** | Un SMTP de captura externo, configurado explícitamente para pruebas; no forma parte de Compose |
 
 ---
 
@@ -179,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # una sola vez: e
 docker compose --profile app up -d --build --wait
 ```
 
-`--wait` devuelve el control recién cuando los nueve contenedores están **sanos**, no cuando
+`--wait` devuelve el control recién cuando los ocho contenedores están **sanos**, no cuando
 arrancaron. La primera vez compila todo y tarda de uno a varios minutos, según la máquina y la
 conexión; después son segundos.
 
@@ -187,7 +188,6 @@ conexión; después son segundos.
 | --- | --- |
 | **Portal** | http://localhost:8080 |
 | **Documentación de la API (Swagger)** | http://localhost:8080/swagger-ui.html |
-| Buzón de prueba (los códigos llegan acá) | http://localhost:8025 |
 | RabbitMQ | http://localhost:15672 · `guest`, con la clave de `RABBIT_PASSWORD` de tu `.env` |
 | Base de datos | `127.0.0.1:3308` · `tbridge`, con la clave de `MYSQL_PASSWORD` de tu `.env` |
 
@@ -203,7 +203,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 | `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | No hay `.env`, o le falta ese secreto: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1` lo completa sin tocar lo que ya tiene |
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia, también las claves dentro de MySQL si la base está arriba, sin perder datos. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes, también dentro de MySQL si es una de sus claves. Después, `docker compose --profile app up -d` |
-| `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
+| `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672) o `RABBIT_ADMIN_PORT` (15672) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
 | La construcción se cae bajando dependencias | Sin internet, o un proxy que la corta. Se vuelve a correr la misma orden: lo que ya bajó queda en caché |
 | Todos los deudores reciben *Demasiadas solicitudes* a la vez | El gateway no reconoce al nginx del portal como proxy y ve a todos como una sola IP. Ya confía en las tres redes privadas que usa Docker; si tu red es otra, ajústala en `TRUSTED_PROXIES` |
@@ -222,7 +222,8 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 ### Para entrar como empresa
 
 En el portal, **Soy de una empresa**, con `camila.reyes@apofyx.cl`. El código para entrar llega
-al buzón de prueba.
+por el proveedor de correo que configures. Con datos ficticios, usar un SMTP de captura o un modo
+de prueba controlado; recibir en Gmail no significa que Gmail sea quien envía.
 
 ### Código primero en los tres portales
 
@@ -268,7 +269,7 @@ campaña. Las deudas de Sonrisa Norte son de un solo cargo: muestran que la regl
 sirve también fuera de los cobros mensuales.
 
 Para conseguir un código de campaña, la empresa toca **Reenviar código** en su cartera y el código llega al
-buzón.
+correo registrado, según el proveedor y el modo de prueba configurados.
 
 <details>
 <summary><b>Pedirle un código directo a ms-auth</b>, desde PowerShell</summary>
@@ -293,9 +294,9 @@ Responde con el `codigo`. Con él se entra al portal en **Tengo un código de ac
 
 ### Para mandar correos de verdad
 
-Sin tocar nada, los correos van al **buzón de prueba** (http://localhost:8025) y no le llegan a
-nadie: sirve para programar, no para producción. Para que lleguen de verdad hay dos caminos, y
-los dos se eligen en el `.env`, sin editar el compose ni el código:
+Docker Compose no levanta Mailpit ni elige un buzón automáticamente. **Sin `BREVO_API_KEY` ni
+`SMTP_HOST`, no hay entrega de correo**: no basta con que los contenedores estén sanos para que
+llegue un código. Los dos proveedores se eligen en el `.env`, sin editar el compose ni el código:
 
 | Camino | Cuándo | Qué hace falta |
 | --- | --- | --- |
@@ -303,6 +304,22 @@ los dos se eligen en el `.env`, sin editar el compose ni el código:
 | **Un servidor SMTP** | Para probar en un equipo, o con otro proveedor | Una cuenta de Gmail con contraseña de aplicación, u otro servidor |
 
 Si están los dos, gana Brevo.
+
+Para una carga masiva con datos ficticios, usar un SMTP de captura externo sin salida o un modo
+que bloquee esos destinatarios. **Un desvío a Gmail también manda correos reales** y puede llenar
+el buzón o consumir el cupo del proveedor. No confirmar una cartera masiva solo para verificar
+su formato: *Revisar la planilla* no guarda ni invita.
+
+Si quedó un contenedor de una versión anterior, retirarlo es una acción separada: verificar que
+ms-auth use Brevo o el SMTP esperado, conservar los mensajes que se necesiten y recién ahí parar
+y eliminar **solo** `tbridge-mail`. No usar `docker compose down -v` ni borrar volúmenes. Las
+variables antiguas `MAILPIT_PORT` y `MAILPIT_SMTP_PORT` dejan de usarse; no se modifica el `.env`
+existente automáticamente.
+
+La prueba `rendimiento/capacidad.js` necesita `MAIL_URI`, la URL de un buzón externo con API
+compatible `/api/v1/messages`, y ms-auth configurado para entregarle a ese mismo buzón. Sin esa
+variable se detiene antes de hacer peticiones. Si no llega el acceso de empresa, falla en vez de
+omitir la medición del resumen. No usar un buzón Gmail ni Brevo para esa prueba.
 
 <details>
 <summary><b>Con Brevo</b>, paso a paso</summary>
@@ -921,7 +938,7 @@ flowchart LR
         MQ{{"RabbitMQ"}}
     end
 
-    CORREO{{"Brevo o SMTP<br/>(Mailpit sin configurar)"}}
+    CORREO{{"Brevo o SMTP<br/>configurado explícitamente"}}
     PAS{{"Transbank · Khipu<br/>Mercado Pago"}}
     BCC{{"Banco Central"}}
     LLM{{"LLM"}}
@@ -958,7 +975,7 @@ flowchart LR
 | ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave | Crear la transacción y confirmarla; el navegador solo va y vuelve |
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
 | APOFYX ↔ DataBridge | HTTP con clave de API, y eventos firmados con HMAC-SHA256. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
-| ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP; sin ninguno, Mailpit | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
+| ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP explícito; sin ninguno, no hay entrega | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
 
 Si RabbitMQ no está, ms-payments manda el mismo aviso por HTTP (`POST /internal/events/pago-confirmado`);
 en los dos casos sale de una bandeja con reintentos, así que no se pierde.
@@ -3544,7 +3561,7 @@ correo queda fechado a esa hora.
 | --- | --- | --- |
 | **Privacidad** | Ningún evento lleva datos personales del deudor. El texto que escribe al reclamar se queda en DataBridge: a la cadena viaja solo el motivo | `EventosService`, decisión I5 del contrato |
 | **Usabilidad** | Tema claro (crema y verde bosque) y oscuro (carbón y morado), que sigue al del sistema hasta que la persona elige. Quien pidió menos movimiento no ve animaciones. La barra de estado se anuncia como barra de progreso a los lectores de pantalla | `frontend/src/index.css` |
-| **Disponibilidad** | Los nueve contenedores declaran `healthcheck`, y ninguno arranca antes que aquel del que depende. La salud la da Actuator, que incluye la conexión a la base. `restart: unless-stopped` los repone si se caen | `docker-compose.yml` |
+| **Disponibilidad** | Los ocho contenedores declaran `healthcheck`, y ninguno arranca antes que aquel del que depende. La salud la da Actuator, que incluye la conexión a la base. `restart: unless-stopped` los repone si se caen | `docker-compose.yml` |
 | **Disponibilidad** · entrega | Todo lo que sale hacia otro sistema pasa por una bandeja con reintentos (1 min, 5 min, 30 min, 2 h, 6 h, 24 h). Si APOFYX está caído, el aviso se entrega cuando vuelve | `outbox`, `EventDispatcher` |
 | **Escalabilidad** | La identidad viaja en JWT y las sesiones se guardan en `tb_auth`. Para varias réplicas falta coordinar dos cosas: los límites del gateway viven en la memoria de cada instancia, y las tareas programadas (recordatorios, despachadores, vencimiento de pagos) correrían en cada una. No se validó con varias instancias | `RateLimitFilter`, `EventDispatcher`, `ConciliacionPasarelas`, `WebpayVencidos` |
 | **Portabilidad** | Una orden levanta el sistema entero en cualquier máquina con Docker | `docker-compose.yml` |
@@ -3573,8 +3590,8 @@ Son **dos etapas**: la primera compila con Maven y el JDK, y la segunda se queda
 el `.jar`. Las dependencias de Maven quedan en su propia capa, que se reutiliza mientras no cambie
 el `pom.xml`.
 
-El [`docker-compose.yml`](docker-compose.yml) orquesta los nueve contenedores. Sin perfil levanta
-solo la infraestructura (MySQL, RabbitMQ y el buzón); con `--profile app`, el sistema entero.
+El [`docker-compose.yml`](docker-compose.yml) orquesta los ocho contenedores. Sin perfil levanta
+solo la infraestructura (MySQL y RabbitMQ); con `--profile app`, el sistema entero.
 
 ### Los contenedores y sus puertos
 
@@ -3585,7 +3602,6 @@ solo la infraestructura (MySQL, RabbitMQ y el buzón); con `--profile app`, el s
 | `ms-auth` · `ms-debt` · `ms-payments` · `ms-ai` | 8081 · 8083 · 8084 · 8085 | — | Solo los ve el gateway y entre ellos |
 | `mysql` | 3306 | 3308 | Para revisar la base desde el equipo |
 | `rabbitmq` | 5672 · 15672 | 5672 · 15672 | La cola y su consola |
-| `mailpit` | 1025 · 8025 | 1025 · 8025 | El buzón de prueba y su página |
 
 Los puertos publicados se cambian desde `.env` ([§3](#si-algo-falla-en-un-equipo-nuevo)). En un
 despliegue real, cada servicio puede ir en su propio nodo detrás del gateway, con las salvedades de
@@ -3627,7 +3643,7 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `PORTAL_PORT`, `MYSQL_PORT`, `RABBIT_PORT`, `RABBIT_ADMIN_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_PORT` | `8080`, `3308`, `5672`, `15672`, `1025`, `8025` | Los puertos que se publican en el equipo. Se cambian si alguno ya está ocupado |
+| `PORTAL_PORT`, `MYSQL_PORT`, `RABBIT_PORT`, `RABBIT_ADMIN_PORT` | `8080`, `3308`, `5672`, `15672` | Los puertos que se publican en el equipo. Se cambian si alguno ya está ocupado |
 | `PUBLIC_URL` | `http://localhost:8080` | La dirección del portal que va en los correos y en el retorno de Webpay y de Khipu |
 
 </details>
@@ -3667,7 +3683,7 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | vacía, `587`, vacías, `true`, `true`, `false` | El servidor de correo ([cómo](#para-mandar-correos-de-verdad)). Sin `SMTP_HOST`, en Docker los correos van al buzón de prueba y lo demás se ignora |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | vacía, `587`, vacías, `true`, `true`, `false` | El servidor de correo ([cómo](#para-mandar-correos-de-verdad)). Sin él ni Brevo, no hay entrega de correo |
 | `BREVO_API_KEY` | vacía | Con ella, los correos salen por la API de Brevo y no por SMTP ([cómo](#para-mandar-correos-de-verdad)). Es la de producción |
 | `BREVO_URL` | `https://api.brevo.com/v3/smtp/email` | La dirección de la API de Brevo. Solo se cambia para probar contra un servidor falso |
 | `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo, o a Brevo, antes de darlo por caído |
@@ -3889,6 +3905,10 @@ simulan la caída y recuperan el mismo acceso sin crear sesiones durante el rech
 de ms-auth (222); los otros 659 casos del total conservan su ejecución anterior. No se repitió una caída
 de ms-debt en Docker ni se enviaron correos reales para esta corrección.
 
+La retirada de Mailpit se integra sobre ese acceso por código. La primera verificación independiente
+tenía 193 pruebas de ms-auth; la base integrada tiene 222, incluidas las dos regresiones de la revisión.
+No se detuvieron contenedores ni se enviaron correos reales para resolver esta integración.
+
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
@@ -3896,6 +3916,7 @@ de ms-debt en Docker ni se enviaron correos reales para esta corrección.
 | --- | --- |
 | Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **881**, sin fallos ([§11](#11-pruebas)); ms-auth se repitió en la revisión, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El nuevo correo no se probó contra Brevo ni en un buzón real |
+| Retirada de Mailpit ([#224](https://github.com/TechnicalBridge/TB_web/issues/224)) | `docker compose config` local y de producción sin Mailpit ni sus puertos; ocho servicios locales y nueve en producción con Caddy. Los demás servicios y volúmenes conservan su configuración. `capacidad.js` se probó con HTTP simulado: sin `MAIL_URI` no hace peticiones; un acceso rechazado o un correo ausente fallan, y con captura correcta se ejecutan las cuatro lecturas. En Edge, 12 recorridos de solicitud en los tres portales a 1360 y 390 px, claro y oscuro, sin aviso de buzón inexistente, desborde ni errores inesperados; API simulada, sin correos ni escrituras en la base. Los dos diagramas afectados se dibujaron con Mermaid 11. No se ejecutó carga k6 ni se probó un SMTP externo; retirar el contenedor anterior y aplicar Compose en vivo se coordinan aparte |
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |

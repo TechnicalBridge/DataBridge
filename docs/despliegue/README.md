@@ -121,6 +121,13 @@ Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORR
 Con los datos de la demo, **`CORREO_SOLO_A` y `CORREO_DESVIAR_A` no son opcionales**: los deudores de ejemplo
 tienen correos inventados.
 
+Mailpit ya no forma parte de Compose local ni de producción. Sin Brevo ni SMTP explícito no hay entrega
+de correo. No se debe probar una cartera masiva contra Brevo, Gmail o un desvío a un buzón real: usar un
+servidor de captura externo o solo la revisión de cartera. Las credenciales existentes no se cambian al
+retirar el servicio. Si quedó `tbridge-mail` de una versión anterior, verificar primero el proveedor activo
+y conservar los mensajes necesarios; retirar ese contenedor es una acción operativa separada y nunca
+requiere borrar volúmenes ni ejecutar `down -v`.
+
 **El DNS**, en Namecheap → *Domain List* → `technicalbridge.site` → **Advanced DNS**:
 
 | Tipo | Host | Valor |

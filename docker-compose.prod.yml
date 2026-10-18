@@ -27,10 +27,6 @@ services:
   rabbitmq:
     ports: !reset []
 
-  #  El buzon de prueba no va en produccion: queda en un perfil que nadie usa.
-  mailpit:
-    profiles: ["solo-local"]
-
   ms-auth:
     <<: *imagen
     image: ghcr.io/technicalbridge/databridge-ms-auth:${VERSION:-main}
