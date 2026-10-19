@@ -1,0 +1,42 @@
+title = "Secretos nuevos de DataBridge"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "databridge-mercadopago-token"
+description = "Token privado de Mercado Pago, no Public Key"
+regex = '''\b(?:APP_USR|TEST)-[0-9]+-[0-9]+-[A-Za-z0-9]{20,}-[0-9]+\b'''
+
+[[rules]]
+id = "databridge-render-key"
+description = "API key privada de Render"
+regex = '''\brnd_[A-Za-z0-9_-]{20,}\b'''
+
+[[rules]]
+id = "databridge-entorno-literal"
+description = "Secreto escrito como valor de configuracion"
+regex = '''(?mi)^[ \t]*(?:CIFRADO_LLAVE|JWT_SECRET|INTERNAL_KEY|WEBHOOK_SECRET|MYSQL_PASSWORD|MYSQL_ROOT_PASSWORD|RABBIT_PASSWORD|BREVO_API_KEY|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN)[ \t]*=[ \t]*['"]?([A-Za-z0-9_./+=!?@%-]{8,})'''
+secretGroup = 1
+
+[[rules]]
+id = "databridge-secreto-fallback"
+description = "Valor secreto por omision en propiedades o Compose"
+regex = '''(?i)\$\{(?:CIFRADO_LLAVE|JWT_SECRET|INTERNAL_KEY|WEBHOOK_SECRET|MYSQL_PASSWORD|MYSQL_ROOT_PASSWORD|RABBIT_PASSWORD|BREVO_API_KEY|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN):(?:-)?([A-Za-z0-9_][A-Za-z0-9_./+=!?@%-]{7,})\}'''
+secretGroup = 1
+
+# Solo valores publicos exactos: la llave oficial de integracion y las huellas
+# de valores antiguos. No se omiten carpetas de pruebas ni hashes arbitrarios.
+[allowlist]
+description = "Integracion publica de Transbank y huellas, no credenciales"
+regexTarget = "secret"
+regexes = [
+  '^579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C$',
+  '^5012f5182061c46e57859cf617128c6f70eddfba4db27772bdede5a039fa7085$',
+  '^068a635d2c022dfafb6c163b832327ab9bd8b944c3f44af23bf97cbc6591be1c$',
+  '^84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec$',
+  '^686101b1c40874b07191bc92a9965f89fa570088218f88e30abbe768737f347f$',
+  '^cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621$',
+  '^774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318$',
+  '^ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5$'
+]

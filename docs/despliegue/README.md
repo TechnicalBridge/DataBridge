@@ -10,6 +10,11 @@ exista la variable `DESPLIEGUE_HOST`, un push a `main` no compila ni despliega n
 
 ## Cómo queda
 
+Para el mantenimiento de llaves y respaldos, ver [rotación y prevención de secretos](../seguridad/README.md).
+No reemplazar `CIFRADO_LLAVE` directamente en un servidor con suscripciones cifradas. La herramienta incluida
+es local y requiere MySQL publicado en el propio equipo; el servidor mantiene sus puertos internos cerrados y
+requiere un mantenimiento autorizado, sin abrir MySQL a internet.
+
 ```mermaid
 flowchart LR
     NAV(["Navegador"]) -->|"https://technicalbridge.site"| CADDY

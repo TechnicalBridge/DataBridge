@@ -14,10 +14,8 @@
 #        por su huella SHA-256, sin guardarlos aqui). Las claves de MySQL se
 #        cambian tambien dentro de la base, si esta arriba, sin perder datos.
 #
-#    .\preparar-env.ps1 -Renovar -TambienCifrado
-#        Lo mismo, y tambien CIFRADO_LLAVE. Cuidado: con ella se cifran los
-#        secretos de las suscripciones guardadas; despues de cambiarla, cada
-#        sistema conectado (APOFYX, Patrimonio) tiene que volver a conectarse.
+#    CIFRADO_LLAVE se rota con scripts\rotar-cifrado.cjs y respaldo, nunca
+#    reemplazando la llave sin migrar las suscripciones existentes.
 #
 #    .\preparar-env.ps1 -Cambiar JWT_SECRET[,OTRO]
 #        Cambia esos secretos aunque ya tengan un valor propio: para cuando uno
@@ -34,6 +32,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($TambienCifrado -or $Cambiar -contains 'CIFRADO_LLAVE') {
+    Write-Host 'CIFRADO_LLAVE requiere la migracion con respaldo: scripts\rotar-cifrado.cjs. No se modifico el entorno.' -ForegroundColor Red
+    exit 1
+}
 $archivo = Join-Path $PSScriptRoot '.env'
 $ejemplo = Join-Path $PSScriptRoot '.env.example'
 $sinBom = New-Object System.Text.UTF8Encoding($false)
@@ -95,6 +97,15 @@ function Cambiar-En-MySQL([string]$rootActual, [string]$sql) {
     } finally {
         $ErrorActionPreference = $antes
         Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
+    }
+}
+
+if (Test-Path -LiteralPath $archivo) {
+    $existentes = New-Object System.Collections.Generic.List[string]
+    foreach ($linea in [System.IO.File]::ReadAllLines($archivo, $sinBom)) { $existentes.Add($linea) }
+    if (-not (Valor $existentes 'CIFRADO_LLAVE')) {
+        Write-Host 'Falta CIFRADO_LLAVE en una instalacion existente. Recupere el respaldo; no se genera otra llave.' -ForegroundColor Red
+        exit 1
     }
 }
 

@@ -11,6 +11,7 @@
 # =============================================================================
 *.sh    text eol=lf
 mvnw    text eol=lf
+.githooks/* text eol=lf
 
 # Y al reves: el lanzador de Windows necesita CRLF, o cmd.exe interpreta mal
 # algunas lineas.

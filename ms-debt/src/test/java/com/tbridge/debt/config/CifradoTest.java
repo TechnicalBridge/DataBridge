@@ -54,6 +54,13 @@ class CifradoTest {
     }
 
     @Test
+    void unValorCifradoTruncadoSeRechazaSinExponerSuContenido() {
+        assertThatThrownBy(() -> cifrado.descifrar("enc:v1:corrupto"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No se pudo descifrar");
+    }
+
+    @Test
     void elConvertidorGuardaCifradoYEntregaEnClaro() {
         SecretoCifrado convertidor = new SecretoCifrado(cifrado);
         String columna = convertidor.convertToDatabaseColumn("whsec_de_prueba");

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/verificar-secretos.cjs --staged

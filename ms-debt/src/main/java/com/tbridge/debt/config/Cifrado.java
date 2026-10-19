@@ -76,6 +76,7 @@ public class Cifrado {
         if (!estaCifrado(valor)) return valor;
         try {
             byte[] datos = Base64.getDecoder().decode(valor.substring(PREFIJO.length()));
+            if (datos.length < IV + ETIQUETA) throw new IllegalArgumentException("El valor cifrado esta truncado");
             byte[] iv = Arrays.copyOfRange(datos, 0, IV);
             byte[] etiqueta = Arrays.copyOfRange(datos, IV, IV + ETIQUETA);
             byte[] cifrado = Arrays.copyOfRange(datos, IV + ETIQUETA, datos.length);

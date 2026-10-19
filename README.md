@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-17-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-19-de-octubre-de-2026) |
 
 ---
 
@@ -3619,7 +3619,7 @@ no es secreto sí tiene un valor de desarrollo.
 | --- | --- | --- |
 | `JWT_SECRET` | el `.env` | Firma los JWT. **El mismo en ms-auth, ms-debt y ms-payments.** Al menos 32 bytes: con menos, los servicios no arrancan |
 | `INTERNAL_KEY` | el `.env` | Autentica las llamadas entre servicios |
-| `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Si se cambia, los suscritos tienen que volver a suscribirse |
+| `CIFRADO_LLAVE` | el `.env` | Cifra el secreto de las suscripciones. Se rota con respaldo y recifrado mediante `scripts/rotar-cifrado.cjs`, sin cambiar el secreto del receptor; no se reemplaza a mano |
 | `ADMIN_CORREO` | vacía | El correo del primer `admin` de DataBridge, que entra al panel de administración. Vacía, no hay `admin`. No puede ser el de una persona de una empresa |
 | `JWT_TTL_MINUTES` | `15` | Cuánto dura el JWT. Corto a propósito: no se puede revocar |
 | `REFRESH_TTL_HOURS` | `168` | Cuánto dura una sesión desde que se entra. Renovar no la alarga |
@@ -3730,19 +3730,21 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**852 pruebas**, todas en Java y sin fallos:
+**870 pruebas Java en el catálogo.** Para la rotación se ejecutaron las **430 de ms-debt**, sin fallos ni
+omisiones, con JDK 25 y `clean test`. Las otras 440 conservan la verificación conjunta anterior; no se
+repitieron en este cambio. Se suman **26 pruebas Node** de coordinación, guardas y detección, sin fallos.
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 193 |
-| `ms-debt` | 412 |
+| `ms-debt` | 430 |
 | `ms-payments` | 185 |
 | `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
-([estado](#14-estado-al-17-de-octubre-de-2026)).
+([estado](#14-estado-al-19-de-octubre-de-2026)).
 
 <details>
 <summary><b>Qué cubre cada tipo de prueba</b></summary>
@@ -3846,7 +3848,19 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 17 de octubre de 2026
+## 14. Estado al 19 de octubre de 2026
+
+**Actualización del 19 de octubre (#232):** rotación transaccional del cifrado y prevención de secretos nuevos.
+Pasaron 430 pruebas de ms-debt y 26 pruebas Node. Además de los cuatro casos anteriores sobre una tabla
+temporal, se restauró el respaldo completo en una copia aislada: 16 tablas, 2 vistas y 1.635 filas. Se rotó
+solo la copia y se volvió a restaurar, verificando todos los datos y la llave anterior. La copia y su usuario
+se eliminaron; el entorno activo y los nueve contenedores no cambiaron durante ese ensayo.
+En la instalación local se recifró una suscripción conservando su secreto; ms-debt quedó saludable con la misma
+imagen y el gateway respondió su documentación con 21 rutas. Se conservaron respaldos privados. El workflow
+y el hook están preparados, no ejecutados por GitHub ni activados en otros worktrees. No se reescribió el
+historial. [Procedimiento y recuperación](docs/seguridad/README.md).
+
+### Verificación conjunta anterior
 
 **852 pruebas Java sin fallos**, y el portal compila (764 módulos). El modelo de negocio se comprobó por el gateway y en Edge, en un entorno aislado con datos de prueba. La tabla conserva las verificaciones anteriores de las pasarelas, los intereses, el descuento, las campañas, el correo y la carga de cartera: esos recorridos completos no se repitieron para el modelo de negocio.
 
