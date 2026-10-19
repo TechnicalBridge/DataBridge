@@ -2,6 +2,10 @@ package com.tbridge.auth.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
 import com.sun.net.httpserver.HttpServer;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -85,6 +89,53 @@ class CorreoPorBrevoTest {
         mensaje.setSubject("Tu codigo de acceso");
         mensaje.setText("Hola,\n\nTu codigo es K7M2QX <no es una etiqueta>.\n");
         return mensaje;
+    }
+
+    @Test
+    void checkpoints_confirman_post_sin_exponer_credenciales_ni_contenido() throws IOException {
+        Logger logger = (Logger) LoggerFactory.getLogger(CorreoPorBrevo.class);
+        ListAppender<ILoggingEvent> captured = new ListAppender<>();
+        captured.start();
+        logger.addAppender(captured);
+        try {
+            respondiendo(201, "{\"messageId\":\"private-provider-id\"}").send(mensaje("prueba@example.com"));
+            String logs = captured.list.stream().map(ILoggingEvent::getFormattedMessage)
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            assertEquals(1, pedidos.get());
+            assertTrue(logs.contains("BREVO_REQUEST_START"));
+            assertTrue(logs.contains("BREVO_RESPONSE_STATUS status=201"));
+            assertTrue(logs.contains("BREVO_MESSAGE_ID_PRESENT present=true"));
+            for (String secret : new String[]{CLAVE, "K7M2QX", "private-provider-id", "prueba@example.com"}) {
+                assertFalse(logs.contains(secret));
+            }
+            assertFalse(logs.contains("BREVO_REQUEST_FAILED"));
+        } finally {
+            logger.detachAppender(captured);
+            captured.stop();
+        }
+    }
+
+    @Test
+    void checkpoints_de_rechazo_no_registran_el_cuerpo_del_proveedor() throws IOException {
+        Logger logger = (Logger) LoggerFactory.getLogger(CorreoPorBrevo.class);
+        ListAppender<ILoggingEvent> captured = new ListAppender<>();
+        captured.start();
+        logger.addAppender(captured);
+        try {
+            CorreoPorBrevo sender = respondiendo(401, "{\"code\":\"unauthorized\",\"message\":\"private-response-detail\"}");
+            assertThrows(MailSendException.class, () -> sender.send(mensaje("prueba@example.com")));
+            String logs = captured.list.stream().map(ILoggingEvent::getFormattedMessage)
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            assertEquals(1, pedidos.get());
+            assertTrue(logs.contains("BREVO_RESPONSE_STATUS status=401"));
+            assertTrue(logs.contains("BREVO_MESSAGE_ID_PRESENT present=false"));
+            assertTrue(logs.contains("BREVO_REQUEST_FAILED reason=HTTP status=401"));
+            assertFalse(logs.contains("private-response-detail"));
+            assertFalse(logs.contains(CLAVE));
+        } finally {
+            logger.detachAppender(captured);
+            captured.stop();
+        }
     }
 
     @Test

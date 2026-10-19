@@ -17,6 +17,8 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.util.HtmlUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +56,7 @@ import java.util.regex.Pattern;
  * error ni en el registro.
  */
 public class CorreoPorBrevo implements JavaMailSender {
+    private static final Logger log = LoggerFactory.getLogger(CorreoPorBrevo.class);
 
     /**
      * Brevo responde casi todo como un 400 con un codigo. Que la culpa sea del
@@ -130,18 +133,33 @@ public class CorreoPorBrevo implements JavaMailSender {
                 .build();
         HttpResponse<String> respuesta;
         try {
+            log.info("BREVO_REQUEST_START expectedEndpoint={}",
+                    URI.create("https://api.brevo.com/v3/smtp/email").equals(url));
             respuesta = http.send(pedido, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
+            log.warn("BREVO_REQUEST_FAILED reason=IO");
             throw new MailSendException("Brevo no respondio: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), e);
         } catch (InterruptedException e) {
+            log.warn("BREVO_REQUEST_FAILED reason=INTERRUPTED");
             Thread.currentThread().interrupt();
             throw new MailSendException("Se interrumpio el envio a Brevo", e);
         }
         int estado = respuesta.statusCode();
+        log.info("BREVO_RESPONSE_STATUS status={}", estado);
+        boolean messageIdPresent = false;
+        try {
+            JsonNode body = json.readTree(respuesta.body());
+            messageIdPresent = body != null && body.path("messageId").isTextual()
+                    && !body.path("messageId").asText().isBlank();
+        } catch (JsonProcessingException | RuntimeException ignored) {
+            // Diagnostics must not change delivery behavior or expose the response body.
+        }
+        log.info("BREVO_MESSAGE_ID_PRESENT present={}", messageIdPresent);
         if (estado / 100 == 2) {
             return;
         }
+        log.warn("BREVO_REQUEST_FAILED reason=HTTP status={}", estado);
         String[] error = error(respuesta.body());
         String texto = "Brevo respondio " + estado + (error[0] == null ? "" : " (" + error[0] + ")") + ": "
                 + UNA_IP.matcher(error[1]).replaceAll("<IP>");

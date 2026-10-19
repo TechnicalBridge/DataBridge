@@ -405,6 +405,7 @@ public class MailService {
         try {
             entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
+            log.warn("MAIL_SEND_FAILED exceptionType={}", e.getClass().getSimpleName());
             log.warn("No se pudo enviar SMTP a {}: {}", to, motivo(e));
         }
     }
@@ -440,6 +441,8 @@ public class MailService {
             log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)", to);
             return Optional.empty();
         }
+        log.info("MAIL_REDIRECT_APPLIED redirected={} senderType={}",
+                destino.get().desviado(), mailSender.getClass().getSimpleName());
         mailSender.send(armar(destino.get(), PLANTILLAS.escribir(plantilla, datos)));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
