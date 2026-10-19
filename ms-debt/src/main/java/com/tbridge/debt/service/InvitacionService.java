@@ -9,39 +9,24 @@ import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
 /**
- * La invitacion: el primer codigo de acceso, apenas una deuda entra en cobranza.
+ * Operaciones de invitacion solo por invocacion explicita de mantenimiento.
  *
- * <p>DataBridge detecta al moroso cuando llega la cartera, y con esto el deudor
- * se entera sin que nadie de la agencia tenga que apretar un boton. El correo
- * es el primer aviso de siempre, sin monto ni enlace. El boton "Enviar codigo"
- * del portal sigue ahi para reenviarlo.
+ * <p>No escucha eventos de ingesta ni tiene un reloj: cargar, reabrir o
+ * restaurar deudas no solicita codigos ni agenda reintentos. El acceso normal
+ * se pide en el portal. Las operaciones conservadas respetan horario y limite.
  *
- * <p>Sale despues del commit del lote y en otro hilo: un lote que se deshace no
- * invita a nadie, y mil deudas nuevas no hacen esperar a quien entrega la
- * cartera. Si ms-auth no responde, la deuda queda igual y la agencia envia el
- * codigo a mano.
+ * <p>Si el correo falla, la deuda queda igual. Ninguna tarea automatica invoca
+ * estas operaciones para volver a intentar los envios.
  *
- * <p>Fuera del horario de la ley ({@link HorarioDeContacto}) no sale: una
- * cartera que llega de noche o un domingo deja sus deudas sin invitar, y las
- * invita la primera pasada de contacto dentro del horario.
- *
- * <p>Si el correo no sale, no queda como enviado: el motivo queda en el
- * deudor. Cada pasada de contacto invita a las deudas que todavia no
- * recibieron ningun correo ({@link #invitarPendientes}): asi, corregido el
- * servidor de correo, la invitacion sale sola, y tambien la que la ley dejo
- * para despues o la de un deudor que recien trajo correo.
  */
 @Service
 public class InvitacionService {
@@ -69,8 +54,6 @@ public class InvitacionService {
         this.horario = horario;
     }
 
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void invitar(DeudaEnCobranza aviso) {
         Debt deuda = debts.findById(aviso.debtId()).orElse(null);

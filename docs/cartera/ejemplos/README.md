@@ -18,7 +18,7 @@ cobra hasta cierto número de días de mora.
 1. En el portal de empresas, **Cargar cartera**: se elige o se crea una campaña.
 2. **Elegir archivo**, con uno de estos, y **Revisar la planilla**. La revisión no guarda nada ni le escribe a
    nadie.
-3. Con la correcta, **Cargar** deja las deudas en la campaña, y a cada deudor nuevo le sale su invitación.
+3. Con la correcta, **Cargar** deja las deudas en la campaña, sin enviar códigos ni agendar invitaciones.
 
 ## La demo incluida en DataBridge
 
@@ -38,6 +38,5 @@ correos y RUT del equipo. Está en la carpeta del Capstone (`Docs/cartera-demo-c
 cuentas de `Credenciales.md`: cuatro deudores, siete meses de deuda (septiembre y octubre de 2026), uno en UF y dos
 con interés.
 
-Al cargarla, las invitaciones salen solas, dentro del horario de la ley salvo que esté apagado para probar
-(`CONTACTO_SIN_HORARIO`, `CONTACTO_SIN_LIMITE`). Con el correo de verdad, las cuentas tienen que estar en
-`CORREO_SOLO_A`.
+Al cargarla no se envían códigos. Cada deudor solicita el suyo en el portal o la empresa usa el reenvío
+manual, respetando las reglas de contacto. Con correo real, configurar `CORREO_SOLO_A` y el desvío de prueba.

@@ -338,14 +338,9 @@ no deshace lo que el deudor ya acordó:
   contrato, la deuda se reabre, siempre que todos sus cargos sean posteriores a los que se pagaron.
   En DataBridge cuenta como una entrada nueva: exige de nuevo los 30 días de mora.
 
-**La invitación.** Cuando una deuda entra —o vuelve— a cobranza en DataBridge, al deudor le llega
-solo su código de acceso por correo, sin monto ni enlace. La agencia lo puede reenviar desde su
-portal. Si en ese momento no sale, DataBridge lo vuelve a intentar solo, dentro del horario de
-cobranza, hasta que sale. No sale cuando:
-
-- es de noche, un domingo o un feriado;
-- la ley ya no deja escribirle esa semana;
-- el correo falla.
+**La carga no solicita códigos.** Registrar o reabrir una deuda no emite una invitación ni agenda
+reintentos. El deudor solicita su acceso desde el portal; la empresa conserva el reenvío explícito,
+con sus permisos, horario y límites. Un fallo de correo exige una petición nueva, no una tarea periódica.
 
 ### 6.5 Respuesta
 
@@ -557,9 +552,9 @@ POST /api/v1/campanas
 | `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
 | `descuento_mora_por_tramo` | El % de los intereses de mora que la campaña condona según el tramo de la deuda (§7.1). Los tramos son `1-30`, `31-90` y `91-120`; un tramo que no viene es 0. Ninguno puede pasar el máximo del mandato (`descuento_sobre_tope`). Sin el campo no cambia; una campaña nueva parte sin descuento. `{}` lo quita |
 
-Cada toque es el mismo correo de la invitación: un código para entrar al portal, sin el monto ni un
-enlace. Una deuda que se paga, se repacta, se reclama o se retira deja la campaña; la repactada
-sigue con los recordatorios de su convenio.
+Las reglas de cadencia se conservan para operaciones explícitas de mantenimiento. No hay un cron
+de contactos, invitaciones ni recordatorios que emita o reintente códigos automáticamente. Una deuda
+pagada, repactada, reclamada o retirada no recibe toques de campaña.
 
 **La ley manda sobre la cadencia** (Ley 19.496, art. 37, con los cambios de la Ley 21.320):
 
@@ -576,8 +571,7 @@ sigue con los recordatorios de su convenio.
   Si el servidor rechazó la dirección tres veces seguidas, DataBridge deja de escribirle solo
   hasta que una cartera traiga otro correo.
 
-Un toque que la ley no deja hoy sale en cuanto se puede. Por eso una cadencia con toques muy
-seguidos (1 y 4 está bien; 1 y 2, no) se cumple más tarde de lo que dice.
+Un intento rechazado por la ley no se agenda para después: requiere una solicitud explícita nueva.
 
 ### 7.1 El descuento por pronto pago
 

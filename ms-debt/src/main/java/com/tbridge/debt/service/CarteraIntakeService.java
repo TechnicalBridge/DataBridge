@@ -74,7 +74,7 @@ import java.util.TreeMap;
  * todavia no es mora, y se rechaza sola con el codigo {@code bajo_umbral_mora}.
  * Se mide en dias y no en meses impagos: asi sirve igual para un arriendo que
  * se cobra cada mes que para un tratamiento dental de un solo cargo. La que
- * entra le avisa al deudor ({@link InvitacionService}).
+ * entra se registra sin avisos ni codigos de acceso automaticos.
  *
  * <p><b>Lo que se pago por DataBridge manda.</b> Una deuda en convenio que
  * vuelve en la cartera del mes siguiente conserva su convenio, y una pagada
@@ -557,11 +557,7 @@ public class CarteraIntakeService {
             registro.setStatus(Debt.Status.open);
         }
         debts.save(registro);
-        if (nueva || reabierta) {
-            //  Entra (o vuelve) a cobranza: al deudor le llega su codigo de
-            //  acceso despues del commit del lote (InvitacionService).
-            avisos.publishEvent(new InvitacionService.DeudaEnCobranza(registro.getId()));
-        }
+        // Cargar o reabrir una deuda no solicita ni agenda codigos de acceso.
 
         if (!sinCambios) {
             reemplazarCargos(registro, cargos, total);

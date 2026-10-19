@@ -146,7 +146,7 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Transbank** · Webpay Plus, API REST v1.2 | Cobrar con tarjeta, en la página real de Transbank | Funciona igual, contra su ambiente de integración y con tarjetas de prueba. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` |
 | **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
-| **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Los correos van al buzón de prueba (Mailpit) |
+| **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Sin proveedor configurado, no se entregan correos |
 | **Banco Central** | La UF de cada día | La UF se carga a mano |
 | **Un LLM** (Grok, de xAI) | Las respuestas del asistente | Responde con sus reglas |
 
@@ -158,11 +158,15 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Servidor web** | nginx sin privilegios: sirve el portal compilado y hace de proxy al gateway |
 | **Integración continua** | GitHub Actions · CodeQL · Dependabot: pruebas y análisis de seguridad en cada push |
 | **Pruebas** | JUnit 5 · Mockito · MockMvc · k6: unitarias, de la capa web y de rendimiento |
-| **Correo de prueba** | Mailpit: recibe los correos sin mandárselos a nadie |
+| **Correo** | Brevo o SMTP explícito; Mailpit no forma parte de esta rama |
 
 ---
 
 ## 3. Cómo ejecutar el proyecto localmente
+
+**Para llevar la instalación con sus cuentas, cartera y pagos a otro PC**, seguir la
+[guía de réplica privada](docs/configuracion/otro-pc.md). La rama no incluye las bases ni el `.env` real;
+una réplica conserva las claves de su respaldo y no se prepara como una demo vacía.
 
 ### La forma corta: todo en Docker
 
@@ -188,7 +192,7 @@ conexión; después son segundos.
 | --- | --- |
 | **Portal** | http://localhost:8080 |
 | **Documentación de la API (Swagger)** | http://localhost:8080/swagger-ui.html |
-| Buzón de prueba (los códigos llegan acá) | http://localhost:8025 |
+| Correo de acceso | El proveedor configurado y, para pruebas, su desvío privado |
 | RabbitMQ | http://localhost:15672 · `guest`, con la clave de `RABBIT_PASSWORD` de tu `.env` |
 | Base de datos | `127.0.0.1:3308` · `tbridge`, con la clave de `MYSQL_PASSWORD` de tu `.env` |
 
@@ -204,7 +208,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 | `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | No hay `.env`, o le falta ese secreto: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1` lo completa sin tocar lo que ya tiene |
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia, también las claves dentro de MySQL si la base está arriba, sin perder datos. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes, también dentro de MySQL si es una de sus claves. Después, `docker compose --profile app up -d` |
-| `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
+| `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672) o `RABBIT_ADMIN_PORT` (15672) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
 | La construcción se cae bajando dependencias | Sin internet, o un proxy que la corta. Se vuelve a correr la misma orden: lo que ya bajó queda en caché |
 | Todos los deudores reciben *Demasiadas solicitudes* a la vez | El gateway no reconoce al nginx del portal como proxy y ve a todos como una sola IP. Ya confía en las tres redes privadas que usa Docker; si tu red es otra, ajústala en `TRUSTED_PROXIES` |
@@ -304,9 +308,9 @@ Responde con el `codigo`. Con él se entra al portal en **Tengo un código de ac
 
 ### Para mandar correos de verdad
 
-Sin tocar nada, los correos van al **buzón de prueba** (http://localhost:8025) y no le llegan a
-nadie: sirve para programar, no para producción. Para que lleguen de verdad hay dos caminos, y
-los dos se eligen en el `.env`, sin editar el compose ni el código:
+Sin un proveedor configurado no se entregan códigos ni enlaces. Esta rama no incluye Mailpit.
+Una réplica conserva el proveedor del `.env` privado de su respaldo; una instalación nueva debe
+configurarlo expresamente. Hay dos caminos, elegidos en `.env`, sin editar el código:
 
 | Camino | Cuándo | Qué hace falta |
 | --- | --- | --- |
@@ -375,7 +379,7 @@ puerto y las credenciales; con uno que pide SSL desde el principio (puerto 465),
 
 **El modo de prueba, que no es opcional con los datos de la demo.** Los deudores de ejemplo
 usan el dominio reservado `example.com`, que no entrega correo. Las bases de la demo anterior
-pueden conservar direcciones de otros dominios, y la campaña corre sola cada 15 minutos. Para
+pueden conservar direcciones de otros dominios. Cargar una cartera no dispara códigos. Para
 evitar rebotes y cualquier envío a terceros, con un servidor real se usa siempre el modo de prueba.
 
 | Variable | Qué hace |
@@ -420,7 +424,7 @@ cliente que no muestra HTML muestra el texto, con el código.
 
 | Correo | Plantilla | A quién |
 | --- | --- | --- |
-| El código de acceso | `codigo` | Al deudor: en la invitación, en cada toque de la campaña y cuando la empresa se lo reenvía |
+| El código de acceso | `codigo` | Solo mediante solicitud explícita: acceso en el portal o reenvío manual de la empresa |
 | El recordatorio de cuota | `recordatorio` | Al deudor con convenio, antes de que venza una cuota, con un código nuevo |
 | El acceso solicitado | `acceso` | En los tres portales: **Enviar código** manda solo el código; **¿No te llegó?** manda código y enlace juntos en un único correo |
 | El enlace anterior | `enlace` | Plantilla conservada por compatibilidad; no es el envío habitual del login |
@@ -451,10 +455,8 @@ día, una dirección que no existe. Un correo que no sale **no cuenta como envia
 - ms-debt no lo anota como contacto ni lo cuenta para el límite de dos por semana. El motivo queda
   en el deudor, y la empresa lo ve en su cartera: *No se pudo enviar el correo del …: …*. Si
   reenvía el código, ve el error en el momento.
-- **Si la culpa es del servidor de correo**, el mismo correo sale solo cuando se corrige: la
-  pasada de contacto (cada 15 minutos, dentro del horario de la ley) invita a toda deuda en
-  cobranza que todavía no recibió ningún correo, y la campaña vuelve a intentar su toque. La
-  pasada se corta al primer fallo, en vez de esperar al servidor una vez por deuda.
+- **Si la culpa es del servidor de correo**, se corrige la configuración y se solicita un acceso
+  nuevamente. No hay reintentos automáticos de códigos, invitaciones o recordatorios.
 - **Si la culpa es de la dirección** (el servidor la rechazó), tres rechazos seguidos la dejan como
   *correo con problemas*: ya no se le escribe solo, hasta que una cartera traiga otro correo. La
   empresa igual puede reenviarle el código a mano.
@@ -932,7 +934,7 @@ flowchart LR
         MQ{{"RabbitMQ"}}
     end
 
-    CORREO{{"Brevo o SMTP<br/>(Mailpit sin configurar)"}}
+    CORREO{{"Brevo o SMTP<br/>configurado expresamente"}}
     PAS{{"Transbank · Khipu<br/>Mercado Pago"}}
     BCC{{"Banco Central"}}
     LLM{{"LLM"}}
@@ -969,7 +971,7 @@ flowchart LR
 | ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave | Crear la transacción y confirmarla; el navegador solo va y vuelve |
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
 | APOFYX ↔ DataBridge | HTTP con clave de API, y eventos firmados con HMAC-SHA256. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
-| ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP; sin ninguno, Mailpit | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
+| ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP explícito; sin ninguno no hay entrega | El único servicio que escribe correos; los códigos se solicitan expresamente |
 
 Si RabbitMQ no está, ms-payments manda el mismo aviso por HTTP (`POST /internal/events/pago-confirmado`);
 en los dos casos sale de una bandeja con reintentos, así que no se pierde.
@@ -3332,9 +3334,9 @@ contrato, y DataBridge detecta al moroso. El que está al día viene con `cargos
 - La que pasa los 120 días de mora, APOFYX la devuelve al acreedor y DataBridge deja de cobrarla
   (`fuera_de_mandato`).
 
-**La invitación sale sola.** Cuando una deuda entra o se reabre, DataBridge le manda al deudor su
-código por correo, sin monto ni enlace. Si el envío falla, la cartera entra igual, y desde el
-portal se reenvía.
+**La carga no envía códigos.** Registrar, actualizar o reabrir una deuda solo incorpora la cartera.
+No se agenda una invitación ni un reintento posterior. El acceso se solicita expresamente desde
+el portal; la empresa conserva su reenvío manual, sujeto a sus permisos y límites.
 
 El detalle está en las [reglas del contrato](docs/integracion/README.md#64-reglas-de-validación).
 
@@ -3428,26 +3430,27 @@ recuperó solo ese pago en el mes, la comisión de DataBridge es el 6 % de $909.
 
 ### Las campañas
 
-**Quien cobra decide la estrategia y DataBridge la cumple.** Una campaña es el plan para
+**Quien cobra organiza su cartera en campañas.** Una campaña conserva la estrategia para
 recordarles a los deudores de una cartera que deben: por qué medio, cuántas veces y cada cuántos
 días. La crea quien cobra, en el portal de empresas, en *Campañas*: una empresa de cobranza con
 mandato sobre el acreedor, o **el mismo acreedor cuando cobra sin agencia**, sin mandato. Ahí
 mismo la cambia, la pausa y la termina, y en ella carga a sus deudores. Con la entrega por API
 encendida, un sistema también la registra por `/api/v1/campanas` (en la demo de la cadena, APOFYX
-desde su panel), con las mismas reglas. DataBridge manda cada recordatorio, que es el mismo correo
-de la invitación: un código para entrar, sin el monto ni un enlace. Si alguien reenvía o roba el correo, no le sirve de
-nada, y no hay un enlace que se pueda imitar.
+desde su panel), con las mismas reglas. En esta rama no hay cron de códigos, invitaciones ni
+recordatorios de cuotas: cargar una cartera, reiniciar o restaurar una base no los envía. Las
+operaciones de contacto de mantenimiento solo se ejecutan por petición explícita; sus reglas de
+cadencia y límites se conservan, pero no constituyen una cola de envíos automáticos.
 
 | Dato de la campaña | Qué hace DataBridge |
 | --- | --- |
-| **Cadencia** (por ejemplo, días 1, 4, 11, 25, 45) | El recordatorio *n* sale ese día, contado desde que la deuda entró a la campaña |
+| **Cadencia** (por ejemplo, días 1, 4, 11, 25, 45) | Fecha mínima de un toque en una operación explícita, contada desde la entrada; no agenda un envío |
 | **Intentos** | Cuántos recordatorios recibe cada deudor como máximo |
 | **Inicio y fin** | Fuera de esas fechas no se contacta |
 | **Estado** | Solo una campaña en curso contacta. Si quien cobra la pausa o la termina, en el portal (o por la API, si está encendida), DataBridge deja de contactar al instante |
 | **Canales** | Hoy solo correo. WhatsApp y SMS se suman cuando estén conectados |
 
 Una deuda que se paga, se repacta, se reclama o se retira deja de recibir recordatorios de la
-campaña. La repactada sigue con el recordatorio de cada cuota.
+campaña. Los recordatorios de cuotas tampoco se ejecutan automáticamente.
 
 **La ley manda sobre la cadencia** (Ley 19.496, art. 37, con los cambios de la Ley 21.320):
 
@@ -3460,17 +3463,15 @@ campaña. La repactada sigue con el recordatorio de cada cuota.
 | Registro | Cada correo queda en la historia de la deuda |
 
 Las reglas valen para todos los correos: la invitación, los de la campaña, el recordatorio de una
-cuota y el código que reenvía la empresa. Un correo que cae en un momento prohibido no se pierde:
-sale en la primera oportunidad permitida.
+cuota y el código que reenvía la empresa. Un intento rechazado por estas reglas no queda agendado:
+requiere una nueva petición explícita.
 
 **Para una demo se pueden apagar** las dos, solo para probar: `CONTACTO_SIN_HORARIO=true` deja escribir a
 cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, y
 en producción van en `false` ([§10](#variables-de-entorno)).
 
-- **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera
-  pasada de contacto dentro del horario.
-- **El recordatorio de cuota** no sale un domingo ni un feriado. Lo manda la pasada del día
-  siguiente en que se puede, que avisa las cuotas que vencen en los próximos tres días.
+- **La carga de cartera** no manda una invitación, sin importar la hora o el día.
+- **Los recordatorios de cuotas** no se programan ni reintentan automáticamente.
 - **El código que reenvía la empresa** fuera de horario no sale, y la empresa ve el aviso *La ley
   solo deja escribirle a un deudor de lunes a sábado, de 8:00 a 20:00*. Si ya se le escribió lo
   que permite la semana, ve *Ya se le escribió lo que permite la ley*. Cómo decide DataBridge si escribe
@@ -3479,7 +3480,8 @@ en producción van en `false` ([§10](#variables-de-entorno)).
 <details>
 <summary><b>Un ejemplo, día por día</b>: una campaña de cadencia 1, 4, 11 frente a la ley</summary>
 
-**Un ejemplo, día por día**, probado con una campaña de cadencia 1, 4, 11 y 3 intentos, para una
+**Ejemplo histórico del motor de contacto**, anterior a desactivar sus disparadores automáticos.
+No describe una tarea vigente de esta rama. Se probó con cadencia 1, 4, 11 y 3 intentos, para una
 deuda que entró el martes 6 de octubre:
 
 | Día | Qué pasó | Por qué |
@@ -3499,7 +3501,8 @@ reanuda la campaña, sigue donde quedó, sin repetir los correos que ya salieron
 
 </details>
 
-DataBridge revisa las campañas cada 15 minutos.
+DataBridge no programa pasadas de correo. Una invocación explícita de mantenimiento conserva
+las validaciones anteriores y puede enviar correos; no se ejecuta al cargar una cartera.
 
 <details>
 <summary><b>Para probar una cadencia</b> sin esperar semanas</summary>
@@ -3584,8 +3587,9 @@ Son **dos etapas**: la primera compila con Maven y el JDK, y la segunda se queda
 el `.jar`. Las dependencias de Maven quedan en su propia capa, que se reutiliza mientras no cambie
 el `pom.xml`.
 
-El [`docker-compose.yml`](docker-compose.yml) orquesta los nueve contenedores. Sin perfil levanta
-solo la infraestructura (MySQL, RabbitMQ y el buzón); con `--profile app`, el sistema entero.
+El [`docker-compose.yml`](docker-compose.yml) orquesta ocho servicios. Sin perfil levanta
+solo MySQL y RabbitMQ; con `--profile app`, el sistema entero. No retira contenedores existentes
+automáticamente: cualquier limpieza de la instalación activa requiere autorización aparte.
 
 ### Los contenedores y sus puertos
 
@@ -3596,7 +3600,6 @@ solo la infraestructura (MySQL, RabbitMQ y el buzón); con `--profile app`, el s
 | `ms-auth` · `ms-debt` · `ms-payments` · `ms-ai` | 8081 · 8083 · 8084 · 8085 | — | Solo los ve el gateway y entre ellos |
 | `mysql` | 3306 | 3308 | Para revisar la base desde el equipo |
 | `rabbitmq` | 5672 · 15672 | 5672 · 15672 | La cola y su consola |
-| `mailpit` | 1025 · 8025 | 1025 · 8025 | El buzón de prueba y su página |
 
 Los puertos publicados se cambian desde `.env` ([§3](#si-algo-falla-en-un-equipo-nuevo)). En un
 despliegue real, cada servicio puede ir en su propio nodo detrás del gateway, con las salvedades de
@@ -3638,7 +3641,7 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `PORTAL_PORT`, `MYSQL_PORT`, `RABBIT_PORT`, `RABBIT_ADMIN_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_PORT` | `8080`, `3308`, `5672`, `15672`, `1025`, `8025` | Los puertos que se publican en el equipo. Se cambian si alguno ya está ocupado |
+| `PORTAL_PORT`, `MYSQL_PORT`, `RABBIT_PORT`, `RABBIT_ADMIN_PORT` | `8080`, `3308`, `5672`, `15672` | Los puertos publicados en el equipo; Vite sigue `PORTAL_PORT` salvo `DEV_PROXY_TARGET` explícito |
 | `PUBLIC_URL` | `http://localhost:8080` | La dirección del portal que va en los correos y en el retorno de Webpay y de Khipu |
 
 </details>
@@ -3774,14 +3777,15 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**893 pruebas**, todas en Java y sin fallos:
+**964 pruebas Java ejecutadas en esta integración**, sin fallos, errores u omisiones, con JDK 25 y `clean test`.
+Se suman 107 pruebas Node del preparador, restauración, proxy, cifrado y detector de secretos.
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 226 |
-| `ms-debt` | 420 |
-| `ms-payments` | 185 |
+| `ms-auth` | 240 |
+| `ms-debt` | 459 |
+| `ms-payments` | 203 |
 | `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
@@ -3861,8 +3865,8 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
    Ve qué entraría y qué no, con su motivo; si la planilla tiene problemas, cada uno con su hoja, fila
    y columna. Recién al confirmar entran. Hay ejemplos listos en
    [`docs/cartera/ejemplos`](docs/cartera/ejemplos/README.md).
-3. **El deudor recibe su código solo.** Al entrar la deuda, la invitación sale a su correo, y la
-   cartera muestra *Invitado el …*. La pantalla no muestra el código: quien lo viera podría entrar
+3. **El deudor solicita su código.** Cargar la cartera no envía correo. Desde el portal pide su acceso;
+   el código llega solo al correo registrado. La pantalla no lo muestra: quien lo viera podría entrar
    en su lugar.
 4. **El deudor entra** con su RUT y ese código. Puede simular un plan, aceptarlo y pagar una o
    varias cuotas, en orden.
@@ -3893,6 +3897,20 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 ---
 
 ## 14. Estado al 19 de octubre de 2026
+
+### Rama De Integración Portable
+
+El [#237](https://github.com/TechnicalBridge/TB_web/issues/237) reúne #209, #230, #232 y #224 sobre el main que
+ya tiene #222 y #192. Corrige el proxy de Vite y separa una instalación nueva de una réplica con datos.
+Por decisión del usuario, cargar cartera no envía ni agenda códigos; tampoco se programan sus reintentos,
+toques o recordatorios. El acceso y reenvío explícitos se mantienen. Mailpit no forma parte de esta rama.
+
+Pasaron los cinco servicios Java y el build del portal. La entrega real por correo, los proveedores externos,
+un recorrido visual nuevo y el arranque en el otro PC no se consideran comprobados por esas pruebas.
+Las comprobaciones de la tabla siguiente son históricas; describen también disparadores automáticos que esta
+rama retiró. No se aplicaron cambios al Docker operativo al preparar la integración.
+
+### Verificación Conjunta Anterior
 
 **893 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 

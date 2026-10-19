@@ -1,2 +1,4 @@
 # Sin SMTP_HOST, el correo va al buzon de prueba que anuncia el compose (ver BuzonDePrueba).
-org.springframework.boot.env.EnvironmentPostProcessor=com.tbridge.auth.config.BuzonDePrueba
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.tbridge.auth.config.ConfiguracionObligatoria,\
+com.tbridge.auth.config.BuzonDePrueba

@@ -13,7 +13,6 @@ import com.tbridge.debt.repository.InstallmentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +67,7 @@ public class RecordatorioService {
         this.diasAntes = diasAntes;
     }
 
-    @Scheduled(cron = "${app.recordatorios.cron:0 0 9 * * *}", zone = "America/Santiago")
+    /** Solo por invocacion explicita; no emite codigos mediante un cron. */
     @Transactional
     public void programado() {
         if (!horario.permiteAhora()) {

@@ -10,6 +10,11 @@ exista la variable `DESPLIEGUE_HOST`, un push a `main` no compila ni despliega n
 
 ## Cómo queda
 
+Para el mantenimiento de llaves y respaldos, ver [rotación y prevención de secretos](../seguridad/README.md).
+No reemplazar `CIFRADO_LLAVE` directamente en un servidor con suscripciones cifradas. La herramienta incluida
+es local y requiere MySQL publicado en el propio equipo; el servidor mantiene sus puertos internos cerrados y
+requiere un mantenimiento autorizado, sin abrir MySQL a internet.
+
 ```mermaid
 flowchart LR
     NAV(["Navegador"]) -->|"https://technicalbridge.site"| CADDY
@@ -30,7 +35,7 @@ flowchart LR
 - **Es el mismo `docker compose` de local**, más [`docker-compose.prod.yml`](../../docker-compose.prod.yml):
   - Caddy va delante y es lo único que publica puertos;
   - MySQL, RabbitMQ y el portal quedan cerrados;
-  - el buzón de prueba no se levanta.
+  - no hay buzón de prueba incluido, ni en local ni en producción: el correo se configura aparte.
 - **El servidor no compila nada.** GitHub Actions ([`desplegar.yml`](../../.github/workflows/desplegar.yml)) compila
   las seis imágenes y las publica en GHCR. El servidor solo las descarga: con 6 GB no le sobra memoria para Maven.
 - **Cada push a `main` se despliega solo**, una vez activado (paso 6). Un cambio solo de documentación no
@@ -109,11 +114,17 @@ Se puede volver a correr: no pisa lo que ya existe.
 
 Con `DEMO_DATOS=true` y una base de negocio vacía, el primer arranque instala la demo independiente:
 Servicios Horizonte cobra directamente, con dos campañas y seis deudas ficticias. Su persona entra
-con `camila.reyes@example.com`. Los correos van a Mailpit o, con un proveedor real, al desvío de prueba
+con `camila.reyes@example.com`. Se requiere un proveedor de correo explícito y el desvío de prueba
 obligatorio. Las bases existentes, incluida la demo anterior, no se convierten ni se completan;
 no se debe borrar su volumen para intentar activar esta siembra.
 
 ## 5. El correo, las pasarelas y el DNS
+
+Las claves internas del servidor son propias: no se reemplazan copiando todo el `.env` de un PC. Para preparar
+el perfil privado de correo y pasarelas, revisar [Configuración por instalación](../configuracion/README.md).
+`preparar-env.ps1` es la herramienta de Windows, no sustituye el preparador Linux de este VPS. Cambiar un
+archivo no cambia las cuentas guardadas en MySQL; una rotación en el servidor requiere respaldo y un plan
+específico antes de recrear contenedores. Los proveedores no se validan enviando correos o pagos sin autorización.
 
 **Las claves del correo y de las pasarelas** se copian del `.env` del equipo al del servidor, sin que se vean en
 la pantalla:
@@ -126,6 +137,13 @@ Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORR
 
 Con los datos de la demo, **`CORREO_SOLO_A` y `CORREO_DESVIAR_A` no son opcionales**: los deudores de ejemplo
 tienen correos inventados.
+
+Mailpit ya no forma parte de Compose local ni de producción. Sin Brevo ni SMTP explícito no hay entrega
+de correo. No se debe probar una cartera masiva contra Brevo, Gmail o un desvío a un buzón real: usar un
+servidor de captura externo o solo la revisión de cartera. Las credenciales existentes no se cambian al
+retirar el servicio. Si quedó `tbridge-mail` de una versión anterior, verificar primero el proveedor activo
+y conservar los mensajes necesarios; retirar ese contenedor es una acción operativa separada y nunca
+requiere borrar volúmenes ni ejecutar `down -v`.
 
 **El DNS**, en Namecheap → *Domain List* → `technicalbridge.site` → **Advanced DNS**:
 

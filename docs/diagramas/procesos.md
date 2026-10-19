@@ -37,18 +37,17 @@ flowchart TB
     subgraph DB["DataBridge"]
         D1{"¿30 días de mora<br/>o más, y tasa<br/>bajo el tope?"}:::decision
         D1 -->|no| DX((("Rechazada,<br/>con su motivo"))):::fin
-        D1 -->|sí| D2["Registra la deuda y<br/>le manda la invitación"]:::tarea --> D3["Le sigue escribiendo<br/>según la campaña"]:::tarea
+        D1 -->|sí| D2["Registra la deuda<br/>sin enviar códigos"]:::tarea --> D3["Conserva la cartera<br/>sin cron de correo"]:::tarea
         D5["Cobra, arma el convenio<br/>o abre el reclamo"]:::tarea --> D6["Avisa lo que pasó,<br/>firmado"]:::tarea
     end
 
     subgraph DEU["Deudor"]
-        U1["Recibe un correo<br/>con su código"]:::tarea --> U2["Entra y ve lo que debe,<br/>con la mora de hoy<br/>y el descuento, si hay"]:::tarea --> U3{"¿Qué hace?"}:::decision
+        U1["Solicita su código<br/>y lo recibe por correo"]:::tarea --> U2["Entra y ve lo que debe,<br/>con la mora de hoy<br/>y el descuento, si hay"]:::tarea --> U3{"¿Qué hace?"}:::decision
     end
 
     P2 -. "cartera" .-> A1
     A2 -. "cartera + campaña" .-> D1
-    D2 -. "correo" .-> U1
-    D3 -. "correo" .-> U1
+    D3 -. "datos disponibles al pedir acceso" .-> U1
     U3 -->|"paga, repacta<br/>o reclama"| D5
     D6 -. "aviso" .-> A8
     A8 -. "aviso" .-> P9
@@ -58,8 +57,8 @@ flowchart TB
 | --- | --- | --- |
 | 1 | Acreedor | A fin de mes genera los cargos y entrega la **cartera**: todos sus clientes con contrato, deban o no, con la tasa de interés de cada uno |
 | 2 | APOFYX | Revisa cada deuda (mora, al día, más de 120 días), la asigna a la **campaña** en curso y se la pasa a DataBridge |
-| 3 | DataBridge | Acepta las deudas con 30 días de mora o más y una tasa bajo el tope, y le manda al deudor una **invitación**: un código, sin monto ni enlace |
-| 4 | DataBridge | Si el deudor no entra ni paga, **le sigue escribiendo** los días de la campaña, dentro de lo que permite la ley |
+| 3 | DataBridge | Registra las deudas admitidas sin enviar códigos ni agendar invitaciones |
+| 4 | Deudor o empresa | Solicita explícitamente el acceso o el reenvío; no hay envíos periódicos de códigos |
 | 5 | Deudor | Entra con su RUT y el código, ve lo que debe con la mora del día (y el descuento, si la campaña lo trae y paga todo de una vez) y decide: **pagar**, **repactar** o **reclamar** |
 | 6 | DataBridge | Cobra con la pasarela, arma el convenio o abre el reclamo, y **avisa** lo que pasó, firmado |
 | 7 | APOFYX | Pone su cartera al día y le **reenvía el aviso** al acreedor, firmado por ella |
@@ -105,7 +104,7 @@ flowchart TB
         D1 -->|sí| D3{"¿La tasa de interés<br/>está bajo el tope?"}:::decision
         D3 -->|no| D4["Rechaza esa deuda:<br/>tasa_sobre_maxima"]:::tarea
         D3 -->|sí| D5["Registra la deuda,<br/>sus cargos y su tasa<br/>(un correo mal escrito<br/>entra con un aviso)"]:::tarea
-        D5 --> D6["Le manda la invitación<br/>al deudor"]:::tarea
+        D5 --> D6["Conserva la cartera<br/>sin enviar códigos"]:::tarea
         D6 --> D7((("Deuda en<br/>cobranza"))):::fin
     end
 
@@ -119,12 +118,11 @@ flowchart TB
 
 ## Actividad: cómo DataBridge ejecuta una campaña
 
-Cada 15 minutos, DataBridge recorre las campañas en curso y, para cada deuda, decide si le toca un
-correo:
+Solo una operación explícita de mantenimiento recorre las campañas y decide si puede contactar:
 
 ```mermaid
 flowchart TD
-    I(("Cada 15 minutos")) --> H{"¿Es lunes a sábado,<br/>de 8:00 a 20:00,<br/>y no es feriado?"}
+    I(("Petición explícita")) --> H{"¿Es lunes a sábado,<br/>de 8:00 a 20:00,<br/>y no es feriado?"}
     H -->|no| F((("Espera la<br/>próxima pasada")))
     H -->|sí| C{"¿La campaña está en curso<br/>y hoy está entre<br/>su inicio y su fin?"}
     C -->|no| F
@@ -141,8 +139,7 @@ flowchart TD
     R --> F
 ```
 
-Un correo que esperó no se pierde: en la pasada siguiente se vuelve a preguntar, y sale en cuanto
-la ley lo deja.
+Un intento omitido o fallido no crea un reintento automático. Otra ejecución exige una petición nueva.
 
 ## Lo que corre solo
 
@@ -153,8 +150,6 @@ así que un sistema caído no pierde nada:
 ```mermaid
 flowchart LR
     subgraph DEBT["ms-debt"]
-        C1["Campañas<br/>cada 15 min"]
-        C2["Recordatorio de cuotas<br/>9:00"]
         C3["Avance de campañas<br/>8:00"]
         C4["Bandeja de eventos<br/>cada 15 s"]
     end
@@ -164,9 +159,6 @@ flowchart LR
         P3["Aviso de pago<br/>cada 15 s"]
         P4["UF del día<br/>9:30"]
     end
-    AUTH["ms-auth"] --> MAIL["Correo del deudor"]
-    C1 -->|"código"| AUTH
-    C2 -->|"recordatorio"| AUTH
     C3 -->|"campana.avance"| C4
     C4 -->|"eventos firmados"| APX["APOFYX"]
     P1 <-->|"¿en qué va?"| GW["Khipu y<br/>Mercado Pago"]
@@ -178,8 +170,6 @@ flowchart LR
 
 | Tarea | Servicio | Cuándo | Qué hace |
 | --- | --- | --- | --- |
-| Campañas | ms-debt | Cada 15 minutos | Manda los correos que tocan según la cadencia, dentro del horario y el límite de la ley |
-| Recordatorio de cuotas | ms-debt | Todos los días, 9:00 | Avisa las cuotas que vencen en 3 días (`RECORDATORIO_DIAS_ANTES`) |
 | Avance de campañas | ms-debt | Todos los días, 8:00 | Publica `campana.avance`: cuántos correos salieron, cuántos entraron al portal, repactaron, pagaron o reclamaron, y cuánto se recuperó |
 | Bandeja de eventos | ms-debt | Cada 15 segundos | Entrega los eventos pendientes a cada suscriptor, firmados, con reintentos |
 | Cobros abiertos | ms-payments | Cada 10 segundos | Pregunta a Khipu y a Mercado Pago en qué van los cobros abiertos |

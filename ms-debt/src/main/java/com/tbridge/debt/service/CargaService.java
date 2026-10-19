@@ -93,8 +93,7 @@ public class CargaService {
      * Lo que pasaria al cargar la planilla, sin cargarla: la misma ingesta, en
      * una transaccion que se deshace siempre. Por eso dice exactamente lo que
      * va a pasar, con las mismas validaciones, y no deja nada: ni deudas, ni el
-     * lote, ni contactos. La invitacion sale despues del commit, asi que
-     * tampoco sale ninguna.
+     * lote, ni contactos. Ni revisar ni confirmar una cartera solicita codigos.
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public RevisionResponse revisar(JwtPrincipal user, byte[] archivo, String loteId, String fechaCorte,

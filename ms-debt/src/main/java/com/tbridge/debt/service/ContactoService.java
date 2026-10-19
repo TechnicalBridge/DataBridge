@@ -15,7 +15,6 @@ import com.tbridge.debt.repository.DebtRepository;
 import com.tbridge.debt.repository.ToquesHechos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,8 +31,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * La campana, ejecutada: APOFYX decide la estrategia (canales, intentos,
- * cadencia y fechas) y DataBridge la cumple.
+ * Ejecucion explicita de una estrategia de contacto, sin programacion automatica.
+ * Las deudas cargadas no disparan ni reintentan codigos en segundo plano.
  *
  * <p>Cada toque es el mismo correo de la invitacion: un codigo para entrar al
  * portal, sin el monto ni un enlace. El toque {@code k} de una deuda sale el
@@ -87,7 +86,7 @@ public class ContactoService {
         this.horario = horario;
     }
 
-    @Scheduled(cron = "${app.contacto.cron:0 */15 * * * *}", zone = "America/Santiago")
+    /** Ejecucion explicita de mantenimiento; no se agenda en segundo plano. */
     public void pasar() {
         ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
         if (hecho.enviados() + hecho.invitados() > 0) {

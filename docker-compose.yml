@@ -4,7 +4,8 @@
 #  Dos formas de usarlo:
 #
 #    docker compose up -d
-#        Solo la infraestructura: MySQL, RabbitMQ y el buzon de prueba. Los
+#        Solo la infraestructura: MySQL y RabbitMQ. El correo se configura
+#        aparte con Brevo o SMTP explicito. Los
 #        servicios se levantan a mano con Maven, que es como se programa,
 #        porque recompilar una imagen en cada cambio seria insoportable.
 #
@@ -52,9 +53,9 @@ services:
       # Corre solo la primera vez, cuando el volumen esta vacio.
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      #  La clave la lee del propio contenedor: asi no queda en la linea de
-      #  comando, donde la mostraria docker inspect.
-      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -u root"]
+      #  No basta mysqladmin ping: devuelve exito incluso ante Access denied.
+      #  Se comprueban la cuenta real y las tres bases, sin claves en argumentos.
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u \"$$MYSQL_USER\" --batch --skip-column-names -e \"USE tb_auth; USE tb_debt; USE tb_payments; SELECT 1;\" >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -80,25 +81,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-
-  # ---------------------------------------------------------------------------
-  #  Buzon de prueba, solo para desarrollo. Recibe los correos que manda
-  #  ms-auth —el codigo de acceso, el enlace de respaldo— y los muestra en
-  #  http://localhost:8025 sin mandarlos a nadie. Asi la demo usa el camino de
-  #  verdad (el codigo llega por correo) sin tener un SMTP real.
-  #
-  #  ms-auth le escribe solo, mientras el .env no traiga un SMTP_HOST. Para
-  #  que le escriba corriendo con Maven:
-  #      SMTP_HOST=localhost SMTP_PORT=1025 SMTP_AUTH=false SMTP_STARTTLS=false
-  # ---------------------------------------------------------------------------
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: tbridge-mail
-    restart: unless-stopped
-    #  Los puertos se cambian en .env si el equipo ya tiene otro Mailpit.
-    ports:
-      - "${MAILPIT_SMTP_PORT:-1025}:1025"
-      - "${MAILPIT_PORT:-8025}:8025"
 
   # ===========================================================================
   #  Perfil "app": el sistema entero, sin instalar nada en la maquina.
@@ -148,9 +130,8 @@ services:
       MAIL_FROM:         ${MAIL_FROM:-noreply@technicalbridge.local}
       MAIL_FROM_NAME:    ${MAIL_FROM_NAME:-DataBridge}
       MAIL_REPLY_TO:     ${MAIL_REPLY_TO:-}
-      #  Sin SMTP_HOST en el .env, los correos van al buzon de prueba de mas
-      #  abajo y no a nadie de verdad: el resto de SMTP_* se ignora. Con
-      #  SMTP_HOST van a ese servidor (Gmail, o un proveedor de correo).
+      #  El correo requiere un proveedor explicito: Brevo tiene prioridad
+      #  sobre SMTP_HOST. No se levanta ni se elige un buzon de prueba solo.
       SMTP_HOST:       ${SMTP_HOST:-}
       SMTP_PORT:       ${SMTP_PORT:-587}
       SMTP_USER:       ${SMTP_USER:-}
@@ -162,7 +143,6 @@ services:
       #  Con una clave de Brevo, los correos salen por su API y no por SMTP.
       BREVO_API_KEY:   ${BREVO_API_KEY:-}
       BREVO_URL:       ${BREVO_URL:-https://api.brevo.com/v3/smtp/email}
-      CORREO_BUZON_DE_PRUEBA: mailpit:1025
       #  El modo de prueba, para un servidor real: a quien se le escribe
       #  directo, y a donde se desvia lo demas. Vacias, se le escribe a todos.
       CORREO_SOLO_A:    ${CORREO_SOLO_A:-}
@@ -381,7 +361,8 @@ services:
     environment:
       PORTAL_URI:   http://portal:8080
       AUTH_URI:     http://ms-auth:8081
-      MAIL_URI:     http://mailpit:8025
+      #  Solo capacidad.js: API de un buzon externo de prueba, sin valor implicito.
+      MAIL_URI:     ${MAIL_URI:-}
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
       #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
       #  contra el numero real y no contra uno escrito a mano.

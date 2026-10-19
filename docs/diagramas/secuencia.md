@@ -207,8 +207,8 @@ Renovar no alarga la sesión: la llave nueva hereda el vencimiento de la familia
 
 ## 4. Entregar una cartera por la API
 
-El escenario E1. El sistema de una empresa entrega su cartera, DataBridge decide deuda por deuda y, **después de
-guardar**, invita a cada deudor.
+El escenario E1. El sistema de una empresa entrega su cartera y DataBridge decide deuda por deuda.
+Confirmar la carga no solicita códigos ni agenda invitaciones.
 
 ```mermaid
 sequenceDiagram
@@ -218,9 +218,6 @@ sequenceDiagram
     participant CI as CarteraIntakeService
     participant ES as EventosService
     participant B as tb_debt
-    participant IV as InvitacionService
-    participant AU as ms-auth
-    participant C as Correo del deudor
 
     S->>IC: POST /api/v1/carteras, con Authorization: Bearer tbk_…
     IC->>AK: autenticar(clave)
@@ -240,7 +237,7 @@ sequenceDiagram
             alt cumple: RUT válido, cargos vencidos, 30 días de mora o más, tasa bajo el tope
                 CI->>B: debtors, debts, debt_charges e installments
                 CI->>B: debt_events: registered o updated
-                CI-)IV: publica DeudaEnCobranza(id)
+                Note over CI,B: solo registra, no publica una invitación
             else no cumple
                 Note over CI: queda rechazada con su motivo:<br/>bajo_umbral_mora, tasa_sobre_maxima, rut_invalido…
             end
@@ -251,29 +248,10 @@ sequenceDiagram
         CI-->>S: 200: recibidas, aceptadas, rechazadas y el resultado de cada una
     end
 
-    Note over IV: después de confirmar la transacción, en segundo plano
-    IV->>B: la deuda sigue abierta y el deudor tiene correo
-    IV->>IV: HorarioDeContacto: ¿de lunes a sábado, de 8:00 a 20:00, y no es feriado?
-    IV->>B: LimiteDeContacto: gestiones de los últimos 7 días
-    opt es horario de la ley, la semana deja escribirle, y su dirección no tiene problemas
-        IV->>AU: POST /internal/codigos, con la clave interna
-        AU->>AU: guarda la huella del código, vigente 24 horas
-        AU->>C: correo con el código: sin monto y sin enlace
-        alt el servidor de correo lo acepta
-            AU-->>IV: 200
-            IV->>B: contacts: la invitación, con el destino tapado
-        else no lo acepta
-            AU->>AU: anula el código: nadie lo recibió
-            AU-->>IV: 502, con el motivo y de quién es la culpa
-            IV->>B: debtors: el motivo, y un rechazo más si fue la dirección
-        end
-    end
 ```
 
-Una invitación que no salió la vuelve a intentar la pasada de contacto ([10](#10-la-campaña-le-escribe-al-deudor)),
-que antes de las campañas invita a toda deuda en cobranza que todavía no recibió ningún correo. Así sale
-también la de una cartera que llegó de noche, un domingo o un feriado: con la primera pasada dentro del
-horario.
+No hay listener de invitaciones ni reintentos programados. El acceso se solicita en el portal o mediante
+una operación manual autorizada; una deuda sin contacto no constituye una orden pendiente de correo.
 
 Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`), siempre en una campaña, hace el mismo recorrido:
 `CargaService` convierte la planilla, de Excel con `CarteraExcel` o CSV con `CarteraCsv`, y llama al mismo `CarteraIntakeService.recibir`.
@@ -569,11 +547,11 @@ Por el mismo `EventDispatcher` salen todos los eventos del contrato: `lote.proce
 
 ## 10. La campaña le escribe al deudor
 
-El escenario E2. La estrategia la define la agencia; DataBridge la ejecuta dentro de lo que permite la ley.
+El escenario E2 conserva una operación explícita de mantenimiento. No hay un cron de códigos.
 
 ```mermaid
 sequenceDiagram
-    participant R as El reloj
+    participant R as Operación autorizada
     participant CS as ContactoService
     participant LC as LimiteDeContacto
     participant AC as AuthClient
@@ -581,7 +559,7 @@ sequenceDiagram
     participant C as Correo del deudor
     participant B as tb_debt
 
-    loop cada 15 minutos
+    opt petición explícita de mantenimiento
         R->>CS: pasar()
         alt es domingo, feriado o fuera de 8:00 a 20:00
             Note over CS: no hace nada
@@ -614,8 +592,8 @@ sequenceDiagram
     end
 ```
 
-Un correo que no pudo salir no se pierde: no queda como toque, así que en la pasada siguiente se vuelve a
-preguntar, y sale en cuanto la ley lo deja. Si el servidor rechazó tres veces seguidas la dirección del deudor,
+Un correo fallido no cuenta como toque y no se reintenta automáticamente. Otra ejecución exige una petición
+explícita. Si el servidor rechazó tres veces seguidas la dirección del deudor,
 deja de intentarse hasta que una cartera traiga otra. Una deuda repactada, pagada, en reclamo o retirada deja de
 recibir los correos de la campaña.
 
@@ -623,7 +601,7 @@ Antes de las campañas, la misma pasada invita a las deudas en cobranza que toda
 (`InvitacionService.invitarPendientes`): las que fallaron, las que la ley dejó para después y las de un deudor
 que recién trajo correo.
 
-El **recordatorio de cuotas** (`RecordatorioService`, todos los días a las 9:00) sigue el mismo camino con otra
+El **recordatorio de cuotas** (`RecordatorioService`, solo por invocación explícita) sigue el mismo camino con otra
 pregunta: las cuotas pendientes que vencen en los próximos 3 días, de deudores que no apagaron el recordatorio.
 Pasa por el mismo `LimiteDeContacto` y por el mismo `POST /internal/codigos`, que en ese caso manda el correo
 del recordatorio con la fecha de la cuota.

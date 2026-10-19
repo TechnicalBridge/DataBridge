@@ -31,7 +31,6 @@ flowchart LR
             AI["ms-ai :8085"]
             MY[("mysql :3306<br/>tb_auth · tb_debt · tb_payments")]
             MQ{{"rabbitmq :5672"}}
-            MAIL["mailpit<br/>SMTP :1025"]
         end
         VOL[("volumen<br/>tbridge_db_data")]
     end
@@ -39,6 +38,7 @@ flowchart LR
     PAS{{"Transbank · Khipu<br/>Mercado Pago"}}
     BCC{{"Banco Central"}}
     LLM{{"LLM"}}
+    MAIL{{"Brevo o SMTP<br/>externo explícito"}}
 
     NAV -->|"8080"| POR
     SIS -->|"8080 · /api/v1"| POR
@@ -52,7 +52,7 @@ flowchart LR
     AI -->|"/api/debts"| DEBT
     PAY -->|"AMQP"| MQ
     MQ --> DEBT
-    AUTH -->|"SMTP"| MAIL
+    AUTH -->|"HTTPS o SMTP"| MAIL
     PAY <-->|"HTTPS"| PAS
     PAY -->|"HTTPS"| BCC
     AI -->|"HTTPS"| LLM
@@ -69,7 +69,6 @@ flowchart LR
 | `ms-ai` | `tbridge/ms-ai`, sobre `eclipse-temurin:25-jre` | 8085 | — | 640 MB | El asistente |
 | `mysql` | `mysql:8.4` | 3306 | 3308 (`MYSQL_PORT`) | — | Las tres bases. Se publica solo para revisarlas desde el equipo |
 | `rabbitmq` | `rabbitmq:3.13-management` | 5672 y 15672 | 5672 y 15672 | — | La cola del aviso de pago, y su consola |
-| `mailpit` | `axllent/mailpit` | 1025 y 8025 | 1025 y 8025 | — | El buzón de prueba: recibe los correos y los muestra en una página. Es adonde van mientras el `.env` no traiga un `SMTP_HOST` |
 
 Los cinco servicios de Java se construyen igual, en dos etapas: se compilan con `maven:3.9-eclipse-temurin-25`
 y la imagen final lleva solo el JRE y el `.jar`. Corren con un usuario sin privilegios (`tbridge`), no como
@@ -105,7 +104,7 @@ tablas: si no calzan, no parte. `mysql` crea las tres bases la primera vez, con 
 
 | Perfil | Qué levanta | Para qué |
 | --- | --- | --- |
-| Sin perfil | `mysql`, `rabbitmq` y `mailpit` | Programar: los servicios corren desde el editor y encuentran la base, la cola y el correo |
+| Sin perfil | `mysql` y `rabbitmq` | Programar: los servicios corren desde el editor y encuentran la base y la cola. El correo se configura aparte |
 | `app` | Lo anterior, más los cinco servicios y el portal | Usar el sistema completo: `docker compose --profile app up -d --build --wait` |
 | `carga` | `k6` | Las pruebas de carga de `rendimiento/`, contra el sistema ya levantado |
 
@@ -115,7 +114,6 @@ tablas: si no calzan, no parte. `mysql` crea las tres bases la primera vez, con 
 | --- | --- | --- |
 | Las tres bases de datos | El volumen `tbridge_db_data` | Apagar y volver a levantar. Se pierde solo si se borra el volumen |
 | La cola de RabbitMQ | Dentro del contenedor: `rabbitmq` no tiene un volumen | Reiniciarlo, porque la cola es durable. Si el contenedor se borra, se pierde lo que estuviera en la cola sin leer: ms-payments ya lo dio por entregado al publicarlo |
-| Los correos de prueba | Dentro de `mailpit`, en memoria | Nada: son de prueba |
 | Las sesiones | En `tb_auth` | Reiniciar los servicios. El JWT se valida solo con su firma, así que ningún servicio guarda sesiones en memoria |
 
 Ningún servicio guarda estado propio fuera de su base, salvo el límite de peticiones del gateway, que vive en
@@ -138,13 +136,19 @@ falta uno, el servicio no arranca y dice cuál.
 
 Las credenciales de las pasarelas (`TRANSBANK_*`, `KHIPU_*`, `MERCADOPAGO_*`), del Banco Central (`BCENTRAL_*`),
 del LLM (`XAI_*`) y del servidor de correo (`SMTP_*`) son opcionales: sin ellas, cada pasarela se simula, la UF
-se carga a mano, el asistente responde con reglas y los correos van al buzón de prueba.
+se carga a mano y el asistente responde con reglas. **Sin Brevo ni SMTP no hay entrega de correo**;
+Compose no incluye un buzón ni publica puertos de correo de prueba.
 
-**El correo, con un servidor real.** Con `SMTP_HOST` en el `.env`, ms-auth deja de usar `mailpit` y le entrega
-a ese servidor (una cuenta de Gmail para probar, o un proveedor de correo), sin tocar el compose. Ahí entra el
+**El correo, con un proveedor explícito.** `BREVO_API_KEY` tiene prioridad sobre SMTP. Sin ella, con
+`SMTP_HOST` en el `.env`, ms-auth entrega a ese servidor, que puede ser Gmail SMTP u otro proveedor,
+sin tocar el compose. Recibir en Gmail no determina quién envía. Ahí entra el
 **modo de prueba**: `CORREO_SOLO_A` dice a qué direcciones se les escribe directo y `CORREO_DESVIAR_A`, adónde
 va todo lo demás. Sin las dos se le escribe a cualquier dirección, que es lo que corresponde en producción y lo
 que no puede pasar con los datos de la demo, que traen correos inventados.
+
+Para pruebas masivas se configura un servidor de captura externo sin salida. Un desvío a un buzón real
+también genera envíos reales; no reemplaza un servidor de captura. `capacidad.js` exige la URL de su API
+en `MAIL_URI` antes de hacer peticiones, y falla si no puede abrir la sesión de empresa.
 
 ## Los sistemas de afuera
 

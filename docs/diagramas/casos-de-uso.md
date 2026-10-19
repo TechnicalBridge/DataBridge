@@ -284,7 +284,7 @@ flowchart LR
     OPE(("Operación de<br/>DataBridge"))
     subgraph AUT["Tareas de DataBridge"]
         direction TB
-        R0(["Invitar al deudor cuando<br/>su deuda entra a cobranza"])
+        R0(["Invitar al deudor<br/>por petición explícita"])
         R1(["Escribirle al deudor<br/>según la campaña"])
         R2(["Recordar las cuotas<br/>que vencen pronto"])
         R3(["Publicar el avance<br/>de las campañas"])
@@ -302,8 +302,8 @@ flowchart LR
     BCC{{"Banco Central"}}
     SIS{{"Sistema de<br/>una empresa"}}
 
-    REL --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8
-    OPE --> R1 & R2 & R3 & R8 & O1 & O2 & O3
+    REL --> R3 & R4 & R5 & R6 & R7 & R8
+    OPE --> R0 & R1 & R2 & R3 & R8 & O1 & O2 & O3
     O3 --- COR
     R0 --- COR
     R1 --- COR
@@ -318,9 +318,9 @@ flowchart LR
 
 | Caso de uso | Cuándo | Quién lo hace | La regla que importa |
 | --- | --- | --- | --- |
-| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, solo dentro del horario de la ley y si la ley lo deja esa semana; si no, la manda la primera pasada de contacto que pueda. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
-| Escribirle según la campaña | Cada 15 minutos | `ContactoService`, ms-debt | De lunes a sábado, de 8:00 a 20:00, sin feriados. Según la cadencia de la campaña (por omisión, los días 1, 4, 11, 25 y 45) y hasta sus intentos |
-| Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio. Una cuota se recuerda una sola vez: la base no deja que tenga dos contactos |
+| Invitar al deudor | Solo por invocación explícita | `InvitacionService`, ms-debt | No escucha eventos de carga ni agenda reintentos; conserva horario, límite y modo de prueba |
+| Escribirle según la campaña | Solo por petición explícita de mantenimiento | `ContactoService`, ms-debt | Conserva cadencia, permisos y límite; no tiene cron |
+| Recordar las cuotas | Solo por invocación explícita | `RecordatorioService`, ms-debt | No tiene cron ni reintentos automáticos de códigos |
 | Publicar el avance de las campañas | Todos los días, 8:00 | `CampanaAvanceService`, ms-debt | Deja el evento `campana.avance` en la bandeja de salida |
 | Entregar los eventos pendientes | Cada 15 segundos | `EventDispatcher`, ms-debt | Firmados, hasta 100 por pasada. Lo que falla se reintenta: al minuto, a los 5 y a los 30 minutos, a las 2 y a las 6 horas. Después queda para reenviarlo a mano |
 | Preguntar por los cobros abiertos | Cada 10 segundos | `ConciliacionPasarelas`, ms-payments | Así un pago se registra aunque el deudor cierre la ventana antes de volver |

@@ -415,16 +415,16 @@ class CarteraIntakeServiceTest {
     }
 
     // ------------------------------------------------------------------
-    //  La invitacion: al deudor le llega su codigo cuando la deuda entra
+    //  La carga registra deudas sin solicitar codigos ni agendar invitaciones.
     // ------------------------------------------------------------------
 
     @Test
-    void una_deuda_que_entra_invita_al_deudor() throws Exception {
+    void una_deuda_que_entra_no_invita_al_deudor() throws Exception {
         recibir(cartera(
                 cargo("Arriendo agosto", "2026-08", "2026-08-05"),
                 cargo("Arriendo septiembre", "2026-09", "2026-09-05")));
 
-        verify(avisos).publishEvent(any(InvitacionService.DeudaEnCobranza.class));
+        verify(avisos, never()).publishEvent(any());
     }
 
     @Test
@@ -439,7 +439,7 @@ class CarteraIntakeServiceTest {
     }
 
     @Test
-    void una_deuda_pagada_que_vuelve_a_cobranza_invita_de_nuevo() throws Exception {
+    void una_deuda_pagada_que_vuelve_a_cobranza_no_invita_de_nuevo() throws Exception {
         existente(Debt.Status.paid);
 
         ResultadoDeuda resultado = recibir(carteraAl("2026-11-18",
@@ -447,7 +447,7 @@ class CarteraIntakeServiceTest {
                 cargo("Arriendo noviembre", "2026-11", "2026-11-05")));
 
         assertEquals("actualizada", resultado.resultado());
-        verify(avisos).publishEvent(any(InvitacionService.DeudaEnCobranza.class));
+        verify(avisos, never()).publishEvent(any());
     }
 
     // ------------------------------------------------------------------
