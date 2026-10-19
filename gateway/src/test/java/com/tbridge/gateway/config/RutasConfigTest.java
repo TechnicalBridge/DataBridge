@@ -57,6 +57,15 @@ class RutasConfigTest {
     }
 
     @Test
+    void el_contrato_de_acceso_por_codigo_y_su_respaldo_llegan_a_auth() {
+        for (String operacion : new String[]{"codigo", "acceso", "enlace", "verify", "refresh", "logout"}) {
+            assertEquals(Optional.of("ms-auth.invalid"), destino("/api/auth/" + operacion));
+        }
+        // El alta y la emision interna no se publican para resolver un login.
+        assertEquals(Optional.empty(), destino("/internal/codigos"));
+    }
+
+    @Test
     void lo_interno_no_tiene_puerta() {
         assertEquals(Optional.empty(), destino("/internal/codigos"));
         assertEquals(Optional.empty(), destino("/internal/uf"));
