@@ -14,7 +14,7 @@ docker compose --profile app up -d --build --wait    # y queda en http://localho
 
 | El proyecto | Los diagramas | En detalle |
 | :--- | :--- | :--- |
-| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-17-de-octubre-de-2026) |
+| [1. Descripción](#1-descripción)<br>[2. Tecnologías utilizadas](#2-tecnologías-utilizadas)<br>[3. Cómo ejecutarlo localmente](#3-cómo-ejecutar-el-proyecto-localmente)<br>[4. Integrantes del equipo](#4-integrantes-del-equipo)<br>[5. Metodología de trabajo](#5-metodología-de-trabajo-scrumban)<br>[6. Arquitectura de la solución](#6-arquitectura-de-la-solución) | [7.1 Comunicación entre servicios](#71-comunicación-entre-servicios)<br>[7.2 Entidad-relación](#72-entidad-relación)<br>[7.3 Casos de uso](#73-casos-de-uso)<br>[7.4 Clases](#74-clases)<br>[7.5 Secuencias](#75-secuencias)<br>[7.6 Componentes](#76-componentes) | [8. Reglas del negocio](#8-reglas-del-negocio)<br>[9. Requisitos no funcionales](#9-requisitos-no-funcionales)<br>[10. Docker](#10-docker)<br>[11. Pruebas](#11-pruebas)<br>[12. Innovación](#12-innovación)<br>[13. Recorrido de demostración](#13-recorrido-de-demostración)<br>[14. Estado](#14-estado-al-19-de-octubre-de-2026) |
 
 ---
 
@@ -176,6 +176,7 @@ sería público: sin el `.env`, `docker compose` se detiene y dice cuál falta.
 git clone https://github.com/TechnicalBridge/TB_web.git
 cd TB_web
 powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # una sola vez: el .env con claves al azar
+# Para la demo en una base nueva, poner DEMO_DATOS=true en el .env antes de arrancar.
 docker compose --profile app up -d --build --wait
 ```
 
@@ -221,8 +222,22 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 
 ### Para entrar como empresa
 
-En el portal, **Soy de una empresa**, con `camila.reyes@apofyx.cl`. El código para entrar llega
-al buzón de prueba.
+Con `DEMO_DATOS=true` y una base nueva, en el portal, **Soy de una empresa**, con
+`camila.reyes@example.com`. El código para entrar llega al buzón de prueba o, si el correo sale por
+un servidor real, desviado a `CORREO_DESVIAR_A`. La empresa de ejemplo es **Servicios Horizonte**
+(`76.000.000-0`): cobra lo suyo, sin agencia ni mandato, así que crea sus campañas sin depender de
+nadie. Una agencia, en cambio, necesita el mandato de cada acreedor, que hoy solo nace por la API
+([#234](https://github.com/TechnicalBridge/TB_web/issues/234)).
+
+La demo viene apagada por omisión y solo se instala en una base vacía: si ya hay empresas, deudores
+o deudas, ms-debt no instala ni completa datos ficticios, y reiniciar no duplica ni restaura lo que
+se haya cambiado. Las bases de la demo anterior conservan sus cuentas y su cartera. En un equipo
+cuya base no tiene nada que conservar, la demo nueva se instala así:
+
+```powershell
+docker compose --profile app down -v      # borra la base de ESTE equipo
+docker compose --profile app up -d --build --wait
+```
 
 ### Código primero en los tres portales
 
@@ -242,30 +257,26 @@ de ms-debt, no de un correo elegido en el navegador. Los códigos de campaña si
 
 ### Para entrar como deudor
 
-El sistema arranca con la cartera de ejemplo de tres acreedores que APOFYX cobra por su cuenta,
-cada deudor en una situación distinta. Es la misma historia que cargan APOFYX y Patrimonio en sus
-propios datos de ejemplo, así que los tres sistemas cuentan lo mismo:
+La demo independiente tiene dos campañas propias, *Cartera en pesos* (`DEMO-PESOS`) y *Cartera en UF*
+(`DEMO-UF`), con seis deudores ficticios. No necesita APOFYX ni Patrimonio corriendo:
 
-| RUT | Deudor | Acreedor | Situación |
+| RUT | Deudor | Campaña | Situación |
 | --- | --- | --- | --- |
-| 16.482.337-7 | Felipe Rojas Muñoz | Patrimonio Inmuebles | En convenio de 6 cuotas, con 3 pagadas |
-| 76.991.245-2 | Comercial Ñandú SpA | Patrimonio Inmuebles | Debe tres meses de arriendo en UF |
-| 14.583.206-3 | Rodrigo Pérez Contreras | Patrimonio Inmuebles | Debe cuatro meses |
-| 76.284.519-9 | Panadería La Espiga Ltda. | Patrimonio Inmuebles | En convenio en UF, con la primera cuota pagada en pesos |
-| 17.893.456-2 | Ignacio Tapia Rojas | Patrimonio Inmuebles | En convenio, con la primera cuota vencida: es el *convenio en riesgo* |
-| 19.230.418-0 | Carolina Muñoz Vera | Patrimonio Inmuebles | Pagó todo de una vez, con Khipu |
-| 18.642.975-3 | Daniela Cáceres Flores | Patrimonio Inmuebles | Pagó sus tres cuotas juntas |
-| 15.227.640-0 | Tomás Fuentes Leiva | Patrimonio Inmuebles | Pagó en la oficina: la cartera siguiente lo trajo al día y la deuda se cerró |
-| 21.345.678-4 | Benjamín Araya Toro | Instituto Andes | Debe tres aranceles |
-| 20.876.543-4 | Josefina Vidal Cortés | Instituto Andes | Pagó sus dos aranceles con Webpay |
-| 13.579.246-2 | Patricio Muñoz Salas | Clínica Dental Sonrisa Norte | Debe una ortodoncia de un solo cargo, vencida hace 75 días |
-| 16.789.012-1 | Fernanda Silva Rojas | Clínica Dental Sonrisa Norte | En convenio de 6 cuotas por un implante, con la primera pagada |
+| 16.482.337-7 | Felipe Rojas Muñoz | Cartera en pesos | En convenio de 6 cuotas, con 3 pagadas |
+| 19.230.418-0 | Carolina Muñoz Vera | Cartera en pesos | Pagó toda la deuda |
+| 14.583.206-3 | Rodrigo Pérez Contreras | Cartera en pesos | Reclamo por monto incorrecto, en revisión |
+| 17.893.456-2 | Ignacio Tapia Rojas | Cartera en pesos | Convenio con una cuota vencida, en riesgo |
+| 76.991.245-2 | Comercial Ñandú SpA | Cartera en UF | Deuda abierta por 77 UF |
+| 76.284.519-9 | Panadería La Espiga Ltda. | Cartera en UF | Convenio de 3 cuotas en UF, con la primera pagada en pesos |
 
-Estos datos los carga ms-debt al arrancar (`DEMO_DATOS`), directo en su base: no llegan por
-ningún canal. En la historia que cuentan, Instituto Andes subió una planilla y Sonrisa Norte
-entregó por la API, que hoy viene apagada; una cartera nueva entra por *Cargar cartera*, en una
-campaña. Las deudas de Sonrisa Norte son de un solo cargo: muestran que la regla de los 30 días
-sirve también fuera de los cobros mensuales.
+Al arrancar, ms-debt registra las campañas y carga dos lotes por `CarteraIntakeService`, la misma
+ingesta del portal, como origen `file`: valida RUT, moneda, cargos, mora y campaña. Cada deuda tiene
+dos cargos de meses anteriores al primer arranque. Después prepara convenios, pagos simulados y
+un reclamo con los servicios del producto; para mostrar riesgo deja una cuota de ejemplo vencida.
+
+Los pagos sembrados dicen `demo`: no llaman pasarelas, no crean cobros ni comprobantes en
+ms-payments. El pago de ejemplo en UF usa un valor fijo histórico, solo en su evento, sin cargar
+la UF del día. Una carga nueva se hace desde *Cargar cartera*; la API `/api/v1` sigue apagada.
 
 Para conseguir un código de campaña, la empresa toca **Reenviar código** en su cartera y el código llega al
 buzón.
@@ -276,8 +287,8 @@ buzón.
 También se puede pedir directo a ms-auth:
 
 ```powershell
-$cuerpo = @{ rut = "16482337-7"; canales = @("correo"); correo = "felipe.rojas@correo.cl"
-             acreedor = "Patrimonio Inmuebles"; paraQue = "CTR-2025-014" } | ConvertTo-Json -Compress
+$cuerpo = @{ rut = "16482337-7"; canales = @("correo"); correo = "felipe.rojas@example.com"
+             acreedor = "Servicios Horizonte"; paraQue = "DEMO-CONVENIO" } | ConvertTo-Json -Compress
 $cuerpo | docker compose --profile app exec -T ms-auth sh -c 'curl -s -X POST http://127.0.0.1:8081/internal/codigos -H X-Internal-Key:$INTERNAL_KEY -H Content-Type:application/json --data-binary @-'
 ```
 
@@ -363,14 +374,14 @@ puerto y las credenciales; con uno que pide SSL desde el principio (puerto 465),
 </details>
 
 **El modo de prueba, que no es opcional con los datos de la demo.** Los deudores de ejemplo
-tienen correos inventados, con dominios que pueden ser de alguien, y la campaña corre sola cada 15
-minutos. Con un servidor real y sin modo de prueba, les escribiría cobranzas a personas que no
-tienen nada que ver.
+usan el dominio reservado `example.com`, que no entrega correo. Las bases de la demo anterior
+pueden conservar direcciones de otros dominios, y la campaña corre sola cada 15 minutos. Para
+evitar rebotes y cualquier envío a terceros, con un servidor real se usa siempre el modo de prueba.
 
 | Variable | Qué hace |
 | --- | --- |
 | `CORREO_SOLO_A` | Las direcciones o dominios a los que **sí** se les escribe directo, separados por coma. Una dirección incluye sus alias con `+` (`tucuenta+deudor1@gmail.com`); un dominio va con arroba (`@empresa-prueba.cl`) |
-| `CORREO_DESVIAR_A` | Adonde va **todo lo demás**. Llega con el destinatario original en el asunto: *[para felipe.rojas@correo.cl] Tu código de acceso* |
+| `CORREO_DESVIAR_A` | Adonde va **todo lo demás**. Llega con el destinatario original en el asunto: *[para felipe.rojas@example.com] Tu código de acceso* |
 
 Con la lista y sin el desvío, lo que está fuera de la lista no sale. Sin ninguna de las dos se le
 escribe a cualquier dirección: eso es producción, y ms-auth lo avisa al arrancar.
@@ -3719,7 +3730,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `CONTACTO_SIN_HORARIO` | `false` | **Solo para probar.** Con `true` se le escribe al deudor a cualquier hora, también de noche, los domingos y los feriados: sirve para probar la invitación o el reenvío del código fuera del horario. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro. El límite de dos por semana sigue igual |
 | `CONTACTO_SIN_LIMITE` | `false` | **Solo para probar.** Con `true` se le escribe al deudor cuantas veces se pida, sin el tope de dos correos por semana: sirve para pedir códigos en una demo con *Reenviar código*. Cada correo se sigue anotando. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro, y *Reglas* lo muestra |
 | `INTEGRACION_API` | `false` | La entrega por API (`/api/v1`, con clave) y las claves (`/api/claves`). Apagada, responden `404` y los deudores entran solo por campaña, desde el portal. `true` la enciende, por si una empresa necesita automatizar |
-| `DEMO_DATOS` | `true` | Carga al arrancar la cartera de ejemplo. Solo agrega lo que falte: una base con datos propios no pierde nada |
+| `DEMO_DATOS` | `false` | Con `true`, instala una empresa que cobra directo, dos campañas y seis deudas de ejemplo en una base vacía. No convierte, completa ni borra datos existentes. También habilita su persona de ejemplo en ms-auth si todavía no hay personal de empresas |
 
 </details>
 
@@ -3763,19 +3774,19 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**881 pruebas**, todas en Java y sin fallos:
+**893 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 222 |
-| `ms-debt` | 412 |
+| `ms-auth` | 226 |
+| `ms-debt` | 420 |
 | `ms-payments` | 185 |
 | `ms-ai` | 43 |
 
 Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
-([estado](#14-estado-al-17-de-octubre-de-2026)).
+([estado](#14-estado-al-19-de-octubre-de-2026)).
 
 <details>
 <summary><b>Qué cubre cada tipo de prueba</b></summary>
@@ -3842,8 +3853,9 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 
 ## 13. Recorrido de demostración
 
-1. **La empresa entra.** En *Soy de una empresa*, `camila.reyes@apofyx.cl` pide su código, que
-   llega al buzón, y ve la cartera de ejemplo.
+1. **La empresa entra.** Con la demo encendida (`DEMO_DATOS=true`) en una base nueva, en *Soy de
+   una empresa*, `camila.reyes@example.com` pide su código, que llega al buzón, y ve las dos
+   campañas de Servicios Horizonte.
 2. **Carga a sus deudores en una campaña.** En *Cargar cartera* elige una campaña o la crea, descarga
    la plantilla de Excel, la llena (una hoja de deudores y otra de deudas, una fila por mes) y la sube.
    Ve qué entraría y qué no, con su motivo; si la planilla tiene problemas, cada uno con su hoja, fila
@@ -3860,7 +3872,8 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 6. **Paga con Webpay**, con la [tarjeta de prueba](#para-pagar-con-webpay), en la página real de
    Transbank; o con Khipu, con el banco de prueba ([cómo activarlo](#para-pagar-con-khipu-de-verdad)).
 7. **El pago llega a la empresa.** ms-payments avisa a ms-debt, que abona la deuda. Con la
-   entrega por API encendida, ms-debt además emite los eventos y APOFYX y el acreedor los reciben.
+   entrega por API encendida y suscripciones configuradas, los sistemas conectados pueden recibir
+   sus eventos. La demo independiente no necesita esa integración.
 8. **Queda el rastro.** El deudor ve el pago en su historial, con qué cuotas cubrió, y descarga el
    comprobante. La empresa lo ve en *Pagos recibidos*.
 
@@ -3879,23 +3892,28 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 18 de octubre de 2026
+## 14. Estado al 19 de octubre de 2026
 
-**881 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**893 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
-En la revisión se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no responde al
-comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las dos regresiones
-simulan la caída y recuperan el mismo acceso sin crear sesiones durante el rechazo. Se repitió `clean test`
-de ms-auth (222); los otros 659 casos del total conservan su ejecución anterior. No se repitió una caída
-de ms-debt en Docker ni se enviaron correos reales para esta corrección.
+En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
+responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
+dos regresiones simulan la caída y recuperan el mismo acceso sin crear sesiones durante el rechazo.
+No se repitió una caída de ms-debt en Docker ni se enviaron correos reales para esa corrección.
+
+La demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) se comprobó en un
+proyecto de Docker aparte, con su propia base vacía y el correo solo al buzón de prueba: se repitieron
+las suites completas de ms-auth y ms-debt, y el recorrido de la empresa en Edge. Las demás
+verificaciones de la tabla son anteriores y no se repitieron para estos cambios.
 
 <details>
 <summary><b>Cada verificación</b>, con su resultado</summary>
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **881**, sin fallos ([§11](#11-pruebas)); ms-auth se repitió en la revisión, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
-| Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El nuevo correo no se probó contra Brevo ni en un buzón real |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **893**, sin fallos ([§11](#11-pruebas)); ms-auth y ms-debt se repitieron con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
+| Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |

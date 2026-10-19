@@ -20,6 +20,16 @@ cobra hasta cierto número de días de mora.
    nadie.
 3. Con la correcta, **Cargar** deja las deudas en la campaña, y a cada deudor nuevo le sale su invitación.
 
+## La demo incluida en DataBridge
+
+Con `DEMO_DATOS=true` y una base vacía, la demo se instala sola: Servicios Horizonte cobra sus propias deudas,
+con *Cartera en pesos* y *Cartera en UF*. No usa estas planillas ni las cuentas del equipo: registra dos lotes
+por la misma ingesta que usa el portal, con seis deudores ficticios y correos `example.com`. No necesita APOFYX,
+Patrimonio ni la API de integración. Las bases con datos propios no se convierten ni se completan.
+
+Las planillas de arriba sirven para demostrar una **carga nueva**, con revisión antes de confirmar. La siembra
+inicial prepara además las situaciones de convenio, pagada, reclamo y UF para recorrerlas sin cargar nada.
+
 ## La planilla de la demo de campañas
 
 Para la demo hay una tercera planilla, con **las cuentas de prueba del equipo** como deudores, para cargarla en
