@@ -72,10 +72,11 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/acceso")
-    @Operation(summary = "Entrar con RUT y codigo",
+    @Operation(summary = "Entrar con RUT o correo y codigo",
             description = """
-                    El deudor entra con su RUT y el codigo de seis caracteres que le llego. Sin cuenta ni \
-                    contrasena. El codigo sirve una vez, dura 24 horas y se agota a los 5 intentos. \
+                    El deudor usa RUT; el personal usa correo. El codigo sirve una vez y se agota a los \
+                    5 intentos. El solicitado dura MAGIC_TTL_MINUTES (15 por omision); el de campana \
+                    dura CODE_TTL_HOURS (24 por omision). \
                     El mismo mensaje responde a "ese RUT no tiene codigo" y a "el codigo no corresponde", \
                     para que nadie pueda averiguar que RUT tienen deuda.
 
@@ -89,16 +90,28 @@ public class AuthController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<EntityModel<SesionResponse>> acceso(@Valid @RequestBody AccesoRequest pedido,
                                                               HttpServletRequest peticion) {
-        return responder(auth.entrarConCodigo(pedido.rut(), pedido.codigo(), origen(peticion)));
+        return responder(pedido.correo() == null || pedido.correo().isBlank()
+                ? auth.entrarConCodigo(pedido.rut(), pedido.codigo(), origen(peticion))
+                : auth.entrarConCodigoDePersonal(pedido.correo(), pedido.codigo(), origen(peticion)));
+    }
+
+    @PostMapping("/api/auth/codigo")
+    @Operation(summary = "Pedir solo un codigo de acceso",
+            description = "Al correo registrado del deudor o del personal habilitado. No incluye enlace y no revela "
+                    + "si existe la identidad. El codigo sirve una vez y dura 15 minutos.")
+    @ApiResponse(responseCode = "202", description = "Solicitud recibida, sin revelar el destinatario")
+    public ResponseEntity<EnlaceResponse> codigo(@Valid @RequestBody EnlaceRequest pedido, HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(auth.pedirCodigo(pedido.rut(), pedido.correo(), origen(peticion)));
     }
 
     @PostMapping("/api/auth/enlace")
-    @Operation(summary = "Pedir un enlace de acceso al correo",
+    @Operation(summary = "Pedir codigo y enlace de respaldo en un correo",
             description = """
-                    El respaldo para el deudor que no recibio su codigo, y la forma de entrar del personal \
-                    de las empresas. El enlace sirve una vez y dura 15 minutos. La respuesta es la misma \
+                    El respaldo para quien no recibio su codigo, en cualquiera de los tres portales. \
+                    Codigo y enlace comparten un uso y duran 15 minutos. La respuesta es la misma \
                     exista o no el correo.""")
-    @ApiResponse(responseCode = "202", description = "Si el correo corresponde, el enlace va en camino")
+    @ApiResponse(responseCode = "202", description = "Solicitud de codigo y enlace recibida")
     @ApiResponse(responseCode = "400", description = "Correo o RUT no validos",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<EnlaceResponse> enlace(@Valid @RequestBody EnlaceRequest pedido, HttpServletRequest peticion) {

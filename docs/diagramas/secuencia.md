@@ -37,7 +37,9 @@ el primero.
 
 ## 1. El deudor entra con su RUT y su código
 
-Sin cuenta y sin contraseña. El código le llegó antes por correo ([secuencia 4](#4-entregar-una-cartera-por-la-api)).
+Sin cuenta y sin contraseña. El código viene de campaña (24 h) o de **Enviar código**
+(`POST /api/auth/codigo {rut}`, 15 min por omisión). El personal usa el mismo pedido con `{correo}`
+y canjea con `entrarConCodigoDePersonal`: su rol se toma de la base, no del navegador.
 
 ```mermaid
 sequenceDiagram
@@ -59,17 +61,23 @@ sequenceDiagram
         AC->>AS: entrarConCodigo(rut, codigo, ip)
         AS->>B: access_log: intentos fallidos de ese origen<br/>en los últimos 10 minutos
         Note over AS: con 10 o más, responde 429
-        AS->>B: el último código sin usar de ese RUT
+        AS->>B: bloquea el último código de campaña y el último solicitado del RUT
+        Note over AS: elige el más reciente, aunque esté usado:<br/>no revive códigos anteriores
         alt no hay código, venció, se agotó o no calza
             AS->>B: suma el intento y anota en access_log
             AS-->>P: 401 o 429, con el mismo mensaje
             Note over AS: «no hay código» y «no corresponde» responden igual:<br/>así no se puede averiguar qué RUT tienen deuda
         else el código calza
             Note over AS: compara la huella SHA-256(rut:codigo),<br/>en tiempo constante
-            AS->>B: consume el código y anota granted
+            opt es código de campaña
+                AS->>B: consume el código y anota granted
+            end
             AS->>SS: abrir(DEBTOR, rut)
             SS->>B: sessions: familia nueva, con la huella de la llave
             SS-->>AS: la llave de renovación, en claro una sola vez
+            opt es código solicitado
+                AS->>B: consume el pedido y anota granted
+            end
             AS-->>AC: Sesion(JWT de 15 minutos, usuario, llave)
             AC-->>P: 200 {token, user, expiraEnSegundos}<br/>y la cookie tb_renovacion
         end
@@ -87,8 +95,8 @@ abierta, pero no puede llevársela.
 
 ## 2. Entrar con un enlace al correo
 
-Así entran el **usuario de una empresa** y el **admin de DataBridge**, cada uno por su puerta
-(`/databridge/login` y `/admin/login`). Para el **deudor** es el respaldo, cuando no le llegó el código.
+Es el respaldo **¿No te llegó?** de los tres portales. **Enviar código** usa `/api/auth/codigo` y
+el mismo destino registrado, pero su mensaje contiene solo el código, nunca el enlace.
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +109,7 @@ sequenceDiagram
     participant M as MailService
     participant B as tb_auth
 
-    U->>P: escribe su correo, o su RUT si es deudor
+    U->>P: escribe su correo o RUT y pide No te llegó
     P->>AC: POST /api/auth/enlace {correo, rut}
     AC->>AS: pedirEnlace(rut, correo, ip)
     alt viene con RUT: es un deudor
@@ -113,27 +121,31 @@ sequenceDiagram
         AS->>B: staff_users por correo, y que esté habilitado
     end
     alt hay a quién mandarlo
-        AS->>B: magic_links: la huella del enlace, vigente 15 minutos
-        AS-)M: enviarEnlace(correo, enlace), en segundo plano
-        M-)U: correo con /magic?token=…
+        AS->>B: invalida pedidos anteriores de la identidad
+        AS->>B: magic_links: huellas de código y enlace, 15 min y 5 intentos
+        Note over AS,B: confirmar transacción antes de enviar
+        AS-)M: enviarAcceso(correo, codigo, enlace, minutos)
+        M-)U: un único correo con código y /magic?token=…
         AS->>B: access_log: sent
     else no hay
         AS->>B: access_log: refused
     end
     AS-->>P: 202, siempre con el mismo texto
-    Note over AS,P: la respuesta y su demora son iguales salga o no el correo:<br/>no se revela quién es deudor ni quién es personal
+    Note over AS,P: respuesta genérica sin credenciales<br/>el envío es asíncrono, no se garantiza tiempo constante
 
     U->>P: abre el enlace del correo
     P->>AC: POST /api/auth/verify {token}
     AC->>AS: entrarConEnlace(token, ip)
-    AS->>B: magic_links por huella: que exista, sin usar y sin vencer
-    AS->>B: lo consume y anota granted
+    AS->>B: bloquea magic_links por huella: habilitado, sin usar, vigente y con intentos
     alt el enlace era de un deudor
         AS->>AS: sesión DEBTOR con su RUT
     else era de personal
-        AS->>B: staff_users: que siga habilitado, y anota el ingreso
+        AS->>B: staff_users: que siga habilitado y empresa activa si no es admin
         AS->>AS: sesión CREDITOR con el RUT de su empresa,<br/>o ADMIN sin RUT
     end
+    Note over AS,B: si ms-debt no responde: 503, sin sesión ni consumo<br/>el mismo acceso puede reintentarse mientras siga vigente
+    AS->>B: solo si abrió sesión, consume el pedido y su código
+    AS->>B: access_log granted si abrió sesión, refused si no está habilitado
     AS-->>P: JWT y cookie de renovación, como en la secuencia 1
     P-->>U: su portal: /app, /databridge o /admin
 ```
@@ -716,7 +728,7 @@ El asistente solo lee: no tiene ningún endpoint que cambie una deuda.
 
 ## 13. El admin abre su panel
 
-Entra con su enlace ([secuencia 2](#2-entrar-con-un-enlace-al-correo), por `/admin/login`). La portada le
+Entra con correo y código por `/admin/login`, o con el respaldo ([secuencia 2](#2-entrar-con-un-enlace-al-correo)). La portada le
 pregunta a cada servicio si responde, con su sesión.
 
 ```mermaid

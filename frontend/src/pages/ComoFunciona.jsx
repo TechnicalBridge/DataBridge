@@ -52,8 +52,8 @@ function ParaDeudores() {
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
           <Pasos pasos={[
-            ["Te llega un código", "La empresa a la que le debes, o la agencia que cobra por ella, te manda un código de seis caracteres por correo. Nunca un enlace."],
-            ["Entras con tu RUT y el código", "Escribes tú la dirección del portal. El código sirve una vez y dura 24 horas; si se te vence, pides otro."],
+            ["Te llega un código", "DataBridge te envía un código de seis caracteres al correo registrado. También puedes solicitarlo desde el portal."],
+            ["Entras con tu RUT y el código", "El código sirve una vez. Los avisos de campaña duran 24 horas; los códigos pedidos desde el portal, 15 minutos."],
             ["Ves lo que debes", "Cada deuda con su monto, a quién se la debes y los meses que incluye."],
             ["Pagas como te acomode", "Todo de una vez, o en un convenio de 3 a 24 cuotas. En convenio puedes pagar una cuota o varias juntas, siempre desde la que vence primero."],
             ["Queda conciliado", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. Cada pago tiene su comprobante y, al terminar, descargas el certificado de deuda pagada."],
@@ -72,7 +72,7 @@ function ParaDeudores() {
           <div className="card aparece" style={{ "--i": 3 }}>
             <h3>Preguntas frecuentes</h3>
             <Preguntas preguntas={[
-              ["¿Por qué no me mandan un enlace para entrar?", "Porque un enlace en un correo es justo lo que usan las estafas para llevarte a una página falsa. Como nosotros nunca mandamos uno, cualquier mensaje con enlace que diga venir de aquí es falso."],
+              ["¿Qué hago si no me llegó el código?", "Entra al portal y usa ¿No te llegó? Recibirás un código nuevo y un enlace en el mismo correo. Al usar uno, el otro deja de servir. No compartas ninguno."],
               ["¿Cobran intereses?", "Depende de lo que pactaste con la empresa. Si tu contrato tiene una tasa de interés, una deuda atrasada crece por cada día de atraso y el convenio lleva interés; el portal te muestra cuánto es capital y cuánto interés antes de pagar. Si no tiene tasa, no se cobra nada extra: el total del convenio es lo que debes hoy."],
               ["¿Puedo pagar varias cuotas a la vez?", "Sí, siempre desde la que vence primero. Así nunca queda una cuota antigua impaga mientras pagas una nueva."],
               ["Mi deuda está en UF: ¿cuánto pago en pesos?", "Pagas en pesos, al valor de la UF del día en que pagas. El comprobante dice qué UF se usó."],

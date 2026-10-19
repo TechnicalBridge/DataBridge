@@ -1,0 +1,16 @@
+Tu código para entrar a DataBridge
+
+Entra a [(${portal})] con tu RUT o correo y este código:
+
+[(${codigo})]
+
+Vence en [(${dura})] y sirve una sola vez. No lo compartas.
+[# th:if="${url != null}"]
+
+También puedes entrar con este enlace de respaldo:
+[(${url})]
+
+Al usar el código o el enlace, el otro deja de servir.
+[/]
+
+Si no lo pediste, ignora este correo.

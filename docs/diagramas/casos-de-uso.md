@@ -17,8 +17,8 @@ controlador; las reglas, de los servicios que los atienden.
 | Actor | Quién es | Cómo se identifica | Por dónde entra |
 | --- | --- | --- | --- |
 | **Deudor** | El cliente de una empresa usuaria, con una deuda en cobranza. No tiene cuenta ni contraseña | Su RUT y un código de 6 caracteres, de un solo uso, que le llega por correo. De respaldo, un enlace a su correo registrado | El portal de pago, `/app` |
-| **Usuario de una empresa** | Una persona de una empresa usuaria: una agencia de cobranza, o un acreedor que cobra directo | Un enlace de un solo uso a su correo. Rol `usuario`; su sesión lleva `CREDITOR` y el RUT de su empresa | El portal de empresas, `/databridge` |
-| **Admin de DataBridge** | El equipo de DataBridge. Ninguna otra empresa puede tener uno | Un enlace de un solo uso a su correo. Rol `admin`; su sesión lleva `ADMIN` y ningún RUT | El panel de administración, `/admin` |
+| **Usuario de una empresa** | Una persona de una empresa usuaria: una agencia de cobranza, o un acreedor que cobra directo | Correo y código. De respaldo, código y enlace juntos en un correo. Rol `usuario`; su sesión lleva `CREDITOR` y el RUT de su empresa | El portal de empresas, `/databridge` |
+| **Admin de DataBridge** | El equipo de DataBridge. Ninguna otra empresa puede tener uno | Correo y código. De respaldo, código y enlace juntos en un correo. Rol `admin`; su sesión lleva `ADMIN` y ningún RUT | El panel de administración, `/admin` |
 | **Sistema de una empresa** | El software de la agencia o del acreedor, que entrega la cartera y recibe los avisos. Solo con la entrega por API encendida: por omisión está apagada (`INTEGRACION_API`) | Una clave de API (`tbk_…`) | El contrato de integración, `/api/v1` |
 | **Operación de DataBridge** | Quien opera la plataforma desde dentro de la red de los servicios | La clave interna (`X-Internal-Key`) | `/internal`, que el gateway no publica |
 | **El reloj** | Las tareas programadas de ms-debt y ms-payments | — | Corren solas |
@@ -120,8 +120,8 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con su RUT y su código | `Login` | `POST /api/auth/acceso` | El código sirve una vez, dura 24 horas y se agota a los 5 intentos. Con 10 intentos fallidos desde un mismo origen en 10 minutos, ese origen queda frenado |
-| Pedir el enlace de respaldo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El enlace dura 15 minutos y va **solo** al correo que registró el acreedor, nunca al que alguien escriba. La respuesta es la misma, exista o no ese RUT |
+| Entrar con su RUT y su código | `Login` | `POST /api/auth/codigo`, `POST /api/auth/acceso` | Enviar código entrega solo el código, de un uso y 5 intentos. El solicitado dura 15 min; el de campaña, 24 h. Con 10 registros no concedidos desde un origen en 10 min, ese origen queda frenado |
+| Pedir el enlace de respaldo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | Un único correo con código nuevo y enlace, solo al correo que registró el acreedor. Comparten uso, 15 minutos y 5 intentos; usar cualquiera invalida ambos. La respuesta no revela si existe el RUT |
 | Ver sus deudas | `Debts` | `GET /api/debts`, `GET /api/debts/{id}` | Solo las de su RUT. La mora se calcula al día con la tasa que pactó el acreedor |
 | Simular un convenio | `Repact` | `GET /api/debts/{id}/simulate` | De 3 a 24 cuotas. Lo repactado es el capital más la mora de hoy |
 | Aceptar un convenio | `Repact` | `POST /api/debts/{id}/repact` | Las cuotas pendientes se anulan y se emiten las del convenio. El anterior queda marcado como reemplazado |
@@ -146,7 +146,7 @@ flowchart LR
     USU(("Usuario de<br/>una empresa"))
     subgraph DBE["Portal de empresas · /databridge"]
         direction TB
-        E1(["Entrar con un enlace a su correo"])
+        E1(["Entrar con correo y código"])
         E2(["Ver la cartera y el<br/>resumen de recuperación"])
         E3(["Ver una deuda y su historia"])
         E4(["Reenviarle el código al deudor"])
@@ -171,7 +171,7 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con un enlace a su correo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | Sale solo si el correo es de una cuenta habilitada. En cada renovación se vuelve a revisar que lo siga estando |
+| Entrar con correo y código | `Login`, `Magic` | `POST /api/auth/codigo`, `/api/auth/acceso`; respaldo: `/api/auth/enlace`, `/api/auth/verify` | Solo personal habilitado. El código solicitado dura 15 min. El respaldo manda código y enlace juntos, de un solo uso compartido. Al entrar se exige empresa activa; al renovar se vuelve a revisar la habilitación del personal |
 | Ver la cartera y el resumen | `DataBridge` | `GET /api/debts`, `GET /api/analytics/summary` | Nunca «todas las deudas»: siempre las de la empresa de la sesión |
 | Ver una deuda y su historia | `DataBridge` | `GET /api/debts/{id}` | Si la deuda no es de su cartera, no la ve |
 | Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409`. Queda como un contacto de la deuda (`contacts`) |
@@ -196,7 +196,7 @@ flowchart LR
     ADM(("Admin de<br/>DataBridge"))
     subgraph PAN["Panel de administración · /admin"]
         direction TB
-        A1(["Entrar con un enlace a su correo"])
+        A1(["Entrar con correo y código"])
         A2(["Ver si cada servicio<br/>responde con su sesión"])
         A3(["Ver las empresas y los<br/>totales de su cartera"])
         A4(["Dar de alta una empresa usuaria<br/>con su primera persona"])
@@ -220,7 +220,7 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con un enlace a su correo | `Login` (`/admin/login`), `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El primer admin nace de `ADMIN_CORREO` al arrancar. Sin esa variable no hay admin y nadie entra al panel |
+| Entrar con correo y código | `Login` (`/admin/login`), `Magic` | `POST /api/auth/codigo`, `/api/auth/acceso`; respaldo: `/api/auth/enlace`, `/api/auth/verify` | Mismo flujo de código primero y respaldo combinado, con el rol que existe en la base. El primer admin nace de `ADMIN_CORREO` al arrancar |
 | Ver si cada servicio responde | `AdminInicio` | `GET /api/admin/auth/estado`, `/api/admin/debt/estado`, `/api/admin/payments/estado` | Todo `/api/admin/**` exige una sesión `ADMIN`: a un usuario o a un deudor les responde `403`. Y al revés: el admin no entra a los otros portales |
 | Ver las empresas y sus totales | `AdminEmpresas`, `AdminEmpresa` | `GET /api/admin/debt/empresas`, `GET /api/admin/debt/empresas/{rut}` | De cada empresa se ven totales: cuántas deudas y cuánto falta por cobrar. Nunca una deuda ni un deudor |
 | Consultar las comisiones por empresa | `AdminEmpresas` | `GET /api/admin/debt/comisiones?mes=2026-10` | Solo el admin. Cada pago se atribuye a quien cargó la deuda, sin contar dos veces al acreedor y su agencia |
@@ -350,7 +350,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -366,8 +366,9 @@ Cada caso de uso de arriba termina en uno o más de estos **84 endpoints**. La l
 | `GET /api/admin/auth/admins/historial` | Lo que se hizo con los admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.historialDeAdmins` |
 | `POST /api/admin/auth/personal/{id}/deshabilitar` | Quitarle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.deshabilitar` |
 | `POST /api/admin/auth/personal/{id}/habilitar` | Devolverle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.habilitar` |
-| `POST /api/auth/acceso` | Entrar con RUT y código | Deudor | Ninguna | Sí | `AuthController.acceso` |
-| `POST /api/auth/enlace` | Pedir un enlace de acceso al correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
+| `POST /api/auth/codigo` | Pedir solo código al correo registrado | Deudor, usuario o admin | Ninguna | Sí | `AuthController.codigo` |
+| `POST /api/auth/acceso` | Entrar con código y RUT o correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.acceso` |
+| `POST /api/auth/enlace` | Pedir código y enlace en un único correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
 | `POST /api/auth/verify` | Canjear el enlace del correo por una sesión | Deudor, usuario o admin | Ninguna | Sí | `AuthController.verify` |
 | `POST /api/auth/refresh` | Renovar la sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.refresh` |
 | `POST /api/auth/logout` | Cerrar sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.logout` |
