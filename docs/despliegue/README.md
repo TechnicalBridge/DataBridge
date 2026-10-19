@@ -107,6 +107,12 @@ curl -fsSL https://raw.githubusercontent.com/TechnicalBridge/TB_web/main/deploy/
 
 Se puede volver a correr: no pisa lo que ya existe.
 
+Con `DEMO_DATOS=true` y una base de negocio vacía, el primer arranque instala la demo independiente:
+Servicios Horizonte cobra directamente, con dos campañas y seis deudas ficticias. Su persona entra
+con `camila.reyes@example.com`. Los correos van a Mailpit o, con un proveedor real, al desvío de prueba
+obligatorio. Las bases existentes, incluida la demo anterior, no se convierten ni se completan;
+no se debe borrar su volumen para intentar activar esta siembra.
+
 ## 5. El correo, las pasarelas y el DNS
 
 **Las claves del correo y de las pasarelas** se copian del `.env` del equipo al del servidor, sin que se vean en

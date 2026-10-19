@@ -625,7 +625,7 @@ classDiagram
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `JwtPrincipal` | `security` | Quién viene en el token: id, correo, rol, nombre y RUT. |
 | `PrimerAdmin` | `config` | Al arrancar, crea el primer admin con `ADMIN_CORREO`, si todavía no hay ninguno. |
-| `DataSeeder` | `config` | El personal de la demo. |
+| `DataSeeder` | `config` | La persona de la empresa que cobra directamente en la demo, solo con `DEMO_DATOS=true` y sin personal de empresas previo. |
 | `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
 | `CorreoConfig` | `config` | Por dónde salen los correos: con `BREVO_API_KEY`, por Brevo; sin ella, por SMTP o al buzón de prueba. |
 | `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway, con su texto y su HTML. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
@@ -2108,12 +2108,14 @@ classDiagram
         class DataSeeder {
             <<component>>
         }
-        class DataSeeder_Cargo["DataSeeder.Cargo"] {
+        class DataSeeder_Ejemplo["DataSeeder.Ejemplo"] {
             <<record>>
-            +concepto : String
-            +periodo : String
-            +monto : BigDecimal
-            +vence : LocalDate
+            +id : String
+            +rut : String
+            +nombre : String
+            +correo : String
+            +mensual : String
+            +personaJuridica : boolean
         }
         class OpenApiConfig {
             <<configuration>>
@@ -2245,7 +2247,6 @@ classDiagram
             <<repository>>
         }
     }
-    DataSeeder ..> DataSeeder_Cargo
     ErrorContrato ..> ErrorContrato_Detalle
     SecurityConfig --> JwtAuthFilter
     JwtAuthFilter --> JwtService
@@ -2256,13 +2257,13 @@ classDiagram
     CifrarSecretosGuardados --> Cifrado
     DataSeeder --> OrganizationRepository
     DataSeeder --> DebtorRepository
-    DataSeeder --> BatchRepository
     DataSeeder --> DebtRepository
-    DataSeeder --> DebtChargeRepository
     DataSeeder --> InstallmentRepository
-    DataSeeder --> RepactationRepository
-    DataSeeder --> DebtEventRepository
-    DataSeeder --> ContactRepository
+    DataSeeder --> MandatoService
+    DataSeeder --> CarteraIntakeService
+    DataSeeder --> DebtService
+    DataSeeder --> DisputaService
+    DataSeeder ..> DataSeeder_Ejemplo
 ```
 
 | Clase | Paquete | Qué es |
@@ -2275,7 +2276,7 @@ classDiagram
 | `Cifrado` | `config` | Cifra lo que hay que poder leer de vuelta: el secreto de una suscripción. |
 | `SecretoCifrado` | `model` | Convierte un texto a cifrado al guardarlo y a claro al leerlo. |
 | `CifrarSecretosGuardados` | `config` | Al arrancar, cifra los secretos que quedaron en claro. |
-| `DataSeeder` | `config` | Los datos de la demo. |
+| `DataSeeder` | `config` | Demo independiente, solo en una base vacía y con `DEMO_DATOS=true`: registra campañas, ingresa las deudas por la ingesta del portal y prepara los estados con los servicios. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos. |
 | `ApiExceptionHandler` | `exception` | Los errores del portal, todos con la misma forma. |
 | `CarteraInvalidaHandler` | `exception` | Los errores del contrato de integración, con su código propio. |
