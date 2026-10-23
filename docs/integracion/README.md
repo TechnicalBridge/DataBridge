@@ -554,7 +554,7 @@ POST /api/v1/campanas
 | `intentos` | Cuántos toques recibe cada deuda como máximo |
 | `inicio`, `fin` | Fuera de esas fechas la campaña no contacta |
 | `canales` | Hoy DataBridge contacta solo por `correo`. Una campaña sin `correo` no contacta: WhatsApp todavía no está conectado |
-| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
+| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. Una campaña terminada no se puede volver a poner en curso ni pausar (`409`, `campana_terminada`). APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
 | `descuento_mora_por_tramo` | El % de los intereses de mora que la campaña condona según el tramo de la deuda (§7.1). Los tramos son `1-30`, `31-90` y `91-120`; un tramo que no viene es 0. Ninguno puede pasar el máximo del mandato (`descuento_sobre_tope`). Sin el campo no cambia; una campaña nueva parte sin descuento. `{}` lo quita |
 
 Cada toque es el mismo correo de la invitación: un código para entrar al portal, sin el monto ni un
