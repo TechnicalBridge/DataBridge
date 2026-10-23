@@ -176,7 +176,8 @@ flowchart LR
 | Ver una deuda y su historia | `DataBridge` | `GET /api/debts/{id}` | Si la deuda no es de su cartera, no la ve |
 | Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409`. Queda como un contacto de la deuda (`contacts`) |
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
-| Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
+| Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver`, `GET /api/payments/devueltos` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
+| Registrar que ya devolvió un pago duplicado | `PagosRecibidos` | `POST /api/payments/{id}/devolucion` | Con la referencia que dio la pasarela (obligatoria, hasta 100 caracteres). El pago queda `refunded` y su libro guarda quién lo registró. Solo los de su cartera (`403`); registrarlo de nuevo no cambia nada |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
 | Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `GET /api/debts/cartera/plantilla`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. Es la única entrada de deudores mientras la entrega por API esté apagada |
 | Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
@@ -440,6 +441,8 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | `POST /api/payments/checkout` | Abrir el cobro de una deuda o de una cuota | Deudor | JWT | Sí | `PaymentController.checkout` |
 | `GET /api/payments` | Mis pagos | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.list` |
 | `GET /api/payments/para-devolver` | Los pagos para devolver | Usuario de una empresa | JWT | Sí | `PaymentController.paraDevolver` |
+| `POST /api/payments/{id}/devolucion` | Registrar la devolución de un pago duplicado | Usuario de una empresa | JWT | Sí | `PaymentController.registrarDevolucion` |
+| `GET /api/payments/devueltos` | Los pagos devueltos | Usuario de una empresa, o el deudor (los suyos) | JWT | Sí | `PaymentController.devueltos` |
 | `GET /api/payments/{id}` | Un pago | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.one` |
 | `GET /api/payments/{id}/historia` | El libro de un pago | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.historia` |
 | `GET /api/payments/public/{id}` | El pago visto desde la pasarela | La página de pago | La firma del enlace de pago | Sí | `PaymentController.pub` |

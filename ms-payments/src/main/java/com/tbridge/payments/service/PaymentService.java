@@ -4,6 +4,7 @@ import com.tbridge.payments.exception.ApiException;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.client.DebtClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.payments.client.KhipuClient;
 import com.tbridge.payments.client.MercadoPagoClient;
@@ -38,7 +39,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -451,6 +454,103 @@ public class PaymentService {
         return payments.findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status.duplicated, cartera).stream()
                 .map(this::respuesta)
                 .toList();
+    }
+
+    /** La referencia de la devolucion: lo que dio la pasarela, sin pasar de este largo. */
+    public static final int MAX_REFERENCIA = 100;
+
+    /**
+     * Registra que la empresa ya devolvio un pago duplicado en la pasarela. El
+     * pago pasa a {@code refunded} y su libro anota un evento manual con la
+     * referencia, la empresa y la persona que lo registro. DataBridge no mueve
+     * plata: solo deja constancia de lo que la empresa hizo alla.
+     *
+     * <p>Marcar de nuevo un pago ya devuelto no cambia nada.
+     */
+    @Transactional
+    public PaymentResponse registrarDevolucion(JwtPrincipal user, Long id, String referencia) {
+        if (user == null || !user.isCreditor() || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
+        }
+        Payment pago = buscar(id);
+        if (!deudas.cartera(user.rut()).contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Este pago no es de tu cartera");
+        }
+        if (pago.getStatus() == Payment.Status.refunded) {
+            return conSuDevolucion(pago);
+        }
+        if (pago.getStatus() != Payment.Status.duplicated) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Solo se puede registrar la devolucion de un pago duplicado");
+        }
+        String ref = referencia == null ? "" : referencia.strip();
+        if (ref.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolucion en la pasarela");
+        }
+        if (ref.length() > MAX_REFERENCIA) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "La referencia de la devolucion tiene mas de " + MAX_REFERENCIA + " caracteres");
+        }
+        pago.setStatus(Payment.Status.refunded);
+        payments.save(pago);
+
+        //  El JSON lo arma Jackson: una referencia con comillas no rompe el libro ni le agrega campos.
+        Map<String, String> libro = new LinkedHashMap<>();
+        libro.put("referencia", ref);
+        libro.put("empresa", user.rut());
+        libro.put("registradoPor", user.email() != null ? user.email() : user.id());
+        try {
+            eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.refunded, PaymentEvent.Source.manual)
+                    .conRespuesta(JSON.writeValueAsString(libro)));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudo anotar la devolucion", e);
+        }
+        log.info("Pago {}: la empresa {} registro su devolucion", pago.getId(), user.rut());
+        return conSuDevolucion(pago);
+    }
+
+    /**
+     * Los pagos ya devueltos, del mas nuevo al mas antiguo, con cuando y con que
+     * referencia: a la empresa, los de su cartera; al deudor, los suyos. Un pago
+     * duplicado nunca se abona, asi que no aparece en el historial de ms-debt:
+     * el deudor se entera aqui de que se le devolvio.
+     */
+    public List<PaymentResponse> devueltos(JwtPrincipal user) {
+        if (user == null || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesion");
+        }
+        List<Payment> devueltos;
+        if (user.isCreditor()) {
+            List<Long> cartera = deudas.cartera(user.rut());
+            devueltos = cartera.isEmpty() ? List.of()
+                    : payments.findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status.refunded, cartera);
+        } else if (user.isDebtor()) {
+            devueltos = payments.findByDebtorRutOrderByCreatedAtDesc(user.rut()).stream()
+                    .filter(p -> p.getStatus() == Payment.Status.refunded)
+                    .toList();
+        } else {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo la empresa o el deudor ven sus pagos devueltos");
+        }
+        return devueltos.stream().map(this::conSuDevolucion).toList();
+    }
+
+    /** El pago con su devolucion: la ultima anotada en su libro. */
+    private PaymentResponse conSuDevolucion(Payment pago) {
+        PaymentEvent devolucion = eventos.findByPaymentIdOrderByIdAsc(pago.getId()).stream()
+                .filter(e -> e.getType() == PaymentEvent.Type.refunded)
+                .reduce((primero, segundo) -> segundo)
+                .orElse(null);
+        if (devolucion == null) {
+            return respuesta(pago);
+        }
+        String referencia = null;
+        try {
+            JsonNode libro = devolucion.getGatewayPayload() == null ? null : JSON.readTree(devolucion.getGatewayPayload());
+            referencia = libro == null || libro.path("referencia").isMissingNode() ? null : libro.path("referencia").asText();
+        } catch (JsonProcessingException e) {
+            log.warn("Pago {}: el libro de la devolucion no se puede leer", pago.getId());
+        }
+        return respuesta(pago).conDevolucion(devolucion.getOccurredAt(), referencia);
     }
 
     /** El libro de un pago, para el panel y para auditar. */

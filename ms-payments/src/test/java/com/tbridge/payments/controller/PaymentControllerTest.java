@@ -65,7 +65,7 @@ class PaymentControllerTest {
     private static PaymentResponse pago() {
         return new PaymentResponse(41L, 3L, null, new BigDecimal("410000"), Payment.Currency.CLP, 410000L, null,
                 Payment.Gateway.khipu, Payment.Status.created, null, Instant.parse("2026-09-24T12:00:00Z"), null, false,
-                null, null, Instant.parse("2026-09-24T12:30:00Z"));
+                null, null, Instant.parse("2026-09-24T12:30:00Z"), null, null);
     }
 
     @Test
@@ -92,13 +92,62 @@ class PaymentControllerTest {
         when(payments.paraDevolver(any())).thenReturn(List.of(new PaymentResponse(58L, 3L, null,
                 new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
                 Payment.Status.duplicated, null, Instant.parse("2026-10-06T06:53:00Z"), null, false,
-                "yiddism7h8oc", RUT, null)));
+                "yiddism7h8oc", RUT, null, null, null)));
 
-        mvc.perform(get("/api/payments/para-devolver").header("Authorization", empresa))
+        mvc.perform(get("/api/payments/para-devolver").header("Authorization", empresa)
+                        .header("X-Forwarded-Host", "localhost:8080"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$._embedded.payments[0].status").value("duplicated"))
                 .andExpect(jsonPath("$._embedded.payments[0].referenciaPasarela").value("yiddism7h8oc"))
-                .andExpect(jsonPath("$._embedded.payments[0].deudorRut").value(RUT));
+                .andExpect(jsonPath("$._embedded.payments[0].deudorRut").value(RUT))
+                //  Solo aqui, en la lista de la empresa, se ofrece registrar la devolucion.
+                .andExpect(jsonPath("$._embedded.payments[0]._links.registrar-devolucion.href")
+                        .value("http://localhost:8080/api/payments/58/devolucion"));
+    }
+
+    @Test
+    void la_empresa_registra_la_devolucion_con_su_referencia() throws Exception {
+        String empresa = "Bearer " + jwt.issue("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        when(payments.registrarDevolucion(any(), eq(58L), eq("DEV-99214"))).thenReturn(new PaymentResponse(58L, 3L,
+                null, new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
+                Payment.Status.refunded, null, Instant.parse("2026-10-06T06:53:00Z"), null, false, "yiddism7h8oc",
+                RUT, null, Instant.parse("2026-10-22T15:04:00Z"), "DEV-99214"));
+
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"referencia\":\"DEV-99214\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("refunded"))
+                .andExpect(jsonPath("$.devueltoEn").value("2026-10-22T15:04:00Z"))
+                .andExpect(jsonPath("$.referenciaDevolucion").value("DEV-99214"));
+    }
+
+    @Test
+    void sin_referencia_o_con_una_muy_larga_la_devolucion_es_400() throws Exception {
+        String empresa = "Bearer " + jwt.issue("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"referencia\":\"  \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Falta la referencia")));
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"referencia\":\"" + "x".repeat(101) + "\"}"))
+                .andExpect(status().isBadRequest());
+        verify(payments, never()).registrarDevolucion(any(), any(), any());
+    }
+
+    @Test
+    void el_deudor_ve_los_pagos_que_se_le_devolvieron() throws Exception {
+        when(payments.devueltos(any())).thenReturn(List.of(new PaymentResponse(58L, 3L, null,
+                new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
+                Payment.Status.refunded, null, Instant.parse("2026-10-06T06:53:00Z"), null, false, "yiddism7h8oc",
+                RUT, null, Instant.parse("2026-10-22T15:04:00Z"), "DEV-99214")));
+
+        mvc.perform(get("/api/payments/devueltos").header("Authorization", deudor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.payments[0].status").value("refunded"))
+                .andExpect(jsonPath("$._embedded.payments[0].referenciaDevolucion").value("DEV-99214"))
+                //  El deudor no ve la accion de la empresa.
+                .andExpect(jsonPath("$._embedded.payments[0]._links.registrar-devolucion").doesNotExist());
     }
 
     @Test
