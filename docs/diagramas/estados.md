@@ -137,7 +137,7 @@ stateDiagram-v2
     paused --> running: la reanuda
     running --> finished: la termina
     paused --> finished: la termina
-    finished --> running: solo por la API, el portal no lo ofrece
+    finished --> [*]
 ```
 
 | Estado | En el contrato | Qué hace DataBridge |
@@ -147,9 +147,9 @@ stateDiagram-v2
 | `finished` | `terminada` | Lo mismo que pausada |
 
 El estado se cambia con `POST /api/v1/campanas` o, desde el portal, con
-`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`, que
-acepta cualquiera de los tres estados sin mirar el anterior. Por eso una campaña terminada **se puede volver a
-poner en curso por la API**, aunque el portal la muestre como cerrada y no ofrezca reanudarla.
+`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`.
+**Terminada es final:** volver a ponerla en curso o pausarla responde `409` (`campana_terminada`), por
+cualquiera de los dos caminos. Mandarla terminada de nuevo no cambia nada.
 
 ---
 
