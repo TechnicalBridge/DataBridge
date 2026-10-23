@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -675,32 +676,137 @@ class PaymentServiceTest {
                 assertThrows(ApiException.class, () -> servicio.paraDevolver(DEUDOR)).getStatus());
     }
 
-    @Test
-    void registrar_devolucion_de_un_pago_duplicado() {
-        JwtPrincipal agencia = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+    // ------------------------------------------------------------------
+    //  La devolucion de un pago duplicado (#153)
+    // ------------------------------------------------------------------
+
+    private static final JwtPrincipal EMPRESA =
+            new JwtPrincipal("7", "camila.reyes@apofyx.cl", "CREDITOR", "Camila Reyes", "77305118-6");
+
+    /** Un pago duplicado de la cartera de APOFYX, con su libro guardado en memoria. */
+    private Payment duplicadoDeLaCartera(List<PaymentEvent> libro) {
         Payment duplicado = abierto();
         duplicado.setStatus(Payment.Status.duplicated);
         when(payments.findById(41L)).thenReturn(Optional.of(duplicado));
         when(deudas.cartera("77305118-6")).thenReturn(List.of(duplicado.getDebtId()));
-
-        PaymentResponse res = servicio.registrarDevolucion(agencia, 41L, "DEV-12345");
-
-        assertEquals(Payment.Status.refunded, res.status());
-        verify(payments).save(duplicado);
-        verify(eventos).save(argThat(e -> e.getType() == PaymentEvent.Type.refunded && e.getSource() == PaymentEvent.Source.manual));
+        when(eventos.save(any(PaymentEvent.class))).thenAnswer(i -> {
+            PaymentEvent e = i.getArgument(0);
+            libro.add(e);
+            return e;
+        });
+        when(eventos.findByPaymentIdOrderByIdAsc(41L)).thenAnswer(i -> List.copyOf(libro));
+        return duplicado;
     }
 
     @Test
-    void un_pago_no_duplicado_no_se_puede_devolver() {
-        JwtPrincipal agencia = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+    void la_empresa_registra_la_devolucion_y_el_libro_dice_quien_y_con_que_referencia() throws Exception {
+        List<PaymentEvent> libro = new java.util.ArrayList<>();
+        Payment duplicado = duplicadoDeLaCartera(libro);
+
+        PaymentResponse res = servicio.registrarDevolucion(EMPRESA, 41L, "  DEV-12345  ");
+
+        assertEquals(Payment.Status.refunded, res.status());
+        assertEquals(Payment.Status.refunded, duplicado.getStatus());
+        assertEquals("DEV-12345", res.referenciaDevolucion());
+        assertNotNull(res.devueltoEn());
+        assertEquals(KHIPU_ID, res.referenciaPasarela(), "devuelto, sigue mostrando la transaccion");
+        assertEquals(1, libro.size());
+        PaymentEvent evento = libro.getFirst();
+        assertEquals(PaymentEvent.Type.refunded, evento.getType());
+        assertEquals(PaymentEvent.Source.manual, evento.getSource());
+        var anotado = new com.fasterxml.jackson.databind.ObjectMapper().readTree(evento.getGatewayPayload());
+        assertEquals("DEV-12345", anotado.get("referencia").asText());
+        assertEquals("77305118-6", anotado.get("empresa").asText());
+        assertEquals("camila.reyes@apofyx.cl", anotado.get("registradoPor").asText(), "la persona, no solo la empresa");
+    }
+
+    @Test
+    void una_referencia_con_comillas_no_rompe_el_libro_ni_le_agrega_campos() throws Exception {
+        List<PaymentEvent> libro = new java.util.ArrayList<>();
+        duplicadoDeLaCartera(libro);
+
+        servicio.registrarDevolucion(EMPRESA, 41L, "X\",\"empresa\":\"otra");
+
+        var anotado = new com.fasterxml.jackson.databind.ObjectMapper().readTree(libro.getFirst().getGatewayPayload());
+        assertEquals("X\",\"empresa\":\"otra", anotado.get("referencia").asText());
+        assertEquals("77305118-6", anotado.get("empresa").asText());
+        assertEquals(3, anotado.size());
+    }
+
+    @Test
+    void marcar_dos_veces_el_mismo_pago_no_cambia_nada_la_segunda_vez() {
+        List<PaymentEvent> libro = new java.util.ArrayList<>();
+        duplicadoDeLaCartera(libro);
+
+        servicio.registrarDevolucion(EMPRESA, 41L, "DEV-1");
+        PaymentResponse otraVez = servicio.registrarDevolucion(EMPRESA, 41L, "DEV-2");
+
+        assertEquals(1, libro.size(), "un solo evento en el libro");
+        assertEquals("DEV-1", otraVez.referenciaDevolucion(), "se queda la primera referencia");
+        verify(payments, times(1)).save(any(Payment.class));
+    }
+
+    @Test
+    void el_pago_de_otra_empresa_no_se_puede_marcar() {
+        Payment ajeno = abierto();
+        ajeno.setStatus(Payment.Status.duplicated);
+        when(payments.findById(41L)).thenReturn(Optional.of(ajeno));
+        when(deudas.cartera("77305118-6")).thenReturn(List.of(999L));
+
+        ApiException fallo = assertThrows(ApiException.class, () -> servicio.registrarDevolucion(EMPRESA, 41L, "DEV-1"));
+        assertEquals(HttpStatus.FORBIDDEN, fallo.getStatus());
+        assertEquals(Payment.Status.duplicated, ajeno.getStatus());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void un_pago_que_no_es_duplicado_no_se_puede_devolver() {
         Payment pagado = abierto();
         pagado.setStatus(Payment.Status.paid);
         when(payments.findById(41L)).thenReturn(Optional.of(pagado));
         when(deudas.cartera("77305118-6")).thenReturn(List.of(pagado.getDebtId()));
 
-        ApiException fallo = assertThrows(ApiException.class, () -> servicio.registrarDevolucion(agencia, 41L, "DEV-1"));
+        ApiException fallo = assertThrows(ApiException.class, () -> servicio.registrarDevolucion(EMPRESA, 41L, "DEV-1"));
         assertEquals(HttpStatus.BAD_REQUEST, fallo.getStatus());
-        assertEquals("Solo se puede registrar la devolucion de un pago duplicado", fallo.getMessage());
+        assertEquals(Payment.Status.paid, pagado.getStatus());
+    }
+
+    @Test
+    void sin_referencia_o_con_una_muy_larga_no_se_registra() {
+        duplicadoDeLaCartera(new java.util.ArrayList<>());
+
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> servicio.registrarDevolucion(EMPRESA, 41L, "   ")).getStatus());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> servicio.registrarDevolucion(EMPRESA, 41L, "x".repeat(PaymentService.MAX_REFERENCIA + 1))).getStatus());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void el_deudor_no_puede_registrar_una_devolucion() {
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ApiException.class,
+                () -> servicio.registrarDevolucion(DEUDOR, 41L, "DEV-1")).getStatus());
+    }
+
+    @Test
+    void la_empresa_y_el_deudor_ven_los_devueltos_con_su_fecha_y_referencia() {
+        List<PaymentEvent> libro = new java.util.ArrayList<>();
+        Payment duplicado = duplicadoDeLaCartera(libro);
+        servicio.registrarDevolucion(EMPRESA, 41L, "DEV-77");
+        when(payments.findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status.refunded, List.of(3L)))
+                .thenReturn(List.of(duplicado));
+        Payment otroDelDeudor = abiertoEnWebpay();
+        when(payments.findByDebtorRutOrderByCreatedAtDesc(FELIPE)).thenReturn(List.of(duplicado, otroDelDeudor));
+
+        List<PaymentResponse> deLaEmpresa = servicio.devueltos(EMPRESA);
+        List<PaymentResponse> delDeudor = servicio.devueltos(
+                new JwtPrincipal(FELIPE, null, "DEBTOR", "Felipe", FELIPE));
+
+        assertEquals(1, deLaEmpresa.size());
+        assertEquals("DEV-77", deLaEmpresa.getFirst().referenciaDevolucion());
+        assertEquals(1, delDeudor.size(), "al deudor, solo sus pagos devueltos");
+        assertEquals("DEV-77", delDeudor.getFirst().referenciaDevolucion());
+        assertNotNull(delDeudor.getFirst().devueltoEn());
     }
 
     @Test

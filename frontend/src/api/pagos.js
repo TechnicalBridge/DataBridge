@@ -26,9 +26,18 @@ export const listarPagos = () => pedir("/debts/pagos").then((data) => embebidos(
  */
 export const listarParaDevolver = () => pedir("/payments/para-devolver").then((data) => embebidos(data, "payments"));
 
-/** Registra que la empresa devolvió un pago duplicado en la pasarela. */
+/**
+ * Anota que la empresa ya devolvió un pago duplicado en la pasarela, con la
+ * referencia que le dio. DataBridge no mueve plata: solo deja constancia.
+ */
 export const registrarDevolucion = (id, referencia) =>
   pedir(`/payments/${id}/devolucion`, { method: "POST", body: { referencia } });
+
+/**
+ * Los pagos ya devueltos, con cuándo y con qué referencia: a la empresa, los de
+ * su cartera; al deudor, los suyos.
+ */
+export const listarDevueltos = () => pedir("/payments/devueltos").then((data) => embebidos(data, "payments"));
 
 /** El comprobante de un pago, descargado como archivo. */
 export async function descargarComprobante(id) {

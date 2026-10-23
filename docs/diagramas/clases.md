@@ -2460,6 +2460,8 @@ classDiagram
             +checkout(JwtPrincipal, CheckoutRequest) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
             +paraDevolver(JwtPrincipal) List~PaymentResponse~
+            +registrarDevolucion(JwtPrincipal, Long, DevolucionRequest) PaymentResponse
+            +devueltos(JwtPrincipal) List~PaymentResponse~
             +one(JwtPrincipal, Long) PaymentResponse
             +historia(JwtPrincipal, Long) HistoriaResponse
             +pub(Long, String) PaymentResponse
@@ -2503,6 +2505,8 @@ classDiagram
             +publicGet(Long, String) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
             +paraDevolver(JwtPrincipal) List~PaymentResponse~
+            +registrarDevolucion(JwtPrincipal, Long, String) PaymentResponse
+            +devueltos(JwtPrincipal) List~PaymentResponse~
             +historia(JwtPrincipal, Long) HistoriaResponse
             +confirmPublic(Long, String) PaymentResponse
             +verificar(Long, String) PaymentResponse
