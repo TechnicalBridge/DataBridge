@@ -719,6 +719,14 @@ tiene la llave de una cuenta de cobro, y Mercado Pago cuando tiene el access tok
 cuando Transbank lo autoriza y el monto y la orden calzan; uno de Khipu, cuando Khipu dice que la
 transferencia está conciliada, con el monto y la transacción del cobro.
 
+En Mercado Pago, retorno, aviso y consulta periódica concilian la preferencia que ms-payments
+guardó al abrir el cobro. Solo abonan si el pago consultado a la pasarela pertenece a esa
+preferencia y coinciden su identificador, referencia, monto en pesos y moneda CLP. El retorno
+lleva `pago` y `sig`, generados por ms-payments; no usa los estados recibidos del navegador para
+confirmar ni rechazar. Sin firma regresa a `/app`, sin revelar el enlace del pago. Los cobros
+anteriores siguen conciliándose en segundo plano. Si la pasarela no responde, no se abona;
+el aviso devuelve error para permitir su reintento. Un intento rechazado no cierra la preferencia.
+
 **En UF, `pago.confirmado` trae el valor de la UF usado.** La UF cambia todos los días; el acreedor
 tiene que poder reconstruir por qué un pago de `UF 38,5` fueron esos pesos.
 

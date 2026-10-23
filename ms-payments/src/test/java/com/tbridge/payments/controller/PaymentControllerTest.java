@@ -313,16 +313,31 @@ class PaymentControllerTest {
 
     @Test
     void la_vuelta_de_mercadopago_redirige_al_resultado() throws Exception {
-        when(payments.retornoMercadoPago("12345", "approved", null, "41", "pref_1"))
+        when(payments.retornoMercadoPago(41L, "firma-del-cobro"))
                 .thenReturn("http://localhost:8080/pasarela/41?sig=x");
 
         mvc.perform(get("/api/payments/public/mercadopago/retorno")
+                        .param("pago", "41")
+                        .param("sig", "firma-del-cobro")
                         .param("payment_id", "12345")
                         .param("status", "approved")
                         .param("external_reference", "41")
                         .param("preference_id", "pref_1"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "http://localhost:8080/pasarela/41?sig=x"));
+    }
+
+    @Test
+    void el_estado_de_la_url_no_identifica_ni_autoriza_un_cobro() throws Exception {
+        when(payments.retornoMercadoPago(null, null)).thenReturn("http://localhost:8080/app");
+
+        mvc.perform(get("/api/payments/public/mercadopago/retorno")
+                        .param("status", "approved").param("external_reference", "41")
+                        .param("payment_id", "999").param("preference_id", "pref_1"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:8080/app"));
+
+        verify(payments).retornoMercadoPago(null, null);
     }
 
     @Test

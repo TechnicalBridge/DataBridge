@@ -208,18 +208,14 @@ public class PaymentController {
 
     @RequestMapping(value = "/public/mercadopago/retorno", method = {RequestMethod.GET, RequestMethod.POST})
     @Operation(summary = "La vuelta desde Mercado Pago",
-            description = "Mercado Pago devuelve aca al deudor tras pagar o cancelar. Responde con redireccion a la pagina del resultado.")
+            description = "El enlace firmado identifica el cobro. Su estado se consulta contra la preferencia guardada; "
+                    + "los parametros de estado del navegador no autorizan pagos. Sin firma vuelve al portal.")
     @ApiResponse(responseCode = "302", description = "A la pagina del resultado del pago")
     public ResponseEntity<Void> retornoMercadoPago(
-            @RequestParam(name = "payment_id", required = false) String paymentId,
-            @RequestParam(name = "collection_id", required = false) String collectionId,
-            @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "collection_status", required = false) String collectionStatus,
-            @RequestParam(name = "external_reference", required = false) String externalReference,
-            @RequestParam(name = "preference_id", required = false) String preferenceId) {
-        String pid = paymentId != null && !paymentId.isBlank() ? paymentId : collectionId;
+            @RequestParam(name = "pago", required = false) Long id,
+            @RequestParam(name = "sig", required = false) String sig) {
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(payments.retornoMercadoPago(pid, status, collectionStatus, externalReference, preferenceId)))
+                .location(URI.create(payments.retornoMercadoPago(id, sig)))
                 .build();
     }
 

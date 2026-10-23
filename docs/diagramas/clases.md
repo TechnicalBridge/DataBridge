@@ -2468,7 +2468,7 @@ classDiagram
             +confirm(Long, String) PaymentResponse
             +webpay(Long, String) String
             +retornoWebpay(String, String, String, String) Void
-            +retornoMercadoPago(String, String, String, String, String, String) Void
+            +retornoMercadoPago(Long, String) Void
             +avisoDeMercadoPago(String, String, String) void
             +verificar(Long, String) PaymentResponse
             +cancelar(Long, String) PaymentResponse
@@ -2518,7 +2518,7 @@ classDiagram
             +retornoWebpay(String, String, String, String) String
             +webpayPorRevisar(boolean) List~Long~
             +conciliarWebpay(Long) boolean
-            +retornoMercadoPago(String, String, String, String, String) String
+            +retornoMercadoPago(Long, String) String
             +avisoMercadoPago(String, String, String) void
             +webhook(WebhookRequest, String) PaymentResponse
         }
