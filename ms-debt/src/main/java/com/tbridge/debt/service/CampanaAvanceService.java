@@ -6,6 +6,7 @@ import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.repository.CampaignRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.slf4j.Logger;
@@ -43,13 +44,15 @@ public class CampanaAvanceService {
     private final CampaignRepository campanas;
     private final DebtRepository debts;
     private final DebtEventRepository eventos;
+    private final ContactRepository contactos;
     private final EventosService avisos;
 
     public CampanaAvanceService(CampaignRepository campanas, DebtRepository debts,
-                                DebtEventRepository eventos, EventosService avisos) {
+                                DebtEventRepository eventos, ContactRepository contactos, EventosService avisos) {
         this.campanas = campanas;
         this.debts = debts;
         this.eventos = eventos;
+        this.contactos = contactos;
         this.avisos = avisos;
     }
 
@@ -76,8 +79,12 @@ public class CampanaAvanceService {
         Map<DebtEvent.Type, Integer> cuantos = new EnumMap<>(DebtEvent.Type.class);
         BigDecimal enPesos = BigDecimal.ZERO;
         BigDecimal enUf = BigDecimal.ZERO;
+        //  Lo enviado es todo lo que se le escribio a esos deudores por estas
+        //  deudas: la invitacion, los toques, los recordatorios y los reenvios.
+        long enviados = 0;
 
         if (!cartera.isEmpty()) {
+            enviados = contactos.countByDebtIn(cartera);
             for (DebtEvent evento : eventos.findByDebtIn(cartera)) {
                 cuantos.merge(evento.getType(), 1, Integer::sum);
                 if (evento.getType() == DebtEvent.Type.payment_applied && evento.getAmount() != null) {
@@ -94,7 +101,7 @@ public class CampanaAvanceService {
                 campana.getExternalId(),
                 LocalDate.now(CHILE).toString(),
                 cartera.size(),
-                cuantos.getOrDefault(DebtEvent.Type.code_sent, 0),
+                (int) enviados,
                 cuantos.getOrDefault(DebtEvent.Type.portal_entered, 0),
                 cuantos.getOrDefault(DebtEvent.Type.repacted, 0),
                 cuantos.getOrDefault(DebtEvent.Type.payment_applied, 0),

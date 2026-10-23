@@ -16,4 +16,9 @@ public record JwtPrincipal(String id, String email, String role, String name, St
     public boolean isDebtor() {
         return "DEBTOR".equalsIgnoreCase(role);
     }
+
+    /** El admin de DataBridge: entra solo al panel de administracion. */
+    public boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(role);
+    }
 }

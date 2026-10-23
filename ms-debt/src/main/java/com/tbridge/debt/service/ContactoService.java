@@ -3,35 +3,32 @@ package com.tbridge.debt.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.repository.CampaignRepository;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtRepository;
+import com.tbridge.debt.repository.ToquesHechos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -48,94 +45,84 @@ import java.util.stream.Collectors;
  *   <li>la deuda siga abierta: si se paga, se repacta, se reclama o se retira,
  *       la campana la deja. El convenio tiene sus propios recordatorios;</li>
  *   <li>no se hayan hecho todos los intentos;</li>
- *   <li>la ley lo permita: de lunes a sabado, de 8:00 a 20:00, nunca un feriado
- *       ({@link FeriadosDeChile}, mas los decretados), y no mas de lo que deja
- *       {@link LimiteDeContacto}. Un toque que la ley
- *       no deja hoy sale en la proxima pasada en que si.</li>
+ *   <li>la ley lo permita: dentro de {@link HorarioDeContacto} y no mas de lo
+ *       que deja {@link LimiteDeContacto}. Un toque que la ley no deja hoy sale
+ *       en la proxima pasada en que si.</li>
  * </ul>
+ *
+ * <p>Un toque cuyo correo no sale no es un toque: queda el motivo en el
+ * deudor y se intenta de nuevo en la pasada siguiente. Si la culpa es del
+ * servidor de correo, la pasada se corta ahi, en vez de esperarlo una vez por
+ * deuda. Antes de las campanas, cada pasada invita a las deudas que todavia
+ * no recibieron ningun correo ({@link InvitacionService#invitarPendientes}).
  */
 @Service
 public class ContactoService {
 
     private static final Logger log = LoggerFactory.getLogger(ContactoService.class);
-    private static final ZoneId CHILE = ZoneId.of("America/Santiago");
+    private static final ZoneId CHILE = HorarioDeContacto.CHILE;
 
     /** La de APOFYX (su documento, seccion 8): para una campana que no trae la suya. */
     static final List<Integer> CADENCIA_POR_OMISION = List.of(1, 4, 11, 25, 45);
 
-    private static final LocalTime DESDE = LocalTime.of(8, 0);
-    private static final LocalTime HASTA = LocalTime.of(20, 0);
-
     private final CampaignRepository campaigns;
     private final DebtRepository debts;
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final InvitacionService invitaciones;
     private final ObjectMapper json;
-    /** Los que se decretan (elecciones, plebiscitos, feriados especiales): no se pueden calcular. */
-    private final Set<LocalDate> decretados;
-    /** Los nacionales, calculados una vez por ano. */
-    private final Map<Integer, Set<LocalDate>> nacionales = new ConcurrentHashMap<>();
+    private final HorarioDeContacto horario;
 
-    public ContactoService(CampaignRepository campaigns, DebtRepository debts, DebtEventRepository events,
-                           AuthClient auth, LimiteDeContacto limite, ObjectMapper json,
-                           @Value("${app.contacto.feriados:}") String decretados) {
+    public ContactoService(CampaignRepository campaigns, DebtRepository debts, ContactRepository contactos,
+                           AuthClient auth, LimiteDeContacto limite, InvitacionService invitaciones, ObjectMapper json,
+                           HorarioDeContacto horario) {
         this.campaigns = campaigns;
         this.debts = debts;
-        this.events = events;
+        this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.invitaciones = invitaciones;
         this.json = json;
-        this.decretados = Arrays.stream(decretados.split(","))
-                .map(String::trim)
-                .filter(dia -> !dia.isEmpty())
-                .map(LocalDate::parse)
-                .collect(Collectors.toUnmodifiableSet());
-        int ano = LocalDate.now(CHILE).getYear();
-        log.info("Feriados de {} en que las campanas no contactan: {}; decretados (CONTACTO_FERIADOS): {}",
-                ano, new TreeSet<>(nacionalesDe(ano)), new TreeSet<>(this.decretados));
+        this.horario = horario;
     }
 
     @Scheduled(cron = "${app.contacto.cron:0 */15 * * * *}", zone = "America/Santiago")
     public void pasar() {
         ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
-        if (hecho.enviados() > 0) {
-            log.info("Campanas: {} toque(s) enviados, {} pendientes", hecho.enviados(), hecho.omitidos());
+        if (hecho.enviados() + hecho.invitados() > 0) {
+            log.info("Campanas: {} toque(s) enviados, {} pendientes; {} invitacion(es) pendientes que salieron",
+                    hecho.enviados(), hecho.omitidos(), hecho.invitados());
         }
-    }
-
-    /** Si a esta hora de Chile se puede hacer cobranza: lunes a sabado, de 8:00 a 20:00, sin feriados. */
-    public boolean horaDeContacto(LocalDateTime ahora) {
-        LocalTime hora = ahora.toLocalTime();
-        return ahora.getDayOfWeek() != DayOfWeek.SUNDAY
-                && !esFeriado(ahora.toLocalDate())
-                && !hora.isBefore(DESDE) && hora.isBefore(HASTA);
-    }
-
-    /** Un feriado nacional de cualquier ano, o uno decretado. */
-    boolean esFeriado(LocalDate dia) {
-        return decretados.contains(dia) || nacionalesDe(dia.getYear()).contains(dia);
-    }
-
-    private Set<LocalDate> nacionalesDe(int ano) {
-        return nacionales.computeIfAbsent(ano, FeriadosDeChile::delAno);
     }
 
     /**
      * Una pasada: los toques que tocan a esta hora de Chile. Con otra hora que
      * la de ahora sirve para probar una cadencia sin esperar semanas: los
      * toques quedan fechados a esa hora. Con {@code soloCampana} (su id
-     * externo) pasa solo por esa, y las demas no se enteran.
+     * externo) pasa solo por esa, y las demas no se enteran: tampoco las
+     * invitaciones pendientes.
      */
     @Transactional
     public ContactosResponse contactar(LocalDateTime ahora, String soloCampana) {
-        if (!horaDeContacto(ahora)) {
-            return new ContactosResponse(0, 0, false);
+        if (!horario.permite(ahora)) {
+            return new ContactosResponse(0, 0, false, 0);
         }
         Instant cuando = ahora.atZone(CHILE).toInstant();
         LocalDate hoy = ahora.toLocalDate();
         int enviados = 0;
         int omitidos = 0;
+        //  A quien ya se le intento en esta pasada y fallo: no se insiste con sus otras deudas.
+        Set<Debtor> fallaron = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        int invitados = 0;
+        if (soloCampana == null) {
+            InvitacionService.Pasada pendientes = invitaciones.invitarPendientes(cuando, fallaron);
+            invitados = pendientes.enviadas();
+            if (pendientes.cortada()) {
+                return new ContactosResponse(0, 0, true, invitados);
+            }
+        }
 
         for (Campaign campana : campaigns.findByStatus(Campaign.Status.running)) {
             if ((soloCampana != null && !soloCampana.equals(campana.getExternalId()))
@@ -152,10 +139,12 @@ public class ContactoService {
             if (abiertas.isEmpty()) {
                 continue;
             }
-            Map<Long, Integer> hechos = toquesHechos(campana, abiertas);
+            //  Cuantos toques de esta campana lleva cada deuda.
+            Map<Long, Long> hechos = contactos.toquesPorDeuda(campana, abiertas).stream()
+                    .collect(Collectors.toMap(ToquesHechos::deuda, ToquesHechos::toques));
 
             for (Debt deuda : abiertas) {
-                int toque = hechos.getOrDefault(deuda.getId(), 0);
+                int toque = hechos.getOrDefault(deuda.getId(), 0L).intValue();
                 if (toque >= tope) {
                     continue;
                 }
@@ -167,27 +156,37 @@ public class ContactoService {
                     continue;
                 }
                 Debtor deudor = deuda.getDebtor();
-                if (deudor.getEmail() == null || deudor.getEmail().isBlank() || !limite.permite(deudor, cuando)) {
+                if (deudor.getEmail() == null || deudor.getEmail().isBlank() || deudor.correoConProblemas()
+                        || fallaron.contains(deudor) || !limite.permite(deudor, cuando)) {
                     omitidos++;
                     continue;
                 }
                 try {
                     auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
                             deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId()));
+                } catch (CorreoNoSalio noSalio) {
+                    deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), cuando);
+                    omitidos++;
+                    if (!noSalio.deLaDireccion()) {
+                        //  El servidor de correo no esta aceptando: con las demas deudas
+                        //  seria esperarlo una vez por cada una. Salen en la proxima pasada.
+                        log.warn("Campanas: la pasada se corta, el correo no sale: {}", noSalio.motivo());
+                        return new ContactosResponse(enviados, omitidos, true, invitados);
+                    }
+                    fallaron.add(deudor);
+                    continue;
                 } catch (RuntimeException e) {
                     log.warn("No salio el toque {} de la deuda {}: {}", toque + 1, deuda.getId(), e.getMessage());
                     omitidos++;
                     continue;
                 }
-                DebtEvent enviado = DebtEvent.de(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.system)
-                        .conReferencia("campana " + campana.getName() + ", toque " + (toque + 1) + " de " + tope)
-                        .conDetalle("{\"campana\":" + campana.getId() + ",\"toque\":" + (toque + 1) + "}");
-                enviado.setOccurredAt(cuando);
-                events.save(enviado);
+                contactos.save(Contact.toque(deuda, campana, toque + 1, AccesoService.enmascarar(deudor.getEmail()))
+                        .el(cuando));
+                deudor.correoSalio();
                 enviados++;
             }
         }
-        return new ContactosResponse(enviados, omitidos, true);
+        return new ContactosResponse(enviados, omitidos, true, invitados);
     }
 
     /** Hoy DataBridge contacta solo por correo: WhatsApp no esta conectado. */
@@ -214,23 +213,5 @@ public class ContactoService {
         } catch (Exception e) {
             return CADENCIA_POR_OMISION;
         }
-    }
-
-    /** Cuantos toques de esta campana lleva cada deuda: los code_sent que la nombran. */
-    private Map<Long, Integer> toquesHechos(Campaign campana, List<Debt> deudas) {
-        Map<Long, Integer> hechos = new HashMap<>();
-        for (DebtEvent evento : events.findByDebtInAndType(deudas, DebtEvent.Type.code_sent)) {
-            if (evento.getDetail() == null) {
-                continue;
-            }
-            try {
-                if (json.readTree(evento.getDetail()).path("campana").asLong(-1) == campana.getId()) {
-                    hechos.merge(evento.getDebt().getId(), 1, Integer::sum);
-                }
-            } catch (Exception ilegible) {
-                //  Un detalle que no se puede leer no es un toque de campana.
-            }
-        }
-        return hechos;
     }
 }

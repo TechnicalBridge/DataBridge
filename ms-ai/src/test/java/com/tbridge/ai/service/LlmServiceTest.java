@@ -121,10 +121,22 @@ class LlmServiceTest {
 
         assertTrue(sistema.contains("Ánimo detectado en el último mensaje: frustracion."), sistema);
         assertTrue(sistema.contains("- Patrimonio Inmuebles (Arriendo oficina) | original UF 115,50 | saldo UF 96,25 "
-                + "| en convenio de pago"), sistema);
-        assertTrue(sistema.contains("| original $1.040.000 | saldo $1.040.000 | pendiente"), sistema);
+                + "| sin interés | total hoy UF 96,25 | en convenio de pago"), sistema);
+        assertTrue(sistema.contains("| original $1.040.000 | saldo $1.040.000 | sin interés | total hoy $1.040.000 "
+                + "| pendiente"), sistema);
         assertTrue(LlmService.mensajes(HISTORIA, List.of(), "neutral").getFirst().contenido()
                 .endsWith("El deudor no tiene deudas visibles."));
+    }
+
+    @Test
+    void el_llm_sabe_de_la_tasa_la_mora_el_total_de_hoy_y_el_descuento() {
+        String sistema = LlmService.mensajes(HISTORIA, List.of(MotorLocalTest.CON_TASA), "neutral").getFirst().contenido();
+
+        assertTrue(sistema.contains("- Patrimonio Inmuebles (Arriendo mensual) | original $900.000 | saldo $900.000 "
+                + "| tasa 1,5% mensual | mora $15.900 | total hoy $915.900 | descuento: Si pagas todo antes del 3 de "
+                + "noviembre, te descontamos $7.950 de intereses. | pendiente"), sistema);
+        assertTrue(sistema.contains("nunca el capital"), sistema);
+        assertFalse(sistema.contains("sin interés)"), "ya no dice que las cuotas no tienen interés");
     }
 
     @Test

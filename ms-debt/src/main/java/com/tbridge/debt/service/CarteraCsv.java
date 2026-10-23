@@ -131,6 +131,14 @@ public final class CarteraCsv {
             ((ArrayNode) deuda.get("cargos")).add(cargo(fila, indice, numero));
         }
 
+        return envolver(deudas.values(), lote);
+    }
+
+    /**
+     * La Cartera v1 completa: el lote (con su acreedor, su mandato y su campana)
+     * y las deudas. La comparten el CSV y el Excel.
+     */
+    static ObjectNode envolver(java.util.Collection<ObjectNode> deudas, Lote lote) {
         ObjectNode cartera = NODOS.objectNode();
         cartera.put("version", "1.0");
         ObjectNode cabecera = cartera.putObject("lote");
@@ -149,7 +157,7 @@ public final class CarteraCsv {
             cabecera.put("campana_id_externo", lote.campanaIdExterno());
         }
         ArrayNode lista = cartera.putArray("deudas");
-        deudas.values().forEach(lista::add);
+        deudas.forEach(lista::add);
         return cartera;
     }
 

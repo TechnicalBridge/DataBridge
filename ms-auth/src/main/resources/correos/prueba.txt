@@ -1,0 +1,10 @@
+Hola,
+
+Este es un correo de prueba de DataBridge. Si lo estás leyendo, el envío de correos quedó bien configurado.
+
+No tienes que hacer nada.
+
+DataBridge
+
+--
+Te llegó porque alguien del equipo de DataBridge probó la configuración del correo.

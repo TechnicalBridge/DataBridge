@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -283,5 +284,19 @@ class PaymentControllerTest {
                 .andExpect(status().isOk());
 
         verify(payments).avisoMercadoPago(isNull(), isNull(), anyString());
+    }
+
+    /** #137: el admin de DataBridge no abre cobros ni ve los pagos de nadie. */
+    @Test
+    void el_admin_de_databridge_no_entra_a_los_pagos() throws Exception {
+        String admin = "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
+
+        mvc.perform(get("/api/payments").header("Authorization", admin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("No tienes permiso para esto"));
+        mvc.perform(post("/api/payments/checkout").header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"debtId\":3,\"gateway\":\"webpay\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(payments);
     }
 }

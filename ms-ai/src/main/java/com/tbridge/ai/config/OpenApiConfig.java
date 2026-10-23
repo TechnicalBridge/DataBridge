@@ -5,10 +5,13 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 /**
  * La documentacion de ms-ai en Swagger.
@@ -31,6 +34,9 @@ public class OpenApiConfig {
                                 El asistente del portal del deudor: responde cuánto debe, a quién y cómo pagar, \
                                 con el tono ajustado a su ánimo. Solo lee.""")
                         .contact(new Contact().name("Technical Bridge")))
+                //  Relativo: Try it out llama a la misma direccion desde la que
+                //  se abrio Swagger, sea localhost:8080 o el dominio.
+                .servers(List.of(new Server().url("/").description("El portal, por el gateway")))
                 .components(new Components()
                         .addSecuritySchemes(JWT, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")

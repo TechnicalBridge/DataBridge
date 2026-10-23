@@ -22,7 +22,8 @@ import java.time.Instant;
 @Table(name = "sessions")
 public class Session {
 
-    public enum Role { DEBTOR, CREDITOR }
+    /** El deudor, la persona de una empresa usuaria y el admin de DataBridge. */
+    public enum Role { DEBTOR, CREDITOR, ADMIN }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

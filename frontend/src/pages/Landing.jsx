@@ -62,7 +62,7 @@ export default function Landing() {
             <Link className="btn btn-ghost btn-block" to="/databridge/login">Soy de una empresa</Link>
           </div>
           <p className="hint">
-            Nunca te vamos a pedir que entres desde un enlace en un correo o un mensaje. Escribe esta
+            Los avisos de pago llevan un código. El enlace de respaldo se envía solo si lo pides desde el portal. Escribe esta
             dirección tú mismo.
           </p>
         </div>

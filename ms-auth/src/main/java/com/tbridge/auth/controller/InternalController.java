@@ -3,10 +3,14 @@ package com.tbridge.auth.controller;
 import com.tbridge.auth.config.OpenApiConfig;
 import com.tbridge.auth.dto.request.EmitirCodigoRequest;
 import com.tbridge.auth.dto.response.CodigoEmitidoResponse;
+import com.tbridge.auth.dto.response.CorreoNoEnviadoResponse;
+import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import com.tbridge.auth.service.AuthService;
 import com.tbridge.auth.service.MailService;
 import com.tbridge.auth.exception.ApiError;
 import com.tbridge.auth.exception.ApiException;
+import com.tbridge.auth.exception.CorreoNoSalio;
+import com.tbridge.auth.util.Correo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -51,31 +56,69 @@ public class InternalController {
     @Operation(summary = "Emitir un codigo de acceso",
             description = """
                     Genera el codigo para un RUT y lo devuelve una sola vez: en la base queda solo su huella. \
-                    Si entre los canales esta el correo y viene la direccion, el correo sale desde aqui.""")
-    @ApiResponse(responseCode = "200", description = "Codigo emitido")
+                    Si entre los canales esta el correo y viene la direccion, el correo sale desde aqui, y la \
+                    respuesta espera a saber si salio: si el servidor de correo no lo acepta responde `502`, y el \
+                    codigo se anula, porque nadie lo recibio. El codigo anterior del deudor sigue sirviendo.""")
+    @ApiResponse(responseCode = "200", description = "Codigo emitido y, si iba por correo, entregado al servidor")
     @ApiResponse(responseCode = "400", description = "RUT no valido",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "401", description = "Clave interna invalida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "El correo no salio: lo que dijo el servidor, y de quien es la culpa",
+            content = @Content(schema = @Schema(implementation = CorreoNoEnviadoResponse.class)))
     public CodigoEmitidoResponse emitir(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
             @Valid @RequestBody EmitirCodigoRequest pedido
     ) {
-        if (clave == null || !clave.equals(internalKey)) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
-        }
+        exigirClave(clave);
         List<String> canales = pedido.canalesOPorOmision();
         CodigoEmitidoResponse emitido = auth.emitirCodigo(pedido.rut(), canales, pedido.paraQue());
 
         //  El envio por correo sale de aqui; el de WhatsApp lo hara el motor
         //  de campana cuando exista, con el mismo codigo.
         if (canales.contains("correo") && pedido.correo() != null) {
-            if (pedido.vence() != null) {
-                correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
-            } else {
-                correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
+            try {
+                if (pedido.vence() != null) {
+                    correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
+                } else {
+                    correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
+                }
+            } catch (CorreoNoSalio noSalio) {
+                //  Nadie recibio ese codigo: se anula, y el que el deudor ya
+                //  tenia sigue sirviendo. Quien lo pidio se entera con un 502.
+                auth.anularCodigo(emitido.rut(), emitido.codigo());
+                throw noSalio;
             }
         }
         return emitido;
+    }
+
+    @PostMapping("/internal/correo/prueba")
+    @Operation(summary = "Mandar un correo de prueba",
+            description = """
+                    Manda un correo ahora, con el servidor que tiene configurado el servicio, y dice como le fue:                     si salio, a donde llego de verdad (en modo de prueba puede ser el buzon de desvio) y con que                     remitente; y si no salio, lo que respondio el servidor. Sirve para saber si las credenciales                     del `.env` funcionan sin esperar a que un deudor no reciba su codigo. Nunca devuelve la clave.""")
+    @ApiResponse(responseCode = "200", description = "Como le fue: `enviado` dice si salio")
+    @ApiResponse(responseCode = "400", description = "La direccion no es un correo valido",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PruebaDeCorreoResponse probarCorreo(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @Parameter(description = "A quien mandarle la prueba", example = "equipo@gmail.com")
+            @RequestParam String para
+    ) {
+        exigirClave(clave);
+        //  En una URL, "+" llega como un espacio: cuenta+alias@gmail.com se leeria
+        //  "cuenta alias@gmail.com". Un correo no lleva espacios, asi que se devuelven.
+        String escrita = para == null ? "" : para.strip().replace(' ', '+');
+        String destino = Correo.normalizar(escrita).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                "Esa direccion no es un correo valido"));
+        return correo.probar(destino);
+    }
+
+    private void exigirClave(String clave) {
+        if (clave == null || !clave.equals(internalKey)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
+        }
     }
 }

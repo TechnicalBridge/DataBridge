@@ -30,9 +30,43 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
             + "order by d.updatedAt desc")
     List<Debt> carteraDe(@Param("org") Organization org);
 
+    /**
+     * Cuantas deudas hay, por acreedor, por quien las entrego y por estado.
+     *
+     * <p>Para los totales del panel de administracion. Son dos consultas para
+     * todas las empresas, y ninguna lee una deuda: el admin de DataBridge ve
+     * cuanto hay en cada cartera, nunca que hay adentro.
+     */
+    @Query("select new com.tbridge.debt.repository.ConteoDeDeudas("
+            + "d.creditor.id, d.lastBatch.sender.id, d.status, count(d)) "
+            + "from Debt d group by d.creditor.id, d.lastBatch.sender.id, d.status")
+    List<ConteoDeDeudas> contarPorEmpresa();
+
+    /** Lo que falta por cobrar: las cuotas pendientes, por acreedor, por quien las entrego y por moneda. */
+    @Query("select new com.tbridge.debt.repository.SaldoPendiente("
+            + "d.creditor.id, d.lastBatch.sender.id, d.currency, sum(i.amount)) "
+            + "from Installment i join i.debt d "
+            + "where i.status = com.tbridge.debt.model.Installment.Status.pending "
+            + "group by d.creditor.id, d.lastBatch.sender.id, d.currency")
+    List<SaldoPendiente> saldoPorEmpresa();
+
     List<Debt> findByDebtorOrderByUpdatedAtDesc(Debtor debtor);
 
     List<Debt> findByCampaign(Campaign campaign);
+
+    /**
+     * Las deudas en cobranza por las que todavia no se le escribio nada al
+     * deudor: su invitacion fallo, la ley la dejo para despues, o el deudor no
+     * tenia correo y una cartera se lo trajo. Sin las de una direccion con
+     * problemas, que esperan otra.
+     */
+    @Query("""
+            select d from Debt d join fetch d.debtor r join fetch d.creditor
+             where d.status = com.tbridge.debt.model.Debt.Status.open
+               and r.email is not null and r.email <> '' and r.emailRejections < :rechazos
+               and not exists (select 1 from Contact c where c.debt = d)
+             order by d.id""")
+    List<Debt> sinInvitar(@Param("rechazos") int rechazos);
 
     List<Debt> findByLastBatch(Batch lote);
 

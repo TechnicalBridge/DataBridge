@@ -2,13 +2,14 @@ package com.tbridge.debt.service;
 
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Installment;
 import com.tbridge.debt.model.Organization;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.InstallmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,10 +26,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +43,7 @@ class RecordatorioServiceTest {
     private static final LocalDate HOY = LocalDate.of(2026, 10, 17);
 
     @Mock private InstallmentRepository installments;
-    @Mock private DebtEventRepository events;
+    @Mock private ContactRepository contactos;
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
 
@@ -50,7 +53,7 @@ class RecordatorioServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new RecordatorioService(installments, events, auth, limite, 3);
+        servicio = new RecordatorioService(installments, contactos, auth, limite, new HorarioDeContacto(""), 3);
         when(limite.permite(any(), any())).thenReturn(true);
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -71,7 +74,7 @@ class RecordatorioServiceTest {
     }
 
     @Test
-    void la_cuota_por_vencer_se_recuerda_con_su_fecha_y_queda_marcada() {
+    void la_cuota_por_vencer_se_recuerda_con_su_fecha_y_queda_su_contacto() {
         RecordatoriosResponse pasada = servicio.enviar(HOY);
 
         ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
@@ -79,9 +82,27 @@ class RecordatorioServiceTest {
         assertEquals(LocalDate.of(2026, 10, 20), pedido.getValue().vence());
         assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
         assertEquals("Patrimonio Inmuebles", pedido.getValue().acreedor());
-        assertNotNull(cuota.getRemindedAt());
-        verify(events).save(any(DebtEvent.class));
+        //  Que la cuota ya se aviso es este contacto: por el no vuelve a salir en porRecordar.
+        ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
+        verify(contactos).save(contacto.capture());
+        assertEquals(Contact.Kind.reminder, contacto.getValue().getKind());
+        assertSame(cuota, contacto.getValue().getInstallment());
+        assertSame(cuota.getDebt(), contacto.getValue().getDebt());
+        assertEquals("fe**********@correo.cl", contacto.getValue().getDestination());
+        assertNull(contacto.getValue().getCampaign());
         assertEquals(1, pasada.enviados());
+    }
+
+    @Test
+    void un_domingo_o_un_feriado_no_sale_ningun_recordatorio() {
+        //  El domingo 18 y el lunes 12 de octubre de 2026 (Encuentro de Dos Mundos).
+        for (LocalDate dia : List.of(LocalDate.of(2026, 10, 18), LocalDate.of(2026, 10, 12))) {
+            RecordatoriosResponse pasada = servicio.enviar(dia);
+
+            assertEquals(0, pasada.enviados() + pasada.omitidos(), dia.toString());
+        }
+        verify(installments, never()).porRecordar(any(), any(), any(), any());
+        verify(auth, never()).emitirCodigo(any());
     }
 
     @Test
@@ -91,7 +112,8 @@ class RecordatorioServiceTest {
         assertEquals(1, servicio.enviar(HOY).omitidos());
 
         verify(auth, never()).emitirCodigo(any());
-        assertNull(cuota.getRemindedAt(), "sin marcar: la proxima pasada lo intenta de nuevo");
+        //  Sin contacto: la proxima pasada lo intenta de nuevo.
+        verify(contactos, never()).save(any());
     }
 
     @Test
@@ -104,7 +126,47 @@ class RecordatorioServiceTest {
         assertEquals(1, servicio.enviar(HOY).omitidos());
 
         verify(auth, never()).emitirCodigo(any());
-        assertNull(cuota.getRemindedAt());
+        verify(contactos, never()).save(any());
+    }
+
+    @Test
+    void si_el_servidor_rechaza_la_direccion_la_cuota_queda_sin_avisar_y_el_motivo_en_el_deudor() {
+        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
+
+        RecordatoriosResponse pasada = servicio.enviar(HOY);
+
+        assertEquals(0, pasada.enviados());
+        assertEquals(1, pasada.omitidos());
+        verify(contactos, never()).save(any());
+        assertEquals(1, deudor.getEmailRejections());
+    }
+
+    @Test
+    void si_falla_el_servidor_de_correo_la_pasada_se_corta() {
+        Installment otra = new Installment();
+        otra.setId(35L);
+        otra.setDebt(cuota.getDebt());
+        otra.setDueDate(LocalDate.of(2026, 10, 19));
+        otra.setAmount(new BigDecimal("173333"));
+        when(installments.porRecordar(Installment.Status.pending, HOY, HOY.plusDays(3),
+                List.of(Debt.Status.open, Debt.Status.repacted))).thenReturn(List.of(cuota, otra));
+        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("Connect timed out", false));
+
+        servicio.enviar(HOY);
+
+        verify(auth, times(1)).emitirCodigo(any());
+        assertEquals(0, deudor.getEmailRejections());
+        assertTrue(deudor.getEmailFailure().contains("Connect timed out"));
+    }
+
+    @Test
+    void a_un_correo_con_problemas_no_se_le_recuerda() {
+        for (int i = 0; i < 3; i++) {
+            deudor.correoNoSalio("rechazada", true, java.time.Instant.now());
+        }
+
+        assertEquals(1, servicio.enviar(HOY).omitidos());
+        verify(auth, never()).emitirCodigo(any());
     }
 
     @Test
@@ -115,7 +177,6 @@ class RecordatorioServiceTest {
 
         assertEquals(0, pasada.enviados());
         assertEquals(1, pasada.omitidos());
-        assertNull(cuota.getRemindedAt());
-        verify(installments, never()).save(any());
+        verify(contactos, never()).save(any());
     }
 }

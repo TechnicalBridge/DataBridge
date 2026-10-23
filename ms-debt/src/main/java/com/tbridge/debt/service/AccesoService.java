@@ -3,11 +3,12 @@ package com.tbridge.debt.service;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.CodigoEnviadoResponse;
+import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
-import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
-import com.tbridge.debt.repository.DebtEventRepository;
+import com.tbridge.debt.repository.ContactRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,23 +25,36 @@ import java.util.List;
  *
  * <p><b>El codigo nunca vuelve a quien lo pidio.</b> ms-auth lo genera y lo
  * manda al correo del deudor; esta respuesta solo dice a donde se mando.
+ *
+ * <p>Fuera del horario de la ley ({@link HorarioDeContacto}) no sale: la
+ * empresa recibe un {@code 409} que dice cuando se puede.
+ *
+ * <p>Si el correo no sale, la empresa lo sabe en el momento ({@code 502}, con
+ * el motivo). La empresa puede insistir aunque la direccion tenga problemas:
+ * lo que se deja de hacer solo, se puede hacer a mano.
  */
 @Service
 @Transactional
 public class AccesoService {
 
     private final DebtService debts;
-    private final DebtEventRepository events;
+    private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final HorarioDeContacto horario;
 
-    public AccesoService(DebtService debts, DebtEventRepository events, AuthClient auth, LimiteDeContacto limite) {
+    public AccesoService(DebtService debts, ContactRepository contactos, AuthClient auth, LimiteDeContacto limite,
+                         HorarioDeContacto horario) {
         this.debts = debts;
-        this.events = events;
+        this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.horario = horario;
     }
 
+    //  Un correo que no sale responde con un error, pero lo que se anoto en el
+    //  deudor tiene que quedar: la cartera lo muestra.
+    @Transactional(noRollbackFor = ApiException.class)
     public CodigoEnviadoResponse enviarCodigo(JwtPrincipal user, Long debtId) {
         if (user == null || !user.isCreditor()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "El codigo lo envia el acreedor, no el deudor");
@@ -54,19 +68,30 @@ public class AccesoService {
             throw new ApiException(HttpStatus.CONFLICT,
                     "El deudor no tiene correo registrado, y el envio por WhatsApp aun no esta conectado");
         }
+        if (!horario.permiteAhora()) {
+            throw new ApiException(HttpStatus.CONFLICT, "La ley solo deja escribirle a un deudor "
+                    + HorarioDeContacto.REGLA + ". Intentalo dentro de ese horario");
+        }
         if (!limite.permite(deudor, Instant.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Ya se le escribio lo que permite la ley: dos veces por "
                     + "semana y con dos dias entre una y otra. Intentalo en unos dias");
         }
 
-        AuthClient.CodigoEmitido emitido = auth.emitirCodigo(new AuthClient.PedidoDeCodigo(
-                deudor.getRut(), List.of("correo"), deudor.getEmail(), deuda.getCreditor().getTradeName(),
-                deuda.getExternalId()));
+        AuthClient.CodigoEmitido emitido;
+        try {
+            emitido = auth.emitirCodigo(new AuthClient.PedidoDeCodigo(
+                    deudor.getRut(), List.of("correo"), deudor.getEmail(), deuda.getCreditor().getTradeName(),
+                    deuda.getExternalId()));
+        } catch (CorreoNoSalio noSalio) {
+            deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), Instant.now());
+            throw noSalio;
+        }
 
-        //  Queda en la historia de la deuda: es el primer paso del embudo que
-        //  la agencia mide (contrato, campana.avance).
+        //  Queda como un contacto de la deuda: es el primer paso del embudo que
+        //  la agencia mide (contrato, campana.avance), y cuenta para el limite.
         String destino = enmascarar(deudor.getEmail());
-        events.save(DebtEvent.de(deuda, DebtEvent.Type.code_sent, DebtEvent.Actor.agency).conReferencia(destino));
+        contactos.save(Contact.reenvio(deuda, destino));
+        deudor.correoSalio();
 
         return new CodigoEnviadoResponse(true, "correo", destino, emitido == null ? null : emitido.expiraEn());
     }

@@ -107,8 +107,12 @@ public class LlmService implements DisposableBean {
     /** Las instrucciones, con las deudas, y lo ultimo de la conversacion. */
     static List<Mensaje> mensajes(List<Map<String, Object>> historia, List<Map<String, Object>> deudas, String animo) {
         String sistema = "Eres el asistente de Technical Bridge. Ayudas a deudores en Chile a entender cuánto deben, "
-                + "a quién, y cómo pagar o pagar en cuotas (3 a 24, sin interés). No inventes montos: usa solo "
-                + "el contexto. Nunca pidas contraseñas ni datos bancarios, y nunca mandes enlaces para entrar. "
+                + "a quién, y cómo pagar o pagar en cuotas (de 3 a 24). El interés depende de lo que pactó el "
+                + "acreedor: una deuda con tasa crece por cada día de atraso y su convenio lleva ese interés; sin "
+                + "tasa, no se cobra nada extra. Lo que se paga hoy es el total hoy, no el saldo. El descuento por "
+                + "pronto pago rebaja los intereses por mora, nunca el capital, y solo si se paga toda la deuda de "
+                + "una vez. No inventes montos: usa solo el contexto. Nunca pidas contraseñas ni datos "
+                + "bancarios, y nunca mandes enlaces para entrar. "
                 + "Responde en español de Chile, breve. No ejecutes pagos: el botón Pagar abre la pasarela.\n"
                 + "Ánimo detectado en el último mensaje: " + animo + ". Si es frustración, reconócela antes de "
                 + "responder; si es desconfianza, explica cómo verificar que esto es legítimo.\n\n"
@@ -124,7 +128,7 @@ public class LlmService implements DisposableBean {
         return mensajes;
     }
 
-    /** Las deudas en montos legibles y sin mezclar monedas. */
+    /** Las deudas en montos legibles y sin mezclar monedas, con su tasa, su mora y su descuento. */
     static String contexto(List<Map<String, Object>> deudas) {
         if (deudas.isEmpty()) {
             return "El deudor no tiene deudas visibles.";
@@ -132,9 +136,16 @@ public class LlmService implements DisposableBean {
         return "Deudas (solo lectura; pesos y UF no se suman entre si):\n" + deudas.stream()
                 .map(d -> {
                     String moneda = MotorLocal.moneda(d);
+                    String interes = MotorLocal.conTasa(d)
+                            ? "tasa " + MotorLocal.tasa(d) + " | mora " + MotorLocal.dinero(d.get("interesMora"), moneda)
+                            : "sin interés";
+                    String oferta = MotorLocal.oferta(d);
                     return "- " + d.get("acreedor") + " (" + d.get("concepto") + ") | original "
                             + MotorLocal.dinero(d.get("montoOriginal"), moneda) + " | saldo "
-                            + MotorLocal.dinero(d.get("saldo"), moneda) + " | " + MotorLocal.estado(d);
+                            + MotorLocal.dinero(d.get("saldo"), moneda) + " | " + interes + " | total hoy "
+                            + MotorLocal.dinero(MotorLocal.totalHoy(d), moneda)
+                            + (oferta.isEmpty() ? "" : " | descuento: " + oferta)
+                            + " | " + MotorLocal.estado(d);
                 })
                 .collect(Collectors.joining("\n"));
     }

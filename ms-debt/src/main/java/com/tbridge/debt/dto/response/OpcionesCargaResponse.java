@@ -27,14 +27,24 @@ public record OpcionesCargaResponse(
     ) {
         public static AcreedorCarga de(Organization acreedor, List<Campaign> campanas) {
             return new AcreedorCarga(acreedor.getRut(), acreedor.getTradeName(),
-                    campanas.stream().map(c -> new CampanaCarga(c.getExternalId(), c.getName())).toList());
+                    campanas.stream().map(c -> new CampanaCarga(c.getExternalId(), c.getName(), estado(c))).toList());
+        }
+
+        private static String estado(Campaign campana) {
+            return switch (campana.getStatus()) {
+                case running -> "en_curso";
+                case paused -> "pausada";
+                case finished -> "terminada";
+            };
         }
     }
 
     @Schema(description = "Una campana de ese acreedor")
     public record CampanaCarga(
             @Schema(example = "APX-CMP-8") String idExterno,
-            @Schema(example = "Arriendos septiembre") String nombre
+            @Schema(example = "Arriendos septiembre") String nombre,
+            @Schema(allowableValues = {"en_curso", "pausada", "terminada"}, example = "en_curso",
+                    description = "En una terminada ya no se puede cargar") String estado
     ) {
     }
 }

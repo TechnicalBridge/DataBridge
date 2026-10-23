@@ -11,10 +11,12 @@ import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.dto.response.CorreoDelDeudorResponse;
 import com.tbridge.debt.dto.response.DebtSnapshotResponse;
 import com.tbridge.debt.dto.response.OkResponse;
+import com.tbridge.debt.dto.response.OrganizacionResponse;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
 import com.tbridge.debt.service.ApiKeyService;
 import com.tbridge.debt.service.CampanaAvanceService;
 import com.tbridge.debt.service.DebtService;
+import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ContactoService;
 import com.tbridge.debt.service.RecordatorioService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,16 +61,19 @@ public class InternalController {
     private final ApiKeyService claves;
     private final RecordatorioService recordatorios;
     private final ContactoService contactos;
+    private final EmpresaService empresas;
     private final String internalKey;
 
     public InternalController(DebtService debts, CampanaAvanceService avances, ApiKeyService claves,
                               RecordatorioService recordatorios, ContactoService contactos,
+                              EmpresaService empresas,
                               @Value("${app.internal-key}") String internalKey) {
         this.debts = debts;
         this.avances = avances;
         this.claves = claves;
         this.recordatorios = recordatorios;
         this.contactos = contactos;
+        this.empresas = empresas;
         this.internalKey = internalKey;
     }
 
@@ -192,6 +197,22 @@ public class InternalController {
         exigirClave(clave);
         debts.onPagoConfirmado(aviso);
         return OkResponse.OK;
+    }
+
+    @GetMapping("/organizaciones/{rut}")
+    @Operation(summary = "Si hay una empresa con ese RUT (para ms-auth)",
+            description = "ms-auth lo pregunta antes de darle una persona a una empresa: el personal vive alla y la "
+                    + "empresa aca, unidos por el RUT.")
+    @ApiResponse(responseCode = "200", description = "La empresa")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna empresa con ese RUT",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public OrganizacionResponse organizacion(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @PathVariable String rut
+    ) {
+        exigirClave(clave);
+        return empresas.buscar(rut)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ninguna empresa con ese RUT"));
     }
 
     private void exigirClave(String clave) {

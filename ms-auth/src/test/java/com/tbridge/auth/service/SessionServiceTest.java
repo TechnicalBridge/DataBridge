@@ -152,6 +152,22 @@ class SessionServiceTest {
     }
 
     @Test
+    void quitarle_el_acceso_a_una_persona_cierra_todas_sus_sesiones_y_ninguna_ajena() {
+        //  La misma persona en dos navegadores: dos familias.
+        SessionService.Llave enLaOficina = sesiones.abrir(Session.Role.CREDITOR, null, "ana.soto@empresatest.cl", null);
+        SessionService.Llave enLaCasa = sesiones.abrir(Session.Role.CREDITOR, null, "ana.soto@empresatest.cl", null);
+        SessionService.Llave deOtra = sesiones.abrir(Session.Role.CREDITOR, null, "camila.reyes@apofyx.cl", null);
+        SessionService.Llave deUnDeudor = entrar();
+
+        assertEquals(2, sesiones.revocarDe("Ana.Soto@empresatest.cl"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, estado(() -> sesiones.renovar(enLaOficina.valor(), null)));
+        assertEquals(HttpStatus.UNAUTHORIZED, estado(() -> sesiones.renovar(enLaCasa.valor(), null)));
+        assertNotNull(sesiones.renovar(deOtra.valor(), null));
+        assertNotNull(sesiones.renovar(deUnDeudor.valor(), null));
+    }
+
+    @Test
     void no_existe_vencida_y_revocada_responden_lo_mismo() {
         //  Si los mensajes fueran distintos, quien prueba llaves sabria cuales
         //  de sus intentos existieron alguna vez.

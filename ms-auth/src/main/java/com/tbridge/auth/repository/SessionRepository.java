@@ -31,4 +31,14 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Query("update Session s set s.revokedAt = :ahora "
             + "where s.familyId = :familia and s.revokedAt is null")
     int revocarFamilia(@Param("familia") String familia, @Param("ahora") Instant ahora);
+
+    /**
+     * Revoca todas las llaves vivas de una persona, de todas sus familias: es
+     * lo que pasa cuando un admin le quita el acceso. Sin esto seguiria
+     * adentro hasta que su sesion intentara renovarse.
+     */
+    @Modifying
+    @Query("update Session s set s.revokedAt = :ahora "
+            + "where lower(s.email) = lower(:correo) and s.revokedAt is null")
+    int revocarDeCorreo(@Param("correo") String correo, @Param("ahora") Instant ahora);
 }
