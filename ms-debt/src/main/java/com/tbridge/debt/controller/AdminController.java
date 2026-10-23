@@ -3,11 +3,16 @@ package com.tbridge.debt.controller;
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
+import com.tbridge.debt.dto.response.ComisionesResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
+import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
+import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.HorarioDeContacto;
+import com.tbridge.debt.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,6 +21,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.IanaLinkRelations;
@@ -26,7 +32,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 
@@ -49,9 +59,25 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 public class AdminController {
 
     private final EmpresaService empresas;
+    private final ReglasService reglas;
+    private final ComisionService comisiones;
 
-    public AdminController(EmpresaService empresas) {
+    public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones) {
         this.empresas = empresas;
+        this.reglas = reglas;
+        this.comisiones = comisiones;
+    }
+
+    @GetMapping("/comisiones")
+    @Operation(summary = "Lo que DataBridge le cobra a cada empresa en un mes",
+            description = "El modelo de negocio (#200), por empresa usuaria: lo recuperado en el mes en pesos (G), "
+                    + "el porcentaje de su tramo y la comision P(G) = G * p(G). La paga quien cargo la deuda: la "
+                    + "agencia, o el acreedor que cobra directo; un pago nunca se cuenta dos veces.")
+    @ApiResponse(responseCode = "200", description = "Cada empresa con pagos en el mes, y el total")
+    public ComisionesResponse comisiones(
+            @Parameter(description = "El mes, como 2026-10. Sin el, el de hoy", example = "2026-10")
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth mes) {
+        return comisiones.deTodas(mes);
     }
 
     @GetMapping("/estado")
@@ -60,6 +86,16 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "El servicio responde")
     public EstadoResponse estado() {
         return new EstadoResponse("ms-debt", true);
+    }
+
+    @GetMapping("/reglas")
+    @Operation(summary = "Las reglas de cobranza y de contacto que rigen",
+            description = "La mora minima, la tasa maxima, el aviso antes de una cuota, el horario y el limite de "
+                    + "contacto de la ley, y los feriados de este ano y del siguiente: los mismos que usan las "
+                    + "campanas. Cada una dice de que variable sale. Se leen al arrancar: cambiar una pide reiniciar.")
+    @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
+    public ReglasResponse reglas() {
+        return reglas.reglas(LocalDate.now(HorarioDeContacto.CHILE));
     }
 
     @GetMapping("/empresas")

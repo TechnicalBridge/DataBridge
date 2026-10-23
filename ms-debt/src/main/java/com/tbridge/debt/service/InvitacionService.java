@@ -1,6 +1,7 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Debtor;
@@ -17,6 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 /**
  * La invitacion: el primer codigo de acceso, apenas una deuda entra en cobranza.
@@ -30,6 +32,16 @@ import java.util.List;
  * invita a nadie, y mil deudas nuevas no hacen esperar a quien entrega la
  * cartera. Si ms-auth no responde, la deuda queda igual y la agencia envia el
  * codigo a mano.
+ *
+ * <p>Fuera del horario de la ley ({@link HorarioDeContacto}) no sale: una
+ * cartera que llega de noche o un domingo deja sus deudas sin invitar, y las
+ * invita la primera pasada de contacto dentro del horario.
+ *
+ * <p>Si el correo no sale, no queda como enviado: el motivo queda en el
+ * deudor. Cada pasada de contacto invita a las deudas que todavia no
+ * recibieron ningun correo ({@link #invitarPendientes}): asi, corregido el
+ * servidor de correo, la invitacion sale sola, y tambien la que la ley dejo
+ * para despues o la de un deudor que recien trajo correo.
  */
 @Service
 public class InvitacionService {
@@ -39,17 +51,22 @@ public class InvitacionService {
     /** Lo que publica la ingesta: esta deuda acaba de entrar, o de volver, a cobranza. */
     public record DeudaEnCobranza(Long debtId) {}
 
+    /** Lo que hizo una pasada por las invitaciones pendientes, y si se corto antes de terminar. */
+    public record Pasada(int enviadas, boolean cortada) {}
+
     private final DebtRepository debts;
     private final ContactRepository contactos;
     private final AuthClient auth;
     private final LimiteDeContacto limite;
+    private final HorarioDeContacto horario;
 
     public InvitacionService(DebtRepository debts, ContactRepository contactos, AuthClient auth,
-                             LimiteDeContacto limite) {
+                             LimiteDeContacto limite, HorarioDeContacto horario) {
         this.debts = debts;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
+        this.horario = horario;
     }
 
     @Async
@@ -66,6 +83,16 @@ public class InvitacionService {
             //  conectado. La deuda queda sin invitar, y el portal lo muestra.
             return;
         }
+        if (deudor.correoConProblemas()) {
+            log.info("La deuda {} no se invita: la direccion de su deudor tiene problemas", deuda.getId());
+            return;
+        }
+        if (!horario.permiteAhora()) {
+            //  De noche, un domingo o un feriado: la invita la primera pasada
+            //  de contacto dentro del horario (invitarPendientes).
+            log.info("La deuda {} se invita en la proxima pasada: ahora no es horario de cobranza", deuda.getId());
+            return;
+        }
         if (!limite.permite(deudor, Instant.now())) {
             //  Esta semana ya se le escribio lo que deja la ley: la campana lo
             //  invita en cuanto se pueda.
@@ -74,12 +101,60 @@ public class InvitacionService {
             return;
         }
         try {
-            auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
-                    deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId()));
+            auth.emitirCodigo(pedido(deuda));
+        } catch (CorreoNoSalio noSalio) {
+            //  No es un contacto: queda en el deudor, y la invita la pasada siguiente.
+            deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), Instant.now());
+            log.warn("La invitacion de la deuda {} no salio: {}", deuda.getId(), noSalio.motivo());
+            return;
         } catch (RuntimeException e) {
             log.warn("No se pudo invitar al deudor de la deuda {}: {}", deuda.getId(), e.getMessage());
             return;
         }
         contactos.save(Contact.invitacion(deuda, AccesoService.enmascarar(deudor.getEmail())));
+        deudor.correoSalio();
+    }
+
+    /**
+     * Invita a las deudas en cobranza que todavia no recibieron ningun correo.
+     * Corre en cada pasada de contacto, que ya es dentro del horario de la
+     * ley, y respeta el limite de la semana. Si el servidor de correo no
+     * acepta, se corta: lo que falta sale en la pasada siguiente.
+     *
+     * @param fallaron los deudores a los que ya no se les intenta en esta
+     *                 pasada, porque su correo acaba de fallar. Se agregan los
+     *                 de aca.
+     */
+    @Transactional
+    public Pasada invitarPendientes(Instant cuando, Set<Debtor> fallaron) {
+        int enviadas = 0;
+        for (Debt deuda : debts.sinInvitar(Debtor.RECHAZOS_PARA_DEJAR)) {
+            Debtor deudor = deuda.getDebtor();
+            if (fallaron.contains(deudor) || !limite.permite(deudor, cuando)) {
+                continue;
+            }
+            try {
+                auth.emitirCodigo(pedido(deuda));
+            } catch (CorreoNoSalio noSalio) {
+                deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), cuando);
+                fallaron.add(deudor);
+                if (!noSalio.deLaDireccion()) {
+                    return new Pasada(enviadas, true);
+                }
+                continue;
+            } catch (RuntimeException e) {
+                log.warn("Las invitaciones pendientes quedan para la pasada siguiente: {}", e.getMessage());
+                return new Pasada(enviadas, true);
+            }
+            contactos.save(Contact.invitacion(deuda, AccesoService.enmascarar(deudor.getEmail())).el(cuando));
+            deudor.correoSalio();
+            enviadas++;
+        }
+        return new Pasada(enviadas, false);
+    }
+
+    private static AuthClient.PedidoDeCodigo pedido(Debt deuda) {
+        return new AuthClient.PedidoDeCodigo(deuda.getDebtor().getRut(), List.of("correo"),
+                deuda.getDebtor().getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId());
     }
 }

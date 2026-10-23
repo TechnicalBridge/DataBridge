@@ -18,6 +18,9 @@ export const SERVICIOS = [
 /** Si un servicio responde. */
 export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 
+/** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
+export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
+
 // ---- Las empresas (ms-debt) ----------------------------------------------------
 
 /** Todas las empresas, con los totales de su cartera. Ningun dato de un deudor. */
@@ -65,3 +68,6 @@ export async function historialDeEmpresa(rut) {
 }
 
 export const historialDeAdmins = () => pedir("/admin/auth/admins/historial").then(acciones);
+
+/** Lo que DataBridge le cobra a cada empresa en un mes (2026-10): el modelo de negocio, #200. */
+export const comisionesDelMes = (mes) => pedir("/admin/debt/comisiones", { params: { mes } });

@@ -137,7 +137,7 @@ stateDiagram-v2
     paused --> running: la reanuda
     running --> finished: la termina
     paused --> finished: la termina
-    finished --> running: solo por la API, el portal no lo ofrece
+    finished --> [*]
 ```
 
 | Estado | En el contrato | Qué hace DataBridge |
@@ -147,9 +147,9 @@ stateDiagram-v2
 | `finished` | `terminada` | Lo mismo que pausada |
 
 El estado se cambia con `POST /api/v1/campanas` o, desde el portal, con
-`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`, que
-acepta cualquiera de los tres estados sin mirar el anterior. Por eso una campaña terminada **se puede volver a
-poner en curso por la API**, aunque el portal la muestre como cerrada y no ofrezca reanudarla.
+`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`.
+**Terminada es final:** volver a ponerla en curso o pausarla responde `409` (`campana_terminada`), por
+cualquiera de los dos caminos. Mandarla terminada de nuevo no cambia nada.
 
 ---
 
@@ -196,7 +196,10 @@ stateDiagram-v2
 | Agotado | `attempts` llegó a `max_attempts`, que es 5 | `429`: pide uno nuevo |
 | Vencido | `expires_at` ya pasó | `401`: pide uno nuevo |
 
-El enlace de respaldo (`MagicLink`) es más simple: sin usar, usado o vencido a los 15 minutos.
+El acceso solicitado (`MagicLink`) tiene los mismos estados: el código y el enlace opcional
+comparten `consumed_at`, `expires_at` y el contador de cinco intentos. Dura 15 minutos por omisión;
+usar cualquiera consume ambos. Solicitar otro marca como usado el pedido anterior. Los enlaces
+antiguos y de invitación conservan `code_hash` vacío y su vencimiento original.
 
 ---
 
@@ -242,7 +245,7 @@ stateDiagram-v2
 
 | Estado | Cómo se sabe | Qué puede hacer |
 | --- | --- | --- |
-| Con acceso | `disabled_at` vacío | Pedir su enlace, entrar y renovar su sesión |
+| Con acceso | `disabled_at` vacío | Pedir su código o respaldo, entrar y renovar su sesión |
 | Sin acceso | `disabled_at` con la fecha desde cuando | Nada: no le llegan enlaces, los que tenía sin abrir quedaron usados y sus sesiones, revocadas |
 
 La cuenta nunca se borra: queda la persona y desde cuándo no entra. Cada cambio lo anota `admin_log`, con el

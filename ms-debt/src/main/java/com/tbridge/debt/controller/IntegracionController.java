@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -49,8 +50,13 @@ import java.io.IOException;
  *
  * <p>Las respuestas no llevan enlaces de HATEOAS a proposito: la forma de este
  * contrato esta publicada y la leen sistemas de otras empresas.
+ *
+ * <p>Apagado por omision: los deudores entran por campana, desde el portal.
+ * Sin {@code INTEGRACION_API=true} este controlador no existe y /api/v1
+ * responde 404, como cualquier ruta que no hay.
  */
 @RestController
+@ConditionalOnProperty(name = "app.integracion.api", havingValue = "true")
 @RequestMapping("/api/v1")
 @Tag(name = "Contrato v1", description = "Cartera, mandatos, campanas y suscripcion a eventos. Con clave de API")
 @SecurityRequirement(name = OpenApiConfig.CLAVE_API)

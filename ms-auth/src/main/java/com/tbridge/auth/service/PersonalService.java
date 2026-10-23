@@ -155,7 +155,7 @@ public class PersonalService {
 
         StaffUser persona = guardar(direccion, pedido.nombre(), StaffUser.Role.admin, null);
         bitacora.save(AdminLog.de(admin.email(), AdminLog.Action.admin_creado, null, direccion));
-        invitar(persona, "al panel de administracion", "/admin/login");
+        invitar(persona, "al panel de administración", "/admin/login");
         return PersonaResponse.from(persona);
     }
 

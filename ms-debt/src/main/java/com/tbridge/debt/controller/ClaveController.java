@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
@@ -38,8 +39,12 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
  * <p>Antes una clave se pedia por dentro, con la clave interna: habia que
  * pedirsela a quien administra DataBridge. Aca la empresa emite las suyas y
  * revoca la que se filtro, sin esperar a nadie. La clave se ve una sola vez.
+ *
+ * <p>Va y viene con la entrega por API ({@code INTEGRACION_API}): sin ella, una
+ * clave no sirve para nada, y /api/claves responde 404.
  */
 @RestController
+@ConditionalOnProperty(name = "app.integracion.api", havingValue = "true")
 @RequestMapping("/api/claves")
 @Tag(name = "Claves de API", description = "Emitir y revocar las claves del contrato de integracion")
 @SecurityRequirement(name = OpenApiConfig.JWT)

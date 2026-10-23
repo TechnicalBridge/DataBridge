@@ -16,8 +16,8 @@ import java.util.Map;
  * compose le anuncia en {@code CORREO_BUZON_DE_PRUEBA}. Si no hay
  * {@code SMTP_HOST}, el correo va ahi, y lo demas de {@code SMTP_*} se ignora:
  * el puerto, la autenticacion y STARTTLS de un {@code .env} son los de un
- * servidor real, y con el buzon de prueba no calzan. Con {@code SMTP_HOST}, el
- * buzon de prueba no se usa.
+ * servidor real, y con el buzon de prueba no calzan. Con {@code SMTP_HOST}, o
+ * con {@code BREVO_API_KEY}, el buzon de prueba no se usa.
  *
  * <p>Sin las dos cosas (ms-auth corriendo con Maven, sin nada configurado) no
  * se manda nada: los codigos y los enlaces quedan en el log.
@@ -35,7 +35,9 @@ public class BuzonDePrueba implements EnvironmentPostProcessor, Ordered {
     public void postProcessEnvironment(ConfigurableEnvironment entorno, SpringApplication aplicacion) {
         String servidor = entorno.getProperty("spring.mail.host", "");
         String buzon = entorno.getProperty("app.mail.buzon-de-prueba", "");
-        if (!servidor.isBlank() || buzon.isBlank()) {
+        String brevo = entorno.getProperty("app.mail.brevo.api-key", "");
+        //  Con Brevo los correos salen por su API: el buzon de prueba no se usa.
+        if (!servidor.isBlank() || buzon.isBlank() || !brevo.isBlank()) {
             return;
         }
         String[] partes = buzon.trim().split(":", 2);

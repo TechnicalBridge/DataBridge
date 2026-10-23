@@ -1,0 +1,120 @@
+package com.tbridge.debt.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+/**
+ * Cuando se le puede escribir a un deudor: de lunes a sabado, de 8:00 a 20:00,
+ * y nunca un feriado (Ley 19.496, art. 37, con los cambios de la Ley 21.320).
+ *
+ * <p>Es la misma regla para todo lo que le escribe: la invitacion al entrar la
+ * cartera, los toques de una campana, el recordatorio de una cuota y el codigo
+ * que reenvia la empresa. Los feriados nacionales se calculan
+ * ({@link FeriadosDeChile}); los que se decretan (elecciones, plebiscitos,
+ * feriados especiales) no se pueden calcular y vienen de
+ * {@code CONTACTO_FERIADOS}.
+ */
+@Component
+public class HorarioDeContacto {
+
+    private static final Logger log = LoggerFactory.getLogger(HorarioDeContacto.class);
+
+    /** La hora que cuenta es la de Chile, este donde este el servidor. */
+    public static final ZoneId CHILE = ZoneId.of("America/Santiago");
+
+    /** La regla, como se le dice a una persona. */
+    public static final String REGLA = "de lunes a sabado, de 8:00 a 20:00, y nunca un feriado";
+
+    private static final LocalTime DESDE = LocalTime.of(8, 0);
+    private static final LocalTime HASTA = LocalTime.of(20, 0);
+
+    /** Los que se decretan: no se pueden calcular. */
+    private final Set<LocalDate> decretados;
+    /** Los nacionales, calculados una vez por ano. */
+    private final Map<Integer, Set<LocalDate>> nacionales = new ConcurrentHashMap<>();
+    /** Solo para probar ({@code CONTACTO_SIN_HORARIO}): se escribe a cualquier hora. Nunca en produccion. */
+    private final boolean apagado;
+
+    public HorarioDeContacto(String decretados) {
+        this(decretados, false);
+    }
+
+    @Autowired
+    public HorarioDeContacto(@Value("${app.contacto.feriados:}") String decretados,
+                             @Value("${app.contacto.sin-horario:false}") boolean apagado) {
+        this.decretados = Arrays.stream(decretados.split(","))
+                .map(String::trim)
+                .filter(dia -> !dia.isEmpty())
+                .map(LocalDate::parse)
+                .collect(Collectors.toUnmodifiableSet());
+        this.apagado = apagado;
+        int ano = LocalDate.now(CHILE).getYear();
+        log.info("Feriados de {} en que no se le escribe a ningun deudor: {}; decretados (CONTACTO_FERIADOS): {}",
+                ano, new TreeSet<>(nacionalesDe(ano)), new TreeSet<>(this.decretados));
+        if (apagado) {
+            log.warn("HORARIO DE LA LEY APAGADO (CONTACTO_SIN_HORARIO=true): se le escribe a los deudores a cualquier "
+                    + "hora, tambien de noche, los domingos y los feriados. Es solo para probar: nunca en produccion");
+        }
+    }
+
+    /** Si el horario esta apagado para probar ({@code CONTACTO_SIN_HORARIO}). */
+    public boolean apagado() {
+        return apagado;
+    }
+
+    /** Si a esta hora de Chile se puede hacer cobranza. Con el horario apagado para probar, siempre. */
+    public boolean permite(LocalDateTime ahora) {
+        if (apagado) {
+            return true;
+        }
+        LocalTime hora = ahora.toLocalTime();
+        return esDiaDeContacto(ahora.toLocalDate()) && !hora.isBefore(DESDE) && hora.isBefore(HASTA);
+    }
+
+    /** Si ahora mismo, en Chile, se puede hacer cobranza. */
+    public boolean permiteAhora() {
+        return permite(LocalDateTime.now(CHILE));
+    }
+
+    /** Si ese dia se puede escribir a alguna hora: ni domingo ni feriado. Con el horario apagado, cualquiera. */
+    public boolean esDiaDeContacto(LocalDate dia) {
+        return apagado || (dia.getDayOfWeek() != DayOfWeek.SUNDAY && !esFeriado(dia));
+    }
+
+    /** Un feriado nacional de cualquier ano, o uno decretado. */
+    boolean esFeriado(LocalDate dia) {
+        return decretados.contains(dia) || nacionalesDe(dia.getYear()).contains(dia);
+    }
+
+    /** Los feriados de un ano en que no se le escribe a nadie: los nacionales y los decretados, en orden. */
+    public SortedSet<LocalDate> feriadosDe(int ano) {
+        SortedSet<LocalDate> todos = new TreeSet<>(nacionalesDe(ano));
+        decretados.stream().filter(dia -> dia.getYear() == ano).forEach(todos::add);
+        return todos;
+    }
+
+    /** Si un feriado es de los que se decretan ({@code CONTACTO_FERIADOS}) y no de los que se calculan. */
+    public boolean esDecretado(LocalDate dia) {
+        return decretados.contains(dia) && !nacionalesDe(dia.getYear()).contains(dia);
+    }
+
+    private Set<LocalDate> nacionalesDe(int ano) {
+        return nacionales.computeIfAbsent(ano, FeriadosDeChile::delAno);
+    }
+}
