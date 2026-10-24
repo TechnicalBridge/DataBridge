@@ -45,13 +45,14 @@ Hasta #238 las tres bases vivían en un solo MySQL (`tbridge-db`, con el volumen
 pasar esos datos a las tres, una sola vez por equipo y antes de levantar los servicios:
 
 ```powershell
-.\preparar-env.ps1
-.\db\separar-bases.ps1
+powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1
+powershell -ExecutionPolicy Bypass -File .\db\separar-bases.ps1
 docker compose --profile app up -d --build --wait --remove-orphans
 ```
 
 `separar-bases.ps1` abre el volumen de antes sin tocarlo, vuelca cada base y la carga en la suya, y compara
-las filas de cada tabla. No pisa una base nueva que ya tenga tablas (salvo con `-Forzar`). El volumen de antes
+las filas de cada tabla. No pisa una base nueva que ya tenga tablas: si ya levantaste todo antes de correrlo,
+las tablas vacías que creó Flyway se reemplazan por las de antes con `-Forzar`. El volumen de antes
 queda intacto: cuando compruebes que todo está bien, se borra con `docker volume rm` y el nombre que muestra
 el script.
 

@@ -5,9 +5,13 @@
 #  contenedor tbridge-db, con el volumen tbridge_db_data). Ahora cada servicio
 #  tiene el suyo. Si en tu equipo ya habia datos, se pasan una sola vez:
 #
-#    .\preparar-env.ps1                  # las claves de las tres bases
-#    .\db\separar-bases.ps1              # copia los datos
+#    powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1       # las claves de las tres bases
+#    powershell -ExecutionPolicy Bypass -File .\db\separar-bases.ps1   # copia los datos
 #    docker compose --profile app up -d --build --wait --remove-orphans
+#
+#  Si ya levantaste todo antes de correrlo, las bases nuevas tienen las tablas
+#  vacias que creo Flyway: el script se detiene, y con -Forzar las reemplaza
+#  por las de antes.
 #
 #  Que hace:
 #    1. Apaga el MySQL de antes, sin borrarlo, y abre su volumen en un
@@ -89,6 +93,11 @@ function Esperar-Base([string]$contenedor, [string]$clave) {
 }
 
 # ---- Lo que hace falta -------------------------------------------------------
+#  Sin Docker no se ve ni el contenedor ni el volumen de antes: sin este aviso,
+#  el script concluiria que no hay datos que pasar.
+if (-not (Correr '' @('info', '--format', '{{.ServerVersion}}')).Ok) {
+    throw 'Docker no responde. Abre Docker Desktop, espera a que diga que esta corriendo, y vuelve a correr el script.'
+}
 if (-not (Test-Path $archivoEnv)) { throw "No hay .env en $raiz. Crealo con .\preparar-env.ps1." }
 $claveVieja = Valor 'MYSQL_ROOT_PASSWORD'
 foreach ($b in $bases) {
@@ -136,10 +145,8 @@ try {
     Write-Host 'El volumen de antes esta abierto.'
 
     # ---- 2. Las tres bases nuevas, vacias -----------------------------------
-    #  Sin servicios encima: Flyway no debe crear tablas mientras se cargan.
     Push-Location $raiz
     try {
-        Correr '' @('compose', '--profile', 'app', 'stop', 'ms-auth', 'ms-debt', 'ms-payments') | Out-Null
         $r = Correr '' (@('compose', 'up', '-d', '--wait') + ($bases | ForEach-Object { $_.Servicio }))
         if (-not $r.Ok) { throw 'No se pudieron levantar las tres bases nuevas (docker compose up -d db-auth db-debt db-payments).' }
     } finally { Pop-Location }
@@ -150,6 +157,11 @@ try {
             throw "$($b.Contenedor) ya tiene $($tablas[0]) tablas en $($b.Base). No piso nada: si quieres reemplazarlas por las de antes, corre de nuevo con -Forzar."
         }
     }
+    #  Recien ahora, sin servicios encima: Flyway no debe crear tablas mientras se cargan.
+    Push-Location $raiz
+    try {
+        Correr '' @('compose', '--profile', 'app', 'stop', 'ms-auth', 'ms-debt', 'ms-payments') | Out-Null
+    } finally { Pop-Location }
 
     # ---- 3. Volcar y cargar -------------------------------------------------
     foreach ($b in $bases) {

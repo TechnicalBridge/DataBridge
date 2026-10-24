@@ -195,8 +195,9 @@ conexión; después son segundos.
 Para apagar: `docker compose --profile app down`. Con `-v` borra además los datos.
 
 > **Si ya tenías DataBridge corriendo antes de [#238](https://github.com/TechnicalBridge/TB_web/issues/238)**, con un solo MySQL (`tbridge-db`): antes de
-> levantar, `.\preparar-env.ps1` agrega las claves de las tres bases y `.\db\separar-bases.ps1` pasa tus
-> datos a cada una, sin tocar el volumen de antes. Después, la orden de siempre con `--remove-orphans`.
+> levantar, `preparar-env.ps1` agrega las claves de las tres bases y `db\separar-bases.ps1` pasa tus
+> datos a cada una, sin tocar el volumen de antes. Las dos se corren como arriba
+> (`powershell -ExecutionPolicy Bypass -File ...`), y después la orden de siempre con `--remove-orphans`.
 > El detalle está en [`db/README.md`](db/README.md).
 
 ### Si algo falla en un equipo nuevo
@@ -209,6 +210,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 | `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | No hay `.env`, o le falta ese secreto: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1` lo completa sin tocar lo que ya tiene |
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes. Si es la de una base (`DB_DEBT_PASSWORD`, …), la cambia también dentro de esa base, que tiene que estar arriba, sin perder datos. Después, `docker compose --profile app up -d` |
+| `db-auth` no parte con `port is already allocated` (3308), después de traer [#238](https://github.com/TechnicalBridge/TB_web/issues/238) | Es el MySQL de antes (`tbridge-db`), que sigue corriendo con tus datos. Corre `db\separar-bases.ps1` como dice arriba: lo apaga y pasa los datos. Si las bases nuevas ya alcanzaron a crear sus tablas vacías, se lo pide con `-Forzar` |
 | `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `DB_AUTH_PORT` (3308), `DB_DEBT_PORT` (3309), `DB_PAYMENTS_PORT` (3310), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
 | La construcción se cae bajando dependencias | Sin internet, o un proxy que la corta. Se vuelve a correr la misma orden: lo que ya bajó queda en caché |
