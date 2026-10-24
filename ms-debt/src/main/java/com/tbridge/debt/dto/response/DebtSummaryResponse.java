@@ -71,8 +71,8 @@ public record DebtSummaryResponse(
         @Schema(description = "Si el ultimo correo al deudor no salio: por que, cuando, y si su direccion ya tiene "
                 + "problemas. Vacio si el ultimo salio", nullable = true)
         CorreoFallido correoFallido,
-        @Schema(description = "La CAE del convenio, guardada al aceptarlo (D.S. 43 de 2012): el costo del credito en "
-                + "un ano, con todo incluido, en %. Vacio si la deuda no esta en convenio", nullable = true,
+        @Schema(description = "La CAE del convenio vigente, guardada al aceptarlo (D.S. 43 de 2012): el costo del "
+                + "credito en un ano, con todo incluido, en %. Vacio si la deuda no esta en convenio", nullable = true,
                 example = "18.00")
         BigDecimal cae
 ) {
@@ -141,6 +141,7 @@ public record DebtSummaryResponse(
         return from(deuda, cuotas, codigoEnviado, disputa, interesMora, oferta, null);
     }
 
+    /** Y la CAE del convenio vigente, que se informa solo si la deuda esta en convenio. */
     public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
                                            Disputa disputa, BigDecimal interesMora, Oferta oferta, BigDecimal cae) {
         BigDecimal saldo = suma(cuotas, Installment.Status.pending);
@@ -162,9 +163,6 @@ public record DebtSummaryResponse(
         LocalDate hoy = LocalDate.now(CHILE);
         int vencidas = (int) cuotas.stream()
                 .filter(c -> c.getStatus() == Installment.Status.pending && c.getDueDate().isBefore(hoy)).count();
-        //  La CAE la pasa el detalle, del convenio vigente. La lista no la busca cuota por cuota:
-        //  seria una consulta por convenio, y la de un convenio ya reemplazado podria salir primero.
-        BigDecimal caeConvenio = cae;
         return new DebtSummaryResponse(
                 deuda.getId(),
                 deuda.getExternalId(),
@@ -192,6 +190,7 @@ public record DebtSummaryResponse(
                 oferta == null ? null : oferta.hasta(),
                 deuda.getDebtor().getEmail() == null,
                 CorreoFallido.de(deuda.getDebtor()),
-                caeConvenio);
+                //  Solo en convenio: una deuda reabierta o retirada no informa la CAE de un convenio que ya no corre.
+                conConvenio ? cae : null);
     }
 }

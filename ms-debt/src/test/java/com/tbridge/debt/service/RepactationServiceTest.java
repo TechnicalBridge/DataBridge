@@ -114,4 +114,24 @@ class RepactationServiceTest {
         assertEquals(new BigDecimal("18.01"), conTasa.cae());
         assertEquals(new BigDecimal("105.32"), conTasa.costoTotal());
     }
+
+    @Test
+    void con_un_monto_grande_la_cae_sigue_siendo_la_tasa_por_doce() {
+        //  $50.000.000 al 1,5% en 24 cuotas: el valor presente se mide en millones, y la busqueda
+        //  igual se detiene cuando la tasa ya no cambia.
+        RepactPlan plan = service.simulate(new BigDecimal("50000000"), BigDecimal.ZERO, new BigDecimal("1.5"),
+                Debt.Currency.CLP, 24, LocalDate.of(2026, 11, 1));
+
+        assertEquals(new BigDecimal("18.00"), plan.cae());
+        assertEquals(plan.total(), plan.costoTotal());
+    }
+
+    @Test
+    void la_cae_sin_tasa_es_cero_aunque_haya_cuotas() {
+        RepactPlan plan = service.simulate(new BigDecimal("100000"), Debt.Currency.CLP, 3, LocalDate.of(2026, 1, 15));
+
+        assertEquals(new BigDecimal("0.00"), RepactationService.calcularCae(plan.aRepactar(), plan.cuotas(), null));
+        assertEquals(new BigDecimal("0.00"),
+                RepactationService.calcularCae(plan.aRepactar(), plan.cuotas(), BigDecimal.ZERO));
+    }
 }

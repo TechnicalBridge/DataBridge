@@ -14,12 +14,17 @@ export function dinero(valor, moneda = "CLP") {
   return moneda === "UF" ? `UF ${UF.format(n)}` : PESOS.format(n);
 }
 
-/** 1.5 -> "1,5%": la tasa mensual que pacto el acreedor. Con decimales fijados (ej: 2), 18 -> "18,00%". */
-export const porcentaje = (valor, decimales) => `${Number(valor || 0).toLocaleString("es-CL",
-  decimales != null
-    ? { minimumFractionDigits: decimales, maximumFractionDigits: decimales }
-    : { maximumFractionDigits: 2 }
-)}%`;
+/**
+ * 1.5 -> "1,5%": la tasa mensual que pacto el acreedor. Con los decimales
+ * fijos, como la CAE: (18, 2) -> "18,00%". Un valor que no vino es "—", nunca 0.
+ */
+export function porcentaje(valor, decimales) {
+  if (valor == null || valor === "") return "—";
+  const cifras = decimales == null
+    ? { maximumFractionDigits: 2 }
+    : { minimumFractionDigits: decimales, maximumFractionDigits: decimales };
+  return `${Number(valor).toLocaleString("es-CL", cifras)}%`;
+}
 
 /** 16482337-7 -> 16.482.337-7, como se escribe en Chile. */
 export function rutLegible(rut) {

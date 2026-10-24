@@ -834,6 +834,7 @@ classDiagram
             -currency : Debt.Currency
             -interestRate : BigDecimal
             -principal : BigDecimal
+            -cae : BigDecimal
             -acceptedAt : Instant
             -supersededAt : Instant
         }
@@ -1110,6 +1111,7 @@ classDiagram
             <<service>>
             +simulate(BigDecimal, Debt.Currency, int, LocalDate) RepactPlan
             +simulate(BigDecimal, BigDecimal, BigDecimal, Debt.Currency, int, LocalDate) RepactPlan
+            ~calcularCae(BigDecimal, List~InstallmentPreview~, BigDecimal)$ BigDecimal
         }
         class Intereses {
             <<utility>>
@@ -1999,6 +2001,7 @@ classDiagram
         class RepactationRepository {
             <<repository>>
             +findByDebtAndSupersededAtIsNull(Debt) List~Repactation~
+            +findByDebtInAndSupersededAtIsNull(Collection~Debt~) List~Repactation~
         }
         class SubscriptionRepository {
             <<repository>>

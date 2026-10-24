@@ -65,24 +65,28 @@ public class RepactationService {
         BigDecimal total = cuotas.stream().map(InstallmentPreview::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal interesConvenio = cuotas.stream().map(InstallmentPreview::interest)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal cae = conInteres
-                ? calcularCae(aRepactar, cuotas, tasaMensual)
-                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal costoTotal = total;
-
+        //  El costo total que pide la ley es la suma de las cuotas: hoy no hay gastos que sumarle.
         return new RepactPlan(months, cuotas.getFirst().amount(), cuotas.getLast().amount(), total, cuotas,
                 capital.setScale(decimales, RoundingMode.HALF_UP), sinMora.setScale(decimales, RoundingMode.HALF_UP),
-                aRepactar, conInteres ? tasaMensual : null, interesConvenio, cae, costoTotal);
+                aRepactar, conInteres ? tasaMensual : null, interesConvenio,
+                calcularCae(aRepactar, cuotas, tasaMensual), total);
     }
 
+    /** Cuando dos aproximaciones de la tasa mensual ya no se distinguen: muy por debajo de la decima que se informa. */
+    private static final double PRECISION_CAE = 1e-12;
+
     /**
-     * Calcula la Carga Anual Equivalente (CAE) del convenio según la Ley 20.555 y el D.S. 43 de 2012.
+     * La Carga Anual Equivalente (CAE) del convenio, como pide la Ley 20.555 y
+     * el D.S. 43 de 2012: la tasa mensual que iguala lo que se repacta con el
+     * valor presente de las cuotas, por 12, en % y con dos decimales. Los plazos
+     * se cuentan en meses desde que se acepta, como definio #50 (la primera
+     * cuota vence al mes). Sin tasa, 0,00.
      *
-     * <p>Es la tasa mensual efectiva que iguala el monto que se repacta con el valor
-     * presente de las cuotas, multiplicada por 12, con dos decimales.
-     * Sin tasa de interés, la CAE es 0,00%.
+     * <p>La tasa se busca con Newton, partiendo de la pactada, que con el
+     * sistema frances ya es casi la respuesta: el redondeo de las cuotas es lo
+     * unico que la mueve.
      */
-    public static BigDecimal calcularCae(BigDecimal principal, List<InstallmentPreview> cuotas, BigDecimal tasaMensual) {
+    static BigDecimal calcularCae(BigDecimal principal, List<InstallmentPreview> cuotas, BigDecimal tasaMensual) {
         if (tasaMensual == null || tasaMensual.signum() <= 0 || principal == null || principal.signum() <= 0
                 || cuotas == null || cuotas.isEmpty()) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -93,11 +97,7 @@ public class RepactationService {
         int n = montos.length;
 
         double r = tasaMensual.doubleValue() / 100.0;
-        if (r <= 0) {
-            r = 0.01;
-        }
-
-        for (int iter = 0; iter < 100; iter++) {
+        for (int vuelta = 0; vuelta < 100; vuelta++) {
             double f = -p;
             double df = 0.0;
             for (int k = 1; k <= n; k++) {
@@ -105,21 +105,14 @@ public class RepactationService {
                 f += montos[k - 1] / factor;
                 df -= k * montos[k - 1] / (factor * (1.0 + r));
             }
-            if (Math.abs(f) < 1e-9) {
-                break;
-            }
-            if (Math.abs(df) < 1e-12) {
-                break;
-            }
             double delta = f / df;
-            r -= delta;
-            if (r < -0.99) {
-                r = -0.99;
+            r = Math.max(r - delta, -0.99);
+            if (Math.abs(delta) < PRECISION_CAE) {
+                break;
             }
         }
-
-        double cae = r * 12.0 * 100.0;
-        return BigDecimal.valueOf(cae).setScale(2, RoundingMode.HALF_UP);
+        //  Al pasar a BigDecimal antes de escalar, el redondeo a la centesima es decimal, no binario.
+        return new BigDecimal(Double.toString(r)).multiply(BigDecimal.valueOf(1200)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static List<InstallmentPreview> iguales(BigDecimal total, int decimales, int months, LocalDate from) {

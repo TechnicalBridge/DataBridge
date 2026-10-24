@@ -201,12 +201,7 @@ export default function Pay() {
                 <>
                   <div className="card-cab">
                     <h3>Elige las cuotas</h3>
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                      {deuda.cae != null ? (
-                        <span className="badge badge-muted">CAE {porcentaje(deuda.cae, 2)}</span>
-                      ) : null}
-                      <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
-                    </div>
+                    <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
                   </div>
                   <p className="hint" style={{ margin: "0 0 14px" }}>
                     Se pagan en orden, desde la que vence primero. Marca hasta donde quieras avanzar.
