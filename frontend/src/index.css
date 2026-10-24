@@ -335,6 +335,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 /* ---- Portal: marco ------------------------------------------------------------------------- */
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 256px 1fr; }
+.app-shell > * { min-width: 0; }
 .sidebar {
   position: sticky;
   top: 0;
@@ -465,6 +466,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .chip.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .chip:disabled, .method:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .buscador { max-width: 320px; padding: 9px 13px; font-size: 15px; }
+/* Anotar una devolucion en la misma fila de Pagos recibidos (#153). */
+.devolucion-en-linea { display: flex; gap: 6px; align-items: center; min-width: 320px; }
+.devolucion-en-linea .buscador { flex: 1; min-width: 150px; padding: 6px 10px; font-size: 14px; }
 
 /* ---- La barra de estado: pendiente, en convenio, pago conciliado ----------------------------- */
 
@@ -639,6 +643,81 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .fecha-caja.vencida { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
 .fecha-caja.vencida b, .fecha-caja.vencida span { color: var(--warn); }
 .fila-acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+
+/* ---- Reglas (panel de administracion) ---------------------------------------------------------- */
+
+.reglas { display: grid; gap: 18px; }
+.reglas-servicio { color: var(--muted); font-size: 14px; font-weight: 500; margin-left: 6px; }
+.regla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 0.9fr);
+  gap: 6px 18px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+.regla:last-child { border-bottom: 0; }
+.regla-que { font-weight: 600; }
+.regla-valor { color: var(--ink-2); }
+.regla-valor .hint { margin-top: 6px; font-size: 13.5px; }
+.regla-origen { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.regla-origen code {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.regla-ley { color: var(--muted); font-size: 13.5px; text-align: right; }
+.regla details summary { cursor: pointer; color: var(--brand); font-size: 14.5px; margin-top: 4px; width: fit-content; }
+.regla-lista { margin: 8px 0 0; padding-left: 18px; columns: 2; column-gap: 28px; font-size: 14.5px; }
+.regla-lista li { break-inside: avoid; }
+/* ---- Cargar cartera: el paso a paso ------------------------------------------------------------ */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.asistente { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; counter-reset: paso; }
+.asistente li { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14.5px; font-weight: 600; }
+.asistente li::before {
+  counter-increment: paso;
+  content: counter(paso);
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--line-2); background: var(--paper); font-size: 13px;
+}
+.asistente li.actual { color: var(--ink); }
+.asistente li.actual::before { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.asistente li.hecho { color: var(--ink-2); }
+.asistente li.hecho::before { content: "\2713"; border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
+.opciones-campana { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.opcion {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper);
+  cursor: pointer; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.opcion:hover { border-color: var(--line-2); }
+.opcion.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--ring); }
+.opcion b { display: block; }
+.opcion .mono { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.zona-planilla { border-radius: var(--radius-sm); padding: 16px; }
+.cifras-revision { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.cifra { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--paper-2); border: 1px solid var(--line); }
+.cifra b { display: block; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.cifra span { color: var(--muted); font-size: 13.5px; }
+.cifra.entran b { color: var(--brand); }
+.cifra.rechazo b { color: var(--danger); }
+/* El modelo de negocio (#200): la tarjeta va sobre la grilla, a lo ancho. */
+.comision-del-mes { margin-bottom: 16px; }
+.selector-mes { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.selector-mes input { width: auto; }
+.table.tramos caption { caption-side: top; text-align: left; padding: 0 0 6px; }
+.table.tramos tr.vigente td { background: var(--brand-soft); font-weight: 600; }
+.table.tramos .badge { margin-left: 8px; }
+.lista-revision { margin: 4px 0 14px; padding-left: 20px; max-height: 260px; overflow: auto; font-size: 14.5px; }
+.lista-revision li { margin: 4px 0; overflow-wrap: anywhere; }
 
 /* ---- Campañas ---------------------------------------------------------------------------------- */
 
@@ -902,44 +981,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .preguntas summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--muted); transition: transform 0.25s var(--ease); }
 .preguntas details[open] summary::after { transform: rotate(45deg); }
 .preguntas details p { margin: 0 2px 16px; color: var(--ink-2); max-width: 70ch; }
-.codigo {
-  margin: 10px 0 0;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: var(--paper-2);
-  border: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 13.5px;
-  line-height: 1.6;
-  overflow-x: auto;
-  white-space: pre;
-}
 .columnas-csv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .columnas-csv code { padding: 2px 8px; border-radius: 6px; background: var(--paper-2); border: 1px solid var(--line); }
-
-/* ---- Claves de API ------------------------------------------------------------------------- */
-
-.clave-nueva {
-  padding: 16px 18px;
-  border-radius: var(--radius);
-  background: var(--brand-soft);
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
-  animation: subir 0.4s var(--ease) both;
-}
-.clave-nueva .clave-texto {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 0 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 14px;
-  word-break: break-all;
-}
-.clave-nueva .clave-texto code { flex: 1; }
+.columnas-csv code.opcional { border-style: dashed; color: var(--muted); }
+.problemas-planilla { margin: 8px 0 0; color: inherit; }
 
 /* ---- Asistente ------------------------------------------------------------------------------- */
 
@@ -1077,6 +1122,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 
 @media (max-width: 620px) {
+  .regla { grid-template-columns: 1fr; }
+  .regla-origen { justify-content: flex-start; }
+  .regla-ley { text-align: left; }
+  .regla-lista { columns: 1; }
   .deuda { padding: 20px 18px; }
   .deuda-cab { flex-direction: column; }
   .deuda-monto { text-align: left; }

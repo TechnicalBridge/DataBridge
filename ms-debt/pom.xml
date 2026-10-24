@@ -98,6 +98,12 @@
       <artifactId>openpdf</artifactId>
       <version>2.4.0</version>
     </dependency>
+    <!-- La planilla de la cartera en Excel: la plantilla y leer la que sube la empresa. -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.5.1</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

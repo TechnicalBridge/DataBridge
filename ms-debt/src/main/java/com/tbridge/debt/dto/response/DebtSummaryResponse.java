@@ -1,6 +1,7 @@
 package com.tbridge.debt.dto.response;
 
 import com.tbridge.debt.model.Debt;
+import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Installment;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.hateoas.server.core.Relation;
@@ -67,21 +68,31 @@ public record DebtSummaryResponse(
         @Schema(description = "El deudor no tiene un correo valido: no le llegan el codigo ni los recordatorios por "
                 + "correo", example = "false")
         boolean sinCorreoValido,
-        @Schema(description = "La CAE guardada del convenio si la deuda está en convenio", nullable = true, example = "18.00")
+        @Schema(description = "Si el ultimo correo al deudor no salio: por que, cuando, y si su direccion ya tiene "
+                + "problemas. Vacio si el ultimo salio", nullable = true)
+        CorreoFallido correoFallido,
+        @Schema(description = "La CAE del convenio, guardada al aceptarlo (D.S. 43 de 2012): el costo del credito en "
+                + "un ano, con todo incluido, en %. Vacio si la deuda no esta en convenio", nullable = true,
+                example = "18.00")
         BigDecimal cae
 ) {
 
-    public DebtSummaryResponse(Long id, String externalId, String acreedor, String acreedorRut, String deudor,
-                               String deudorRut, String concepto, Debt.Currency moneda, BigDecimal montoOriginal,
-                               BigDecimal saldo, BigDecimal pagado, Debt.Status estado, Instant actualizada,
-                               int cuotasPagadas, int cuotasTotales, boolean conConvenio, int cuotasVencidas,
-                               Instant codigoEnviado, Disputa disputa, BigDecimal tasaInteresMensual,
-                               BigDecimal interesMora, BigDecimal totalHoy, BigDecimal descuentoDisponible,
-                               LocalDate descuentoHasta, boolean sinCorreoValido) {
-        this(id, externalId, acreedor, acreedorRut, deudor, deudorRut, concepto, moneda, montoOriginal, saldo,
-                pagado, estado, actualizada, cuotasPagadas, cuotasTotales, conConvenio, cuotasVencidas,
-                codigoEnviado, disputa, tasaInteresMensual, interesMora, totalHoy, descuentoDisponible,
-                descuentoHasta, sinCorreoValido, null);
+    /** El ultimo correo al deudor no salio. */
+    @Schema(description = "El ultimo correo al deudor, que no salio")
+    public record CorreoFallido(
+            @Schema(description = "Por que, con la direccion tapada",
+                    example = "el servidor rechazo la direccion (550 5.1.1 User unknown)")
+            String motivo,
+            Instant cuando,
+            @Schema(description = "El servidor rechazo la direccion tres veces seguidas: ya no se le escribe solo, "
+                    + "hasta que una cartera traiga otro correo. La empresa puede reenviar el codigo a mano",
+                    example = "false")
+            boolean conProblemas
+    ) {
+        static CorreoFallido de(Debtor deudor) {
+            return deudor.getEmailFailedAt() == null ? null
+                    : new CorreoFallido(deudor.getEmailFailure(), deudor.getEmailFailedAt(), deudor.correoConProblemas());
+        }
     }
 
     /** El descuento por pronto pago que tiene hoy la deuda, y hasta cuando vale. */
@@ -184,6 +195,7 @@ public record DebtSummaryResponse(
                 oferta == null ? null : oferta.monto(),
                 oferta == null ? null : oferta.hasta(),
                 deuda.getDebtor().getEmail() == null,
+                CorreoFallido.de(deuda.getDebtor()),
                 caeConvenio);
     }
 }

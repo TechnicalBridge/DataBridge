@@ -103,6 +103,11 @@ public class WebpayClient {
         return real;
     }
 
+    /** Si es la de produccion de Transbank, y no la de integracion, donde se paga con tarjetas de prueba. */
+    public boolean produccion() {
+        return base.contains("webpay3g.transbank.cl");
+    }
+
     /**
      * Cuanto vale un cobro de Webpay desde que se abre: lo que tarda Transbank
      * en darlo por muerto. En integracion, 15 minutos; en produccion, 9.

@@ -5,11 +5,9 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 /**
- * El respaldo cuando el codigo no funciona, y para el personal de una empresa.
- *
- * <p>Se conserva con una advertencia: es justo el patron que el documento de
- * APOFYX critica, porque el destino lo elige quien manda el mensaje. Por eso
- * vive mucho menos que un codigo y se usa solo cuando alguien lo pide.
+ * La solicitud de acceso: codigo y, solo en el respaldo, enlace alternativo.
+ * Ambos comparten intentos, vencimiento y consumo en una misma fila. Los
+ * enlaces anteriores a V6 no tienen codigo y siguen siendo de un solo uso.
  */
 @Entity
 @Table(name = "magic_links")
@@ -37,9 +35,23 @@ public class MagicLink {
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
+    @Column(name = "code_hash", columnDefinition = "char(64)")
+    private String codeHash;
+
+    @Column(nullable = false)
+    private Short attempts = 0;
+
+    @Column(name = "max_attempts", nullable = false)
+    private Short maxAttempts = 5;
+
+    @Column(name = "link_enabled", nullable = false)
+    private boolean linkEnabled = true;
+
     public boolean vigente() {
-        return consumedAt == null && Instant.now().isBefore(expiresAt);
+        return consumedAt == null && attempts < maxAttempts && Instant.now().isBefore(expiresAt);
     }
+
+    public void fallo() { attempts++; }
 
     public Long getId() { return id; }
     public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
@@ -53,4 +65,10 @@ public class MagicLink {
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
     public Instant getConsumedAt() { return consumedAt; }
     public void setConsumedAt(Instant consumedAt) { this.consumedAt = consumedAt; }
+    public String getCodeHash() { return codeHash; }
+    public void setCodeHash(String codeHash) { this.codeHash = codeHash; }
+    public Short getAttempts() { return attempts; }
+    public Short getMaxAttempts() { return maxAttempts; }
+    public boolean isLinkEnabled() { return linkEnabled; }
+    public void setLinkEnabled(boolean linkEnabled) { this.linkEnabled = linkEnabled; }
 }

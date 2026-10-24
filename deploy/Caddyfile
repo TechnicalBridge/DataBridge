@@ -1,0 +1,20 @@
+# DataBridge en un servidor (#172): Caddy saca el certificado de Let's Encrypt
+# para el dominio, lo renueva solo, y le pasa todo al portal (nginx), que a su
+# vez manda /api al gateway.
+
+www.{$DOMINIO} {
+	redir https://{$DOMINIO}{uri} permanent
+}
+
+{$DOMINIO} {
+	encode zstd gzip
+	reverse_proxy portal:8080 {
+		# nginx toma de aqui la IP del visitante: el limite de peticiones del
+		# gateway cuenta por IP, y sin esto todos serian una sola, la de Caddy.
+		header_up X-Real-IP {remote_host}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

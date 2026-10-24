@@ -15,3 +15,6 @@ mvnw    text eol=lf
 # Y al reves: el lanzador de Windows necesita CRLF, o cmd.exe interpreta mal
 # algunas lineas.
 *.cmd   text eol=crlf
+
+# Las planillas de Excel son binarias: Git no les toca los finales de linea.
+*.xlsx  binary

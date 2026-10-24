@@ -13,6 +13,12 @@ Las migraciones están en `<servicio>/src/main/resources/db/migration/`. La lín
 Es la diferencia con lo que había antes, donde `ddl-auto: update` cambiaba el esquema en silencio y
 nadie podía decir en qué estado estaba una base.
 
+En `tb_auth`, `V6__codigo_y_enlace_del_mismo_acceso.sql` agrega a `magic_links` la huella del código
+solicitado, sus intentos y si el enlace está habilitado. Código y enlace comparten consumo y
+vencimiento. Es aditiva: los enlaces anteriores conservan `code_hash` vacío y siguen habilitados.
+Respaldar antes de aplicarla. Para volver al código anterior se conserva V6 en el historial de
+Flyway; no se borran columnas ni se edita una migración aplicada.
+
 ## Levantar las bases
 
 ```bash

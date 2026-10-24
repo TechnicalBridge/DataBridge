@@ -673,7 +673,10 @@ public class DebtService {
                 aviso.gateway() == null ? null : aviso.gateway().toLowerCase(Locale.ROOT), lugares, de,
                 fuera == 0 ? null : (int) fuera,
                 aviso.interest() == null || aviso.interest().signum() == 0 ? null : aviso.interest(),
-                aviso.discount() == null || aviso.discount().signum() == 0 ? null : aviso.discount());
+                aviso.discount() == null || aviso.discount().signum() == 0 ? null : aviso.discount(),
+                deuda.getLastBatch().getSender().getRut(), deuda.getLastBatch().getSender().getTradeName(),
+                deuda.getCampaign() == null ? null : deuda.getCampaign().getExternalId(),
+                deuda.getCampaign() == null ? null : deuda.getCampaign().getName());
         try {
             return json.writeValueAsString(detalle);
         } catch (JsonProcessingException e) {

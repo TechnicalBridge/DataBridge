@@ -9,13 +9,10 @@ import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
 
 /**
- * El portal de la empresa que gestiona la cartera: la agencia (APOFYX) o el
- * acreedor que trabaja directo.
+ * El portal de la empresa que cobra con DataBridge.
  *
- * La cartera llega por la API del contrato v1 desde el sistema de la empresa
- * o, para quien no tiene integracion, cargando el CSV del mismo contrato (en
- * su propia pagina). Aca se ve en que va cada deuda y se le hace llegar al
- * deudor su codigo de acceso.
+ * Los deudores entran en una campana, cargados desde Cargar cartera. Aca se ve
+ * en que va cada deuda y se le hace llegar al deudor su codigo de acceso.
  */
 export default function DataBridge() {
   const [resumen, setResumen] = useState(null);
@@ -147,9 +144,12 @@ export default function DataBridge() {
         </div>
         {visibles.length === 0 ? (
           <div className="empty">
-            {deudas.length === 0
-              ? "Todavía no llega cartera. Llega por la API del contrato o cargando el CSV en Cargar cartera."
-              : "No hay deudas en ese estado."}
+            {deudas.length === 0 ? (
+              <>
+                Todavía no hay deudores. Se cargan en una campaña, desde{" "}
+                <Link className="link-btn" to="/databridge/cargar">Cargar cartera</Link>.
+              </>
+            ) : "No hay deudas en ese estado."}
           </div>
         ) : (
           <div className="tabla-scroll">
@@ -172,6 +172,12 @@ export default function DataBridge() {
                       <td>
                         {d.deudor}<span className="sub">{rutLegible(d.deudorRut)}</span>
                         {d.sinCorreoValido ? <span className="tag tag-vencida">Sin correo válido</span> : null}
+                        {d.correoFallido?.conProblemas ? (
+                          <span className="tag tag-vencida"
+                                title="El servidor rechazó su dirección tres veces seguidas: ya no se le escribe solo hasta que llegue otro correo en la cartera. Puedes reenviarle el código a mano.">
+                            Correo con problemas
+                          </span>
+                        ) : null}
                       </td>
                       <td>{d.acreedor}<span className="sub">{d.concepto}, ref. {d.externalId}</span></td>
                       <td className="num">
@@ -212,6 +218,11 @@ export default function DataBridge() {
                         {cobrable && !aviso ? (
                           <span className="sub">
                             {d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
+                          </span>
+                        ) : null}
+                        {cobrable && !aviso && d.correoFallido ? (
+                          <span className="sub" style={{ color: "var(--danger)" }}>
+                            No se pudo enviar el correo del {fecha(d.correoFallido.cuando)}: {d.correoFallido.motivo}
                           </span>
                         ) : null}
                         {aviso?.ok ? <span className="sub">{aviso.ok}</span> : null}

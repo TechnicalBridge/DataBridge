@@ -46,6 +46,7 @@ import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -268,6 +269,33 @@ class DebtServiceTest {
         assertEquals(280000, detalle.get("monto_clp").asInt());
         //  Fechado cuando pago el deudor, no cuando llego el aviso.
         assertEquals(pagadoEn, aplicado.getOccurredAt());
+    }
+
+    @Test
+    void la_comision_conserva_la_empresa_y_campana_del_pago_aunque_recarguen_la_deuda() throws Exception {
+        Campaign campana = new Campaign();
+        campana.setExternalId("CMP-ORIGINAL");
+        campana.setName("Campaña original");
+        deuda.setCampaign(campana);
+        servicio.onPagoConfirmado(aviso());
+        DebtEvent aplicado = historia.stream()
+                .filter(e -> e.getType() == DebtEvent.Type.payment_applied).findFirst().orElseThrow();
+        DetallePago detalle = json.readValue(aplicado.getDetail(), DetallePago.class);
+        assertEquals(apofyx.getRut(), detalle.empresaRut());
+        assertEquals(apofyx.getTradeName(), detalle.empresaNombre());
+        assertEquals("CMP-ORIGINAL", detalle.campanaId());
+
+        Batch otroLote = new Batch();
+        otroLote.setSender(patrimonio);
+        deuda.setLastBatch(otroLote);
+        deuda.setCampaign(null);
+        when(events.entre(any(), any(), any())).thenReturn(List.of(aplicado));
+        ComisionService comisiones = new ComisionService(events, servicio, json);
+        var original = comisiones.deLaEmpresa(empresa(apofyx.getRut()), YearMonth.of(2026, 9));
+        assertEquals(410_000, original.recuperado());
+        assertEquals("CMP-ORIGINAL", original.porCampana().getFirst().idExterno());
+        assertEquals(0, comisiones.deLaEmpresa(empresa(patrimonio.getRut()), YearMonth.of(2026, 9)).recuperado());
+        assertEquals(apofyx.getRut(), comisiones.deTodas(YearMonth.of(2026, 9)).empresas().getFirst().rut());
     }
 
     /** Un mes que el acreedor informo despues del convenio: una cuota aparte, la que vence primero. */

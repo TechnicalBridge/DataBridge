@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { descargarComprobante, listarPagos } from "../api/pagos";
+import { descargarComprobante, listarDevueltos, listarPagos } from "../api/pagos";
 import { dinero, porMoneda, queSePago } from "../utils/formato";
 import Cargando from "../components/Cargando";
 import LogoPasarela from "../components/LogoPasarela";
@@ -8,11 +8,13 @@ import { IconoDescargar } from "../components/Iconos";
 /**
  * Los pagos del deudor que ya se abonaron a sus deudas, con el comprobante de
  * cada uno. Un cobro que quedo a medias en la pasarela no aparece: no paso.
+ * Aparte, los pagos duplicados que la empresa ya le devolvio (#153).
  */
 export default function Historial() {
   const [pagos, setPagos] = useState(null);
   const [error, setError] = useState("");
   const [bajando, setBajando] = useState(null);
+  const [devueltos, setDevueltos] = useState([]);
 
   useEffect(() => {
     listarPagos()
@@ -21,6 +23,7 @@ export default function Historial() {
         setError(err.status === 404 ? "" : err.message);
         setPagos([]);
       });
+    listarDevueltos().then(setDevueltos).catch(() => setDevueltos([]));
   }, []);
 
   async function comprobante(id) {
@@ -101,6 +104,38 @@ export default function Historial() {
           </div>
         )}
       </div>
+
+      {devueltos.length ? (
+        <div className="card aparece" style={{ "--i": 5, marginTop: 18 }}>
+          <h3>{devueltos.length === 1 ? "Un pago que se te devolvió" : "Pagos que se te devolvieron"}</h3>
+          <div className="lista">
+            {devueltos.map((p, i) => {
+              const dia = new Date(p.devueltoEn || p.createdAt);
+              return (
+                <div key={p.id} className="fila" style={{ "--i": i }}>
+                  <div className="fecha-caja">
+                    <b>{dia.getDate()}</b>
+                    <span>{dia.toLocaleDateString("es-CL", { month: "short" }).replace(".", "")}</span>
+                  </div>
+                  <div className="fila-que">
+                    <b>Pago duplicado, devuelto</b>
+                    <span>
+                      Pagaste dos veces las mismas cuotas y el segundo pago no se abonó: la empresa te lo devolvió
+                      {p.referenciaDevolucion ? `, ref. ${p.referenciaDevolucion}` : ""}.
+                    </span>
+                    <div className="fila-acciones" style={{ justifyContent: "flex-start" }}>
+                      <LogoPasarela id={p.gateway} alto={18} />
+                    </div>
+                  </div>
+                  <div className="fila-monto">
+                    <b>{p.amountClp ? dinero(p.amountClp) : dinero(p.amount, p.currency)}</b>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -16,12 +16,12 @@ import ComoFunciona from "./pages/ComoFunciona";
 import PagosRecibidos from "./pages/PagosRecibidos";
 import EnRiesgo from "./pages/EnRiesgo";
 import Cargar from "./pages/Cargar";
-import Claves from "./pages/Claves";
 import Campanas from "./pages/Campanas";
 import AdminInicio from "./pages/AdminInicio";
 import AdminEmpresas from "./pages/AdminEmpresas";
 import AdminEmpresa from "./pages/AdminEmpresa";
 import AdminEquipo from "./pages/AdminEquipo";
+import AdminReglas from "./pages/AdminReglas";
 
 //  El portal de empresas trae los graficos (recharts), que pesan mas que todo
 //  el resto junto. Se descarga solo al entrar ahi: el deudor nunca lo baja.
@@ -101,7 +101,6 @@ export default function App() {
         <Route path="en-riesgo" element={<EnRiesgo />} />
         <Route path="cargar" element={<Cargar />} />
         <Route path="campanas" element={<Campanas />} />
-        <Route path="claves" element={<Claves />} />
         <Route path="como-funciona" element={<ComoFunciona para="empresa" />} />
       </Route>
       {/* El panel de administracion: solo el admin de DataBridge. A otro rol lo devuelve a su portal. */}
@@ -125,6 +124,7 @@ export default function App() {
         <Route path="empresas" element={<AdminEmpresas />} />
         <Route path="empresas/:rut" element={<AdminEmpresa />} />
         <Route path="equipo" element={<AdminEquipo />} />
+        <Route path="reglas" element={<AdminReglas />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

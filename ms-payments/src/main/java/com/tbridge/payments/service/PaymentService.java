@@ -4,6 +4,7 @@ import com.tbridge.payments.exception.ApiException;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.client.DebtClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.payments.client.KhipuClient;
 import com.tbridge.payments.client.MercadoPagoClient;
@@ -38,7 +39,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -231,7 +234,7 @@ public class PaymentService {
         }
         if (cobraMercadoPago(pago)) {
             //  El cobro se abre en Mercado Pago ahora (Checkout Pro).
-            String returnUrl = publicUrl + RETORNO_MERCADOPAGO;
+            String returnUrl = publicUrl + RETORNO_MERCADOPAGO + "?pago=" + pago.getId() + "&sig=" + firma(pago);
             MercadoPagoClient.Preferencia pref = mercadopago.crearPreferencia(
                     String.valueOf(pago.getId()),
                     "Pago de deuda N° " + pago.getDebtId(),
@@ -451,6 +454,103 @@ public class PaymentService {
         return payments.findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status.duplicated, cartera).stream()
                 .map(this::respuesta)
                 .toList();
+    }
+
+    /** La referencia de la devolucion: lo que dio la pasarela, sin pasar de este largo. */
+    public static final int MAX_REFERENCIA = 100;
+
+    /**
+     * Registra que la empresa ya devolvio un pago duplicado en la pasarela. El
+     * pago pasa a {@code refunded} y su libro anota un evento manual con la
+     * referencia, la empresa y la persona que lo registro. DataBridge no mueve
+     * plata: solo deja constancia de lo que la empresa hizo alla.
+     *
+     * <p>Marcar de nuevo un pago ya devuelto no cambia nada.
+     */
+    @Transactional
+    public PaymentResponse registrarDevolucion(JwtPrincipal user, Long id, String referencia) {
+        if (user == null || !user.isCreditor() || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
+        }
+        Payment pago = buscar(id);
+        if (!deudas.cartera(user.rut()).contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Este pago no es de tu cartera");
+        }
+        if (pago.getStatus() == Payment.Status.refunded) {
+            return conSuDevolucion(pago);
+        }
+        if (pago.getStatus() != Payment.Status.duplicated) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Solo se puede registrar la devolucion de un pago duplicado");
+        }
+        String ref = referencia == null ? "" : referencia.strip();
+        if (ref.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolucion en la pasarela");
+        }
+        if (ref.length() > MAX_REFERENCIA) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "La referencia de la devolucion tiene mas de " + MAX_REFERENCIA + " caracteres");
+        }
+        pago.setStatus(Payment.Status.refunded);
+        payments.save(pago);
+
+        //  El JSON lo arma Jackson: una referencia con comillas no rompe el libro ni le agrega campos.
+        Map<String, String> libro = new LinkedHashMap<>();
+        libro.put("referencia", ref);
+        libro.put("empresa", user.rut());
+        libro.put("registradoPor", user.email() != null ? user.email() : user.id());
+        try {
+            eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.refunded, PaymentEvent.Source.manual)
+                    .conRespuesta(JSON.writeValueAsString(libro)));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudo anotar la devolucion", e);
+        }
+        log.info("Pago {}: la empresa {} registro su devolucion", pago.getId(), user.rut());
+        return conSuDevolucion(pago);
+    }
+
+    /**
+     * Los pagos ya devueltos, del mas nuevo al mas antiguo, con cuando y con que
+     * referencia: a la empresa, los de su cartera; al deudor, los suyos. Un pago
+     * duplicado nunca se abona, asi que no aparece en el historial de ms-debt:
+     * el deudor se entera aqui de que se le devolvio.
+     */
+    public List<PaymentResponse> devueltos(JwtPrincipal user) {
+        if (user == null || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesion");
+        }
+        List<Payment> devueltos;
+        if (user.isCreditor()) {
+            List<Long> cartera = deudas.cartera(user.rut());
+            devueltos = cartera.isEmpty() ? List.of()
+                    : payments.findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status.refunded, cartera);
+        } else if (user.isDebtor()) {
+            devueltos = payments.findByDebtorRutOrderByCreatedAtDesc(user.rut()).stream()
+                    .filter(p -> p.getStatus() == Payment.Status.refunded)
+                    .toList();
+        } else {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo la empresa o el deudor ven sus pagos devueltos");
+        }
+        return devueltos.stream().map(this::conSuDevolucion).toList();
+    }
+
+    /** El pago con su devolucion: la ultima anotada en su libro. */
+    private PaymentResponse conSuDevolucion(Payment pago) {
+        PaymentEvent devolucion = eventos.findByPaymentIdOrderByIdAsc(pago.getId()).stream()
+                .filter(e -> e.getType() == PaymentEvent.Type.refunded)
+                .reduce((primero, segundo) -> segundo)
+                .orElse(null);
+        if (devolucion == null) {
+            return respuesta(pago);
+        }
+        String referencia = null;
+        try {
+            JsonNode libro = devolucion.getGatewayPayload() == null ? null : JSON.readTree(devolucion.getGatewayPayload());
+            referencia = libro == null || libro.path("referencia").isMissingNode() ? null : libro.path("referencia").asText();
+        } catch (JsonProcessingException e) {
+            log.warn("Pago {}: el libro de la devolucion no se puede leer", pago.getId());
+        }
+        return respuesta(pago).conDevolucion(devolucion.getOccurredAt(), referencia);
     }
 
     /** El libro de un pago, para el panel y para auditar. */
@@ -947,71 +1047,42 @@ public class PaymentService {
             return false; //  Todavia no se ha pagado nada sobre esta preferencia.
         }
         MercadoPagoClient.PagoInfo info = mercadopago.consultarPago(String.valueOf(pref.pago().id()));
+        if (info == null) {
+            return false;
+        }
         String crudo = info.crudo() != null ? info.crudo().toString() : null;
-        boolean esElMismo = String.valueOf(pago.getId()).equals(String.valueOf(info.externalReference()).trim())
-                && info.transactionAmount() != null
-                && info.transactionAmount().compareTo(BigDecimal.valueOf(pago.getAmountClp())) == 0;
-        if (info.pagado() && esElMismo) {
+        boolean esElMismo = correspondeMercadoPago(pago, info)
+                && referencia.trim().equals(pref.id()) && pref.pago().id().equals(info.id());
+        if (!esElMismo) {
+            log.warn("La respuesta de Mercado Pago no corresponde al cobro {}: no se aplica", pago.getId());
+            return false;
+        }
+        if (info.pagado()) {
             confirmar(pago, PaymentEvent.Source.webhook, String.valueOf(info.id()), null, crudo);
-        } else if (info.pagado() && abierto) {
-            //  Pagado, pero no es el cobro que se abrio: no se acepta.
-            log.warn("Mercado Pago pago {} del pago {} no calza con la preferencia abierta", info.id(), pago.getId());
-            fallido(pago, crudo);
         }
         return info.status() != null && EN_CURSO_MERCADOPAGO.contains(info.status().toLowerCase(Locale.ROOT));
     }
 
     /**
      * Donde vuelve el deudor desde Mercado Pago tras pagar o cancelar.
-     * Se consulta el pago si hay paymentId o se usa el estado que viene de vuelta.
+     * La firma identifica el cobro propio; el estado se consulta contra la
+     * preferencia guardada. Ningun parametro de estado del navegador autoriza
+     * un abono. Los enlaces anteriores, sin firma, vuelven al portal y la
+     * consulta periodica sigue conciliando sus cobros.
      */
     @Transactional
-    public String retornoMercadoPago(String paymentId, String status, String collectionStatus,
-                                     String externalReference, String preferenceId) {
-        Payment pago = null;
-        if (externalReference != null && !externalReference.isBlank()) {
-            try {
-                pago = payments.findById(Long.parseLong(externalReference.trim())).orElse(null);
-            } catch (NumberFormatException ignored) {}
+    public String retornoMercadoPago(Long id, String sig) {
+        if (id == null || sig == null || sig.isBlank()) {
+            return publicUrl + "/app";
         }
-        if (pago == null && preferenceId != null && !preferenceId.isBlank()) {
-            pago = payments.findByGatewayAndGatewayTxnId(Payment.Gateway.mercadopago, preferenceId.trim()).orElse(null);
+        Payment pago = conFirmaValida(id, sig);
+        if (!cobraMercadoPago(pago)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Ese pago no se hace en Mercado Pago");
         }
-        if (pago == null && paymentId != null && !paymentId.isBlank() && !"null".equalsIgnoreCase(paymentId)) {
-            pago = payments.findByGatewayAndGatewayTxnId(Payment.Gateway.mercadopago, paymentId.trim()).orElse(null);
-        }
-        if (pago == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Mercado Pago devolvio un pago que no existe");
-        }
-
-        String actualStatus = (status != null && !status.isBlank() && !"null".equalsIgnoreCase(status))
-                ? status.trim()
-                : (collectionStatus != null && !collectionStatus.isBlank() && !"null".equalsIgnoreCase(collectionStatus))
-                ? collectionStatus.trim()
-                : null;
-
-        if (pago.getStatus() == Payment.Status.created) {
-            if (paymentId != null && !paymentId.isBlank() && !"null".equalsIgnoreCase(paymentId)) {
-                try {
-                    MercadoPagoClient.PagoInfo info = mercadopago.consultarPago(paymentId.trim());
-                    String crudo = info.crudo() != null ? info.crudo().toString() : null;
-                    if (info.pagado()) {
-                        confirmar(pago, PaymentEvent.Source.webhook, paymentId.trim(), null, crudo);
-                    } else if ("rejected".equalsIgnoreCase(info.status()) || "cancelled".equalsIgnoreCase(info.status())) {
-                        fallido(pago, crudo);
-                    }
-                } catch (Exception e) {
-                    if ("approved".equalsIgnoreCase(actualStatus)) {
-                        confirmar(pago, PaymentEvent.Source.portal, paymentId.trim(), null, null);
-                    } else if (actualStatus != null) {
-                        fallido(pago, null);
-                    }
-                }
-            } else if ("approved".equalsIgnoreCase(actualStatus)) {
-                confirmar(pago, PaymentEvent.Source.portal, preferenceId, null, null);
-            } else if ("rejected".equalsIgnoreCase(actualStatus) || "cancelled".equalsIgnoreCase(actualStatus)) {
-                fallido(pago, null);
-            }
+        try {
+            conciliarMercadoPago(pago);
+        } catch (ApiException noDisponible) {
+            log.warn("No se pudo conciliar el retorno del cobro {}: se reintentara", pago.getId());
         }
 
         return enlaceDePago(pago);
@@ -1022,33 +1093,53 @@ public class PaymentService {
      */
     @Transactional
     public void avisoMercadoPago(String topic, String idParam, String cuerpo) {
+        if (!mercadopago.real()) {
+            return;
+        }
         String paymentId = idParam;
         if ((paymentId == null || paymentId.isBlank()) && cuerpo != null) {
             try {
                 com.fasterxml.jackson.databind.JsonNode nodo = JSON.readTree(cuerpo);
+                if (nodo == null) {
+                    return;
+                }
                 if (nodo.hasNonNull("data") && nodo.get("data").hasNonNull("id")) {
                     paymentId = nodo.get("data").get("id").asText();
                 } else if (nodo.hasNonNull("id")) {
                     paymentId = nodo.get("id").asText();
                 }
-            } catch (Exception ignored) {}
+            } catch (JsonProcessingException ignored) {
+                return;
+            }
         }
-        if (paymentId != null && !paymentId.isBlank()) {
+        if (paymentId != null && paymentId.trim().matches("[1-9][0-9]{0,18}")) {
+            MercadoPagoClient.PagoInfo info = mercadopago.consultarPago(paymentId.trim());
+            if (info == null || info.id() == null || !String.valueOf(info.id()).equals(paymentId.trim())
+                    || info.externalReference() == null) {
+                return;
+            }
+            Long id;
             try {
-                MercadoPagoClient.PagoInfo info = mercadopago.consultarPago(paymentId.trim());
-                if (info.externalReference() != null) {
-                    Payment pago = payments.findById(Long.parseLong(info.externalReference().trim())).orElse(null);
-                    if (pago != null && pago.getStatus() == Payment.Status.created) {
-                        String crudo = info.crudo() != null ? info.crudo().toString() : null;
-                        if (info.pagado()) {
-                            confirmar(pago, PaymentEvent.Source.webhook, paymentId.trim(), null, crudo);
-                        } else if ("rejected".equalsIgnoreCase(info.status()) || "cancelled".equalsIgnoreCase(info.status())) {
-                            fallido(pago, crudo);
-                        }
-                    }
-                }
-            } catch (Exception ignored) {}
+                id = Long.valueOf(info.externalReference().trim());
+            } catch (NumberFormatException noEsUnCobro) {
+                return;
+            }
+            Payment pago = payments.findById(id).orElse(null);
+            if (pago != null && correspondeMercadoPago(pago, info)) {
+                //  El aviso solo despierta la conciliacion de la preferencia
+                //  persistida, igual que la consulta periodica y el retorno.
+                conciliarMercadoPago(pago);
+            }
         }
+    }
+
+    private boolean correspondeMercadoPago(Payment pago, MercadoPagoClient.PagoInfo info) {
+        return cobraMercadoPago(pago) && info != null && info.id() != null && info.id() > 0
+                && String.valueOf(pago.getId()).equals(info.externalReference() == null ? null
+                        : info.externalReference().trim())
+                && "CLP".equals(info.currencyId()) && pago.getAmountClp() != null
+                && info.transactionAmount() != null
+                && info.transactionAmount().compareTo(BigDecimal.valueOf(pago.getAmountClp())) == 0;
     }
 
     /** El pago de Webpay de ese token, con su fila bloqueada: la vuelta y la consulta no se cruzan. */

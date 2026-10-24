@@ -1,11 +1,15 @@
 package com.tbridge.debt.controller;
 
+import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
+import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtService;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -47,6 +51,8 @@ class AdminControllerTest {
     @Autowired private MockMvc mvc;
     @Autowired private JwtService jwt;
     @MockitoBean private EmpresaService empresas;
+    @MockitoBean private ReglasService reglas;
+    @MockitoBean private ComisionService comisiones;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -95,6 +101,17 @@ class AdminControllerTest {
         mvc.perform(get(ESTADO))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("No autorizado"));
+    }
+
+    @Test
+    void las_reglas_las_ve_el_admin_y_una_empresa_no() throws Exception {
+        when(reglas.reglas(any())).thenReturn(new ReglasResponse("ms-debt", List.of()));
+
+        mvc.perform(get("/api/admin/debt/reglas").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.servicio").value("ms-debt"));
+        mvc.perform(get("/api/admin/debt/reglas").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -189,6 +206,23 @@ class AdminControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value(
                         "Ya hay una empresa con ese RUT: APOFYX. Abre su ficha para agregarle personas."));
+    }
+
+    @Test
+    void lo_que_databridge_cobra_a_cada_empresa_lo_ve_solo_el_admin() throws Exception {
+        when(comisiones.deTodas(java.time.YearMonth.of(2026, 10))).thenReturn(new ComisionesResponse(
+                java.time.LocalDate.of(2026, 10, 1), java.util.List.of(new ComisionesResponse.Empresa("77305118-6", "APOFYX",
+                1_420_000, 4, new java.math.BigDecimal("10"), 142_000, 1_278_000)), 1_420_000, 142_000));
+
+        mvc.perform(get("/api/admin/debt/comisiones").param("mes", "2026-10").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.empresas[0].nombre").value("APOFYX"))
+                .andExpect(jsonPath("$.empresas[0].comision").value(142000))
+                .andExpect(jsonPath("$.comision").value(142000));
+        mvc.perform(get("/api/admin/debt/comisiones").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/debt/comisiones").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

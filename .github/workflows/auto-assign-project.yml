@@ -1,0 +1,31 @@
+# =============================================================================
+#  Asignación Automática de Issues al Proyecto DataBridge (TechnicalBridge/3)
+# =============================================================================
+#  Cada vez que se crea un issue en el repositorio (vía interfaz web, plantillas,
+#  GitHub CLI o API externa), se incorpora de forma inmediata y automática al
+#  tablero del proyecto DataBridge de la organización (TechnicalBridge/3).
+#
+#  Utiliza la acción oficial actions/add-to-project de GitHub con soporte para
+#  secrets.PROJECT_TOKEN (PAT con alcance 'project') o secrets.GITHUB_TOKEN.
+# =============================================================================
+name: Auto Assign to DataBridge Project
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  repository-projects: write
+
+jobs:
+  assign-to-project:
+    name: Asignar a Tablero DataBridge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vincular Issue al Proyecto DataBridge
+        uses: actions/add-to-project@v1
+        with:
+          project-url: https://github.com/orgs/TechnicalBridge/projects/3
+          github-token: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}

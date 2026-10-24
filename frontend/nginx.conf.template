@@ -1,11 +1,24 @@
 # =============================================================================
 #  El portal, servido como archivos estaticos.
 # =============================================================================
+#  Es una plantilla: al arrancar, la imagen de nginx reemplaza cada ${VARIABLE}
+#  por su valor y deja el resultado en /etc/nginx/conf.d/default.conf. Los
+#  valores por omision estan en el Dockerfile y sirven para Docker Compose; en
+#  Railway se cambian con variables del servicio (docs/railway).
+#
+#    GATEWAY_HOST, GATEWAY_PORT  donde esta el gateway.
+#    PROXY_DE_ENTRADA            desde donde se le cree la IP del visitante
+#                                (ver mas abajo).
+#    NGINX_LOCAL_RESOLVERS       el DNS que trae el contenedor: lo escribe la
+#                                propia imagen al arrancar.
+# =============================================================================
 
-#  El DNS interno de Docker. Con el, si el gateway se reinicia y cambia de IP,
-#  nginx lo vuelve a encontrar en diez segundos en vez de seguir tocando la
-#  puerta vieja hasta que alguien lo reinicie a el tambien.
-resolver 127.0.0.11 valid=10s ipv6=off;
+#  El DNS del contenedor: el de Docker en local, el de la red privada en
+#  Railway. Con el, si el gateway se reinicia y cambia de IP, nginx lo vuelve
+#  a encontrar en diez segundos en vez de seguir tocando la puerta vieja hasta
+#  que alguien lo reinicie a el tambien. Sin "ipv6=off": hay redes privadas que
+#  solo dan direcciones IPv6.
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
 
 #  Las conexiones hacia el gateway se REUTILIZAN.
 #
@@ -17,7 +30,7 @@ resolver 127.0.0.11 valid=10s ipv6=off;
 #  perfectamente. Lo encontro la prueba de estres (rendimiento/estres.js).
 upstream gateway {
     zone gateway 64k;
-    server gateway:8082 resolve;
+    server ${GATEWAY_HOST}:${GATEWAY_PORT} resolve;
     keepalive 64;
 }
 
@@ -27,7 +40,20 @@ server {
     listen 8080;
     server_name _;
 
+    #  La IP de quien visita. En local nginx es la puerta de entrada y la ve
+    #  directo: PROXY_DE_ENTRADA no calza con nadie y esto no hace nada. En
+    #  Railway la puerta es su proxy, que entrega la IP del visitante en
+    #  X-Real-IP y la sobrescribe siempre: con PROXY_DE_ENTRADA=0.0.0.0/0 se le
+    #  cree. Sin esto, el limite de peticiones del gateway contaria a todos los
+    #  visitantes como uno solo, el proxy de Railway.
+    set_real_ip_from ${PROXY_DE_ENTRADA};
+    real_ip_header   X-Real-IP;
+
     root  /usr/share/nginx/html;
+
+    #  La planilla de la cartera sube por aca: el mismo tope que ms-debt (5 MB).
+    #  Sin esto, nginx corta en 1 MB con un 413.
+    client_max_body_size 5m;
     index index.html;
 
     #  React maneja sus propias rutas. Si alguien recarga estando en

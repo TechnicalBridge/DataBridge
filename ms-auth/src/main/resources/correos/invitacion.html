@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--/*
+  La invitacion: a quien un admin de DataBridge acaba de dar de alta. Trae un
+  enlace de un solo uso y dice como entrar las veces siguientes, que es por
+  donde se sigue si el enlace vence.
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta('Tienes acceso a DataBridge', |DataBridge te dio acceso ${aQue}.|, ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0 0 14px 0;font-size:16px;line-height:1.55;color:#4b453c;"
+     th:text="${#strings.isEmpty(nombre)} ? 'Hola:' : |Hola, ${nombre}:|">Hola, Ana Soto:</p>
+  <p class="tinta-2" style="margin:0 0 14px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    DataBridge te dio acceso <span th:text="${aQue}">al portal de empresas, como parte de Empresa Test</span>.
+  </p>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Para entrar por primera vez, usa este enlace. Sirve una sola vez, por
+    <strong class="tinta" style="color:#2e2a24;white-space:nowrap;" th:text="${dura}">24 horas</strong>.
+  </p>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+    <tr>
+      <td class="boton" bgcolor="#3e7b4f" style="background-color:#3e7b4f;border-radius:10px;padding:13px 26px;">
+        <a class="boton-texto" th:href="${url}" href="#"
+           style="font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.2;font-weight:700;color:#fffdf8;text-decoration:none;">Entrar por primera vez</a>
+      </td>
+    </tr>
+  </table>
+  <p class="tenue" style="margin:0 0 22px 0;font-size:13px;line-height:1.5;color:#7c7266;">
+    Si el botón no funciona, copia esta dirección en tu navegador:<br>
+    <span class="tinta-2" style="color:#4b453c;word-break:break-all;" th:text="${url}">https://databridge.cl/magic?token=...</span>
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px 0;">
+    <tr>
+      <td class="caja tinta-2" bgcolor="#e4efe2" style="background-color:#e4efe2;border-radius:8px;padding:14px 16px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#4b453c;">
+        <strong>Las veces siguientes</strong>, o si el enlace ya venció, entra a
+        <strong style="overflow-wrap:anywhere;"><th:block th:each="trozo : ${entradaEnTrozos}"><wbr>[[${trozo}]]</th:block></strong> y escribe este correo: te llegará
+        un enlace nuevo. No hay contraseña.
+      </td>
+    </tr>
+  </table>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Si no esperabas este correo, ignóralo.
+  </p>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">
+  Te llegó porque un administrador de DataBridge te dio de alta con este correo.
+</p>
+</body>
+</html>

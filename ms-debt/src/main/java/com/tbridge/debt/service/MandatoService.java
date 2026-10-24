@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 
 /**
  * Contrato 2: el mandato y la campana.
@@ -119,8 +120,9 @@ public class MandatoService {
             throw new CarteraInvalida("sin_mandato", "No hay mandato vigente sobre ese acreedor", 403);
         }
 
-        Campaign campana = campaigns.findByAgencyAndExternalId(quien, idExterno).orElseGet(Campaign::new);
-        boolean nueva = campana.getId() == null;
+        Optional<Campaign> guardada = campaigns.findByAgencyAndExternalId(quien, idExterno);
+        boolean nueva = guardada.isEmpty();
+        Campaign campana = guardada.orElseGet(Campaign::new);
         campana.setAgency(quien);
         campana.setCreditor(acreedor);
         campana.setExternalId(idExterno);
@@ -163,13 +165,18 @@ public class MandatoService {
                     descuentos.tope(quien, acreedor, LocalDate.now())));
         }
         if (pedido.estado() != null && !pedido.estado().isBlank()) {
-            campana.setStatus(switch (pedido.estado().trim()) {
+            Campaign.Status nuevo = switch (pedido.estado().trim()) {
                 case "en_curso" -> Campaign.Status.running;
                 case "pausada" -> Campaign.Status.paused;
                 case "terminada" -> Campaign.Status.finished;
                 default -> throw new CarteraInvalida("estado_invalido",
                         "El estado de la campana va como en_curso, pausada o terminada");
-            });
+            };
+            if (!nueva && campana.getStatus() == Campaign.Status.finished && nuevo != Campaign.Status.finished) {
+                throw new CarteraInvalida("campana_terminada",
+                        "Una campana terminada no se puede volver a poner en curso ni pausar", 409);
+            }
+            campana.setStatus(nuevo);
         }
         campaigns.save(campana);
         return CampanaResponse.from(campana);

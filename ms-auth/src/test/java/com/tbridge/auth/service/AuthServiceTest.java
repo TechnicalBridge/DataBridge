@@ -64,6 +64,7 @@ class AuthServiceTest {
         AccessLogRepository registro = mock(AccessLogRepository.class);
         correo = mock(MailService.class);
         deudas = mock(DeudasClient.class);
+        when(deudas.empresa(any())).thenAnswer(i -> Optional.of(new DeudasClient.Empresa(i.getArgument(0), "Empresa", true)));
         when(deudas.correoDelDeudor(any())).thenReturn(Optional.empty());
         JwtService jwt = new JwtService("unit-test-secret-key-32-chars!!!", 15);
         SessionService sesiones = new SessionService(this.sesiones.repositorio,
@@ -75,10 +76,14 @@ class AuthServiceTest {
             guardados.add(codigo);
             return codigo;
         });
-        when(codigos.findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(any()))
+        when(codigos.deleteByCodeHash(any())).thenAnswer(llamada -> {
+            int antes = guardados.size();
+            guardados.removeIf(c -> c.getCodeHash().equals(llamada.getArgument(0)));
+            return (long) (antes - guardados.size());
+        });
+        when(codigos.findFirstByDebtorRutOrderByIssuedAtDescIdDesc(any()))
                 .thenAnswer(llamada -> guardados.stream()
                         .filter(c -> c.getDebtorRut().equals(llamada.getArgument(0)))
-                        .filter(c -> c.getConsumedAt() == null)
                         .reduce((primero, ultimo) -> ultimo));
         when(registro.save(any())).thenAnswer(llamada -> {
             bitacora.add(llamada.getArgument(0));
@@ -97,6 +102,18 @@ class AuthServiceTest {
 
     private String emitir(String rut) {
         return auth.emitirCodigo(rut, List.of("whatsapp", "correo"), "prueba").codigo();
+    }
+
+    @Test
+    void anular_un_codigo_que_nadie_recibio_deja_servir_al_anterior() {
+        String elQueTiene = emitir("16482337-7");
+        String elQueNoLeLlego = emitir("16482337-7");
+
+        auth.anularCodigo("16482337-7", elQueNoLeLlego);
+
+        assertEquals(1, guardados.size(), "el anulado no queda");
+        assertNotNull(auth.entrarConCodigo("16482337-7", elQueTiene, "1.2.3.4").token(),
+                "el deudor entra con el codigo que si le llego");
     }
 
     @Test
@@ -244,8 +261,8 @@ class AuthServiceTest {
 
         var respuesta = auth.pedirEnlace("16.482.337-7", "atacante@correo.cl", "10.0.0.1");
 
-        verify(correo).enviarEnlace(eq("felipe.rojas@correo.cl"), anyString(), anyLong());
-        verify(correo, never()).enviarEnlace(eq("atacante@correo.cl"), anyString(), anyLong());
+        verify(correo).enviarAcceso(eq("felipe.rojas@correo.cl"), anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(eq("atacante@correo.cl"), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.sent, ultimoPedido());
     }
@@ -254,7 +271,7 @@ class AuthServiceTest {
     void un_rut_sin_correo_registrado_no_recibe_nada_y_la_respuesta_es_la_misma() {
         var respuesta = auth.pedirEnlace("16482337-7", "atacante@correo.cl", "10.0.0.1");
 
-        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         verify(enlaces, never()).save(any());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.refused, ultimoPedido());
@@ -264,11 +281,11 @@ class AuthServiceTest {
     void el_personal_habilitado_recibe_su_enlace_y_el_que_no_esta_habilitado_no() {
         when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
         auth.pedirEnlace(null, " camila.reyes@apofyx.cl ", "10.0.0.1");
-        verify(correo).enviarEnlace(eq("camila.reyes@apofyx.cl"), anyString(), anyLong());
+        verify(correo).enviarAcceso(eq("camila.reyes@apofyx.cl"), anyString(), anyString(), anyLong());
 
         when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(false)));
         var respuesta = auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
-        verify(correo).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.refused, ultimoPedido());
     }
@@ -277,7 +294,7 @@ class AuthServiceTest {
     void un_correo_que_no_es_de_nadie_no_recibe_enlace() {
         var respuesta = auth.pedirEnlace(null, "cualquiera@correo.cl", "10.0.0.1");
 
-        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
     }
 

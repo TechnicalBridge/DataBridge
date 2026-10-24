@@ -64,7 +64,8 @@ export function renovarSesion() {
 /**
  * Los servicios responden los errores de dos formas: { error: "texto" } y,
  * en el borde de integracion, { error: { codigo, mensaje } }. La pantalla
- * solo necesita el texto.
+ * necesita el texto y, si una planilla trae varios problemas, cada uno
+ * (error.detalles).
  */
 function comoError(err) {
   const data = err.response?.data;
@@ -73,6 +74,7 @@ function comoError(err) {
     data?.message || err.message || "Error de red";
   const error = new Error(mensaje);
   error.status = err.response?.status;
+  error.detalles = Array.isArray(data?.error?.detalles) ? data.error.detalles : [];
   return error;
 }
 

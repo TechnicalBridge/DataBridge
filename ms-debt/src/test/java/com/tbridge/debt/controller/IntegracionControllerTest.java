@@ -35,9 +35,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * El borde del contrato v1: la clave de API decide quien envia, los errores
  * salen con la forma del contrato, y la respuesta con sus nombres en
- * snake_case y sin enlaces de HATEOAS.
+ * snake_case y sin enlaces de HATEOAS. Con la entrega por API encendida, que
+ * por omision esta apagada ({@link EntregaPorApiApagadaTest}).
  */
-@WebMvcTest(IntegracionController.class)
+@WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
 @Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class})
 @ActiveProfiles("test")
 class IntegracionControllerTest {

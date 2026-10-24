@@ -1,6 +1,7 @@
 package com.tbridge.auth.exception;
 
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import com.tbridge.auth.dto.response.CorreoNoEnviadoResponse;
 import jakarta.servlet.ServletException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiError> deNegocio(ApiException ex) {
         return responder(ex.getStatus(), ex.getMessage());
+    }
+
+    /**
+     * El correo de un codigo no salio. Es un 502: este servicio hizo lo suyo y
+     * fallo el de mas alla, el servidor de correo. Ademas del motivo dice de
+     * quien es la culpa, que es lo que necesita ms-debt para decidir si insiste.
+     */
+    @ExceptionHandler(CorreoNoSalio.class)
+    public ResponseEntity<CorreoNoEnviadoResponse> correoNoSalio(CorreoNoSalio ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new CorreoNoEnviadoResponse(ex.getMessage(),
+                ex.deLaDireccion() ? CorreoNoEnviadoResponse.DIRECCION : CorreoNoEnviadoResponse.SERVIDOR));
     }
 
     /** Un cuerpo con {@code @Valid} que no cumple: se dice el primer campo que falla. */

@@ -5,10 +5,8 @@ import * as sesion from "../api/sesion";
 /**
  * La sesion.
  *
- * El deudor entra con su RUT y el codigo que le llego por correo o WhatsApp:
- * sin cuenta, sin contrasena y sin hacer clic en ningun enlace. El enlace al
- * correo queda como respaldo, y es tambien como entra el personal de las
- * empresas.
+ * Todos entran primero con codigo: el deudor usa RUT, el personal usa correo.
+ * El respaldo solicitado manda codigo y enlace juntos, con un solo uso.
  *
  * El JWT vive en memoria (ver api.js), asi que una recarga de la pagina lo
  * pierde. Lo que sobrevive es la cookie de renovacion: al arrancar, se le pide
@@ -42,10 +40,11 @@ export const useAuth = create((set, get) => {
       }
     },
 
-    entrarConCodigo: async (rut, codigo) => {
-      return get().abrirSesion(await sesion.entrarConCodigo(rut, codigo));
+    entrarConCodigo: async (identificador, codigo, esDeudor = true) => {
+      return get().abrirSesion(await sesion.entrarConCodigo(identificador, codigo, esDeudor));
     },
 
+    pedirCodigo: (correo, rut) => sesion.pedirCodigo(correo, rut),
     pedirEnlace: (correo, rut) => sesion.pedirEnlace(correo, rut),
 
     entrarConEnlace: async (token) => {
