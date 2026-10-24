@@ -127,6 +127,12 @@ Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORR
 Con los datos de la demo, **`CORREO_SOLO_A` y `CORREO_DESVIAR_A` no son opcionales**: los deudores de ejemplo
 tienen correos inventados.
 
+En el servidor no hay Mailpit (`docker-compose.prod.yml` deja `CORREO_BUZON_DE_PRUEBA` vacío). Por eso lo que va a
+un dominio reservado, como el código de `camila.reyes@example.com`, llega al buzón de `CORREO_DESVIAR_A`, con el
+destinatario original en el asunto. Ese desvío gasta el cupo de Brevo, y tiene un tope de
+`CORREO_DESVIO_MAXIMO_POR_DIA` correos por día (100, por omisión): sobra para entrar a la demo, pero no para cargar
+una planilla grande de prueba en el servidor (#236).
+
 **El DNS**, en Namecheap → *Domain List* → `technicalbridge.site` → **Advanced DNS**:
 
 | Tipo | Host | Valor |

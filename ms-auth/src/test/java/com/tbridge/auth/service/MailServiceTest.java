@@ -24,6 +24,10 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,10 +57,15 @@ class MailServiceTest {
     @Mock
     private ObjectProvider<JavaMailSender> proveedor;
 
+    /** El buzon de prueba (Mailpit) que recibe lo de los dominios reservados. */
+    @Mock
+    private JavaMailSender buzon;
+
     /** Los correos se arman en memoria, como los arma el servidor de verdad. */
     @BeforeEach
     void armarEnMemoria() {
         lenient().when(smtp.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
+        lenient().when(buzon.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
     }
 
     private MailService correo(String host) {
@@ -66,7 +75,7 @@ class MailServiceTest {
 
     @Test
     void pedir_codigo_entrega_un_solo_correo_sin_enlace_de_acceso() {
-        correo("mailpit").enviarAcceso("persona@example.com", "K7M2QX", null, 15);
+        correo("mailpit").enviarAcceso("persona@correo.cl", "K7M2QX", null, 15);
         Enviado carta = enviado();
         assertTrue(carta.texto().contains("K7M2QX"));
         assertTrue(carta.html().contains("K7M2QX"));
@@ -78,7 +87,7 @@ class MailServiceTest {
     @Test
     void el_respaldo_entrega_codigo_y_enlace_en_el_mismo_mensaje() {
         String url = "http://localhost:8080/magic?token=token-ficticio";
-        correo("mailpit").enviarAcceso("persona@example.com", "K7M2QX", url, 15);
+        correo("mailpit").enviarAcceso("persona@correo.cl", "K7M2QX", url, 15);
         Enviado carta = enviado();
         assertTrue(carta.texto().contains("K7M2QX"));
         assertTrue(carta.texto().contains(url));
@@ -560,5 +569,78 @@ class MailServiceTest {
         doThrow(new MailSendException("sin conexion")).when(smtp).send(any(MimeMessage.class));
 
         assertDoesNotThrow(() -> servicio.enviarEnlace("camila.reyes@apofyx.cl", "http://localhost:8080/magic?token=x", 15));
+    }
+    // ------------------------------------------------------------------
+    //  El cupo del proveedor (#236)
+    // ------------------------------------------------------------------
+
+    /** Un reloj que se puede adelantar, para el tope por dia. */
+    static final class Reloj extends Clock {
+        Instant ahora;
+
+        Reloj(String instante) {
+            ahora = Instant.parse(instante);
+        }
+
+        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(ZoneId zona) { return this; }
+        @Override public Instant instant() { return ahora; }
+    }
+
+    /** Por Brevo, con o sin el buzon de prueba (en el servidor no hay), el modo de prueba y el tope que se pida. */
+    private MailService porBrevo(String soloA, String desviarA, boolean conBuzon, int tope, Clock reloj) {
+        when(proveedor.getIfAvailable()).thenReturn(smtp);
+        return new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/", "", 587, "", "DataBridge", "",
+                soloA, desviarA, conBuzon ? "mailpit:1025" : "", CLAVE_DE_BREVO, tope, conBuzon ? buzon : null, reloj);
+    }
+
+    @Test
+    void lo_de_un_dominio_reservado_va_al_buzon_de_prueba_y_nunca_al_proveedor() {
+        porBrevo("equipo@gmail.com", "equipo@gmail.com", true, 100, Clock.systemUTC())
+                .enviarCodigo("camila.reyes@example.com", "K7M2QX", "Servicios Horizonte");
+
+        ArgumentCaptor<MimeMessage> mensaje = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(buzon).send(mensaje.capture());
+        Enviado carta = leer(mensaje.getValue());
+        assertEquals("camila.reyes@example.com", carta.para().get(0), "llega a su direccion, en el buzon");
+        assertEquals("Tu código de acceso", carta.asunto());
+        verify(smtp, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sin_buzon_lo_reservado_va_al_desvio_aunque_su_dominio_este_permitido() {
+        porBrevo("@example.com", "equipo@gmail.com", false, 100, Clock.systemUTC())
+                .enviarCodigo("camila.reyes@example.com", "K7M2QX", "Servicios Horizonte");
+
+        Enviado carta = enviado();
+        assertEquals("equipo@gmail.com", carta.para().get(0));
+        assertEquals("[para camila.reyes@example.com] Tu código de acceso", carta.asunto());
+    }
+
+    @Test
+    void sin_buzon_ni_desvio_lo_reservado_no_sale_y_no_es_un_fallo() {
+        assertDoesNotThrow(() -> porBrevo("", "", false, 100, Clock.systemUTC())
+                .enviarCodigo("tb.prueba.1@example.com", "K7M2QX", "Servicios Horizonte"));
+
+        verify(smtp, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void el_desvio_tiene_tope_por_dia_lo_directo_no_y_al_dia_siguiente_vuelve() {
+        Reloj reloj = new Reloj("2026-10-23T15:00:00Z");
+        MailService servicio = porBrevo("equipo@gmail.com", "equipo@gmail.com", false, 2, reloj);
+
+        servicio.enviarCodigo("felipe.rojas@correo.cl", "AAAAAA", "Patrimonio Inmuebles");
+        servicio.enviarCodigo("tomas.vidal@correo.cl", "BBBBBB", "Patrimonio Inmuebles");
+        assertDoesNotThrow(() -> servicio.enviarCodigo("sofia.lagos@correo.cl", "CCCCCC", "Patrimonio Inmuebles"));
+        verify(smtp, times(2)).send(any(MimeMessage.class));
+
+        servicio.enviarCodigo("equipo@gmail.com", "DDDDDD", "Patrimonio Inmuebles");
+        verify(smtp, times(3)).send(any(MimeMessage.class));
+
+        //  Medianoche en Chile: las 03:00 en UTC.
+        reloj.ahora = Instant.parse("2026-10-24T03:30:00Z");
+        servicio.enviarCodigo("sofia.lagos@correo.cl", "EEEEEE", "Patrimonio Inmuebles");
+        verify(smtp, times(4)).send(any(MimeMessage.class));
     }
 }

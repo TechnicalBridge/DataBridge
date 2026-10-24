@@ -382,6 +382,19 @@ evitar rebotes y cualquier envío a terceros, con un servidor real se usa siempr
 | --- | --- |
 | `CORREO_SOLO_A` | Las direcciones o dominios a los que **sí** se les escribe directo, separados por coma. Una dirección incluye sus alias con `+` (`tucuenta+deudor1@gmail.com`); un dominio va con arroba (`@empresa-prueba.cl`) |
 | `CORREO_DESVIAR_A` | Adonde va **todo lo demás**. Llega con el destinatario original en el asunto: *[para felipe.rojas@example.com] Tu código de acceso* |
+| `CORREO_DESVIO_MAXIMO_POR_DIA` | Hasta cuántos correos se desvían en un día de Chile (100, por omisión; `0`, sin tope). **El desvío sale por el proveedor y gasta su cupo**, que en Brevo es diario: pasado el tope, lo desviado no sale y queda en el registro |
+
+**El cupo del proveedor no se gasta en direcciones que no existen** ([#236](https://github.com/TechnicalBridge/TB_web/issues/236)):
+- **Lo que va a un dominio reservado** (`example.com`, `example.net`, `example.org` o lo que termina en
+  `.example`, `.test`, `.invalid` o `.localhost`) nunca sale por Brevo ni por el servidor SMTP directo. En
+  Docker local va a Mailpit (http://localhost:8025), con su destinatario de siempre: ahí llega, por ejemplo,
+  el código de `camila.reyes@example.com`. En el servidor, donde no hay Mailpit, sigue el desvío, con su
+  tope por día.
+- **Las invitaciones salen de a poco:** a lo más 100 cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`),
+  entre las de una carga y las de la pasada de contacto. Una planilla de mil deudores no manda mil correos
+  en el mismo minuto: lo que pasa del tope sale en las pasadas siguientes.
+- **Las cargas masivas se prueban sin Brevo.** El 19 de octubre, una planilla de prueba con mil deudores
+  en `example.com` agotó el cupo diario en un minuto, y después no salió ni un código de verdad.
 
 Con la lista y sin el desvío, lo que está fuera de la lista no sale. Sin ninguna de las dos se le
 escribe a cualquier dirección: eso es producción, y ms-auth lo avisa al arrancar.
@@ -3694,6 +3707,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo, o a Brevo, antes de darlo por caído |
 | `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `noreply@technicalbridge.local`, `DataBridge`, vacía | El remitente, el nombre que muestra el buzón a su lado, y a quién se le responde si no es al remitente. Con Gmail, el remitente tiene que ser la propia cuenta |
 | `CORREO_SOLO_A`, `CORREO_DESVIAR_A` | vacías | El modo de prueba: a quién se le escribe directo, y adónde se desvía lo demás. Vacías, se le escribe a cualquier dirección |
+| `CORREO_DESVIO_MAXIMO_POR_DIA` | `100` | Hasta cuántos correos desvía el modo de prueba en un día de Chile: el desvío gasta el cupo del proveedor. `0`, sin tope (#236) |
 
 </details>
 
@@ -3739,6 +3753,7 @@ no es secreto sí tiene un valor de desarrollo.
 | `CONTACTO_FERIADOS` | vacía | Los feriados que se decretan y no se pueden calcular (una elección, un plebiscito, un feriado especial), separados por coma. Se suman a los nacionales, que se calculan solos para cualquier año. Las campañas no contactan esos días |
 | `CONTACTO_SIN_HORARIO` | `false` | **Solo para probar.** Con `true` se le escribe al deudor a cualquier hora, también de noche, los domingos y los feriados: sirve para probar la invitación o el reenvío del código fuera del horario. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro. El límite de dos por semana sigue igual |
 | `CONTACTO_SIN_LIMITE` | `false` | **Solo para probar.** Con `true` se le escribe al deudor cuantas veces se pida, sin el tope de dos correos por semana: sirve para pedir códigos en una demo con *Reenviar código*. Cada correo se sigue anotando. **Nunca en producción.** Al arrancar, ms-debt lo avisa en su registro, y *Reglas* lo muestra |
+| `INVITACIONES_POR_CUARTO_DE_HORA` | `100` | Cuántas invitaciones salen como máximo cada 15 minutos, entre las de una carga y las de la pasada de contacto. Lo que pasa del tope sale en las pasadas siguientes (#236). `0`, sin tope |
 | `INTEGRACION_API` | `false` | La entrega por API (`/api/v1`, con clave) y las claves (`/api/claves`). Apagada, responden `404` y los deudores entran solo por campaña, desde el portal. `true` la enciende, por si una empresa necesita automatizar |
 | `DEMO_DATOS` | `false` | Con `true`, instala una empresa que cobra directo, dos campañas y seis deudas de ejemplo en una base vacía. No convierte, completa ni borra datos existentes. También habilita su persona de ejemplo en ms-auth si todavía no hay personal de empresas |
 
@@ -3784,13 +3799,13 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**934 pruebas**, todas en Java y sin fallos:
+**963 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 226 |
-| `ms-debt` | 422 |
+| `ms-auth` | 250 |
+| `ms-debt` | 427 |
 | `ms-payments` | 224 |
 | `ms-ai` | 43 |
 
@@ -3905,7 +3920,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**934 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**963 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -3926,7 +3941,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **934**, sin fallos ([§11](#11-pruebas)); ms-payments se repitió con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **963**, sin fallos ([§11](#11-pruebas)); ms-auth y ms-debt se repitieron con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
 | Devolución de un pago duplicado ([#153](https://github.com/TechnicalBridge/TB_web/issues/153)) | Con todo Docker reconstruido desde la rama, en Edge, sobre el pago duplicado real de la base (y dejándolo después como estaba): la empresa toca *Ya lo devolví*, anota una referencia con comillas y el pago pasa a *Un pago devuelto* con su fecha; el libro guarda un JSON válido con la referencia intacta, la empresa y la persona. Marcarlo otra vez por la API responde `200` sin cambiar nada. El deudor lo ve en su historial. A 390 px, en ambos temas, sin desbordes ni errores de consola |

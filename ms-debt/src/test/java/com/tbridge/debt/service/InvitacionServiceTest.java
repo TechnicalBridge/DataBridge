@@ -55,7 +55,8 @@ class InvitacionServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new InvitacionService(debts, contactos, auth, limite, horario);
+        //  Sin tope: las pruebas de siempre no lo miran. El tope tiene las suyas abajo.
+        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(0));
         when(limite.permite(any(), any())).thenReturn(true);
         when(horario.permiteAhora()).thenReturn(true);
 
@@ -252,5 +253,49 @@ class InvitacionServiceTest {
         invitar();
 
         verify(auth, never()).emitirCodigo(any());
+    }
+    // ------------------------------------------------------------------
+    //  El tope por cuarto de hora (#236)
+    // ------------------------------------------------------------------
+
+    private Debt otraDeuda(long id, String correo) {
+        Debt otra = new Debt();
+        otra.setId(id);
+        otra.setCreditor(deuda.getCreditor());
+        otra.setDebtor(new Debtor());
+        otra.getDebtor().setRut("1000000" + id + "-0");
+        otra.getDebtor().setEmail(correo);
+        otra.setExternalId("CTR-" + id);
+        otra.setStatus(Debt.Status.open);
+        when(debts.findById(id)).thenReturn(Optional.of(otra));
+        return otra;
+    }
+
+    @Test
+    void una_carga_grande_no_invita_a_todos_en_el_mismo_cuarto_de_hora() {
+        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(2));
+        otraDeuda(8L, "tomas.vidal@example.com");
+        otraDeuda(9L, "sofia.lagos@example.com");
+
+        servicio.invitar(new InvitacionService.DeudaEnCobranza(7L));
+        servicio.invitar(new InvitacionService.DeudaEnCobranza(8L));
+        servicio.invitar(new InvitacionService.DeudaEnCobranza(9L));
+
+        verify(auth, times(2)).emitirCodigo(any());
+        verify(contactos, times(2)).save(any());
+    }
+
+    @Test
+    void la_pasada_invita_hasta_el_tope_y_deja_el_resto_sin_cortar_las_campanas() {
+        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(2));
+        Debt segunda = otraDeuda(8L, "tomas.vidal@example.com");
+        Debt tercera = otraDeuda(9L, "sofia.lagos@example.com");
+        when(debts.sinInvitar(3)).thenReturn(List.of(deuda, segunda, tercera));
+
+        InvitacionService.Pasada pasada = servicio.invitarPendientes(PASADA, nadie());
+
+        assertEquals(2, pasada.enviadas());
+        assertFalse(pasada.cortada(), "las campanas siguen: el tope no es una falla del correo");
+        verify(auth, times(2)).emitirCodigo(any());
     }
 }
