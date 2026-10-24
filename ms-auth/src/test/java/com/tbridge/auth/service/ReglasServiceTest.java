@@ -55,7 +55,7 @@ class ReglasServiceTest {
 
         assertEquals("Por la API de Brevo", regla(reglas, "Por dónde salen").valor());
         assertEquals("BREVO_API_KEY", regla(reglas, "Por dónde salen").variable());
-        assertEquals("Encendido: 2 direcciones o dominios reciben directo, y lo demás va al buzón de desvío",
+        assertEquals("Encendido: 2 direcciones o dominios reciben directo, y lo demás va al buzón de desvío (hasta 100 por día)",
                 regla(reglas, "Modo de prueba").valor());
         assertEquals("DataBridge <da***@gmail.com>", regla(reglas, "Quién los firma").valor());
         String todo = reglas.toString();

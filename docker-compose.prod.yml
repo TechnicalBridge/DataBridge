@@ -34,6 +34,10 @@ services:
   ms-auth:
     <<: *imagen
     image: ghcr.io/technicalbridge/databridge-ms-auth:${VERSION:-main}
+    environment:
+      #  Sin Mailpit en el servidor: lo de un dominio reservado va al desvio
+      #  del modo de prueba (con su tope por dia), no a un buzon que no existe.
+      CORREO_BUZON_DE_PRUEBA: ""
 
   ms-debt:
     <<: *imagen

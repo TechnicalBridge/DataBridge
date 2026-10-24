@@ -20,12 +20,14 @@ import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -55,6 +57,12 @@ import java.util.Optional;
  * de verdad: sin el, los correos inventados de los datos de demostracion
  * recibirian cobranzas.
  *
+ * <p><b>El cupo del proveedor no se gasta en direcciones que no existen</b>
+ * (#236). Lo que va a un dominio reservado ({@link DominiosReservados}) nunca
+ * sale por el proveedor directo: va al buzon de prueba si lo hay (Mailpit, en
+ * Docker local) o, si no, al desvio del modo de prueba. Y el desvio tiene un
+ * tope por dia ({@link TopeDeDesvio}), porque sale por el proveedor y gasta.
+ *
  * <p>El correo de un codigo y el de un recordatorio <b>dicen si no salieron</b>
  * ({@link CorreoNoSalio}): quien los pide es la cobranza, que no puede anotar
  * como hecha una gestion que nunca llego. El enlace y la invitacion salen en
@@ -80,6 +88,10 @@ public class MailService {
     private final boolean porBrevo;
     private final boolean alBuzonDePrueba;
     private final ModoDePrueba modo;
+    /** Por donde sale lo de un dominio reservado cuando el correo va por un proveedor real. */
+    private final JavaMailSender buzonDeReservados;
+    private final String direccionDelBuzon;
+    private final TopeDeDesvio topeDeDesvio;
 
     @Autowired
     public MailService(
@@ -94,8 +106,20 @@ public class MailService {
             @Value("${app.mail.solo-a:}") String soloA,
             @Value("${app.mail.desviar-a:}") String desviarA,
             @Value("${app.mail.buzon-de-prueba:}") String buzonDePrueba,
-            @Value("${app.mail.brevo.api-key:}") String claveDeBrevo
+            @Value("${app.mail.brevo.api-key:}") String claveDeBrevo,
+            @Value("${app.mail.desvio-maximo-por-dia:100}") int desvioMaximoPorDia
     ) {
+        this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba,
+                claveDeBrevo, desvioMaximoPorDia, null, Clock.systemUTC());
+    }
+
+    /**
+     * Con todo a la vista, para las pruebas: el buzon de los dominios reservados
+     * (null lo arma de {@code buzonDePrueba}) y el reloj del tope del desvio.
+     */
+    MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
+                String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba,
+                String claveDeBrevo, int desvioMaximoPorDia, JavaMailSender buzonDeReservados, Clock reloj) {
         this.mailSender = mailSender.getIfAvailable();
         this.from = from;
         this.remitente = conNombre(from, nombre);
@@ -109,13 +133,37 @@ public class MailService {
         this.modo = new ModoDePrueba(soloA, desviarA);
         this.alBuzonDePrueba = conServidor && !porBrevo && StringUtils.hasText(buzonDePrueba)
                 && buzonDePrueba.strip().startsWith(host.strip());
+        //  Con un proveedor real, el buzon de prueba (si lo hay) recibe lo de los dominios reservados.
+        boolean hayBuzonAparte = conServidor && !alBuzonDePrueba && StringUtils.hasText(buzonDePrueba);
+        this.direccionDelBuzon = hayBuzonAparte ? buzonDePrueba.strip() : null;
+        this.buzonDeReservados = !hayBuzonAparte ? null
+                : buzonDeReservados != null ? buzonDeReservados : buzon(buzonDePrueba.strip());
+        this.topeDeDesvio = new TopeDeDesvio(desvioMaximoPorDia, reloj);
         decirComoQuedo(host, buzonDePrueba);
+    }
+
+    /** Con Brevo, con el tope de siempre y el buzon armado de la configuracion. Para las pruebas. */
+    MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
+                String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba,
+                String claveDeBrevo) {
+        this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba,
+                claveDeBrevo, 100, null, Clock.systemUTC());
     }
 
     /** Por SMTP, sin Brevo. Para las pruebas. */
     MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
                 String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba) {
         this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba, "");
+    }
+
+    /** El buzon de prueba ({@code mailpit:1025}): SMTP sin clave ni cifrado, que no sale a ninguna parte. */
+    private static JavaMailSender buzon(String hostYPuerto) {
+        JavaMailSenderImpl buzon = new JavaMailSenderImpl();
+        int dosPuntos = hostYPuerto.lastIndexOf(':');
+        buzon.setHost(dosPuntos > 0 ? hostYPuerto.substring(0, dosPuntos) : hostYPuerto);
+        buzon.setPort(dosPuntos > 0 ? Integer.parseInt(hostYPuerto.substring(dosPuntos + 1)) : 1025);
+        buzon.setDefaultEncoding(StandardCharsets.UTF_8.name());
+        return buzon;
     }
 
     /** Sin nombre de remitente, sin responder-a y sin modo de prueba: como antes. Para las pruebas. */
@@ -143,6 +191,12 @@ public class MailService {
         } else {
             log.warn("Correo: servidor real {}, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
                     + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", servidor, from);
+        }
+        if (conServidor && !alBuzonDePrueba) {
+            log.info("Correo: lo de un dominio reservado (example.com, .test...) va {}; el desvio, hasta {} por dia",
+                    buzonDeReservados != null ? "al buzon de prueba (" + direccionDelBuzon + ")"
+                            : modo.desvia() ? "al desvio" : "a ninguna parte",
+                    topeDeDesvio.maximo() == 0 ? "sin tope" : String.valueOf(topeDeDesvio.maximo()));
         }
     }
 
@@ -174,8 +228,13 @@ public class MailService {
         String enModo = !modo.activo() ? "Apagado: se le escribe a cualquier dirección"
                 : "Encendido: " + (cuantos == 0 ? "ninguna dirección recibe" : cuantos == 1
                 ? "una dirección o dominio recibe" : cuantos + " direcciones o dominios reciben")
-                + " directo, y lo demás " + (modo.desvia() ? "va al buzón de desvío" : "no sale");
+                + " directo, y lo demás " + (modo.desvia() ? "va al buzón de desvío" + hastaPorDia() : "no sale");
         return new ComoSalen(por, variables, enModo, remitenteTapado());
+    }
+
+    /** El tope del desvio, que gasta el cupo del proveedor: {@code " (hasta 100 por día)"}. */
+    private String hastaPorDia() {
+        return topeDeDesvio.maximo() == 0 ? "" : " (hasta " + topeDeDesvio.maximo() + " por día)";
     }
 
     /** {@code DataBridge <da***@gmail.com>}: se reconoce sin exponer la cuenta. */
@@ -435,12 +494,34 @@ public class MailService {
      *         de desvio. Vacio si el modo de prueba no lo dejo salir.
      */
     private Optional<String> entregar(String to, String asunto, String plantilla, Map<String, ?> datos) {
-        Optional<ModoDePrueba.Destino> destino = modo.para(to, asunto);
-        if (destino.isEmpty()) {
-            log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)", to);
+        Optional<ModoDePrueba.Destino> destino;
+        if (!alBuzonDePrueba && DominiosReservados.es(to)) {
+            //  Un dominio reservado no entrega correo: por el proveedor solo gastaria su cupo (#236).
+            if (buzonDeReservados != null) {
+                buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
+                        PLANTILLAS.escribir(plantilla, datos)));
+                log.info("Dominio reservado: el correo para {} va al buzon de prueba, no al proveedor", to);
+                return Optional.of(direccionDelBuzon);
+            }
+            destino = modo.desviar(to, asunto);
+            if (destino.isEmpty()) {
+                log.info("Dominio reservado: el correo para {} no sale (no hay buzon de prueba ni CORREO_DESVIAR_A)", to);
+                return Optional.empty();
+            }
+        } else {
+            destino = modo.para(to, asunto);
+            if (destino.isEmpty()) {
+                log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)",
+                        to);
+                return Optional.empty();
+            }
+        }
+        if (destino.get().desviado() && !topeDeDesvio.tomar()) {
+            log.warn("Modo de prueba: el correo para {} no sale, porque hoy ya se desviaron {} "
+                    + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
             return Optional.empty();
         }
-        mailSender.send(armar(destino.get(), PLANTILLAS.escribir(plantilla, datos)));
+        mailSender.send(armar(mailSender, destino.get(), PLANTILLAS.escribir(plantilla, datos)));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
         }
@@ -456,7 +537,7 @@ public class MailService {
      * la direccion del deudor. Un destinatario mal escrito, en cambio, si es de
      * la direccion.
      */
-    private MimeMessage armar(ModoDePrueba.Destino destino, Carta carta) {
+    private MimeMessage armar(JavaMailSender servidor, ModoDePrueba.Destino destino, Carta carta) {
         InternetAddress de;
         InternetAddress[] responder;
         try {
@@ -472,7 +553,7 @@ public class MailService {
             throw new MailParseException("La direccion del destinatario no es valida", e);
         }
         try {
-            MimeMessage mensaje = mailSender.createMimeMessage();
+            MimeMessage mensaje = servidor.createMimeMessage();
             mensaje.setFrom(de);
             mensaje.setRecipient(Message.RecipientType.TO, para);
             if (responder != null) {

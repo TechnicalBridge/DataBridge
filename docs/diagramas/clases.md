@@ -486,6 +486,8 @@ classDiagram
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
 | `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
+| `DominiosReservados` | `service` | Los dominios que nunca entregan correo (`example.com`, `.test`…). Lo que va a uno de ellos no sale por el proveedor: va al buzón de prueba o al desvío (#236). |
+| `TopeDeDesvio` | `service` | Cuántos correos desvía el modo de prueba en un día de Chile (`CORREO_DESVIO_MAXIMO_POR_DIA`): el desvío gasta el cupo del proveedor. |
 | `PlantillasDeCorreo` | `service` | Lo que dice cada correo: las plantillas de `resources/correos`, una en HTML y otra en texto por correo, con Thymeleaf. |
 | `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
@@ -1792,6 +1794,7 @@ classDiagram
 | --- | --- | --- |
 | `InternalController` | `controller` | Lo que le piden o le avisan los otros servicios, con la clave interna. |
 | `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
+| `TopeDeInvitaciones` | `service` | Cuántas invitaciones salen cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`): una carga grande no las manda todas juntas, y lo que pasa del tope sale en las pasadas siguientes (#236). |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |

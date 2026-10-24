@@ -42,6 +42,10 @@ import java.util.Set;
  * recibieron ningun correo ({@link #invitarPendientes}): asi, corregido el
  * servidor de correo, la invitacion sale sola, y tambien la que la ley dejo
  * para despues o la de un deudor que recien trajo correo.
+ *
+ * <p>Salen a lo mas las que caben en cada cuarto de hora
+ * ({@link TopeDeInvitaciones}): una carga de mil deudores no manda mil correos
+ * en el mismo minuto, y lo que pasa del tope sale en las pasadas siguientes.
  */
 @Service
 public class InvitacionService {
@@ -59,14 +63,16 @@ public class InvitacionService {
     private final AuthClient auth;
     private final LimiteDeContacto limite;
     private final HorarioDeContacto horario;
+    private final TopeDeInvitaciones tope;
 
     public InvitacionService(DebtRepository debts, ContactRepository contactos, AuthClient auth,
-                             LimiteDeContacto limite, HorarioDeContacto horario) {
+                             LimiteDeContacto limite, HorarioDeContacto horario, TopeDeInvitaciones tope) {
         this.debts = debts;
         this.contactos = contactos;
         this.auth = auth;
         this.limite = limite;
         this.horario = horario;
+        this.tope = tope;
     }
 
     @Async
@@ -98,6 +104,12 @@ public class InvitacionService {
             //  invita en cuanto se pueda.
             log.info("La deuda {} se invita despues: el deudor ya recibio lo que deja la ley esta semana",
                     deuda.getId());
+            return;
+        }
+        if (!tope.tomar()) {
+            //  Una carga grande: lo que pasa del tope lo invitan las pasadas siguientes.
+            log.info("La deuda {} se invita en la proxima pasada: ya salieron {} invitaciones en este cuarto de hora",
+                    deuda.getId(), tope.maximo());
             return;
         }
         try {
@@ -132,6 +144,12 @@ public class InvitacionService {
             Debtor deudor = deuda.getDebtor();
             if (fallaron.contains(deudor) || !limite.permite(deudor, cuando)) {
                 continue;
+            }
+            if (!tope.tomar()) {
+                //  Las que faltan salen en la pasada siguiente. No se corta la pasada: las campanas siguen.
+                log.info("Invitaciones: {} en esta pasada, y las demas en la siguiente (tope de {} cada 15 minutos)",
+                        enviadas, tope.maximo());
+                return new Pasada(enviadas, false);
             }
             try {
                 auth.emitirCodigo(pedido(deuda));
