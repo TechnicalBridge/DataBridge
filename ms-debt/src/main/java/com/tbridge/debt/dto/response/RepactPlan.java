@@ -3,7 +3,6 @@ package com.tbridge.debt.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 /**
@@ -31,10 +30,4 @@ public record RepactPlan(
         @Schema(description = "El costo total del convenio: la suma de todas las cuotas",
                 example = "962685") BigDecimal costoTotal
 ) {
-    public RepactPlan(int months, BigDecimal monthlyAmount, BigDecimal lastAmount, BigDecimal total,
-                      List<InstallmentPreview> cuotas, BigDecimal capital, BigDecimal interesMora,
-                      BigDecimal aRepactar, BigDecimal tasaInteresMensual, BigDecimal interesConvenio) {
-        this(months, monthlyAmount, lastAmount, total, cuotas, capital, interesMora, aRepactar, tasaInteresMensual,
-                interesConvenio, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), total);
-    }
 }

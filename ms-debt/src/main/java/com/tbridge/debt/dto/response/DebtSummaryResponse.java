@@ -162,13 +162,9 @@ public record DebtSummaryResponse(
         LocalDate hoy = LocalDate.now(CHILE);
         int vencidas = (int) cuotas.stream()
                 .filter(c -> c.getStatus() == Installment.Status.pending && c.getDueDate().isBefore(hoy)).count();
-        BigDecimal caeConvenio = cae != null ? cae : cuotas.stream()
-                .map(Installment::getRepactation)
-                .filter(java.util.Objects::nonNull)
-                .map(com.tbridge.debt.model.Repactation::getCae)
-                .filter(java.util.Objects::nonNull)
-                .findFirst()
-                .orElse(null);
+        //  La CAE la pasa el detalle, del convenio vigente. La lista no la busca cuota por cuota:
+        //  seria una consulta por convenio, y la de un convenio ya reemplazado podria salir primero.
+        BigDecimal caeConvenio = cae;
         return new DebtSummaryResponse(
                 deuda.getId(),
                 deuda.getExternalId(),

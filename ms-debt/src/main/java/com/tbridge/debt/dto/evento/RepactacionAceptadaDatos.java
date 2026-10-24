@@ -24,9 +24,4 @@ public record RepactacionAceptadaDatos(
         Number totalAPagar,
         BigDecimal cae
 ) {
-    public RepactacionAceptadaDatos(String deudaIdExterno, int cuotas, Number montoCuota, String moneda,
-                                   String primeraCuota, BigDecimal tasaInteresMensual, Number aRepactar,
-                                   Number totalAPagar) {
-        this(deudaIdExterno, cuotas, montoCuota, moneda, primeraCuota, tasaInteresMensual, aRepactar, totalAPagar, null);
-    }
 }
