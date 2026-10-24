@@ -356,6 +356,7 @@ erDiagram
         decimal(18_2) monthly_amount "el valor de la cuota"
         decimal(5_2) interest_rate "opcional"
         decimal(18_2) principal "opcional · lo repactado: capital más mora"
+        decimal(6_2) cae "opcional · la CAE informada al aceptar (D.S. 43)"
         varchar(3) currency "CLP o UF"
         datetime accepted_at
         datetime superseded_at "opcional · cuándo lo reemplazó otro convenio"

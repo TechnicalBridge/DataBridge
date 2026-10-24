@@ -10,7 +10,8 @@ import java.math.BigDecimal;
  *
  * <p>Si la deuda genera intereses, van la tasa, lo repactado (el capital mas la
  * mora de ese dia) y el total a pagar con el interes del convenio. Sin tasa,
- * esos tres no vienen.
+ * esos tres no vienen. La CAE va siempre: la que se le informo al deudor al
+ * aceptar, 0.00 si es sin interes.
  */
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record RepactacionAceptadaDatos(
@@ -21,6 +22,7 @@ public record RepactacionAceptadaDatos(
         String primeraCuota,
         BigDecimal tasaInteresMensual,
         Number aRepactar,
-        Number totalAPagar
+        Number totalAPagar,
+        BigDecimal cae
 ) {
 }

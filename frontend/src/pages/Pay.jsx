@@ -158,7 +158,10 @@ export default function Pay() {
         <div>
           <span className="eyebrow">{deuda.acreedor}</span>
           <h1>Pagar</h1>
-          <p>{deuda.concepto}, ref. {deuda.externalId}</p>
+          <p>
+            {deuda.concepto}, ref. {deuda.externalId}
+            {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
+          </p>
         </div>
         <Link className="btn btn-ghost btn-sm" to="/app">
           <IconoVolver size={16} />

@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -727,10 +728,67 @@ class DebtServiceTest {
         assertEquals(3, delPlan.size());
         assertEquals(plan.cuotas().getFirst().interest(), delPlan.getFirst().getInterestAmount(),
                 "cada cuota guarda su interes, para que la mora corra solo sobre el capital");
+        //  Al 1% mensual en sistema frances, la CAE es 12,00%: el redondeo de las cuotas no la mueve.
+        assertEquals(new BigDecimal("12.00"), plan.cae());
+        ArgumentCaptor<Repactation> convenio = ArgumentCaptor.forClass(Repactation.class);
+        verify(repactations).save(convenio.capture());
+        assertEquals(new BigDecimal("12.00"), convenio.getValue().getCae(), "el convenio guarda la CAE que se informo");
+
         ArgumentCaptor<Object> datos = ArgumentCaptor.forClass(Object.class);
         verify(eventos).publicar(eq(deuda), eq(EventosService.REPACTACION_ACEPTADA), datos.capture(), any());
         RepactacionAceptadaDatos aceptada = (RepactacionAceptadaDatos) datos.getValue();
         assertEquals(new BigDecimal("1"), aceptada.tasaInteresMensual());
         assertEquals(414100L, aceptada.aRepactar());
+        assertEquals(new BigDecimal("12.00"), aceptada.cae(), "el aviso repactacion.aceptada lleva la CAE");
+    }
+
+    // ------------------------------------------------------------------
+    //  La CAE del convenio (#46)
+    // ------------------------------------------------------------------
+
+    private Repactation convenioVigente(String cae, String aceptado) {
+        Repactation convenio = new Repactation();
+        convenio.setDebt(deuda);
+        convenio.setCae(new BigDecimal(cae));
+        convenio.setAcceptedAt(Instant.parse(aceptado));
+        return convenio;
+    }
+
+    @Test
+    void el_detalle_de_un_convenio_trae_su_cae_y_si_hubiera_dos_vigentes_la_del_ultimo() {
+        enConvenioDeTres();
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda))).thenReturn(List.of(
+                convenioVigente("18.00", "2026-10-02T15:00:00Z"),
+                convenioVigente("15.00", "2026-09-10T12:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(new BigDecimal("18.00"), detalle.resumen().cae());
+    }
+
+    @Test
+    void una_deuda_que_ya_no_esta_en_convenio_no_informa_la_cae_del_convenio_viejo() {
+        //  El acreedor la volvio a cargar: queda abierta, con el convenio anterior sin reemplazar.
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(false, detalle.resumen().conConvenio());
+        assertNull(detalle.resumen().cae());
+    }
+
+    @Test
+    void las_listas_traen_la_cae_en_una_sola_consulta() {
+        enConvenioDeTres();
+        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda));
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(deudor("18905214-6")).getFirst().cae());
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(empresa("77305118-6")).getFirst().cae());
+        verify(repactations, org.mockito.Mockito.times(2)).findByDebtInAndSupersededAtIsNull(List.of(deuda));
+        verify(repactations, never()).findByDebtAndSupersededAtIsNull(any());
     }
 }

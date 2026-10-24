@@ -673,7 +673,7 @@ ahora en sentido contrario.
 | --- | --- | --- |
 | `lote.procesado` | Termina la ingesta de un lote | `periodo`, `fecha_corte`, `recibidas`, `aceptadas`, `rechazadas`, `tramos: [{tramo, deudas, promedio_clp}]` |
 | `campana.avance` | Una vez al día por campaña | `campana_id_externo`, `fecha_corte`, `deudas`, `enviados`, `ingresos_portal`, `repactaciones`, `pagos`, `saldadas`, `disputas`, `retiradas`, `recuperado_clp`, `recuperado_uf` |
-| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
+| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`, `cae`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
 | `pago.confirmado` | La pasarela confirma un pago | `deuda_id_externo`, `pago_id`, `monto`, `moneda`, `monto_clp`, `valor_uf`, `medio`, `pagado_en`; si el pago trae mora, además `capital` e `interes` (`monto` es la suma); con descuento por pronto pago, además `descuento` |
 | `deuda.saldada` | El saldo llega a cero | `deuda_id_externo`, `saldada_en` |
 | `deuda.disputada` | El deudor dice que la deuda no es suya o no corresponde | `deuda_id_externo`, `motivo` |

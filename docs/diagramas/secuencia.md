@@ -302,7 +302,8 @@ sequenceDiagram
     Note over DS: Intereses.deMora: la mora de hoy,<br/>con la tasa que pactó el acreedor
     DS->>RS: simulate(capital, mora, tasa, moneda, n, desde)
     Note over RS: de 3 a 24 cuotas. Con tasa, sistema francés: cuotas iguales,<br/>cada una con su interés. Sin tasa, partes iguales
-    RS-->>DS: RepactPlan: lo repactado, la cuota y el total a pagar
+    Note over RS: calcularCae: la tasa que iguala lo repactado con las cuotas,<br/>por 12 (D.S. 43). Sin tasa, 0,00%
+    RS-->>DS: RepactPlan: lo repactado, la cuota, la CAE y el costo total
     DS-->>P: el plan, con el enlace para aceptarlo
 
     D->>P: acepta
@@ -311,7 +312,7 @@ sequenceDiagram
     Note over DS: no se repacta una deuda pagada,<br/>retirada ni en reclamo
     DS->>RS: simulate(…), otra vez: el plan no viene del navegador
     DS->>B: repactations: el convenio anterior queda reemplazado
-    DS->>B: repactations: el convenio nuevo, con su tasa y lo repactado
+    DS->>B: repactations: el convenio nuevo, con su tasa, lo repactado y la CAE que se informó
     DS->>B: installments: las pendientes pasan a anuladas
     DS->>B: installments: las cuotas del convenio, cada una con su interés
     DS->>B: debts: status = repacted
