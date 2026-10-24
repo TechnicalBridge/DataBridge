@@ -11,8 +11,7 @@
 #    .\preparar-env.ps1 -Renovar
 #        Ademas cambia los secretos que todavia tengan uno de los valores de
 #        desarrollo que antes venian escritos en el repositorio (los reconoce
-#        por su huella SHA-256, sin guardarlos aqui). Las claves de MySQL se
-#        cambian tambien dentro de la base, si esta arriba, sin perder datos.
+#        por su huella SHA-256, sin guardarlos aqui).
 #
 #    .\preparar-env.ps1 -Renovar -TambienCifrado
 #        Lo mismo, y tambien CIFRADO_LLAVE. Cuidado: con ella se cifran los
@@ -21,7 +20,9 @@
 #
 #    .\preparar-env.ps1 -Cambiar JWT_SECRET[,OTRO]
 #        Cambia esos secretos aunque ya tengan un valor propio: para cuando uno
-#        se filtro (quedo en una captura, en un registro, en un chat).
+#        se filtro (quedo en una captura, en un registro, en un chat). Las
+#        claves de una base (DB_DEBT_PASSWORD, ...) se cambian tambien dentro de
+#        esa base, que tiene que estar arriba, sin perder datos.
 #
 #  Nunca muestra un valor. Despues: docker compose --profile app up -d.
 # =============================================================================
@@ -29,8 +30,9 @@ param(
     [switch]$Renovar,
     [switch]$TambienCifrado,
     [string[]]$Cambiar = @(),
-    #  El contenedor de MySQL de DataBridge. Solo cambia en una prueba.
-    [string]$Contenedor = 'tbridge-db'
+    #  Como empiezan los contenedores de las tres bases (tbridge-db-auth, ...).
+    #  Solo cambia en una prueba.
+    [string]$Contenedores = 'tbridge-db'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,15 +40,27 @@ $archivo = Join-Path $PSScriptRoot '.env'
 $ejemplo = Join-Path $PSScriptRoot '.env.example'
 $sinBom = New-Object System.Text.UTF8Encoding($false)
 
-#  Los secretos, y la huella SHA-256 del valor publico que tenia cada uno.
+#  Los secretos, y la huella SHA-256 del valor publico que tenia cada uno. Las
+#  claves de las tres bases (#238) nunca tuvieron uno: van sin huella.
 $secretos = [ordered]@{
-    MYSQL_ROOT_PASSWORD = '5012f5182061c46e57859cf617128c6f70eddfba4db27772bdede5a039fa7085'
-    MYSQL_PASSWORD      = '068a635d2c022dfafb6c163b832327ab9bd8b944c3f44af23bf97cbc6591be1c'
+    DB_AUTH_ROOT_PASSWORD     = ''
+    DB_AUTH_PASSWORD          = ''
+    DB_DEBT_ROOT_PASSWORD     = ''
+    DB_DEBT_PASSWORD          = ''
+    DB_PAYMENTS_ROOT_PASSWORD = ''
+    DB_PAYMENTS_PASSWORD      = ''
     RABBIT_PASSWORD     = '84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec'
     JWT_SECRET          = '686101b1c40874b07191bc92a9965f89fa570088218f88e30abbe768737f347f'
     INTERNAL_KEY        = 'cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621'
     CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'
     WEBHOOK_SECRET      = 'ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5'
+}
+
+#  De que base es cada clave, y en que contenedor vive: DB_DEBT_PASSWORD es de
+#  DB_DEBT, que vive en tbridge-db-debt.
+function Base-De([string]$nombre) { return ($nombre -replace '_(ROOT_)?PASSWORD$', '') }
+function Contenedor-De([string]$base) {
+    return "$Contenedores-" + ($base -replace '^DB_', '').ToLower()
 }
 
 function Nueva-Clave {
@@ -83,7 +97,7 @@ function Poner([System.Collections.Generic.List[string]]$lineas, [string]$nombre
 #  Cambia la clave de un usuario dentro del MySQL que esta corriendo. La clave
 #  vieja y la nueva viajan por el entorno y por la entrada estandar, nunca en
 #  la linea de comandos, donde cualquier proceso del equipo las podria leer.
-function Cambiar-En-MySQL([string]$rootActual, [string]$sql) {
+function Cambiar-En-MySQL([string]$Contenedor, [string]$rootActual, [string]$sql) {
     $env:MYSQL_PWD = $rootActual
     $antes = $ErrorActionPreference
     #  En PowerShell 5.1 lo que un programa escribe en stderr corta el script
@@ -105,15 +119,14 @@ if (-not (Test-Path $archivo)) {
 $lineas = New-Object System.Collections.Generic.List[string]
 foreach ($linea in [System.IO.File]::ReadAllLines($archivo, $sinBom)) { $lineas.Add($linea) }
 
-$baseArriba = $false
-if ($Renovar -or $Cambiar.Count -gt 0) {
+function Esta-Arriba([string]$Contenedor) {
     $ErrorActionPreference = 'Continue'
     $estado = docker inspect -f '{{.State.Running}}' $Contenedor 2>$null
-    $baseArriba = ($LASTEXITCODE -eq 0 -and $estado -eq 'true')
+    $arriba = ($LASTEXITCODE -eq 0 -and $estado -eq 'true')
     $ErrorActionPreference = 'Stop'
+    return $arriba
 }
 
-$rootActual = Valor $lineas 'MYSQL_ROOT_PASSWORD'
 $usuarioBase = Valor $lineas 'MYSQL_USER'
 if (-not $usuarioBase) { $usuarioBase = 'tbridge' }
 
@@ -138,21 +151,23 @@ foreach ($nombre in $secretos.Keys) {
         continue
     }
     $nueva = Nueva-Clave
-    if ($nombre -like 'MYSQL_*') {
-        if (-not $baseArriba) {
-            Write-Host "$nombre`: la base no esta arriba; levantala (docker compose up -d) y vuelve a correr con -Renovar." -ForegroundColor Yellow
+    if ($nombre -like 'DB_*') {
+        $base = Base-De $nombre
+        $contenedor = Contenedor-De $base
+        if (-not (Esta-Arriba $contenedor)) {
+            Write-Host "$nombre`: $contenedor no esta arriba; levantalo (docker compose up -d) y vuelve a correrlo." -ForegroundColor Yellow
             continue
         }
-        if ($nombre -eq 'MYSQL_ROOT_PASSWORD') {
+        if ($nombre -like '*_ROOT_PASSWORD') {
             $sql = "ALTER USER IF EXISTS 'root'@'%' IDENTIFIED BY '$nueva'; ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED BY '$nueva';"
         } else {
             $sql = "ALTER USER IF EXISTS '$usuarioBase'@'%' IDENTIFIED BY '$nueva';"
         }
-        if (-not (Cambiar-En-MySQL $rootActual $sql)) {
+        #  La de root se lee recien aqui: si se cambio en esta misma vuelta, ya es la nueva.
+        if (-not (Cambiar-En-MySQL $contenedor (Valor $lineas "${base}_ROOT_PASSWORD") $sql)) {
             Write-Host "$nombre`: MySQL no acepto el cambio; el .env queda como estaba." -ForegroundColor Red
             continue
         }
-        if ($nombre -eq 'MYSQL_ROOT_PASSWORD') { $rootActual = $nueva }
     }
     Poner $lineas $nombre $nueva
     Write-Host "$nombre`: renovado." -ForegroundColor Green

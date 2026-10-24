@@ -17,7 +17,9 @@ flowchart LR
         CADDY["Caddy<br/>80 y 443, Let's Encrypt"] --> PORTAL["portal<br/>nginx"]
         PORTAL -->|"/api"| GW["gateway"]
         GW --> AUTH["ms-auth"] & DEBT["ms-debt"] & PAY["ms-payments"] & AI["ms-ai"]
-        AUTH & DEBT & PAY --> DB[("MySQL 8.4")]
+        AUTH --> BA[("MySQL<br/>tb_auth")]
+        DEBT --> BD[("MySQL<br/>tb_debt")]
+        PAY --> BP[("MySQL<br/>tb_payments")]
         PAY -.-> MQ{{"RabbitMQ"}} -.-> DEBT
     end
     GHA(["GitHub Actions"]) -->|"compila las imágenes"| GHCR[("GHCR")]
@@ -29,7 +31,7 @@ flowchart LR
 
 - **Es el mismo `docker compose` de local**, más [`docker-compose.prod.yml`](../../docker-compose.prod.yml):
   - Caddy va delante y es lo único que publica puertos;
-  - MySQL, RabbitMQ y el portal quedan cerrados;
+  - las tres bases (una por servicio, cada una en su MySQL), RabbitMQ y el portal quedan cerrados;
   - el buzón de prueba no se levanta.
 - **El servidor no compila nada.** GitHub Actions ([`desplegar.yml`](../../.github/workflows/desplegar.yml)) compila
   las seis imágenes y las publica en GHCR. El servidor solo las descarga: con 6 GB no le sobra memoria para Maven.
@@ -100,8 +102,8 @@ curl -fsSL https://raw.githubusercontent.com/TechnicalBridge/TB_web/main/deploy/
 - las actualizaciones de seguridad automáticas y 2 GB de swap;
 - el usuario `databridge`, que despliega;
 - el repositorio en `/opt/databridge`;
-- un respaldo de la base cada madrugada ([`respaldar.sh`](../../deploy/respaldar.sh), los últimos 7 días en
-  `/var/backups/databridge`);
+- un respaldo de cada base cada madrugada ([`respaldar.sh`](../../deploy/respaldar.sh), un archivo por base y
+  los últimos 7 días en `/var/backups/databridge`);
 - un `.env` con **claves nuevas al azar** y los valores de producción: `PUBLIC_URL`, `COOKIE_SECURE`,
   `CORS_ORIGINS`, `KHIPU_URL_AVISOS`, y para la demo `DEMO_DATOS`, `CONTACTO_SIN_HORARIO` y `CONTACTO_SIN_LIMITE`.
 
