@@ -14,8 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
     private HttpSecurity base(HttpSecurity http) throws Exception {
-        return http.csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req,res,e) -> JwtAuthenticationFailureHandler.write(res,401,"No autorizado"))
@@ -26,6 +25,7 @@ public class SecurityConfig {
     public SecurityFilterChain sinSesionFilterChain(HttpSecurity http) throws Exception {
         // El controlador conserva API key o X-Internal-Key; no son sesiones.
         return base(http).securityMatcher("/internal/**", "/api/v1/**")
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()).build();
     }
 
