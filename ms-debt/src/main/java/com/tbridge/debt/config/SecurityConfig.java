@@ -14,7 +14,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
     private HttpSecurity base(HttpSecurity http) throws Exception {
-        return http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        // Ambas cadenas son APIs stateless sin autenticacion por cookie ni sesion.
+        // Portal: JWT en Authorization; /api/v1: API key en Authorization;
+        // /internal: X-Internal-Key. El navegador no adjunta estas credenciales por si solo.
+        // CSRF no debe adelantarse a esas validaciones ni cambiar sus respuestas HTTP.
+        // Esta excepcion contextual no aplica a auth, que si usa refresh cookie.
+        // Si se incorpora autenticacion por cookie aqui, reevaluar la proteccion CSRF.
+        return http.csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req,res,e) -> JwtAuthenticationFailureHandler.write(res,401,"No autorizado"))
