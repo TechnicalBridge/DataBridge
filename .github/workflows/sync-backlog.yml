@@ -1,0 +1,51 @@
+name: Sincronizar Product Backlog a Excel y Drive
+
+on:
+  issues:
+    types: [opened, edited, deleted, closed, reopened, assigned, unassigned, labeled, unlabeled]
+  schedule:
+    - cron: '0 * * * *' # Cada 1 hora
+  workflow_dispatch: # Ejecución manual desde la pestaña Actions
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  sincronizar-backlog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install openpyxl
+
+      - name: Ejecutar script de sincronización
+        env:
+          GITHUB_TOKEN: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python scripts/sync_backlog.py
+
+      - name: Confirmar y subir cambios al repositorio
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add "docs/Product Backlog - DataBridge.xlsx" "docs/Product_Backlog_DataBridge.csv"
+          if git diff --staged --quiet; then
+            echo "No hay cambios para commitear."
+          else
+            git commit -m "chore(backlog): Actualización automática de Product Backlog [skip ci]"
+            git push
+          fi
+
+      - name: Notificar a Google Sheets (Opcional - Webhook de tiempo real)
+        if: env.SHEETS_WEBHOOK != ''
+        env:
+          SHEETS_WEBHOOK: ${{ secrets.GOOGLE_SHEETS_WEBHOOK_URL }}
+        run: |
+          curl -X POST -L "$SHEETS_WEBHOOK"
