@@ -1,5 +1,8 @@
 # DataBridge en Railway
 
+> La firma cambio a ES256 con archivos solo en auth y JWKS para debt/payments. Este documento no define su aprovisionamiento en Railway: requiere evaluacion aparte. Ver el [contrato JWT actual](../seguridad/jwt.md) antes de usar esta guia.
+
+
 > **No es el despliegue de la demo.** En #173 se decidió un VPS de Namecheap, por costo: Railway siempre
 > encendido cuesta unos US$25–30 al mes. La demo corre como dice [`docs/despliegue`](../despliegue/README.md).
 > Esta guía queda por si algún día conviene volver a Railway: el repositorio sigue preparado.
@@ -44,11 +47,10 @@ Flyway les pone sus tablas. No hay que correr nada a mano.
 
 ## 2. Las claves compartidas
 
-En **Project Settings → Shared Variables**, cuatro variables:
+En **Project Settings → Shared Variables**, tres variables de infraestructura (la firma de sesiones no se comparte):
 
 | Variable | La usan |
 | --- | --- |
-| `JWT_SECRET` | ms-auth, ms-debt y ms-payments |
 | `INTERNAL_KEY` | ms-auth, ms-debt y ms-payments |
 | `WEBHOOK_SECRET` | ms-payments |
 | `CIFRADO_LLAVE` | ms-debt |
@@ -85,7 +87,6 @@ DB_HOST=${{MySQL.MYSQLHOST}}
 DB_PORT=${{MySQL.MYSQLPORT}}
 DB_USER=${{MySQL.MYSQLUSER}}
 DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
-JWT_SECRET=${{shared.JWT_SECRET}}
 INTERNAL_KEY=${{shared.INTERNAL_KEY}}
 DEBT_URI=http://${{ms-debt.RAILWAY_PRIVATE_DOMAIN}}:8083
 PUBLIC_URL=https://${{portal.RAILWAY_PUBLIC_DOMAIN}}
@@ -106,7 +107,6 @@ DB_HOST=${{MySQL.MYSQLHOST}}
 DB_PORT=${{MySQL.MYSQLPORT}}
 DB_USER=${{MySQL.MYSQLUSER}}
 DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
-JWT_SECRET=${{shared.JWT_SECRET}}
 INTERNAL_KEY=${{shared.INTERNAL_KEY}}
 CIFRADO_LLAVE=${{shared.CIFRADO_LLAVE}}
 AUTH_URI=http://${{ms-auth.RAILWAY_PRIVATE_DOMAIN}}:8081
@@ -130,7 +130,6 @@ DB_HOST=${{MySQL.MYSQLHOST}}
 DB_PORT=${{MySQL.MYSQLPORT}}
 DB_USER=${{MySQL.MYSQLUSER}}
 DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
-JWT_SECRET=${{shared.JWT_SECRET}}
 INTERNAL_KEY=${{shared.INTERNAL_KEY}}
 WEBHOOK_SECRET=${{shared.WEBHOOK_SECRET}}
 DEBT_URI=http://${{ms-debt.RAILWAY_PRIVATE_DOMAIN}}:8083

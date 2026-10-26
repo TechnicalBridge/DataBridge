@@ -87,9 +87,14 @@ poner() {  # poner VARIABLE valor: solo si no tiene valor
   echo "$1=$2" >> "$ENV"
 }
 [ -f "$ENV" ] || install -m 600 -o databridge -g databridge /dev/null "$ENV"
-for secreto in MYSQL_PASSWORD MYSQL_ROOT_PASSWORD RABBIT_PASSWORD JWT_SECRET INTERNAL_KEY WEBHOOK_SECRET CIFRADO_LLAVE; do
+for secreto in MYSQL_PASSWORD MYSQL_ROOT_PASSWORD RABBIT_PASSWORD INTERNAL_KEY WEBHOOK_SECRET CIFRADO_LLAVE; do
   poner "$secreto" "$(clave)"
 done
+# La firma ES256 se aprovisiona aparte; nunca se genera/rota en cada despliegue.
+poner JWT_KEY_DIRECTORY "$CARPETA/.secrets/jwt"
+if [ ! -r "$CARPETA/.secrets/jwt/private.pem" ] || [ ! -r "$CARPETA/.secrets/jwt/public.pem" ]; then
+  echo "Falta aprovisionar la pareja P-256 de auth; ver docs/seguridad/jwt.md (permisos para UID 10001)." >&2
+fi
 poner DOMINIO "$DOMINIO"
 poner PUBLIC_URL "https://$DOMINIO"
 poner CORS_ORIGINS "https://$DOMINIO"

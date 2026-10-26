@@ -19,7 +19,7 @@
 #        secretos de las suscripciones guardadas; despues de cambiarla, cada
 #        sistema conectado (APOFYX, Patrimonio) tiene que volver a conectarse.
 #
-#    .\preparar-env.ps1 -Cambiar JWT_SECRET[,OTRO]
+#    .\preparar-env.ps1 -Cambiar INTERNAL_KEY[,OTRO]
 #        Cambia esos secretos aunque ya tengan un valor propio: para cuando uno
 #        se filtro (quedo en una captura, en un registro, en un chat).
 #
@@ -43,7 +43,6 @@ $secretos = [ordered]@{
     MYSQL_ROOT_PASSWORD = '5012f5182061c46e57859cf617128c6f70eddfba4db27772bdede5a039fa7085'
     MYSQL_PASSWORD      = '068a635d2c022dfafb6c163b832327ab9bd8b944c3f44af23bf97cbc6591be1c'
     RABBIT_PASSWORD     = '84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec'
-    JWT_SECRET          = '686101b1c40874b07191bc92a9965f89fa570088218f88e30abbe768737f347f'
     INTERNAL_KEY        = 'cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621'
     CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'
     WEBHOOK_SECRET      = 'ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5'
@@ -158,6 +157,24 @@ foreach ($nombre in $secretos.Keys) {
     Write-Host "$nombre`: renovado." -ForegroundColor Green
 }
 
+if (-not (Valor $lineas 'AUTH_JWKS_URI')) {
+    Poner $lineas 'AUTH_JWKS_URI' 'http://127.0.0.1:8081/.well-known/jwks.json'
+}
+# La firma usa un directorio, no un secreto compartido. Nunca pisa sus archivos.
+$directorioJwt = Valor $lineas 'JWT_KEY_DIRECTORY'
+if (-not $directorioJwt) {
+    $candidatoJwt = Join-Path $PSScriptRoot '.secrets/jwt'
+    if ((Test-Path -LiteralPath (Join-Path $candidatoJwt 'private.pem')) -and
+        (Test-Path -LiteralPath (Join-Path $candidatoJwt 'public.pem'))) {
+        $directorioJwt = (Resolve-Path -LiteralPath $candidatoJwt).Path
+        Poner $lineas 'JWT_KEY_DIRECTORY' $directorioJwt.Replace('\', '/')
+    }
+}
+if (-not $directorioJwt -or
+    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'private.pem')) -or
+    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'public.pem'))) {
+    Write-Warning 'Falta la pareja JWT. Ejecuta scripts/generar-claves-jwt.ps1 y configura JWT_KEY_DIRECTORY; ver docs/seguridad/jwt.md.'
+}
 [System.IO.File]::WriteAllLines($archivo, $lineas, $sinBom)
 Write-Host ""
 Write-Host "Listo. Para que los servicios tomen los valores: docker compose --profile app up -d"

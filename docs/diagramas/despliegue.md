@@ -130,7 +130,8 @@ falta uno, el servicio no arranca y dice cuál.
 | Secreto | Quién lo usa | Para qué |
 | --- | --- | --- |
 | `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | `mysql`, ms-auth, ms-debt y ms-payments | Entrar a la base |
-| `JWT_SECRET` | ms-auth, ms-debt y ms-payments | ms-auth firma el JWT; los otros dos lo verifican. Tiene que ser el mismo en los tres |
+| `JWT_KEY_DIRECTORY` | solo ms-auth | Pareja PKCS#8/SPKI de solo lectura; privada fuera de los demas servicios |
+| `AUTH_JWKS_URI` | ms-debt y ms-payments | JWKS publico para ES256; ver [rotacion](../seguridad/jwt.md) |
 | `INTERNAL_KEY` | ms-auth, ms-debt y ms-payments | Las llamadas a `/internal` entre servicios |
 | `RABBIT_PASSWORD` | `rabbitmq`, ms-debt y ms-payments | Entrar a la cola |
 | `WEBHOOK_SECRET` | ms-payments | Firmar los enlaces de pago y verificar los avisos de la pasarela simulada |
