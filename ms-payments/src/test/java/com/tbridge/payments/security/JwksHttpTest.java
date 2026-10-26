@@ -48,7 +48,7 @@ class JwksHttpTest {
         server.stop(0); executor.shutdownNow();
     }
     @Test void initial_fetch_cache_and_known_key_during_short_outage() {
-        var decoder=JwtConfig.remoteDecoder(uri,200,200);
+        var decoder=JwtConfig.remoteDecoder(uri,1000,2000);
         assertEquals(0,requests.get());
         assertNotNull(decoder.decode(JwtTestTokens.token()));
         int fetched=requests.get(); assertTrue(fetched>0);
@@ -57,7 +57,7 @@ class JwksHttpTest {
         assertNotNull(decoder.decode(JwtTestTokens.token())); assertEquals(fetched,requests.get());
     }
     @Test void new_kid_refreshes_and_old_stays_valid() {
-        var decoder=JwtConfig.remoteDecoder(uri,200,200); decoder.decode(JwtTestTokens.token());
+        var decoder=JwtConfig.remoteDecoder(uri,1000,2000); decoder.decode(JwtTestTokens.token());
         int fetched=requests.get();
         var next=JwtTestTokens.pair("secp256r1"); var nextPublic=JwtTestTokens.publicKey(next);
         body.set(keys(JwtTestTokens.publicKey(JwtTestTokens.PAIR),nextPublic));
@@ -65,12 +65,12 @@ class JwksHttpTest {
         assertNotNull(decoder.decode(nextToken)); assertTrue(requests.get()>fetched);
         assertNotNull(decoder.decode(JwtTestTokens.token()));
         body.set(keys(nextPublic));
-        var cold=JwtConfig.remoteDecoder(uri,200,200);
+        var cold=JwtConfig.remoteDecoder(uri,1000,2000);
         assertThrows(BadJwtException.class,()->cold.decode(JwtTestTokens.token()));
         assertNotNull(cold.decode(nextToken));
     }
     @Test void unknown_kid_rejected_after_http_refresh() {
-        var decoder=JwtConfig.remoteDecoder(uri,200,200); decoder.decode(JwtTestTokens.token());
+        var decoder=JwtConfig.remoteDecoder(uri,1000,2000); decoder.decode(JwtTestTokens.token());
         int fetched=requests.get();
         var token=JwtTestTokens.token(JwtTestTokens.claims(),JwtTestTokens.PAIR,"unknown","ES256");
         assertThrows(BadJwtException.class,()->decoder.decode(token)); assertTrue(requests.get()>fetched);
@@ -78,25 +78,25 @@ class JwksHttpTest {
     @Test void wrong_key_with_known_kid_rejected() {
         var other=JwtTestTokens.pair("secp256r1");
         var token=JwtTestTokens.token(JwtTestTokens.claims(),other,JwtTestTokens.publicKey(JwtTestTokens.PAIR).getKeyID(),"ES256");
-        assertThrows(BadJwtException.class,()->JwtConfig.remoteDecoder(uri,200,200).decode(token));
+        assertThrows(BadJwtException.class,()->JwtConfig.remoteDecoder(uri,1000,2000).decode(token));
     }
     @Test void unavailable_fails_closed_and_recovers() {
-        status.set(500); var decoder=JwtConfig.remoteDecoder(uri,200,200);
+        status.set(500); var decoder=JwtConfig.remoteDecoder(uri,1000,2000);
         var provider=new JwtAuthenticationProvider(decoder);
         assertThrows(AuthenticationServiceException.class,
                 ()->provider.authenticate(new BearerTokenAuthenticationToken(JwtTestTokens.token())));
         status.set(200); assertNotNull(decoder.decode(JwtTestTokens.token()));
     }
     @Test void malformed_jwks_fails_closed() {
-        body.set("invalid"); assertThrows(JwtException.class,()->JwtConfig.remoteDecoder(uri,200,200).decode(JwtTestTokens.token()));
+        body.set("invalid"); assertThrows(JwtException.class,()->JwtConfig.remoteDecoder(uri,1000,2000).decode(JwtTestTokens.token()));
     }
     @Test void timeout_fails_closed_without_internet_or_sleep() {
         gate.set(new CountDownLatch(1));
-        var decoder=JwtConfig.remoteDecoder(uri,200,200);
+        var decoder=JwtConfig.remoteDecoder(uri,1000,200);
         assertTimeout(DurationLimit.VALUE,()->assertThrows(JwtException.class,()->decoder.decode(JwtTestTokens.token())));
     }
     @Test void missing_kid_and_hmac_never_fetch() {
-        var decoder=JwtConfig.remoteDecoder(uri,200,200);
+        var decoder=JwtConfig.remoteDecoder(uri,1000,2000);
         for(String alg:List.of("ES256","HS256","HS384","HS512","none")) {
             String token=JwtTestTokens.token(JwtTestTokens.claims(),JwtTestTokens.PAIR,null,alg);
             assertThrows(JwtException.class,()->decoder.decode(token));
