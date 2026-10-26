@@ -1,7 +1,7 @@
 package com.tbridge.debt.controller;
 
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.assembler.DebtModelAssembler;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.DebtDetailResponse;
@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * error.
  */
 @WebMvcTest(DebtController.class)
-@Import({SecurityConfig.class, JwtService.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class DebtControllerTest {
 
@@ -60,7 +60,7 @@ class DebtControllerTest {
     private static final String PUBLICA = "http://localhost:8080";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private DebtService debts;
     @MockitoBean private CertificateService certificates;
     @MockitoBean private AccesoService acceso;

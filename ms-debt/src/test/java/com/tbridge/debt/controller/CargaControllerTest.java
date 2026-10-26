@@ -4,7 +4,7 @@ import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.RevisionResponse;
 import com.tbridge.debt.exception.CarteraInvalida;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.CargaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,12 +32,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** La carga y su revision, vistas desde el portal: lo que responden y como dicen lo que falta. */
 @WebMvcTest(CargaController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class CargaControllerTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private CargaService cargas;
 
     private final MockMultipartFile planilla = new MockMultipartFile("archivo", "cartera.csv", "text/csv",

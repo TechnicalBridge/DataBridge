@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.CarteraResponse.ErrorDeuda;
@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * por omision esta apagada ({@link EntregaPorApiApagadaTest}).
  */
 @WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
-@Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class})
 @ActiveProfiles("test")
 class IntegracionControllerTest {
 

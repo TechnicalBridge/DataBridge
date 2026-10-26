@@ -2,7 +2,7 @@ package com.tbridge.debt.controller;
 
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.config.SecurityConfig;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.ApiKeyService;
 import com.tbridge.debt.service.CampanaAvanceService;
 import com.tbridge.debt.service.ContactoService;
@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * navegador y como llamarlo.
  */
 @WebMvcTest({InternalController.class, MisDatosController.class})
-@Import({SecurityConfig.class, JwtService.class, OpenApiConfig.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")

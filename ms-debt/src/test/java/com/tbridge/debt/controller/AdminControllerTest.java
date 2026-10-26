@@ -7,7 +7,7 @@ import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** El panel de administracion es solo del admin de DataBridge: ni una empresa ni un deudor entran. */
 @WebMvcTest(AdminController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class AdminControllerTest {
 
@@ -49,7 +49,7 @@ class AdminControllerTest {
             {"rut":"76.086.428-5","razonSocial":"Empresa Test SpA","nombre":"Empresa Test","tipo":"acreedor"}""";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private EmpresaService empresas;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private ComisionService comisiones;

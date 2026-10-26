@@ -22,29 +22,15 @@
 
   <properties>
     <java.version>25</java.version>
-    <jjwt.version>0.13.0</jjwt.version>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
   </properties>
 
   <dependencies>
-    <!-- La sesion: JWT firmados con HMAC (ver security/JwtService). -->
+    <!-- Verifica sesiones ES256 con publicas de auth; sin llave de firma. -->
     <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-api</artifactId>
-      <version>${jjwt.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-impl</artifactId>
-      <version>${jjwt.version}</version>
-      <scope>runtime</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.jsonwebtoken</groupId>
-      <artifactId>jjwt-jackson</artifactId>
-      <version>${jjwt.version}</version>
-      <scope>runtime</scope>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
