@@ -20,7 +20,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {
 
-    private final JwtService jwt = new JwtService("unit-test-secret-key-32-chars!!!", 15);
+    private final JwtService jwt = com.tbridge.auth.security.JwtTestConfig.service();
     private final JwtAuthFilter filtro = new JwtAuthFilter(jwt);
 
     @Mock

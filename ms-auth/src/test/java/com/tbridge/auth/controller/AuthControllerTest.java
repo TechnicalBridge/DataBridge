@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * logica de acceso esta simulada: se prueba en AuthServiceTest.
  */
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, JwtService.class, SesionModelAssembler.class, AuthControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class, SesionModelAssembler.class, AuthControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class AuthControllerTest {
 

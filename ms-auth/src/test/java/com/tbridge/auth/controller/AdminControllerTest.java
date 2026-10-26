@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** El panel de administracion es solo del admin de DataBridge: ni una empresa ni un deudor entran. */
 @WebMvcTest(AdminController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class AdminControllerTest {
 

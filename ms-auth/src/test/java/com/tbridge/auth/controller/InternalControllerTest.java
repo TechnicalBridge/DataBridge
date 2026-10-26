@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(InternalController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class InternalControllerTest {
 

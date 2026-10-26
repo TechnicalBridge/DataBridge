@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * navegador y como llamarlo.
  */
 @WebMvcTest({InternalController.class, AuthController.class})
-@Import({SecurityConfig.class, JwtService.class, SesionModelAssembler.class, OpenApiConfig.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class, SesionModelAssembler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")
