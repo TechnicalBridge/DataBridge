@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Los vencimientos, los convenios en riesgo y los datos del deudor, por HTTP. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({CuotaController.class, MisDatosController.class})
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CuotaControllerTest.Proxy.class})
 @ActiveProfiles("test")

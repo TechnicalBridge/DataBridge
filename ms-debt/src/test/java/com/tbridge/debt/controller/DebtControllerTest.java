@@ -44,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mira y el estado, la direccion publica en los enlaces, y los codigos de
  * error.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(DebtController.class)
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
 @ActiveProfiles("test")

@@ -31,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** La carga y su revision, vistas desde el portal: lo que responden y como dicen lo que falta. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(CargaController.class)
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")

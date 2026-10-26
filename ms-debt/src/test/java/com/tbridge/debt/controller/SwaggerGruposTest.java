@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * la llave que usa, y lo interno dice que con Docker no se alcanza desde el
  * navegador y como llamarlo.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({InternalController.class, MisDatosController.class})
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,

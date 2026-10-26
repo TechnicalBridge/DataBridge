@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * existen: los deudores entran por campana. Responden 404 como cualquier ruta
  * que no hay, sin decir que estan apagadas, y ni siquiera se mira la clave.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(controllers = {IntegracionController.class, ClaveController.class})
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,

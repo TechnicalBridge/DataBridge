@@ -38,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * snake_case y sin enlaces de HATEOAS. Con la entrega por API encendida, que
  * por omision esta apagada ({@link EntregaPorApiApagadaTest}).
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class})
 @ActiveProfiles("test")

@@ -32,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** El historial por HTTP: la lista en _embedded.pagos, y el comprobante en PDF. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(HistorialController.class)
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, HistorialControllerTest.Proxy.class})
 @ActiveProfiles("test")
