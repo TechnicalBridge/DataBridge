@@ -42,6 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * de renovacion, los enlaces de HATEOAS y la validacion de lo que entra. La
  * logica de acceso esta simulada: se prueba en AuthServiceTest.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class, SesionModelAssembler.class, AuthControllerTest.Proxy.class})
 @ActiveProfiles("test")
