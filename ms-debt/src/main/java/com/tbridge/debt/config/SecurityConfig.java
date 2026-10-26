@@ -25,7 +25,6 @@ public class SecurityConfig {
     public SecurityFilterChain sinSesionFilterChain(HttpSecurity http) throws Exception {
         // El controlador conserva API key o X-Internal-Key; no son sesiones.
         return base(http).securityMatcher("/internal/**", "/api/v1/**")
-                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()).build();
     }
 
