@@ -175,3 +175,22 @@ No imprimir JWT/cookies/PEM/passwords al registrar evidencias.
 
 Railway necesita una auditoria de despliegue separada; esta guia no provisiona
 servicios ni reutiliza su configuracion historica.
+
+### Harness E2E local
+
+Tras construir las seis imagenes con una etiqueta local nueva `issue82-<sha>`:
+
+```powershell
+python scripts/verificar-jwt-local.py --image-tag issue82-<sha>
+```
+
+Requiere Python con `cryptography` ya disponible y contexto Docker local. No
+instala paquetes ni descarga imagenes de aplicacion: deben estar construidas.
+Crea nombres aleatorios, puertos localhost y volumen nuevo; no lee el `.env`
+real. Arranca primero con Flyway target V6 para crear una cookie anterior al
+corte, luego aplica V7 y comprueba su revocacion. Hace login real por Mailpit
+para los tres roles, pruebas de ataques y rotacion con expiracion simulada
+mediante tokens de prueba firmados. No espera 15 minutos ni introduce un reloj
+de pruebas en la aplicacion productiva. Al terminar elimina solo su proyecto y
+volumen nuevos; deja un informe JSON sin credenciales junto al checkout y un
+scratch privado de revision. Nunca usar este harness contra una base real.
