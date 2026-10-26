@@ -1,7 +1,7 @@
 package com.tbridge.payments.controller;
 
 import com.tbridge.payments.exception.ApiException;
-import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.assembler.PaymentModelAssembler;
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.PaymentResponse;
@@ -39,8 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({PaymentController.class, WebhookController.class})
-@Import({SecurityConfig.class, JwtService.class, PaymentModelAssembler.class, PaymentControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class, PaymentModelAssembler.class, PaymentControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class PaymentControllerTest {
 
@@ -55,7 +56,7 @@ class PaymentControllerTest {
     private static final String RUT = "16482337-7";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private PaymentService payments;
 
     private String deudor() {
