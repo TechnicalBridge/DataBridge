@@ -1,6 +1,6 @@
 package com.tbridge.auth.security;
 
-import io.jsonwebtoken.Claims;
+import org.springframework.security.oauth2.jwt.Jwt;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,7 +47,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String ruta = request.getRequestURI();
-        return ruta.startsWith("/api/v1/") || ruta.startsWith("/internal/")
+        return ("GET".equals(request.getMethod()) && ruta.equals("/.well-known/jwks.json"))
+                || ruta.startsWith("/api/v1/") || ruta.startsWith("/internal/")
                 || ruta.startsWith("/api/auth/");
     }
 
@@ -68,7 +69,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
         try {
-            Claims claims = jwtService.parse(raw);
+            Jwt claims = jwtService.parse(raw);
             JwtPrincipal principal = jwtService.toPrincipal(claims);
             //  Basta con id y ALGUNA identidad. Antes se exigia el correo,
             //  porque toda sesion venia de una cuenta; el deudor que entra con

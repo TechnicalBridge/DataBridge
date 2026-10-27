@@ -17,7 +17,7 @@
 #  Cada servicio tiene su propio Dockerfile (ms-auth/Dockerfile, ...), y se
 #  construye desde su propia carpeta: no necesita nada de los demas.
 #
-#  Los secretos (claves de la base y de RabbitMQ, JWT_SECRET, INTERNAL_KEY,
+#  Los secretos (claves de la base y de RabbitMQ, INTERNAL_KEY,
 #  CIFRADO_LLAVE, WEBHOOK_SECRET) no tienen valor por omision: salen del .env
 #  que crea preparar-env.ps1, con claves al azar. Sin el, docker compose se
 #  detiene y dice cual falta.
@@ -150,13 +150,17 @@ services:
     restart: unless-stopped
     depends_on:
       db-auth: { condition: service_healthy }
+    volumes:
+      - type: bind
+        source: ${JWT_KEY_DIRECTORY:?Falta JWT_KEY_DIRECTORY (ver docs/seguridad/jwt.md)}
+        target: /run/secrets/jwt
+        read_only: true
+        bind: { create_host_path: false }
     environment:
+      JWT_KEY_DIRECTORY: /run/secrets/jwt
       <<: &base
         DB_PORT: "3306"
         DB_USER: ${MYSQL_USER:-tbridge}
-        #  El mismo secreto en los tres: un JWT que firma ms-auth lo tienen
-        #  que poder verificar ms-debt y ms-payments. El gateway no lo usa.
-        JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env (crealo con preparar-env.ps1)}
         INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
         PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
         SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
@@ -231,6 +235,7 @@ services:
       PORT: "8083"
       DB_NAME: tb_debt
       AUTH_URI: http://ms-auth:8081
+      AUTH_JWKS_URI: http://ms-auth:8081/.well-known/jwks.json
       #  El alcance: una deuda entra a cobranza con al menos estos dias de mora.
       MIN_DIAS_MORA: ${MIN_DIAS_MORA:-30}
       RECORDATORIO_DIAS_ANTES: ${RECORDATORIO_DIAS_ANTES:-3}
@@ -276,6 +281,7 @@ services:
       PORT: "8084"
       DB_NAME: tb_payments
       DEBT_URI: http://ms-debt:8083
+      AUTH_JWKS_URI: http://ms-auth:8081/.well-known/jwks.json
       EVENTS_RABBIT: "true"
       RABBIT_HOST: rabbitmq
       RABBIT_USER: ${RABBIT_USER:-guest}

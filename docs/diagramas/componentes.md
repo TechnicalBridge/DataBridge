@@ -446,7 +446,7 @@ Lo único que dos servicios comparten es **lo publicado**, y los dos se prueban 
 | --- | --- | --- |
 | El contrato de integración v1 | [`docs/integracion`](../integracion/README.md) | ms-debt lo implementa; el sistema de cada empresa lo usa |
 | El aviso de pago | `docs/eventos/pago-confirmado.json` | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
-| El JWT | `JWT_SECRET`, el mismo en los tres | ms-auth lo firma; ms-debt y ms-payments lo verifican |
+| El JWT | ES256/P-256: privada solo en auth, publicas en JWKS | auth firma con kid estable; debt/payments verifican con Resource Server |
 | La clave interna | `INTERNAL_KEY`, la misma en los tres | Quien llama a `/internal` de otro |
 
 Lo que antes habría ido en una librería común lo tiene cada servicio en sus paquetes, y solo lo que usa:

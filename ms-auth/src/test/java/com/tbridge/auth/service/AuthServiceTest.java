@@ -66,7 +66,7 @@ class AuthServiceTest {
         deudas = mock(DeudasClient.class);
         when(deudas.empresa(any())).thenAnswer(i -> Optional.of(new DeudasClient.Empresa(i.getArgument(0), "Empresa", true)));
         when(deudas.correoDelDeudor(any())).thenReturn(Optional.empty());
-        JwtService jwt = new JwtService("unit-test-secret-key-32-chars!!!", 15);
+        JwtService jwt = com.tbridge.auth.security.JwtTestConfig.service();
         SessionService sesiones = new SessionService(this.sesiones.repositorio,
                 java.time.Duration.ofDays(7), java.time.Clock.systemUTC());
 
@@ -340,8 +340,8 @@ class AuthServiceTest {
         when(personal.findByEmailIgnoreCase(staff.getEmail())).thenReturn(Optional.of(staff));
     }
 
-    private static io.jsonwebtoken.Claims loQueDiceElJwt(AuthService.Sesion sesion) {
-        return new JwtService("unit-test-secret-key-32-chars!!!", 15).parse(sesion.token());
+    private static org.springframework.security.oauth2.jwt.Jwt loQueDiceElJwt(AuthService.Sesion sesion) {
+        return com.tbridge.auth.security.JwtTestConfig.service().parse(sesion.token());
     }
 
     @Test
@@ -352,8 +352,8 @@ class AuthServiceTest {
 
         assertEquals("ADMIN", sesion.user().role());
         assertNull(sesion.user().rut(), "el admin no es de ninguna empresa");
-        assertEquals("ADMIN", loQueDiceElJwt(sesion).get("role", String.class));
-        assertNull(loQueDiceElJwt(sesion).get("rut", String.class));
+        assertEquals("ADMIN", loQueDiceElJwt(sesion).getClaimAsString("role"));
+        assertNull(loQueDiceElJwt(sesion).getClaimAsString("rut"));
         assertEquals(Session.Role.ADMIN, sesiones.filas.getLast().getRole());
     }
 
@@ -365,7 +365,7 @@ class AuthServiceTest {
 
         assertEquals("CREDITOR", sesion.user().role());
         assertEquals("77305118-6", sesion.user().rut());
-        assertEquals("CREDITOR", loQueDiceElJwt(sesion).get("role", String.class));
+        assertEquals("CREDITOR", loQueDiceElJwt(sesion).getClaimAsString("role"));
         assertEquals(Session.Role.CREDITOR, sesiones.filas.getLast().getRole());
     }
 
@@ -377,7 +377,7 @@ class AuthServiceTest {
         AuthService.Sesion renovada = auth.renovar(sesion.llave().valor(), "10.0.0.1");
 
         assertEquals("ADMIN", renovada.user().role());
-        assertEquals("ADMIN", loQueDiceElJwt(renovada).get("role", String.class));
+        assertEquals("ADMIN", loQueDiceElJwt(renovada).getClaimAsString("role"));
     }
 
     @Test

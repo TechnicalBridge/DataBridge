@@ -9,6 +9,13 @@ package com.tbridge.payments.security;
  */
 public record JwtPrincipal(String id, String email, String role, String name, String rut) {
 
+    public static JwtPrincipal fromClaims(java.util.Map<String, Object> claims) {
+        String id = (String) claims.get("id");
+        if (id == null) id = (String) claims.get("sub");
+        return new JwtPrincipal(id, (String) claims.get("email"), (String) claims.get("role"),
+                (String) claims.get("name"), (String) claims.get("rut"));
+    }
+
     public boolean isCreditor() {
         return "CREDITOR".equalsIgnoreCase(role);
     }
