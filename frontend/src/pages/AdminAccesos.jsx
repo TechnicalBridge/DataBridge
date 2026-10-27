@@ -28,6 +28,7 @@ export default function AdminAccesos() {
   const [pagina, setPagina] = useState(0);
   const [datos, setDatos] = useState(null);
   const [hoy, setHoy] = useState(null);
+  const [sinTotales, setSinTotales] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
   const [vuelta, setVuelta] = useState(0);
@@ -44,8 +45,12 @@ export default function AdminAccesos() {
       .finally(() => { if (esta === ultima.current) setCargando(false); });
   }, [filtros, pagina, vuelta]);
 
+  //  Los totales se piden aparte: si fallan, se avisa, y la bitacora se ve igual.
   useEffect(() => {
-    accesosDeHoy().then(setHoy).catch(() => setHoy(null));
+    setSinTotales(false);
+    accesosDeHoy()
+      .then(setHoy)
+      .catch(() => { setHoy(null); setSinTotales(true); });
   }, [vuelta]);
 
   function filtrar(cambio) {
@@ -77,10 +82,16 @@ export default function AdminAccesos() {
         <div className="cifra rechazo"><b>{hoy ? hoy.rechazados : "—"}</b><span>rechazos hoy</span></div>
         <div className="cifra"><b>{hoy ? hoy.enviados : "—"}</b><span>códigos y enlaces enviados hoy</span></div>
       </div>
+      {sinTotales ? (
+        <p className="hint" role="status" style={{ margin: "-6px 0 14px" }}>
+          No se pudieron leer los totales de hoy. La bitácora de abajo sigue al día; prueba con «Actualizar».
+        </p>
+      ) : null}
 
       <div className="card aparece" style={{ "--i": 2 }}>
         <div className="filters" role="group" aria-label="Filtrar por resultado">
-          <button type="button" className={`chip${filtros.resultado ? "" : " on"}`} onClick={() => filtrar({ resultado: "" })}>
+          <button type="button" className={`chip${filtros.resultado ? "" : " on"}`}
+                  aria-pressed={!filtros.resultado} onClick={() => filtrar({ resultado: "" })}>
             Todos
           </button>
           {Object.entries(RESULTADOS).map(([clave, r]) => (
