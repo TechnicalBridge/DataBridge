@@ -33,3 +33,7 @@ COMMIT.txt
 
 # Claves privadas locales de firma: solo archivos de ejecucion.
 /.secrets/
+
+#  Ningun otro .env se sube: un .env.local o un .env.produccion traen claves (#232).
+.env.*
+!.env.example

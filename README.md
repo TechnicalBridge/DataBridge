@@ -3,7 +3,7 @@
 > **Sesiones ES256:** antes del primer arranque, genera la pareja P-256 con `./scripts/generar-claves-jwt.ps1` y configura `JWT_KEY_DIRECTORY`. Solo auth recibe privada. [Generacion, montaje, corte inicial y rotacion](docs/seguridad/jwt.md). V7 revoca las sesiones anteriores una sola vez: todos vuelven a entrar.
 
 
-[![gateway](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml)
+[![gateway](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml) [![secretos](https://github.com/TechnicalBridge/DataBridge/actions/workflows/secretos.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/secretos.yml)
 
 **La plataforma donde el deudor en cobranza paga, repacta o reclama su deuda, sin llamar a nadie**, sea
 del rubro que sea: arriendos, aranceles, tratamientos, planes mensuales. Proyecto de Capstone del equipo
@@ -214,6 +214,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes. Si es la de una base (`DB_DEBT_PASSWORD`, …), la cambia también dentro de esa base, que tiene que estar arriba, sin perder datos. Después, `docker compose --profile app up -d` |
 | `db-auth` no parte con `port is already allocated` (3308), después de traer [#238](https://github.com/TechnicalBridge/TB_web/issues/238) | Es el MySQL de antes (`tbridge-db`), que sigue corriendo con tus datos. Corre `db\separar-bases.ps1` como dice arriba: lo apaga y pasa los datos. Si las bases nuevas ya alcanzaron a crear sus tablas vacías, se lo pide con `-Forzar` |
+| El check *Secretos* falla en tu PR | Encontró una clave en tus commits: dice la regla, el archivo y la línea, nunca el valor. Si es de verdad, **revócala primero en el proveedor** (con el push ya es pública) y después sácala de tus commits. Los pasos, y qué hacer con un falso positivo, en [`docs/seguridad/secretos.md`](docs/seguridad/secretos.md) |
 | `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `DB_AUTH_PORT` (3308), `DB_DEBT_PORT` (3309), `DB_PAYMENTS_PORT` (3310), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
 | La construcción se cae bajando dependencias | Sin internet, o un proxy que la corta. Se vuelve a correr la misma orden: lo que ya bajó queda en caché |
@@ -622,6 +623,14 @@ Hace falta **Docker Desktop**, un **JDK 25** (no un JRE: Maven compila) y **Node
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # si todavía no tienes .env
 docker compose up -d                 # solo las tres bases, RabbitMQ y el buzón
+```
+
+Para no subir una clave por error, conviene activar una vez el hook que la busca antes de cada commit
+([`docs/seguridad/secretos.md`](docs/seguridad/secretos.md)):
+
+```powershell
+winget install --id Gitleaks.Gitleaks --version 8.30.1
+git config core.hooksPath .githooks
 ```
 
 Después, **una terminal por pieza**: cada servicio se compila y arranca solo, con su propio
@@ -3569,7 +3578,7 @@ correo queda fechado a esa hora.
 | **Autenticación** | Los tres portales entran por código: RUT del deudor o correo del personal. Un solo uso, 5 intentos; 15 min si se solicita en el portal y 24 h si viene de campaña. El alfabeto excluye `0 O 1 I L`. Usar el código o el enlace del respaldo consume ambos, incluso con solicitudes simultáneas | `ms-auth/AuthService`, `V6__codigo_y_enlace_del_mismo_acceso.sql` |
 | **Sesión** | El JWT dura **15 minutos** y vive en la memoria de la pestaña, no en `localStorage`. Mantiene a la persona adentro una llave de renovación de 256 bits en una cookie `HttpOnly` y `SameSite=Strict`, que ningún script puede leer. Cada uso la cambia por otra; cerrar sesión la revoca **en el servidor**, y si una llave usada reaparece, se revoca toda la sesión | `ms-auth/SessionService`, `V2__sesiones.sql` |
 | **Origen** | Cada freno cuenta por IP, así que la IP no se puede inventar: nginx sobrescribe `X-Forwarded-For`, y el gateway solo les cree a sus proxies (`TRUSTED_PROXIES`). CORS acepta solo los orígenes del portal (`CORS_ORIGINS`), no `*` | `frontend/nginx.conf.template`, `gateway/ClienteReal` |
-| **Secretos** | Lo que solo se compara se guarda como hash: códigos, tokens de enlace, llaves de renovación y claves de API. Lo que hay que leer de vuelta —el secreto con que se firman los avisos— va **cifrado con AES-256-GCM**, con una llave fuera de la base (`CIFRADO_LLAVE`). Un secreto en claro de antes se cifra solo al arrancar | `ms-debt/config/Cifrado`, `V3__secretos_cifrados.sql` |
+| **Secretos** | Lo que solo se compara se guarda como hash: códigos, tokens de enlace, llaves de renovación y claves de API. Lo que hay que leer de vuelta —el secreto con que se firman los avisos— va **cifrado con AES-256-GCM**, con una llave fuera de la base (`CIFRADO_LLAVE`). Un secreto en claro de antes se cifra solo al arrancar. **Ninguna clave llega al repositorio**: GitHub bloquea el push de los proveedores que conoce, y gitleaks revisa los commits nuevos de cada PR con las reglas de DataBridge | `ms-debt/config/Cifrado`, `V3__secretos_cifrados.sql`, `.gitleaks.toml`, [`docs/seguridad/secretos.md`](docs/seguridad/secretos.md) |
 | **Pagos** | Nada de lo que traiga el navegador se aplica: ms-payments le pregunta a la pasarela. Un pago de Webpay se aprueba solo si Transbank confirma `AUTHORIZED` con código 0 **y** el monto y la orden calzan; un retorno repetido no se vuelve a confirmar. Uno de Khipu, solo si Khipu dice que está conciliado (`done`, sin reversa) **y** el monto y la transacción calzan; su aviso se verifica con firma HMAC. Un pago real no se puede confirmar por el camino de la simulación | `ms-payments/PaymentService`, `WebpayClient`, `KhipuClient`, `FirmaDeKhipu` |
 | **Enlace** | El respaldo reúne código y enlace en un único correo, **solo al correo registrado por el acreedor** para ese RUT; el deudor nunca elige otro destino. Al personal le llega solo si está habilitado. Un acceso pedido con RUT abre solo la sesión de ese deudor; `sent` indica que se agendó el envío, no que se entregó | `AuthService.pedirEnlace`, `DeudasClient`, `V6__codigo_y_enlace_del_mismo_acceso.sql` |
 | **Enumeración** | Los pedidos de código y respaldo responden el mismo `202` exista o no la identidad. El envío es asíncrono y la respuesta no contiene credenciales. No se garantiza tiempo constante: resolver el destinatario requiere consultar ms-debt o la base local, según la identidad | `AuthService.pedirCodigo`, `AuthService.pedirEnlace` |
@@ -3827,7 +3836,9 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-payments` | 268 |
 | `ms-ai` | 43 |
 
-Además, la cadena completa con los tres sistemas se prueba de punta a punta con un script que
+Además, `pruebas/secretos.test.cjs` (Node, 19 pruebas) comprueba que las reglas de gitleaks detecten
+cada tipo de clave y dejen pasar los valores públicos ([`docs/seguridad/secretos.md`](docs/seguridad/secretos.md)).
+La cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
 ([estado](#14-estado-al-19-de-octubre-de-2026)).
 
