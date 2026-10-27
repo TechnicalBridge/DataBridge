@@ -2,12 +2,16 @@ package com.tbridge.auth.controller;
 
 import com.tbridge.auth.config.OpenApiConfig;
 import com.tbridge.auth.dto.request.NuevaPersonaRequest;
+import com.tbridge.auth.dto.response.AccesoResponse;
+import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.EstadoResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiError;
+import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
+import com.tbridge.auth.service.BitacoraDeAccesos;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,8 +22,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,15 +36,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 /**
  * Lo que el panel de administracion de DataBridge le pide a ms-auth: las
- * personas con cuenta.
+ * personas con cuenta, y la bitacora de acceso.
  *
  * <p>Todo lo que cuelga de {@code /api/admin} es solo para el admin de
  * DataBridge: lo exige {@code SecurityConfig}, no cada metodo, para que un
@@ -54,10 +66,12 @@ public class AdminController {
 
     private final PersonalService personal;
     private final ReglasService reglas;
+    private final BitacoraDeAccesos accesos;
 
-    public AdminController(PersonalService personal, ReglasService reglas) {
+    public AdminController(PersonalService personal, ReglasService reglas, BitacoraDeAccesos accesos) {
         this.personal = personal;
         this.reglas = reglas;
+        this.accesos = accesos;
     }
 
     @GetMapping("/estado")
@@ -188,6 +202,62 @@ public class AdminController {
     public EntityModel<PersonaResponse> habilitar(
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
         return conEnlaces(personal.habilitar(id, admin), admin);
+    }
+
+    // ------------------------------------------------------------------
+    //  La bitacora de acceso (#141)
+    // ------------------------------------------------------------------
+
+    @GetMapping("/accesos")
+    @Operation(summary = "La bitacora de acceso, por pagina",
+            description = "Cada intento de entrar y cada pedido de codigo o enlace, lo mas reciente primero. Va en "
+                    + "`_embedded.accesos` (sin `_embedded` si la pagina viene vacia), con `page` y los enlaces "
+                    + "`first`, `prev`, `next` y `last`. Nada identifica a la persona: el RUT va a medias, y no "
+                    + "salen ni correos ni IP. Los dias son de Chile y quedan incluidos.")
+    @ApiResponse(responseCode = "200", description = "Una pagina de la bitacora")
+    @ApiResponse(responseCode = "400", description = "Una fecha, un metodo o un resultado que no existe, o 'hasta' "
+            + "antes de 'desde'", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PagedModel<AccesoResponse> accesos(
+            @Parameter(description = "Desde ese dia, incluido", example = "2026-10-01")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @Parameter(description = "Hasta ese dia, incluido", example = "2026-10-27")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @Parameter(description = "Solo de un metodo") @RequestParam(required = false) AccessLog.Method metodo,
+            @Parameter(description = "Solo con un resultado") @RequestParam(required = false)
+            AccessLog.Outcome resultado,
+            @Parameter(description = "La pagina, desde 0") @RequestParam(defaultValue = "0") int pagina,
+            @Parameter(description = "Cuantas por pagina: 50 si no se dice, nunca mas de 100")
+            @RequestParam(defaultValue = "50") int porPagina) {
+        Page<AccesoResponse> encontrados = accesos.buscar(desde, hasta, metodo, resultado, pagina, porPagina);
+        int tamano = encontrados.getSize();
+        List<Link> enlaces = new ArrayList<>();
+        enlaces.add(paginaDeAccesos(desde, hasta, metodo, resultado, encontrados.getNumber(), tamano, "self"));
+        enlaces.add(paginaDeAccesos(desde, hasta, metodo, resultado, 0, tamano, "first"));
+        if (encontrados.hasPrevious()) {
+            enlaces.add(paginaDeAccesos(desde, hasta, metodo, resultado, encontrados.getNumber() - 1, tamano, "prev"));
+        }
+        if (encontrados.hasNext()) {
+            enlaces.add(paginaDeAccesos(desde, hasta, metodo, resultado, encontrados.getNumber() + 1, tamano, "next"));
+        }
+        enlaces.add(paginaDeAccesos(desde, hasta, metodo, resultado,
+                Math.max(encontrados.getTotalPages() - 1, 0), tamano, "last"));
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(tamano, encontrados.getNumber(),
+                encontrados.getTotalElements(), encontrados.getTotalPages()), enlaces);
+    }
+
+    @GetMapping("/accesos/hoy")
+    @Operation(summary = "Los totales de hoy de la bitacora de acceso",
+            description = "Cuantas veces se entro, cuantos intentos se rechazaron y cuantos codigos o enlaces "
+                    + "salieron hoy (dia de Chile), y el detalle por resultado.")
+    @ApiResponse(responseCode = "200", description = "Los totales del dia")
+    public AccesosDeHoyResponse accesosDeHoy() {
+        return accesos.hoy();
+    }
+
+    private static Link paginaDeAccesos(LocalDate desde, LocalDate hasta, AccessLog.Method metodo,
+                                        AccessLog.Outcome resultado, int pagina, int porPagina, String rel) {
+        return linkTo(methodOn(AdminController.class).accesos(desde, hasta, metodo, resultado, pagina, porPagina))
+                .withRel(rel);
     }
 
     private static CollectionModel<EntityModel<PersonaResponse>> coleccion(

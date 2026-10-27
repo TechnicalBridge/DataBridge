@@ -207,9 +207,10 @@ flowchart LR
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
         A9(["Ver las reglas que rigen"])
         A10(["Consultar la comisión mensual<br/>de cada empresa"])
+        A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -230,6 +231,7 @@ flowchart LR
 | Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
 | Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
+| Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
 | Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
 
 ---

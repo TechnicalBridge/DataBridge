@@ -77,7 +77,7 @@ la suscripción se hace por `/api/v1/suscripciones`.
 | **La persona que debe** | Entra, mira, repacta, paga o reclama. Es quien usa el portal de verdad |
 | **La empresa que cobra**: una agencia de cobranza (APOFYX) o el acreedor que cobra sin agencia | Crea sus campañas, carga a sus deudores en ellas, reenvía el código, resuelve los reclamos y sigue la recuperación, todo desde el portal de empresas. Los códigos los manda DataBridge |
 | **El acreedor** (una inmobiliaria, un instituto, una clínica), si cobra por una agencia | No entra: su agencia ve la cartera. Con la entrega por API encendida, recibe en su propio sistema el aviso de cada pago, convenio o reclamo |
-| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, y mira el estado y las reglas en el panel de administración |
+| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, y mira el estado, las reglas y los accesos en el panel de administración |
 
 **Contexto.** Kobra fue el cliente directo original del equipo y se retiró. Para continuar el
 Capstone se creó **APOFYX**, una agencia de cobranza ficticia. DataBridge es la solución
@@ -841,6 +841,10 @@ El panel está en `/admin`, y se entra por `/admin/login` con el correo del `adm
   con su primera persona, y ver las que hay. De cada una se ven totales (cuántas deudas y cuánto
   falta por cobrar), sus mandatos y quiénes entran en su nombre. Nunca una deuda ni un deudor.
 - **Equipo de DataBridge**, para dar de alta a otro `admin`.
+- **Accesos** ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)): quién entró y qué accesos se rechazaron, para ver si alguien prueba códigos
+  contra un RUT. Arriba, los totales de hoy; abajo, la bitácora por páginas de 50, lo más reciente
+  primero, filtrable por resultado, por código o enlace, y por fechas. El RUT va a medias
+  (`18.***.***-6`) y ninguna fila muestra un correo ni una IP (de la IP, ms-auth guarda solo su huella).
 - **Reglas**, de solo lectura: lo que rige en cada servicio y de qué variable del `.env` sale. La
   mora mínima, la tasa máxima, el aviso antes de una cuota, el horario y el límite de contacto de
   la ley con los feriados de este año y del siguiente (los mismos que usan las campañas), cuánto
@@ -1072,7 +1076,7 @@ las entidades con las tablas y se niega a partir si no calzan. En total son **25
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
 | [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
-| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso |
+| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
 | [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
@@ -1703,9 +1707,10 @@ flowchart LR
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
         A9(["Ver las reglas que rigen"])
         A10(["Consultar la comisión mensual<br/>de cada empresa"])
+        A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -3826,12 +3831,12 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1106 pruebas**, todas en Java y sin fallos:
+**1119 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
-| `ms-auth` | 297 |
+| `ms-auth` | 310 |
 | `ms-debt` | 479 |
 | `ms-payments` | 268 |
 | `ms-ai` | 43 |
@@ -3949,7 +3954,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1106 pruebas Java sin fallos**, y el portal compila (764 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1119 pruebas Java sin fallos**, y el portal compila (765 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -3970,7 +3975,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1106**, sin fallos ([§11](#11-pruebas)); ms-auth, ms-debt y ms-payments se repitieron con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1119**, sin fallos ([§11](#11-pruebas)); ms-auth se repitió con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, `separar-bases.ps1` pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
@@ -3978,7 +3983,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
-| Build del portal | Correcto, 764 módulos |
+| Build del portal | Correcto, 765 módulos |
 | Cadena completa, sobre los contenedores reconstruidos | **16 de 16** comprobaciones: el cliente moroso nuevo llega desde Patrimonio, DataBridge registra al acreedor y lo invita, el deudor reclama y la disputa llega al acreedor, la agencia reanuda, el pago vuelve hasta el contrato y un lote repetido no se procesa dos veces |
 | Khipu | Contra un Khipu falso con la forma de la API v3, con los contenedores reconstruidos y en Edge: el deudor se arrepiente y el portal dice *El pago no se completó*; paga y dice *Pago aprobado*; paga y cierra la ventana sin volver, y la consulta periódica lo registra sola. En los tres casos el contrato de Patrimonio queda con lo que corresponde. Y contra **Khipu real**, con una cuenta en modo desarrollador: se pagó con DemoBank, Khipu lo concilió (4 min 20 s desde que se abrió el cobro, contando lo que tarda la persona en Khipu) y ms-payments lo registró 21 s después, cuando todavía revisaba cada 30 s Al cancelar, el cobro se anula en Khipu: probado contra Khipu real, donde queda `deleted` y ya no se puede pagar |
 | Mercado Pago | Contra el Mercado Pago real con credenciales de prueba, con ms-payments reconstruido y en Edge: la preferencia se crea con vencimiento a 30 minutos; el deudor paga con la tarjeta de prueba y no vuelve al portal, y la consulta periódica registra el pago en unos 10 s: queda `paid` y la deuda del contrato en Patrimonio baja a $0 |
@@ -3997,6 +4002,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Roles y panel ([#137](https://github.com/TechnicalBridge/TB_web/issues/137), [#138](https://github.com/TechnicalBridge/TB_web/issues/138)) | `V4` de `tb_auth` probada en una base aparte y aplicada sobre la real. En vivo, 34 de 34 comprobaciones de los roles; en Edge, 18 de 18. El `admin` da de alta empresas y personas desde el panel, y la invitación llega con su enlace de un solo uso |
 | Correos de verdad ([#62](https://github.com/TechnicalBridge/TB_web/issues/62)) | Los cinco correos (código, recordatorio, enlace, invitación y prueba) salieron por la API de Brevo y llegaron a un Gmail del equipo, en HTML y en texto. Un correo que no sale no cuenta como contacto, y la empresa ve el motivo en su cartera |
 | Horario de la ley en todos los correos ([#187](https://github.com/TechnicalBridge/TB_web/issues/187)) | Con los tres sistemas en Docker, un miércoles a las 22:30: cuatro deudas nuevas llegaron por la cadena y quedaron en cobranza sin ningún contacto, con el aviso *se invita en la próxima pasada*. Las invitaciones salieron con la pasada de las 8:00 |
+| Accesos en el panel ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)) | Por el gateway: tres códigos equivocados contra el mismo RUT salen juntos al filtrar por resultado, como `21.***.***-K`; un enlace pedido para un correo sin cuenta sale como rechazado; recorriendo las 9 páginas están las 411 filas de la bitácora, y ninguna trae un RUT completo, un correo, una IP ni su huella; los totales de hoy calzan con la base, y una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: los filtros, las páginas y la tabla entera sin desplazarse de lado |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |
 | La entrega por API apagada ([#191](https://github.com/TechnicalBridge/TB_web/issues/191)) | Apagada, 10 de 10: `/api/v1` y `/api/claves` responden `404`, Swagger muestra el contrato vacío y la carga por campaña sigue. Encendida, 9 de 9: la empresa emite una clave, entra con ella, la revoca y ya no entra. En Edge, 40 de 40: el portal no ofrece claves ni habla de la API |
@@ -4029,8 +4035,8 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 - **El correo en Outlook:** las plantillas se probaron en Gmail; en un buzón de Outlook no se
   vieron. Y un rebote que Brevo recibe después de aceptar un correo no llega a DataBridge, así que
   no cuenta para *correo con problemas*.
-- **Del panel de administración** falta el estado de la operación, la bitácora de accesos y
-  suspender una empresa ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)).
+- **Del panel de administración** falta el estado de la operación y suspender una empresa
+  ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)).
 
 ---
 

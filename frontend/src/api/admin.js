@@ -69,5 +69,25 @@ export async function historialDeEmpresa(rut) {
 
 export const historialDeAdmins = () => pedir("/admin/auth/admins/historial").then(acciones);
 
+// ---- La bitacora de acceso (ms-auth, #141) ----------------------------------------
+
+/**
+ * Una pagina de la bitacora de acceso, lo mas reciente primero: las filas y la
+ * pagina (number, totalPages, totalElements). Los filtros vacios no se mandan.
+ * El RUT llega a medias y no viene ni correo ni IP.
+ */
+export async function accesos({ desde, hasta, metodo, resultado, pagina = 0, porPagina = 50 } = {}) {
+  const params = { pagina, porPagina };
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  if (metodo) params.metodo = metodo;
+  if (resultado) params.resultado = resultado;
+  const data = await pedir("/admin/auth/accesos", { params });
+  return { filas: embebidos(data, "accesos"), pagina: data.page };
+}
+
+/** Los totales de hoy, en Chile: cuantos entraron, cuantos rechazos y cuantos pedidos salieron. */
+export const accesosDeHoy = () => pedir("/admin/auth/accesos/hoy");
+
 /** Lo que DataBridge le cobra a cada empresa en un mes (2026-10): el modelo de negocio, #200. */
 export const comisionesDelMes = (mes) => pedir("/admin/debt/comisiones", { params: { mes } });
