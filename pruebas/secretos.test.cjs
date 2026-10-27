@@ -1,8 +1,8 @@
 // =============================================================================
 //  Las reglas de .gitleaks.toml y el verificador (#232):  node --test pruebas/secretos.test.cjs
 // =============================================================================
-//  Las tres primeras pruebas no necesitan gitleaks. Las de clasificacion lo
-//  corren de verdad sobre un archivo de prueba, y se saltan si no esta
+//  Las cuatro primeras pruebas no necesitan gitleaks. Las demas lo corren de
+//  verdad, sobre un archivo o un repositorio de prueba, y se saltan si no esta
 //  (GITLEAKS apunta al binario; la CI lo instala). Cada clave de prueba se
 //  arma al azar en el momento: ninguna queda escrita en este archivo.
 // =============================================================================
@@ -35,6 +35,15 @@ test('el resumen dice la regla, el archivo y la linea, pero nunca el valor ni el
   assert.deepEqual(r.ubicaciones, [{ regla: 'regla-ficticia', archivo: 'archivo.txt', linea: 4 }]);
   assert.ok(!JSON.stringify(r).includes('ficticio-no-mostrar'));
   assert.ok(!JSON.stringify(r).includes('ficticio@example.com'));
+});
+
+test('con --base, revisa cada merge contra la linea propia de la rama', () => {
+  const sha = 'a'.repeat(40);
+  verificar(['--base', sha], (bin, args) => {
+    assert.ok(args.includes(`--log-opts=-m --first-parent ${sha}..HEAD`));
+    fs.writeFileSync(args[args.indexOf('--report-path') + 1], '[]');
+    return { status: 0 };
+  });
 });
 
 test('si gitleaks no corre, la revision falla en vez de dar todo por bueno', () => {
@@ -78,6 +87,35 @@ const casos = [
 ];
 
 const binario = process.env.GITLEAKS;
+
+//  El caso que se le escapaba a git log -p: la clave entra solo al resolver un
+//  conflicto, en el commit de merge, y no esta en ninguno de los dos lados.
+test('detecta una clave escrita al resolver un conflicto de merge', { skip: !binario && 'sin GITLEAKS' }, (t) => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-merge-'));
+  t.after(() => {
+    assert.ok(path.basename(repo).startsWith('tb-merge-'));
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+  const git = (...a) => {
+    const r = spawnSync('git', ['-C', repo, '-c', 'user.name=prueba', '-c', 'user.email=prueba@example.com', ...a],
+      { encoding: 'utf8', windowsHide: true });
+    return r.stdout.trim();
+  };
+  const escribir = (texto) => fs.writeFileSync(path.join(repo, 'a.txt'), texto);
+  git('init', '-q', '-b', 'main');
+  escribir('valor=uno\n'); git('add', 'a.txt'); git('commit', '-qm', 'base');
+  const base = git('rev-parse', 'HEAD');
+  git('checkout', '-qb', 'rama'); escribir('valor=dos\n'); git('commit', '-qam', 'rama');
+  git('checkout', '-q', 'main'); escribir('valor=tres\n'); git('commit', '-qam', 'main');
+  git('checkout', '-q', 'rama'); git('merge', '-q', 'main');
+  escribir('valor=cuatro\nRENDER_API_KEY=rnd_' + hex(20) + '\n');
+  git('add', 'a.txt'); git('commit', '-qm', 'merge con el conflicto resuelto');
+  fs.copyFileSync(path.resolve(__dirname, '../.gitleaks.toml'), path.join(repo, '.gitleaks.toml'));
+  const r = verificar(['--base', base], spawnSync, repo);
+  assert.equal(r.correcto, false);
+  assert.deepEqual(r.ubicaciones.map((u) => u.regla), ['databridge-render-key']);
+});
+
 for (const [nombre, texto, regla] of casos) {
   test((regla ? 'detecta ' : 'deja pasar ') + nombre, { skip: !binario && 'sin GITLEAKS' }, (t) => {
     const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-deteccion-'));

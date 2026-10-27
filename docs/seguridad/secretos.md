@@ -14,7 +14,9 @@ el commit. Desde [#232](https://github.com/TechnicalBridge/DataBridge/issues/232
 Ninguna muestra el valor que encuentra: solo la regla, el archivo y la línea.
 
 El historial **no se revisa entero**: trae las claves de #245, que ya se revocaron, y haría fallar todo para siempre.
-Por eso el check mira solo lo nuevo.
+Por eso el check mira solo lo nuevo. Cada merge se revisa contra la línea propia de la rama (`-m --first-parent`):
+sin eso, `git log -p` no muestra el diff de un merge, y una clave escrita al resolver un conflicto pasaría sin que
+nadie la viera. Por lo mismo, al traer `main` a tu rama también se revisa lo que llega con él.
 
 ## Qué detecta
 

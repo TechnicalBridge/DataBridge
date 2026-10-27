@@ -16,12 +16,14 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-function verificar(args, run = spawnSync) {
+//  Con --base, cada merge se revisa contra la linea propia de la rama (-m
+//  --first-parent): sin eso, git log -p no muestra el diff de un merge, y una
+//  clave escrita al resolver un conflicto pasaria sin que nadie la viera.
+function verificar(args, run = spawnSync, repo = path.resolve(__dirname, '..')) {
   let rango;
   if (args.length === 1 && args[0] === '--staged') rango = ['--pre-commit', '--staged'];
-  else if (args.length === 2 && args[0] === '--base' && /^[a-f0-9]{40}$/.test(args[1])) rango = ['--log-opts=' + args[1] + '..HEAD'];
+  else if (args.length === 2 && args[0] === '--base' && /^[a-f0-9]{40}$/.test(args[1])) rango = ['--log-opts=-m --first-parent ' + args[1] + '..HEAD'];
   else throw new Error('Use --staged o --base seguido del SHA completo de la base.');
-  const repo = path.resolve(__dirname, '..');
   const temporal = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-secretos-'));
   const reporte = path.join(temporal, 'reporte.json');
   try {
