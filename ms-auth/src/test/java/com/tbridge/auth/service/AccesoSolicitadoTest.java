@@ -43,7 +43,7 @@ class AccesoSolicitadoTest {
     @BeforeEach
     void preparar() {
         auth = new AuthService(codigos, enlaces, personal, bitacora,
-                new JwtService("unit-test-secret-key-32-chars!!!", 15),
+                com.tbridge.auth.security.JwtTestConfig.service(),
                 new SessionService(sesiones.repositorio, java.time.Duration.ofDays(7), java.time.Clock.systemUTC()),
                 correo, deudas, "http://localhost:8080", 24, 15);
         when(deudas.correoDelDeudor(RUT)).thenReturn(Optional.of("deudor@example.com"));

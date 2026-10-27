@@ -4,7 +4,7 @@ import com.tbridge.debt.dto.response.ComisionResponse;
 import com.tbridge.debt.service.ComisionService;
 import static org.mockito.ArgumentMatchers.eq;
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.ResumenResponse;
 import com.tbridge.debt.service.AnalyticsService;
@@ -27,13 +27,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(AnalyticsController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class AnalyticsControllerTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private AnalyticsService analytics;
     @MockitoBean private ComisionService comisiones;
 

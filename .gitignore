@@ -30,3 +30,6 @@ credentials.py
 
 # Notas locales de commit: no se versionan.
 COMMIT.txt
+
+# Claves privadas locales de firma: solo archivos de ejecucion.
+/.secrets/

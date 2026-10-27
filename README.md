@@ -1,5 +1,8 @@
 # DataBridge
 
+> **Sesiones ES256:** antes del primer arranque, genera la pareja P-256 con `./scripts/generar-claves-jwt.ps1` y configura `JWT_KEY_DIRECTORY`. Solo auth recibe privada. [Generacion, montaje, corte inicial y rotacion](docs/seguridad/jwt.md). V7 revoca las sesiones anteriores una sola vez: todos vuelven a entrar.
+
+
 [![gateway](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/TB_web/actions/workflows/codeql.yml)
 
 **La plataforma donde el deudor en cobranza paga, repacta o reclama su deuda, sin llamar a nadie**, sea
@@ -201,7 +204,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 
 | Qué pasa | Qué hacer |
 | --- | --- |
-| `Falta JWT_SECRET en el .env` (o cualquier otro secreto) | No hay `.env`, o le falta ese secreto: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1` lo completa sin tocar lo que ya tiene |
+| Faltan claves de firma o secretos de infraestructura | Generar pareja con `scripts/generar-claves-jwt.ps1`, configurar `JWT_KEY_DIRECTORY` y ejecutar `preparar-env.ps1`; ver [JWT](docs/seguridad/jwt.md) |
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia, también las claves dentro de MySQL si la base está arriba, sin perder datos. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes, también dentro de MySQL si es una de sus claves. Después, `docker compose --profile app up -d` |
 | `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `MYSQL_PORT` (3308), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
@@ -3685,11 +3688,12 @@ no es secreto sí tiene un valor de desarrollo.
 </details>
 
 <details>
-<summary><b>Secretos, sesión y acceso</b> (9)</summary>
+<summary><b>Secretos, sesión y acceso</b> (10)</summary>
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `JWT_SECRET` | el `.env` | Firma los JWT. **El mismo en ms-auth, ms-debt y ms-payments.** Al menos 32 bytes: con menos, los servicios no arrancan |
+| `JWT_KEY_DIRECTORY` | obligatoria | Ruta absoluta a PKCS#8/SPKI y publicas de rotacion, montada solo en auth |
+| `AUTH_JWKS_URI` | local con Maven, interna en Compose | JWKS publico de auth para verificar ES256 |
 | `INTERNAL_KEY` | el `.env` | Autentica las llamadas entre servicios |
 | `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Si se cambia, los suscritos tienen que volver a suscribirse |
 | `ADMIN_CORREO` | vacía | El correo del primer `admin` de DataBridge, que entra al panel de administración. Vacía, no hay `admin`. No puede ser el de una persona de una empresa |

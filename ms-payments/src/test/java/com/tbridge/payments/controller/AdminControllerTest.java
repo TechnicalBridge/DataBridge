@@ -2,7 +2,7 @@ package com.tbridge.payments.controller;
 
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.ReglasResponse;
-import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,15 +20,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** El panel de administracion es solo del admin de DataBridge: ni una empresa ni un deudor entran. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(AdminController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class AdminControllerTest {
 
     private static final String ESTADO = "/api/admin/payments/estado";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ReglasService reglas;
 
     private String admin() {

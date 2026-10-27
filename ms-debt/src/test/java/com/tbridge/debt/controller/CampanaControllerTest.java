@@ -6,7 +6,7 @@ import com.tbridge.debt.dto.response.CampanaPortalResponse;
 import com.tbridge.debt.exception.CarteraInvalida;
 import com.tbridge.debt.exception.CarteraInvalidaHandler;
 import com.tbridge.debt.model.Organization;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.CampanaService;
 import com.tbridge.debt.service.DebtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +35,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Las campanas desde el portal: solo una empresa, solo las que gestiona, y con las reglas del contrato. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(CampanaController.class)
-@Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class})
 @ActiveProfiles("test")
 class CampanaControllerTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private CampanaService campanas;
     @MockitoBean private DebtService debts;
 

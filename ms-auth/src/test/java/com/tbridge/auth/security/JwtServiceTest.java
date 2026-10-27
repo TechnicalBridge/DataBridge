@@ -1,58 +1,62 @@
 package com.tbridge.auth.security;
 
-import io.jsonwebtoken.Claims;
+import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.springframework.security.oauth2.jwt.Jwt;
+import java.time.*;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class JwtServiceTest {
+    private final JwtService jwt = JwtTestConfig.service();
 
-    /** 32 bytes justos: el minimo que acepta HMAC-SHA256. */
-    private static final String SECRETO = "unit-test-secret-key-32-chars!!!";
-
-    private final JwtService jwt = new JwtService(SECRETO, 15);
-
-    @Test
-    void roundTripClaims() {
-        String token = jwt.issue("u-1", "ana@correo.com", "DEBTOR", "Ana Pérez", "16482337-7");
-        JwtPrincipal principal = jwt.toPrincipal(jwt.parse(token));
-        assertEquals("u-1", principal.id());
-        assertEquals("ana@correo.com", principal.email());
-        assertEquals("DEBTOR", principal.role());
-        assertEquals("Ana Pérez", principal.name());
-        assertEquals("16482337-7", principal.rut());
+    @Test void roundTripClaims() throws Exception {
+        String token = jwt.issue("u-1", "ana@example.com", "DEBTOR", "Ana", "16482337-7");
+        var principal = jwt.toPrincipal(jwt.parse(token));
+        assertEquals(new JwtPrincipal("u-1", "ana@example.com", "DEBTOR", "Ana", "16482337-7"), principal);
         assertTrue(principal.isDebtor());
+        assertEquals("ES256", SignedJWT.parse(token).getHeader().getAlgorithm().getName());
+        assertEquals(JwtTestConfig.ring().activeKid(), SignedJWT.parse(token).getHeader().getKeyID());
     }
-
-    @Test
-    void rejectsTamperedToken() {
-        String token = jwt.issue("u-1", "ana@correo.com", "DEBTOR", "Ana", "16482337-7");
-        assertThrows(Exception.class, () -> jwt.parse(token + "x"));
+    @Test void rejectsTamperedToken() {
+        assertThrows(Exception.class, () -> jwt.parse(JwtTestTokens.token() + "x"));
     }
-
-    @Test
-    void el_token_vive_lo_que_dice_la_configuracion_y_no_una_semana() {
-        Claims claims = jwt.parse(jwt.issue("u-1", null, "DEBTOR", null, "16482337-7"));
-        long segundos = (claims.getExpiration().getTime() - claims.getIssuedAt().getTime()) / 1000;
-        assertEquals(Duration.ofMinutes(15).toSeconds(), segundos);
+    @Test void el_token_vive_lo_que_dice_la_configuracion_y_no_una_semana() {
+        Jwt claims = jwt.parse(jwt.issue("u-1", null, "DEBTOR", null, "16482337-7"));
+        assertEquals(900, Duration.between(claims.getIssuedAt(), claims.getExpiresAt()).toSeconds());
     }
-
-    @Test
-    void un_secreto_corto_no_arranca_en_vez_de_rellenarse_con_ceros() {
-        //  Antes se completaba con ceros hasta 32 bytes y el servicio arrancaba
-        //  igual, con una llave de casi nada de entropia.
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-                () -> new JwtService("corto", 15));
-        assertTrue(error.getMessage().contains("JWT_SECRET"));
+    @Test void configuracion_de_vida_invalida_no_arranca() {
+        assertThrows(IllegalStateException.class, () -> new JwtService(JwtTestConfig.ring(), 0));
     }
-
-    @Test
-    void un_secreto_de_31_bytes_tampoco() {
-        assertThrows(IllegalStateException.class,
-                () -> new JwtService("unit-test-secret-key-32-chars!!", 15));
+    @Test void otra_vida_configurada_se_conserva() {
+        var service = new JwtService(JwtTestConfig.ring(), 3);
+        var claims = service.parse(service.issue("u", null, "DEBTOR", null, "rut"));
+        assertEquals(180, Duration.between(claims.getIssuedAt(), claims.getExpiresAt()).toSeconds());
+    }
+    @Test void nulls_omitidos_y_no_aparecen_claims_nuevos() {
+        var claims = jwt.parse(jwt.issue("u", null, "DEBTOR", null, "rut")).getClaims();
+        assertEquals(Set.of("sub", "id", "role", "rut", "iat", "exp"), claims.keySet());
+    }
+    @Test void same_key_same_kid_different_key_different_kid() {
+        assertEquals(JwtTestConfig.ring().activeKid(), JwtTestConfig.ring().activeKid());
+        var pair = JwtTestTokens.pair("secp256r1");
+        assertNotEquals(JwtTestConfig.ring().activeKid(),
+                new JwtKeyRing(pair.getPrivate(), pair.getPublic(), List.of()).activeKid());
+    }
+    @Test void rotation_old_new_verifies_both_emits_only_active() throws Exception {
+        var next = JwtTestTokens.pair("secp256r1");
+        var oldPair = JwtTestTokens.PAIR;
+        var oldRing = new JwtKeyRing(oldPair.getPrivate(), oldPair.getPublic(), List.of(next.getPublic()));
+        var newRing = new JwtKeyRing(next.getPrivate(), next.getPublic(), List.of(oldPair.getPublic()));
+        var oldService = new JwtService(oldRing, 15);
+        var newService = new JwtService(newRing, 15);
+        String old = oldService.issue("u", null, "DEBTOR", null, "rut");
+        String fresh = newService.issue("u", null, "DEBTOR", null, "rut");
+        assertNotNull(newService.parse(old)); assertNotNull(oldService.parse(fresh));
+        assertEquals(newRing.activeKid(), SignedJWT.parse(fresh).getHeader().getKeyID());
+        assertEquals(2, ((List<?>) newRing.publicJwks().get("keys")).size());
+        var retired = new JwtService(new JwtKeyRing(next.getPrivate(), next.getPublic(), List.of()), 15);
+        assertThrows(Exception.class, () -> retired.parse(old));
+        assertNotNull(retired.parse(fresh));
     }
 }
