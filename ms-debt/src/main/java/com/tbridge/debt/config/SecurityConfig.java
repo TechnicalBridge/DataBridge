@@ -20,7 +20,7 @@ public class SecurityConfig {
         // CSRF no debe adelantarse a esas validaciones ni cambiar sus respuestas HTTP.
         // Esta excepcion contextual no aplica a auth, que si usa refresh cookie.
         // Si se incorpora autenticacion por cookie aqui, reevaluar la proteccion CSRF.
-        return http.csrf(AbstractHttpConfigurer)
+        return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .exceptionHandling(ex -> ex
