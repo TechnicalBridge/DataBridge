@@ -4,7 +4,7 @@
 #  Dos formas de usarlo:
 #
 #    docker compose up -d
-#        Solo la infraestructura: MySQL, RabbitMQ y el buzon de prueba. Los
+#        Solo la infraestructura: las tres bases, RabbitMQ y el buzon de prueba. Los
 #        servicios se levantan a mano con Maven, que es como se programa,
 #        porque recompilar una imagen en cada cambio seria insoportable.
 #
@@ -23,42 +23,77 @@
 #  detiene y dice cual falta.
 # =============================================================================
 
+#  Lo comun de las tres bases (#238): cada servicio tiene su propio MySQL, con
+#  su volumen, sus claves y su puerto. Si una se cae, se llena o se restaura,
+#  las otras dos siguen. MySQL 8.4 es el mismo motor que usa APOFYX, para no
+#  tener dos en el proyecto.
+#
+#  MYSQL_DATABASE crea la base vacia y le da permisos al usuario de la
+#  aplicacion la primera vez, cuando el volumen esta vacio; el esquema lo
+#  ponen las migraciones de Flyway del servicio al arrancar (ver db/README.md).
+#  El usuario se llama igual en las tres (MYSQL_USER) porque las vistas lo
+#  tienen como DEFINER; lo que cambia es la clave.
+x-mysql: &mysql
+  image: mysql:8.4
+  restart: unless-stopped
+  command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_0900_ai_ci
+    #  Sin las metricas internas, cada instancia usa bastante menos memoria:
+    #  tres caben en un equipo de desarrollo y en el servidor.
+    - --performance-schema=OFF
+  healthcheck:
+    #  La clave la lee del propio contenedor: asi no queda en la linea de
+    #  comando, donde la mostraria docker inspect.
+    test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -u root"]
+    interval: 5s
+    timeout: 5s
+    retries: 20
+    start_period: 40s
+
 services:
   # ---------------------------------------------------------------------------
-  #  MySQL 8.4 — el mismo motor que usa APOFYX, para no tener dos en el
-  #  proyecto. Crea las tres bases vacias; el esquema lo ponen las migraciones
-  #  de Flyway de cada servicio al arrancar (ver db/README.md).
-  #
-  #  Puerto 3308 para no chocar ni con el MySQL del equipo (3306) ni con el de
-  #  APOFYX (3307).
+  #  Las tres bases, en 3308, 3309 y 3310: para no chocar ni con el MySQL del
+  #  equipo (3306) ni con el de APOFYX (3307). Se cambian en el .env.
   # ---------------------------------------------------------------------------
-  mysql:
-    image: mysql:8.4
-    container_name: tbridge-db
-    restart: unless-stopped
+  db-auth:
+    <<: *mysql
+    container_name: tbridge-db-auth
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Falta MYSQL_ROOT_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_ROOT_PASSWORD: ${DB_AUTH_ROOT_PASSWORD:?Falta DB_AUTH_ROOT_PASSWORD en el .env (crealo con preparar-env.ps1)}
       MYSQL_USER: ${MYSQL_USER:-tbridge}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Falta MYSQL_PASSWORD en el .env (crealo con preparar-env.ps1)}
-      MYSQL_DATABASE: tb_debt
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_0900_ai_ci
+      MYSQL_PASSWORD: ${DB_AUTH_PASSWORD:?Falta DB_AUTH_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_DATABASE: tb_auth
     ports:
-      - "${MYSQL_PORT:-3308}:3306"
+      - "${DB_AUTH_PORT:-3308}:3306"
     volumes:
-      - tbridge_db_data:/var/lib/mysql
-      # Crea las otras dos bases y le da permisos al usuario de la aplicacion.
-      # Corre solo la primera vez, cuando el volumen esta vacio.
-      - ./db/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      #  La clave la lee del propio contenedor: asi no queda en la linea de
-      #  comando, donde la mostraria docker inspect.
-      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -u root"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 40s
+      - tb_auth_data:/var/lib/mysql
+
+  db-debt:
+    <<: *mysql
+    container_name: tbridge-db-debt
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_DEBT_ROOT_PASSWORD:?Falta DB_DEBT_ROOT_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_USER: ${MYSQL_USER:-tbridge}
+      MYSQL_PASSWORD: ${DB_DEBT_PASSWORD:?Falta DB_DEBT_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_DATABASE: tb_debt
+    ports:
+      - "${DB_DEBT_PORT:-3309}:3306"
+    volumes:
+      - tb_debt_data:/var/lib/mysql
+
+  db-payments:
+    <<: *mysql
+    container_name: tbridge-db-payments
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PAYMENTS_ROOT_PASSWORD:?Falta DB_PAYMENTS_ROOT_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_USER: ${MYSQL_USER:-tbridge}
+      MYSQL_PASSWORD: ${DB_PAYMENTS_PASSWORD:?Falta DB_PAYMENTS_PASSWORD en el .env (crealo con preparar-env.ps1)}
+      MYSQL_DATABASE: tb_payments
+    ports:
+      - "${DB_PAYMENTS_PORT:-3310}:3306"
+    volumes:
+      - tb_payments_data:/var/lib/mysql
 
   # ---------------------------------------------------------------------------
   #  Bus de eventos, opcional. Sin el, ms-payments le avisa a ms-debt por HTTP.
@@ -114,7 +149,7 @@ services:
     image: tbridge/ms-auth:1.0.0
     restart: unless-stopped
     depends_on:
-      mysql: { condition: service_healthy }
+      db-auth: { condition: service_healthy }
     volumes:
       - type: bind
         source: ${JWT_KEY_DIRECTORY:?Falta JWT_KEY_DIRECTORY (ver docs/seguridad/jwt.md)}
@@ -124,13 +159,14 @@ services:
     environment:
       JWT_KEY_DIRECTORY: /run/secrets/jwt
       <<: &base
-        DB_HOST: mysql
         DB_PORT: "3306"
         DB_USER: ${MYSQL_USER:-tbridge}
-        DB_PASSWORD: ${MYSQL_PASSWORD:?Falta MYSQL_PASSWORD en el .env (crealo con preparar-env.ps1)}
         INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
         PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
         SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      #  Su base, y solo la suya: con esta clave no se entra a las otras dos.
+      DB_HOST: db-auth
+      DB_PASSWORD: ${DB_AUTH_PASSWORD:?Falta DB_AUTH_PASSWORD en el .env (crealo con preparar-env.ps1)}
       PORT: "8081"
       #  El enlace de acceso de un deudor va solo al correo que registro el
       #  acreedor: ms-auth se lo pregunta a ms-debt.
@@ -189,11 +225,13 @@ services:
     image: tbridge/ms-debt:1.0.0
     restart: unless-stopped
     depends_on:
-      mysql:    { condition: service_healthy }
+      db-debt:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       ms-auth:  { condition: service_started }
     environment:
       <<: *base
+      DB_HOST: db-debt
+      DB_PASSWORD: ${DB_DEBT_PASSWORD:?Falta DB_DEBT_PASSWORD en el .env (crealo con preparar-env.ps1)}
       PORT: "8083"
       DB_NAME: tb_debt
       AUTH_URI: http://ms-auth:8081
@@ -233,11 +271,13 @@ services:
     image: tbridge/ms-payments:1.0.0
     restart: unless-stopped
     depends_on:
-      mysql:    { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-      ms-debt:  { condition: service_healthy }
+      db-payments: { condition: service_healthy }
+      rabbitmq:    { condition: service_healthy }
+      ms-debt:     { condition: service_healthy }
     environment:
       <<: *base
+      DB_HOST: db-payments
+      DB_PASSWORD: ${DB_PAYMENTS_PASSWORD:?Falta DB_PAYMENTS_PASSWORD en el .env (crealo con preparar-env.ps1)}
       PORT: "8084"
       DB_NAME: tb_payments
       DEBT_URI: http://ms-debt:8083
@@ -404,5 +444,9 @@ services:
 #  limite de peticiones. El token lo verifica cada servicio por su cuenta:
 #  ninguno confia en que otro ya lo haya revisado.
 
+#  Un volumen por base. El de antes, tbridge_db_data, ya no se usa: sus datos
+#  se pasan a estos con db/separar-bases.ps1, y despues se puede borrar.
 volumes:
-  tbridge_db_data:
+  tb_auth_data:
+  tb_debt_data:
+  tb_payments_data:

@@ -249,7 +249,7 @@ Nada cambia en local: Docker Compose sigue funcionando igual.
 | Un `railway.json` en cada carpeta | El Dockerfile, el chequeo de salud y que cada servicio se despliegue solo cuando cambia lo suyo |
 | Los Dockerfiles de Java ya no montan un caché de Maven | Railway rechaza esos montajes si no llevan el id de cada servicio suyo. Las dependencias quedan en su propia capa |
 | `frontend/nginx.conf.template` | El gateway, el DNS y el proxy de entrada salen de variables; sus valores por omisión son los de Docker Compose |
-| `createDatabaseIfNotExist=true` en la conexión de cada servicio | En local las bases las crea `db/init`, que fuera de Docker Compose no corre |
+| `createDatabaseIfNotExist=true` en la conexión de cada servicio | En local cada base la crea su MySQL del compose (`MYSQL_DATABASE`), que en Railway no existe |
 | El gateway escucha en `PORT`, si lo hay | Es el puerto al que Railway le manda su chequeo de salud |
 | El gateway confía en las redes privadas de IPv6 | Por ahí le llega el portal en la red privada de Railway |
 

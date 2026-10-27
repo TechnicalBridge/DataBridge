@@ -6,8 +6,8 @@
 #  Lo que cambia respecto de local:
 #    - Caddy va delante y es lo unico que publica puertos (80 y 443): saca el
 #      certificado de Let's Encrypt para DOMINIO y le pasa todo al portal.
-#    - MySQL, RabbitMQ y el portal ya no publican puertos: solo se ven por
-#      dentro. El buzon de prueba no se levanta: el correo sale por Brevo.
+#    - Las tres bases, RabbitMQ y el portal ya no publican puertos: solo se
+#      ven por dentro. El buzon de prueba no se levanta: el correo sale por Brevo.
 #    - Las imagenes no se compilan aqui: las compila GitHub Actions
 #      (.github/workflows/desplegar.yml) y el servidor las descarga de GHCR.
 #      VERSION es el commit; sin el, la ultima de main.
@@ -21,7 +21,13 @@ x-imagen: &imagen
   pull_policy: missing
 
 services:
-  mysql:
+  db-auth:
+    ports: !reset []
+
+  db-debt:
+    ports: !reset []
+
+  db-payments:
     ports: !reset []
 
   rabbitmq:
