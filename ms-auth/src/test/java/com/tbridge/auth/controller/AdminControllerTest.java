@@ -1,12 +1,16 @@
 package com.tbridge.auth.controller;
 
 import com.tbridge.auth.config.SecurityConfig;
+import com.tbridge.auth.dto.response.AccesoResponse;
+import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiException;
+import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.security.JwtService;
+import com.tbridge.auth.service.BitacoraDeAccesos;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
 import org.junit.jupiter.api.Test;
@@ -14,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,11 +27,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -52,6 +62,7 @@ class AdminControllerTest {
     @Autowired private JwtService jwt;
     @MockitoBean private PersonalService personal;
     @MockitoBean private ReglasService reglas;
+    @MockitoBean private BitacoraDeAccesos accesos;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -116,6 +127,91 @@ class AdminControllerTest {
         //  nuevo no puede quedar abierto por olvido.
         mvc.perform(get("/api/admin/auth/lo-que-venga").header("Authorization", empresa()))
                 .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------------------------
+    //  La bitacora de acceso (#141)
+    // ------------------------------------------------------------------
+
+    private static final String ACCESOS = "/api/admin/auth/accesos";
+
+    @Test
+    void el_admin_ve_la_bitacora_por_pagina_sin_nada_que_identifique_a_la_persona() throws Exception {
+        //  Dos codigos invalidos contra el mismo RUT y un enlace rechazado: la pagina 0 de 2, de a 3.
+        List<AccesoResponse> fila = List.of(
+                new AccesoResponse(Instant.parse("2026-10-27T15:03:00Z"), "code", "invalid", "18.***.***-6"),
+                new AccesoResponse(Instant.parse("2026-10-27T15:02:00Z"), "code", "invalid", "18.***.***-6"),
+                new AccesoResponse(Instant.parse("2026-10-27T15:01:00Z"), "magic_link", "refused", null));
+        when(accesos.buscar(any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(fila, PageRequest.of(0, 3), 5));
+
+        mvc.perform(get(ACCESOS).param("porPagina", "3").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.accesos.length()").value(3))
+                .andExpect(jsonPath("$._embedded.accesos[0].rut").value("18.***.***-6"))
+                .andExpect(jsonPath("$._embedded.accesos[0].resultado").value("invalid"))
+                .andExpect(jsonPath("$._embedded.accesos[2].resultado").value("refused"))
+                .andExpect(jsonPath("$._embedded.accesos[2].rut").doesNotExist())
+                .andExpect(jsonPath("$._embedded.accesos[0].ip").doesNotExist())
+                .andExpect(jsonPath("$._embedded.accesos[0].email").doesNotExist())
+                .andExpect(jsonPath("$.page.size").value(3))
+                .andExpect(jsonPath("$.page.totalElements").value(5))
+                .andExpect(jsonPath("$.page.totalPages").value(2))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$._links.next.href", containsString("pagina=1")))
+                .andExpect(jsonPath("$._links.next.href", containsString("porPagina=3")))
+                .andExpect(jsonPath("$._links.last.href", containsString("pagina=1")))
+                .andExpect(jsonPath("$._links.prev").doesNotExist());
+    }
+
+    @Test
+    void los_filtros_llegan_tal_cual_y_quedan_en_los_enlaces_de_la_pagina() throws Exception {
+        when(accesos.buscar(any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 20), 60));
+
+        mvc.perform(get(ACCESOS).header("Authorization", admin())
+                        .param("desde", "2026-10-01").param("hasta", "2026-10-27")
+                        .param("metodo", "code").param("resultado", "invalid")
+                        .param("pagina", "2").param("porPagina", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded").doesNotExist())
+                .andExpect(jsonPath("$._links.prev.href", containsString("pagina=1")))
+                .andExpect(jsonPath("$._links.prev.href", containsString("resultado=invalid")))
+                .andExpect(jsonPath("$._links.prev.href", containsString("desde=2026-10-01")));
+        verify(accesos).buscar(LocalDate.parse("2026-10-01"), LocalDate.parse("2026-10-27"),
+                AccessLog.Method.code, AccessLog.Outcome.invalid, 2, 20);
+    }
+
+    @Test
+    void un_resultado_que_no_existe_responde_400_sin_consultar() throws Exception {
+        mvc.perform(get(ACCESOS).param("resultado", "cualquiera").header("Authorization", admin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("El parametro 'resultado' no tiene el formato esperado"));
+        verifyNoInteractions(accesos);
+    }
+
+    @Test
+    void los_totales_del_dia() throws Exception {
+        when(accesos.hoy()).thenReturn(new AccesosDeHoyResponse(LocalDate.parse("2026-10-27"), 5, 4, 7,
+                Map.of("granted", 5L, "invalid", 3L, "refused", 1L, "sent", 7L)));
+
+        mvc.perform(get(ACCESOS + "/hoy").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dia").value("2026-10-27"))
+                .andExpect(jsonPath("$.entraron").value(5))
+                .andExpect(jsonPath("$.rechazados").value(4))
+                .andExpect(jsonPath("$.enviados").value(7))
+                .andExpect(jsonPath("$.porResultado.invalid").value(3));
+    }
+
+    @Test
+    void ni_una_empresa_ni_un_deudor_ven_la_bitacora() throws Exception {
+        for (String sesion : List.of(empresa(), deudor())) {
+            mvc.perform(get(ACCESOS).header("Authorization", sesion)).andExpect(status().isForbidden());
+            mvc.perform(get(ACCESOS + "/hoy").header("Authorization", sesion)).andExpect(status().isForbidden());
+        }
+        mvc.perform(get(ACCESOS)).andExpect(status().isUnauthorized());
+        verifyNoInteractions(accesos);
     }
 
     // ------------------------------------------------------------------

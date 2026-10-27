@@ -265,6 +265,8 @@ classDiagram
             +historialDeAdmins() List~AccionResponse~
             +deshabilitar(JwtPrincipal, Long) PersonaResponse
             +habilitar(JwtPrincipal, Long) PersonaResponse
+            +accesos(LocalDate, LocalDate, Method, Outcome, int, int) PagedModel~AccesoResponse~
+            +accesosDeHoy() AccesosDeHoyResponse
         }
         class InternalController {
             <<controller>>
@@ -312,6 +314,11 @@ classDiagram
         class ReglasService {
             <<service>>
             +reglas() ReglasResponse
+        }
+        class BitacoraDeAccesos {
+            <<service>>
+            +buscar(LocalDate, LocalDate, Method, Outcome, int, int) Page~AccesoResponse~
+            +hoy() AccesosDeHoyResponse
         }
         class SessionService {
             <<service>>
@@ -425,6 +432,8 @@ classDiagram
         class AccessLogRepository {
             <<repository>>
             +findByIpHashAndOccurredAtAfter(String, Instant) List~AccessLog~
+            +buscar(Instant, Instant, Method, Outcome, Pageable) Page~AccessLog~
+            +contarPorResultadoDesde(Instant) List~PorResultado~
         }
         class SessionRepository {
             <<repository>>
@@ -452,6 +461,8 @@ classDiagram
     AuthController --> SesionModelAssembler
     AdminController --> PersonalService
     AdminController --> ReglasService
+    AdminController --> BitacoraDeAccesos
+    BitacoraDeAccesos --> AccessLogRepository
     InternalController --> AuthService
     InternalController --> MailService
     AuthService --> AccessCodeRepository
@@ -643,7 +654,7 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `ReglasResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.response` | Lo que sale | `AccesoResponse`, `AccesosDeHoyResponse`, `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `ReglasResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 

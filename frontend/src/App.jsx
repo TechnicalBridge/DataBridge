@@ -22,6 +22,7 @@ import AdminEmpresas from "./pages/AdminEmpresas";
 import AdminEmpresa from "./pages/AdminEmpresa";
 import AdminEquipo from "./pages/AdminEquipo";
 import AdminReglas from "./pages/AdminReglas";
+import AdminAccesos from "./pages/AdminAccesos";
 
 //  El portal de empresas trae los graficos (recharts), que pesan mas que todo
 //  el resto junto. Se descarga solo al entrar ahi: el deudor nunca lo baja.
@@ -124,6 +125,7 @@ export default function App() {
         <Route path="empresas" element={<AdminEmpresas />} />
         <Route path="empresas/:rut" element={<AdminEmpresa />} />
         <Route path="equipo" element={<AdminEquipo />} />
+        <Route path="accesos" element={<AdminAccesos />} />
         <Route path="reglas" element={<AdminReglas />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

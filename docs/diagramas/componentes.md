@@ -328,6 +328,7 @@ flowchart LR
             AdminEmpresas
             AdminEmpresa
             AdminEquipo
+            AdminAccesos
             AdminReglas
         end
     end
@@ -368,7 +369,7 @@ flowchart LR
     Cargar --> deudas
     Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
-    AdminInicio & AdminEmpresas & AdminReglas --> admin
+    AdminInicio & AdminEmpresas & AdminReglas & AdminAccesos --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
