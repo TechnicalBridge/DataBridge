@@ -18,3 +18,6 @@ mvnw    text eol=lf
 
 # Las planillas de Excel son binarias: Git no les toca los finales de linea.
 *.xlsx  binary
+
+#  El hook de secretos corre con sh: sin CR (#232).
+.githooks/* text eol=lf
