@@ -2,13 +2,20 @@
 
 Vista lógica del [modelo 4+1](README.md), por el lado de los datos: qué se guarda y cómo se relaciona.
 
-DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 25 tablas, 3 vistas y 26 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
+DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su propia instancia de MySQL 8.4 (`db-auth`, `db-debt`, `db-payments`): **25 tablas de negocio** (más las 3 tablas `flyway_schema_history` con las que Flyway versiona cada base), **3 vistas** y **26 llaves foráneas** en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
-| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel · `V6` código y enlace compartidos |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos · `V8` correo que no sale |
-| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago |
+| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores |
+| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
+
+![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
+
+> **Notas sobre el diagrama general y el esquema vigente en Flyway:**
+> - **Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`):** Las tres tablas `flyway_schema_history` y las dos `admin_log` del diagrama corresponden a cada una de las bases por separado.
+> - **Llaves foráneas físicas vs. relaciones entre bases:** Las 26 llaves foráneas físicas existen únicamente dentro de `tb_debt` (24) y `tb_payments` (2); `tb_auth` no tiene llaves foráneas. Las líneas punteadas que en la vista consolidada cruzan entre tablas de distintas bases (`payments` con `debts`, `organizations` o `debtors`; `staff_users`, `access_codes`, `magic_links`, `sessions`, `access_log` o `admin_log` entre `tb_auth` y `tb_debt`) representan **referencias lógicas por RUT o por ID** que mantienen los microservicios en código ([ver detalle](#cómo-se-unen-las-tres-bases)).
+> - **Columna `cae` en `repactations`:** Las migraciones `V9` y `V10` de `ms-debt` agregaron la columna `cae DECIMAL(6,2)` y la restricción `ck_repactation_cae` (`cae IS NULL OR cae >= 0`) para almacenar la Carga Anual Equivalente informada al aceptar el convenio (Ley 20.555 / D.S. 43).
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
 
@@ -396,7 +403,7 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 41 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 42 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
@@ -440,6 +447,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `organizations` | `ck_organization_status` | `(status in ('active','suspended'))` |
 | `outbox` | `ck_outbox_status` | `(status in ('pending','delivered','failed'))` |
 | `repactations` | `ck_repactation_amount` | `(monthly_amount > 0)` |
+| `repactations` | `ck_repactation_cae` | `((cae is null) or (cae >= 0))` |
 | `repactations` | `ck_repactation_currency` | `(currency in ('CLP','UF'))` |
 | `repactations` | `ck_repactation_interest_rate` | `((interest_rate is null) or (interest_rate > 0))` |
 | `repactations` | `ck_repactation_months` | `(months between 1 and 24)` |

@@ -798,14 +798,14 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 
 | Pieza | Qué hace |
 | --- | --- |
-| **portal** | React con Zustand y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
-| **gateway** | La única puerta: CORS, límite de peticiones con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
-| **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT, maneja las sesiones y manda los correos, incluido el recordatorio de cuota |
-| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados de vuelta a quien se suscribió |
-| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt, nunca el navegador. En UF fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
-| **ms-ai** | Asistente de solo lectura. Lee las deudas con la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM si hay `XAI_API_KEY` (Grok, con el SDK oficial de OpenAI para Java); si no, o si el LLM falla, responde con reglas |
-| **MySQL 8.4** | Una base por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
-| **RabbitMQ** | Lleva el aviso de pago de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
+| **portal** | React 18, Zustand 5, React Router 7, Vite 6 y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
+| **gateway** | La única puerta (`Spring Cloud Gateway`): CORS, límite de peticiones por IP con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
+| **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT firmado con **ES256 (ECDSA P-256)** y expone `/.well-known/jwks.json`, maneja las sesiones y manda los correos por la API de Brevo o SMTP, incluido el recordatorio de cuota |
+| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas con cálculo de CAE y costo total; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados con HMAC-SHA256 de vuelta a quien se suscribió |
+| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt (`GET /internal/debts/{id}`), nunca el navegador. En UF consulta la **API del Banco Central (`si3.bcentral.cl`)**, guarda el valor diario en `uf_values` y fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
+| **ms-ai** | Asistente de solo lectura. Lee las deudas en ms-debt con el JWT de la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM vía el SDK oficial de OpenAI (`LlmService`, configurable con `XAI_API_KEY`, `XAI_BASE_URL` y `XAI_MODEL` para xAI Grok o proveedores compatibles como Groq y Gemini); si no hay llave o el proveedor falla, responde con su motor local de reglas (`MotorLocal`) |
+| **MySQL 8.4** | Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`), una por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
+| **RabbitMQ** | Lleva el aviso de pago (`pago.confirmado`) de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
 ### Los roles de acceso
 
@@ -881,17 +881,17 @@ omisión y, si falta uno, el servicio no arranca y dice cuál.
 
 ## 7. Diagramas
 
-Los diagramas siguen el modelo **4+1** y salen del código: los nombres son las clases, las rutas y
-las tablas de verdad. Aquí va la **vista general** de cada uno; el detalle de cada servicio, con
+Los diagramas siguen el modelo **4+1** de Kruchten. Aquí se presentan los **cinco diagramas
+generales del 4+1** junto con lo que está implementado en el código; el desglose por servicio, con
 todas las columnas, clases y secuencias, está en [`docs/diagramas`](docs/diagramas/README.md).
 
-| Vista 4+1 | Aquí | El detalle |
+| Vista 4+1 | Diagrama general en este README | El detalle en `docs/diagramas/` |
 | --- | --- | --- |
-| **Escenarios** (el +1) | [§7.3 Casos de uso](#73-casos-de-uso) | [Cada actor y sus endpoints](docs/diagramas/casos-de-uso.md) |
-| **Lógica** | [§7.4 Clases](#74-clases) y [§7.2 Entidad-relación](#72-entidad-relación) | [Clases de cada servicio](docs/diagramas/clases.md) · [Las tres bases con sus columnas](docs/diagramas/entidad-relacion.md) · [Estados](docs/diagramas/estados.md) |
-| **Procesos** | [§7.5 Secuencias](#75-secuencias) y [§7.1 Comunicación](#71-comunicación-entre-servicios) | [Las 16 secuencias](docs/diagramas/secuencia.md) · [BPMN y flujos](docs/diagramas/procesos.md) |
-| **Desarrollo** | [§7.6 Componentes](#76-componentes) | [Cada servicio y el portal por dentro](docs/diagramas/componentes.md) |
-| **Física** | [§10 Docker](#10-docker) | [Contenedores, orden de arranque y perfiles](docs/diagramas/despliegue.md) |
+| **Escenarios** (el +1) | [§7.3 Casos de uso](#73-casos-de-uso) (`casos-de-uso.png`) | [Cada actor y sus endpoints](docs/diagramas/casos-de-uso.md) |
+| **Lógica** | [§7.2 Entidad-relación](#72-entidad-relación) (`entidad-relacion.png`) y [§7.4 Clases](#74-clases) | [Las tres bases con sus columnas](docs/diagramas/entidad-relacion.md) · [Clases de cada servicio](docs/diagramas/clases.md) · [Estados](docs/diagramas/estados.md) |
+| **Procesos** | [§7.5 Secuencias](#75-secuencias) (`secuencia-pago.png`) y [§7.1 Comunicación](#71-comunicación-entre-servicios) | [Las 16 secuencias](docs/diagramas/secuencia.md) · [BPMN y flujos](docs/diagramas/procesos.md) |
+| **Desarrollo** | [§7.1 Comunicación](#71-comunicación-entre-servicios) y [§7.6 Componentes](#76-componentes) (`componentes.png`) | [Cada servicio y el portal por dentro](docs/diagramas/componentes.md) |
+| **Física** | [§10 Docker y despliegue](#los-contenedores-y-sus-puertos) (`despliegue.png`) | [Contenedores, orden de arranque y perfiles](docs/diagramas/despliegue.md) |
 
 ### 7.1 Comunicación entre servicios
 
@@ -942,16 +942,26 @@ flowchart LR
     DEBT -.->|"eventos firmados con HMAC<br/>(con la API encendida)"| SIS
 ```
 
+![Diagrama de componentes y protocolos de comunicación](docs/diagramas/img/componentes.png)
+
 | Entre quiénes | Cómo | Por qué así |
 | --- | --- | --- |
-| Navegador → servicios | HTTP por el gateway, con JWT | Una sola puerta que revisar |
+| Navegador → Portal (nginx) → Gateway | HTTPS/HTTP hacia nginx y proxy `/api` al gateway, con JWT **ES256** | Una sola puerta pública con CORS y límite de peticiones (Bucket4j) |
 | Sistemas de las empresas → ms-debt | HTTP por el gateway (`/api/v1`), con clave de API. **Solo con `INTEGRACION_API=true`** | Entran por la misma puerta, con su límite de peticiones |
-| ms-payments → ms-debt | **RabbitMQ**, cola `ms-debt.pagos-confirmados` | El pago ya ocurrió: si ms-debt está caído, el aviso espera en la cola en vez de perderse |
-| ms-debt → ms-auth, ms-payments → ms-debt | HTTP interno con `X-Internal-Key`, fuera del gateway | Son llamadas entre servicios, no de usuarios. El gateway no las expone |
-| ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave | Crear la transacción y confirmarla; el navegador solo va y vuelve |
+| ms-payments → ms-debt | **RabbitMQ** (AMQP), cola `ms-debt.pagos-confirmados` | El pago ya ocurrió: si ms-debt está caído, el aviso espera en la cola en vez de perderse |
+| ms-debt ↔ ms-auth, ms-payments → ms-debt | HTTP interno (`/internal/**`) con `X-Internal-Key`, fuera del gateway | Son llamadas entre servicios (pedir código, consultar correo/empresa, verificar monto de deuda en `GET /internal/debts/{id}`); el gateway no las expone |
+| ms-ai → ms-debt | HTTP (`GET /api/debts`) reenviando el JWT del deudor | El asistente no tiene base ni acceso privilegiado: ve solo lo que el deudor autenticado puede ver |
+| ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave (`TBK API`) | Crear la transacción Webpay Plus y confirmarla; el navegador solo va y vuelve |
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
-| APOFYX ↔ DataBridge | HTTP con clave de API, y eventos firmados con HMAC-SHA256. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
+| ms-payments ↔ Mercado Pago | HTTPS con el token de acceso (`Bearer`) | Crear la preferencia de Checkout Pro y verificar el pago servidor a servidor |
+| ms-payments → Banco Central | HTTPS contra el Web Service REST (`si3.bcentral.cl`) | Traer el valor oficial de la UF del día, guardarlo en `tb_payments.uf_values` y fijar los pesos al abrir un cobro en UF |
+| ms-ai → Proveedor LLM | HTTPS con el SDK de OpenAI (`XAI_BASE_URL` / `XAI_API_KEY`) | Consultar el modelo configurado (xAI Grok, o APIs compatibles como Groq y Gemini); si no hay llave o falla, responde `MotorLocal` |
+| APOFYX ↔ DataBridge | HTTP con clave de API, y webhooks firmados con `HMAC-SHA256`. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
 | ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP; sin ninguno, Mailpit | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
+
+**Lo que hace el código en las firmas y las bases respecto al diagrama de componentes:**
+- **JWT con ES256 (ECDSA P-256):** `ms-auth` firma los tokens con la llave privada montada en `JWT_KEY_DIRECTORY` (`JwtKeyRing`, `JwtService`) y publica la llave pública en `/.well-known/jwks.json`. `ms-debt` y `ms-payments` verifican la firma consultando ese JWKS (la migración `V7` dejó atrás `HS256`).
+- **Conexión JDBC, huellas SHA-256 y cifrado AES-256-GCM:** Cada servicio se conecta a su MySQL por JDBC. En `tb_auth`, los códigos, enlaces mágicos, llaves de renovación e IPs se guardan como hashes **SHA-256** (`Hash.java`). En `tb_debt`, el secreto de cada suscripción (`subscriptions.secret`) se cifra en reposo con **AES-256-GCM** (`Cifrado.java`) usando `CIFRADO_LLAVE`.
 
 Si RabbitMQ no está, ms-payments manda el mismo aviso por HTTP (`POST /internal/events/pago-confirmado`);
 en los dos casos sale de una bandeja con reintentos, así que no se pierde.
@@ -984,21 +994,30 @@ necesita saber cuánto se debe, se lo **pregunta** a ms-debt. Así cada servicio
 sin romper a los demás, y un error en pagos no puede corromper la cartera.
 
 El esquema lo versiona **Flyway**, y cada servicio arranca con `ddl-auto: validate`, que compara
-las entidades con las tablas y se niega a partir si no calzan. En total son **25 tablas, 3 vistas y
-26 llaves foráneas**, ninguna entre una base y otra.
+las entidades con las tablas y se niega a partir si no calzan. En total son **25 tablas de negocio**
+(más las **3 tablas `flyway_schema_history`**, una en cada instancia MySQL), **3 vistas**, **26
+llaves foráneas físicas** (`24` en `tb_debt`, `2` en `tb_payments` y `0` en `tb_auth`) y **68
+reglas `CHECK`**, sin ninguna llave foránea entre una base y otra.
 
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
-| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
-| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
+| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
+| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
 llave foránea y `UK` un valor que no se repite; en las líneas, `||` es *uno*, `o{` es *cero o
-muchos* y `|o` es *cero o uno*. Las reglas que exige cada base (`CHECK`) están en
+muchos* y `|o` es *cero o uno*. Las 68 reglas que exige cada base (`CHECK`) están en
 [`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
 #### El diagrama general: las tres bases
+
+![Diagrama Entidad-Relación de las tres bases](docs/diagramas/img/entidad-relacion.png)
+
+> **Alineación entre el diagrama ER y las migraciones vigentes:**
+> - **Tablas por instancia:** Las tres cajas `flyway_schema_history` y las dos `admin_log` corresponden a las bases separadas `tb_auth`, `tb_debt` y `tb_payments`.
+> - **Uniones entre bases vs. llaves foráneas:** En MySQL solo existen las **26 llaves foráneas físicas** dentro de `tb_debt` (24) y `tb_payments` (2). Las líneas punteadas que en la vista consolidada cruzan de una base a otra (`payments` hacia `debts`, `organizations` o `debtors`; y `staff_users`, `access_codes`, `magic_links`, `sessions`, `access_log` o `admin_log` entre `tb_auth` y `tb_debt`) son **relaciones lógicas por RUT o por ID** mantenidas por los servicios en código, como detalla la tabla siguiente.
+> - **CAE en `repactations`:** Con las migraciones `V9` y `V10` de `ms-debt`, la tabla `repactations` incorpora además la columna `cae DECIMAL(6,2)` (`ck_repactation_cae`) para conservar la Carga Anual Equivalente informada al aceptar el convenio.
 
 Todas las tablas de DataBridge en un solo diagrama, cada una con el nombre de su base. Las **líneas
 continuas** son llaves foráneas dentro de una base. Las **punteadas** cruzan de una base a otra: no
@@ -1112,6 +1131,15 @@ Cada tabla con todas sus columnas, y las reglas `CHECK` de cada base, están en
 [`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
 ### 7.3 Casos de uso
+
+![Diagrama de casos de uso de DataBridge](docs/diagramas/img/casos-de-uso.png)
+
+**Qué está hecho en el código para cada actor del diagrama:**
+
+- **Deudor:** entra con su RUT y el código de 6 caracteres o el enlace enviado por **Brevo**/SMTP (`ms-auth`); ve sus deudas, cargos y mora (`ms-debt`); simula y acepta planes de repactación de 3 a 24 cuotas con su CAE y costo total; paga el total de la deuda o cuotas en orden de vencimiento mediante **Webpay, Khipu o Mercado Pago** (`ms-payments`); descarga el certificado de deuda pagada y los comprobantes en PDF; y consulta al asistente (`ms-ai`).
+- **Personal de la empresa (`CREDITOR`):** entra con su correo corporativo y código/enlace; gestiona sus campañas de cobranza (crear, pausar, terminar, cargar cartera en planilla y reenviar códigos); resuelve reclamos y revisa el panel de recuperación y los pagos recibidos.
+- **Administrador de DataBridge (`ADMIN`):** entra a `/admin` con correo y código/enlace; da de alta empresas usuarias y a su gente; habilita y deshabilita accesos del personal; y revisa el estado de los servicios, las reglas vigentes y la bitácora de auditoría (`admin_log` y `access_log`). *(En el código actual, dar de alta empresas, habilitar/deshabilitar accesos del personal y revisar la bitácora global son exclusivos del rol `ADMIN` en `/api/admin/**`).*
+- **APOFYX y sistemas externos:** APOFYX registra mandatos, campañas y entrega cartera por `/api/v1` (cuando `INTEGRACION_API=true`); el **Banco Central (BDE)** provee el valor diario de la UF a `ms-payments` para convertir los cobros en UF a pesos chilenos (CLP); **Webpay, Khipu y Mercado Pago** procesan el cobro y `ms-payments` verifica el estado servidor a servidor antes de aprobar o rechazar y notificar por RabbitMQ; y el proveedor LLM (**Grok / Groq / Gemini** vía `LlmService`, o `MotorLocal` sin llave) procesa las consultas del asistente leyendo las deudas del deudor en `ms-debt`.
 
 ```mermaid
 flowchart LR
@@ -1279,6 +1307,8 @@ la base, están en [`docs/diagramas/clases.md`](docs/diagramas/clases.md).
 ### 7.5 Secuencias
 
 #### El pago con Khipu, la funcionalidad principal
+
+![Diagrama de secuencia del flujo de pago](docs/diagramas/img/secuencia-pago.png)
 
 ```mermaid
 sequenceDiagram
@@ -1759,6 +1789,10 @@ El [`docker-compose.yml`](docker-compose.yml) orquesta los once contenedores. Si
 solo la infraestructura (las tres bases, RabbitMQ y el buzón); con `--profile app`, el sistema entero.
 
 ### Los contenedores y sus puertos
+
+![Diagrama físico de despliegue](docs/diagramas/img/despliegue.png)
+
+En el código y en [`docker-compose.yml`](docker-compose.yml), el navegador (`Dispositivo`) entra únicamente al **Databridge Web Portal** (`nginx`), que reenvía `/api` al **API Gateway** y este reparte el tráfico a `ms-auth`, `ms-debt`, `ms-payments` y `ms-ai`. Cada servicio con persistencia habla solo con su propio servidor MySQL (`tb-auth`, `tb-debt`, `tb-payments`); `ms-payments` publica el evento `pago.confirmado` en `RabbitMQ` (que entrega a `ms-debt`), y `ms-ai` no se conecta directo a la base `tb-debt`, sino que consulta a `ms-debt` por HTTP con el JWT del deudor.
 
 | Contenedor | Puerto interno | Publicado en el equipo | Para qué |
 | --- | --- | --- | --- |
