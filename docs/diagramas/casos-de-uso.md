@@ -208,9 +208,12 @@ flowchart LR
         A9(["Ver las reglas que rigen"])
         A10(["Consultar la comisión mensual<br/>de cada empresa"])
         A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
+        A12(["Ver lo que no se entregó<br/>y reintentarlo"])
+        A13(["Cargar a mano la UF de un día"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13
+    A13 -. "«extend»<br/>si falta la UF de hoy" .-> A12
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -232,6 +235,8 @@ flowchart LR
 | Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
 | Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
+| Ver lo que no se entregó y reintentarlo | `AdminOperacion` | `GET /api/admin/debt/avisos`, `POST /api/admin/debt/avisos/{id}/reintentar`, `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar`, `GET /api/admin/payments/operacion`, `POST /api/admin/payments/avisos/{id}/reintentar` | Los avisos a las empresas y a ms-debt que no se entregaron, con sus intentos y su último error, y los pagos que hay que mirar ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)). Reintentar los vuelve a poner en cola; el despachador los entrega en su pasada siguiente y ms-debt abona una sola vez. Sin el contenido de ningún aviso ni un dato de un deudor. Queda anotado quién lo hizo |
+| Cargar a mano la UF de un día | `AdminOperacion` | `POST /api/admin/payments/uf` | Para cuando el Banco Central no la entregó: queda como la UF de ese día, que es la que usan los cobros en UF, y queda anotado quién la cargó |
 | Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
 
 ---
@@ -353,7 +358,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **96 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -369,6 +374,8 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | `GET /api/admin/auth/admins/historial` | Lo que se hizo con los admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.historialDeAdmins` |
 | `POST /api/admin/auth/personal/{id}/deshabilitar` | Quitarle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.deshabilitar` |
 | `POST /api/admin/auth/personal/{id}/habilitar` | Devolverle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.habilitar` |
+| `GET /api/admin/auth/accesos` | La bitácora de acceso, por páginas y con filtros | Admin de DataBridge | JWT | Sí | `AdminController.accesos` |
+| `GET /api/admin/auth/accesos/hoy` | Los totales de acceso de hoy, en Chile | Admin de DataBridge | JWT | Sí | `AdminController.accesosDeHoy` |
 | `POST /api/auth/codigo` | Pedir solo código al correo registrado | Deudor, usuario o admin | Ninguna | Sí | `AuthController.codigo` |
 | `POST /api/auth/acceso` | Entrar con código y RUT o correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.acceso` |
 | `POST /api/auth/enlace` | Pedir código y enlace en un único correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
@@ -378,6 +385,7 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | `GET /api/me` | Quién soy | Quien tenga sesión | JWT | Sí | `AuthController.me` |
 | `POST /internal/codigos` | Emitir un código de acceso | ms-debt | Clave interna | No | `InternalController.emitir` |
 | `POST /internal/correo/prueba` | Mandar un correo de prueba | Operación de DataBridge | Clave interna | No | `InternalController.probarCorreo` |
+| `GET /.well-known/jwks.json` | Las llaves públicas con que se verifican las sesiones | ms-debt y ms-payments | Ninguna | No | `JwksController.keys` |
 
 ### ms-debt
 
@@ -389,6 +397,9 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
 | `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
 | `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
+| `GET /api/admin/debt/avisos` | Los avisos a las empresas que no se han entregado | Admin de DataBridge | JWT | Sí | `AdminController.avisos` |
+| `POST /api/admin/debt/avisos/{id}/reintentar` | Volver a poner en cola un aviso | Admin de DataBridge | JWT | Sí | `AdminController.reintentar` |
+| `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar` | Volver a poner en cola los avisos fallidos de un destinatario | Admin de DataBridge | JWT | Sí | `AdminController.reintentarDestino` |
 | `GET /api/analytics/summary` | El resumen de mi cartera | Usuario de una empresa | JWT | Sí | `AnalyticsController.summary` |
 | `GET /api/analytics/comision` | Lo recuperado y la comisión de mi empresa en un mes | Usuario de una empresa | JWT | Sí | `AnalyticsController.comision` |
 | `GET /api/admin/debt/comisiones` | La comisión mensual por empresa y el total | Admin de DataBridge | JWT | Sí | `AdminController.comisiones` |
@@ -438,6 +449,9 @@ Cada caso de uso de arriba termina en uno o más de estos **85 endpoints**. La l
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/payments/reglas` | Las reglas de pago que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/payments/estado` | Si ms-payments responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/payments/operacion` | Los pagos que hay que mirar, la UF de hoy y los avisos a ms-debt sin entregar | Admin de DataBridge | JWT | Sí | `AdminController.operacion` |
+| `POST /api/admin/payments/avisos/{id}/reintentar` | Volver a poner en cola un aviso de pago a ms-debt | Admin de DataBridge | JWT | Sí | `AdminController.reintentarAviso` |
+| `POST /api/admin/payments/uf` | Cargar a mano la UF de un día | Admin de DataBridge | JWT | Sí | `AdminController.cargarUf` |
 | `POST /internal/uf` | Cargar a mano la UF de un día | Operación de DataBridge | Clave interna | No | `InternalController.cargarAMano` |
 | `POST /internal/uf/cargar` | Cargar ahora la UF desde el Banco Central | Operación de DataBridge | Clave interna | No | `InternalController.cargarAhora` |
 | `POST /api/payments/checkout` | Abrir el cobro de una deuda o de una cuota | Deudor | JWT | Sí | `PaymentController.checkout` |

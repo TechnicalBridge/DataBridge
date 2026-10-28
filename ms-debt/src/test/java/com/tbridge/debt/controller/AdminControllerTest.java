@@ -4,10 +4,12 @@ import com.tbridge.debt.dto.response.ComisionesResponse;
 import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
+import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtTestIssuer;
+import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -54,6 +57,7 @@ class AdminControllerTest {
     @MockitoBean private EmpresaService empresas;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private ComisionService comisiones;
+    @MockitoBean private AvisosService avisos;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -236,5 +240,68 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$._embedded.acciones[0].accion").value("empresa_creada"))
                 .andExpect(jsonPath("$._embedded.acciones[0].quien").value("admin@databridge.cl"))
                 .andExpect(jsonPath("$._embedded.acciones[0].cuando").value("2026-10-13T15:00:00Z"));
+    }
+
+    // ------------------------------------------------------------------
+    //  Los avisos a las empresas (#139)
+    // ------------------------------------------------------------------
+
+    @Test
+    void el_admin_ve_los_avisos_sin_entregar_con_sus_intentos_y_su_ultimo_error() throws Exception {
+        when(avisos.sinEntregar()).thenReturn(new AvisosResponse(0, 21, List.of(new AvisosResponse.Destino(1L,
+                "APOFYX", "77305118-6", "http://host.docker.internal:8000", 0, 21,
+                List.of(new AvisosResponse.Aviso(40L, "pago.confirmado", Instant.parse("2026-10-20T15:00:00Z"),
+                        "failed", 6, null, "Connection refused"))))));
+
+        mvc.perform(get("/api/admin/debt/avisos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fallidos").value(21))
+                .andExpect(jsonPath("$.destinos[0].empresa").value("APOFYX"))
+                .andExpect(jsonPath("$.destinos[0].direccion").value("http://host.docker.internal:8000"))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].intentos").value(6))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].ultimoError").value("Connection refused"))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].payload").doesNotExist());
+    }
+
+    @Test
+    void reintentar_un_aviso_anota_al_admin_de_la_sesion() throws Exception {
+        when(avisos.reintentar(40L, "admin@databridge.cl")).thenReturn(new AvisosResponse.Aviso(40L,
+                "pago.confirmado", Instant.parse("2026-10-20T15:00:00Z"), "pending", 6,
+                Instant.parse("2026-10-27T18:00:00Z"), "Connection refused"));
+
+        mvc.perform(post("/api/admin/debt/avisos/40/reintentar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("pending"));
+        verify(avisos).reintentar(40L, "admin@databridge.cl");
+    }
+
+    @Test
+    void reintentar_un_destinatario_dice_cuantos_fueron() throws Exception {
+        when(avisos.reintentarDestino(1L, "admin@databridge.cl")).thenReturn(21);
+
+        mvc.perform(post("/api/admin/debt/avisos/destinos/1/reintentar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reintentados").value(21));
+    }
+
+    @Test
+    void un_aviso_ya_entregado_responde_409_con_el_motivo() throws Exception {
+        when(avisos.reintentar(eq(41L), any())).thenThrow(new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entrego"));
+
+        mvc.perform(post("/api/admin/debt/avisos/41/reintentar").header("Authorization", admin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Ese aviso ya se entrego"));
+    }
+
+    @Test
+    void ni_una_empresa_ni_un_deudor_ven_ni_reintentan_avisos() throws Exception {
+        for (String sesion : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/avisos").header("Authorization", sesion)).andExpect(status().isForbidden());
+            mvc.perform(post("/api/admin/debt/avisos/40/reintentar").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post("/api/admin/debt/avisos/destinos/1/reintentar").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(avisos);
     }
 }

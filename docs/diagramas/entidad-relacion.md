@@ -2,13 +2,13 @@
 
 Vista lógica del [modelo 4+1](README.md), por el lado de los datos: qué se guarda y cómo se relaciona.
 
-DataBridge no tiene una base, tiene **tres, una por servicio**, en el mismo MySQL 8.4: 25 tablas, 3 vistas y 26 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
+DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su propio MySQL 8.4: 26 tablas, 3 vistas y 26 llaves foráneas en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
-| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel · `V6` código y enlace compartidos |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos · `V8` correo que no sale |
-| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago |
+| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitacora del panel · `V6` código y enlace compartidos · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitacora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de los convenios anteriores · `V11` avisos reintentados desde el panel |
+| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 | `V1` esquema inicial · `V2` pago duplicado · `V3` interes del pago · `V4` webpay una vez · `V5` descuento del pago · `V6` bitacora del panel |
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
 
@@ -194,7 +194,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action
+        varchar(40) action "empresa_creada o aviso_reintentado"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -374,7 +374,7 @@ erDiagram
 
 | Tabla | Qué guarda |
 | --- | --- |
-| `admin_log` | Lo que un admin de DataBridge hizo con las empresas desde su panel: las que dio de alta. |
+| `admin_log` | Lo que un admin de DataBridge hizo con las empresas desde su panel: las que dio de alta y los avisos que les reintentó. |
 | `api_keys` | Las claves de API con que el sistema de una empresa entrega cartera. |
 | `batches` | Cada cartera recibida, por la API o por archivo, con su huella para no procesarla dos veces y la respuesta que se dio. |
 | `campaigns` | La estrategia de contacto de una agencia para la cartera de un acreedor. La define la agencia y la ejecuta DataBridge. |
@@ -396,13 +396,13 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 41 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 42 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
-| `admin_log` | `ck_admin_log_action` | `(action = 'empresa_creada')` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('empresa_creada','aviso_reintentado'))` |
 | `batches` | `ck_batch_source` | `(source in ('api','file'))` |
 | `batches` | `ck_batch_status` | `(status in ('processed','rejected'))` |
 | `campaigns` | `ck_campaign_attempts` | `(attempts between 1 and 10)` |
@@ -440,6 +440,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `organizations` | `ck_organization_status` | `(status in ('active','suspended'))` |
 | `outbox` | `ck_outbox_status` | `(status in ('pending','delivered','failed'))` |
 | `repactations` | `ck_repactation_amount` | `(monthly_amount > 0)` |
+| `repactations` | `ck_repactation_cae` | `((cae is null) or (cae >= 0))` |
 | `repactations` | `ck_repactation_currency` | `(currency in ('CLP','UF'))` |
 | `repactations` | `ck_repactation_interest_rate` | `((interest_rate is null) or (interest_rate > 0))` |
 | `repactations` | `ck_repactation_months` | `(months between 1 and 24)` |
@@ -500,10 +501,18 @@ erDiagram
         varchar(40) source "de dónde se trajo"
         datetime fetched_at
     }
+    admin_log {
+        bigint id PK
+        varchar(254) admin_email "el admin que lo hizo"
+        varchar(40) action "aviso_reintentado o uf_cargada"
+        varchar(254) subject "opcional · el aviso de qué pago, o el día y el valor de la UF"
+        datetime occurred_at
+    }
 ```
 
 | Tabla | Qué guarda |
 | --- | --- |
+| `admin_log` | Lo que un admin de DataBridge hizo desde *Operación* con los pagos: los avisos a ms-debt que reintentó y la UF que cargó a mano. |
 | `debt_notifications` | El aviso pendiente hacia ms-debt por cada pago confirmado, con sus reintentos. |
 | `payment_events` | El libro de cada pago: solo se agrega. Guarda lo que respondió la pasarela, tal como llegó. |
 | `payments` | Cada intento de pago en una pasarela. Se crea al abrir el cobro, no al confirmarlo. |
@@ -514,12 +523,13 @@ erDiagram
 | `v_collection` | Por acreedor y mes: cuántos pagos se confirmaron y cuánto se recaudó en pesos. |
 
 <details>
-<summary>Las 12 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 13 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
+| `admin_log` | `ck_admin_log_action` | `(action in ('aviso_reintentado','uf_cargada'))` |
 | `debt_notifications` | `ck_debt_notification_status` | `(status in ('pending','delivered','failed'))` |
 | `payment_events` | `ck_payment_event_source` | `(source in ('portal','webhook','manual'))` |
 | `payment_events` | `ck_payment_event_type` | `(type in ('created','authorized','paid','failed','expired','refunded','duplicated'))` |
@@ -561,11 +571,13 @@ flowchart LR
     end
     subgraph PAY["tb_payments · ms-payments"]
         payments["payments"]
+        pay_admin_log["admin_log"]
     end
     staff_users -. "org_rut = rut" .-> organizations
     auth_admin_log -. "org_rut = rut" .-> organizations
     auth_admin_log -. "subject = email" .-> staff_users
     debt_admin_log -. "admin_email = email" .-> staff_users
+    pay_admin_log -. "admin_email = email" .-> staff_users
     access_codes -. "debtor_rut = rut" .-> debtors
     magic_links -. "debtor_rut = rut" .-> debtors
     sessions -. "rut = rut, si es de un deudor" .-> debtors
@@ -584,7 +596,7 @@ flowchart LR
 | `tb_payments.payments.debt_id` e `installment_ids` | `tb_debt.debts.id` e `installments.id` | Los id de la deuda y de sus cuotas | ms-payments se los pide a ms-debt al abrir el cobro, junto con el monto |
 | `tb_payments.payments.debtor_rut` y `creditor_rut` | `tb_debt.debtors.rut` y `organizations.rut` | El RUT de quien paga y de a quién | Vienen en la misma respuesta de ms-debt |
 | `tb_debt.debt_events.detail` | `tb_payments.payments.id` | El id del pago aplicado | Lo trae el aviso `pago.confirmado` |
-| `admin_log.admin_email`, en las dos bases | `tb_auth.staff_users.email` | El correo del admin que hizo algo | Sale del JWT de su sesión, no del cuerpo de la petición |
+| `admin_log.admin_email`, en las tres bases | `tb_auth.staff_users.email` | El correo del admin que hizo algo | Sale del JWT de su sesión, no del cuerpo de la petición |
 | `tb_auth.admin_log.org_rut` | `tb_debt.organizations.rut` | El RUT de la empresa de la persona | ms-auth le pregunta a ms-debt si esa empresa existe antes de darle una persona |
 
 Cómo viaja cada uno de esos datos está en los [diagramas de secuencia](secuencia.md).

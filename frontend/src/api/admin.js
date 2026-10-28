@@ -89,5 +89,26 @@ export async function accesos({ desde, hasta, metodo, resultado, pagina = 0, por
 /** Los totales de hoy, en Chile: cuantos entraron, cuantos rechazos y cuantos pedidos salieron. */
 export const accesosDeHoy = () => pedir("/admin/auth/accesos/hoy");
 
+// ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
+
+/** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */
+export const avisosAEmpresas = () => pedir("/admin/debt/avisos");
+
+/** Vuelve a poner en cola un aviso a una empresa; el despachador lo toma en su pasada siguiente. */
+export const reintentarAviso = (id) => pedir(`/admin/debt/avisos/${id}/reintentar`, { method: "POST" });
+
+/** Vuelve a poner en cola todos los avisos fallidos de un destinatario. */
+export const reintentarDestino = (suscripcion) =>
+  pedir(`/admin/debt/avisos/destinos/${suscripcion}/reintentar`, { method: "POST" });
+
+/** Los pagos que hay que mirar, la UF de hoy, los avisos de pago a ms-debt y lo ultimo que se hizo. */
+export const operacionDePagos = () => pedir("/admin/payments/operacion");
+
+/** Vuelve a poner en cola un aviso de pago a ms-debt. */
+export const reintentarAvisoDePago = (id) => pedir(`/admin/payments/avisos/${id}/reintentar`, { method: "POST" });
+
+/** Carga a mano la UF de un dia: queda como la de ese dia, y se anota quien la cargo. */
+export const cargarUf = (dia, valor) => pedir("/admin/payments/uf", { method: "POST", body: { dia, valor } });
+
 /** Lo que DataBridge le cobra a cada empresa en un mes (2026-10): el modelo de negocio, #200. */
 export const comisionesDelMes = (mes) => pedir("/admin/debt/comisiones", { params: { mes } });

@@ -77,7 +77,7 @@ la suscripción se hace por `/api/v1/suscripciones`.
 | **La persona que debe** | Entra, mira, repacta, paga o reclama. Es quien usa el portal de verdad |
 | **La empresa que cobra**: una agencia de cobranza (APOFYX) o el acreedor que cobra sin agencia | Crea sus campañas, carga a sus deudores en ellas, reenvía el código, resuelve los reclamos y sigue la recuperación, todo desde el portal de empresas. Los códigos los manda DataBridge |
 | **El acreedor** (una inmobiliaria, un instituto, una clínica), si cobra por una agencia | No entra: su agencia ve la cartera. Con la entrega por API encendida, recibe en su propio sistema el aviso de cada pago, convenio o reclamo |
-| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, y mira el estado, las reglas y los accesos en el panel de administración |
+| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, mira el estado de la operación, las reglas y los accesos en el panel de administración, y reintenta lo que no se entregó |
 
 **Contexto.** Kobra fue el cliente directo original del equipo y se retiró. Para continuar el
 Capstone se creó **APOFYX**, una agencia de cobranza ficticia. DataBridge es la solución
@@ -840,6 +840,16 @@ El panel está en `/admin`, y se entra por `/admin/login` con el correo del `adm
 - **Empresas**, para dar de alta una empresa usuaria (una agencia, o un acreedor que cobra directo)
   con su primera persona, y ver las que hay. De cada una se ven totales (cuántas deudas y cuánto
   falta por cobrar), sus mandatos y quiénes entran en su nombre. Nunca una deuda ni un deudor.
+- **Operación** ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): lo que no se está entregando o cobrando, para arreglarlo antes de que
+  una empresa reclame. Si cada servicio responde; los pagos abiertos (y cuántos llevan más de una
+  hora), los vencidos en 24 horas y los duplicados por devolver; los avisos a las empresas que no se
+  entregaron, por destinatario, con sus intentos y su último error, y los avisos de pago a ms-debt.
+  Un aviso fallido se vuelve a poner en cola con un botón (uno, o todos los de un destinatario) y el
+  despachador lo entrega en su pasada siguiente, cada 15 segundos; ms-debt abona una sola vez
+  aunque un aviso de pago le llegue dos. También muestra la UF de hoy y deja cargarla a mano cuando
+  el Banco Central no la entregó. Cada bloque se pide aparte: si un servicio no responde, su bloque
+  lo dice y los demás siguen. Ninguno muestra un dato de un deudor ni el contenido de un aviso, y del
+  destinatario solo el esquema, el host y el puerto.
 - **Equipo de DataBridge**, para dar de alta a otro `admin`.
 - **Accesos** ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)): quién entró y qué accesos se rechazaron, para ver si alguien prueba códigos
   contra un RUT. Arriba, los totales de hoy; abajo, la bitácora por páginas de 50, lo más reciente
@@ -864,7 +874,8 @@ puede quitar el acceso a sí mismo, así que siempre queda uno que puede entrar.
 - **La empresa vive en ms-debt y su gente en ms-auth**, unidas por el RUT. Antes de darle una
   persona a una empresa, ms-auth le pregunta a ms-debt si existe.
 - **Todo queda anotado**, con el `admin` que lo hizo y cuándo, en la tabla `admin_log` de cada
-  servicio, y se ve en la ficha de la empresa.
+  servicio. Lo de las empresas, su gente y sus avisos se ve en la ficha de la empresa; lo de los
+  pagos (un aviso reintentado o la UF cargada a mano), en *Operación*.
 
 Lo que falta del panel está en [#136](https://github.com/TechnicalBridge/TB_web/issues/136).
 
@@ -942,7 +953,7 @@ Salen del código: los nombres son las clases, las rutas y las tablas de verdad.
 | Diagrama | General | De cada servicio | Dónde |
 | --- | --- | --- | --- |
 | Comunicación entre servicios | Quién le habla a quién, por dónde y con qué llave | — (cada par está en la tabla) | [§7.1](#71-comunicación-entre-servicios) |
-| Entidad-relación | Las 25 tablas de las tres bases | `tb_auth`, `tb_debt` y `tb_payments` | [§7.2](#72-entidad-relación) |
+| Entidad-relación | Las 26 tablas de las tres bases | `tb_auth`, `tb_debt` y `tb_payments` | [§7.2](#72-entidad-relación) |
 | Casos de uso | El sistema completo | De cada actor | [§7.3](#73-casos-de-uso) |
 | Clases | El dominio | ms-auth, ms-debt, ms-payments, ms-ai y gateway | [§7.4](#74-clases) |
 | Secuencias | El pago, de punta a punta | ms-auth, ms-debt, ms-payments y ms-ai | [§7.5](#75-secuencias) |
@@ -1070,14 +1081,14 @@ necesita saber cuánto se debe, se lo **pregunta** a ms-debt. Así cada servicio
 sin romper a los demás, y un error en pagos no puede corromper la cartera.
 
 El esquema lo versiona **Flyway**, y cada servicio arranca con `ddl-auto: validate`, que compara
-las entidades con las tablas y se niega a partir si no calzan. En total son **25 tablas, 3 vistas y
+las entidades con las tablas y se niega a partir si no calzan. En total son **26 tablas, 3 vistas y
 26 llaves foráneas**, ninguna entre una base y otra.
 
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores · `V11` avisos reintentados desde el panel |
 | [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
-| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
+| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
 llave foránea y `UK` un valor que no se repite; en las líneas, `||` es *uno*, `o{` es *cero o
@@ -1120,6 +1131,7 @@ erDiagram
     payment_events["tb_payments · payment_events"]
     debt_notifications["tb_payments · debt_notifications"]
     uf_values["tb_payments · uf_values"]
+    pay_admin_log["tb_payments · admin_log"]
 
     organizations ||--o{ api_keys : "se identifica con"
     organizations ||--o{ mandates : "encarga o recibe"
@@ -1147,6 +1159,7 @@ erDiagram
     organizations ||..o{ staff_users : "su gente (org_rut)"
     organizations ||..o{ auth_admin_log : "sobre la empresa (org_rut)"
     staff_users ||..o{ debt_admin_log : "lo hizo (admin_email)"
+    staff_users ||..o{ pay_admin_log : "lo hizo (admin_email)"
     debtors ||..o{ access_codes : "entra con (debtor_rut)"
     debtors ||..o{ magic_links : "pide (debtor_rut)"
     debtors ||..o{ sessions : "abre (rut)"
@@ -1164,7 +1177,7 @@ erDiagram
 | `tb_payments.payments.debt_id` e `installment_ids` | `tb_debt.debts.id` e `installments.id` | Los id de la deuda y de sus cuotas | ms-payments se los pide a ms-debt al abrir el cobro, junto con el monto |
 | `tb_payments.payments.debtor_rut` y `creditor_rut` | `tb_debt.debtors.rut` y `organizations.rut` | El RUT de quien paga y de a quién | Vienen en la misma respuesta de ms-debt |
 | `tb_debt.debt_events.detail` | `tb_payments.payments.id` | El id del pago aplicado | Lo trae el aviso `pago.confirmado` |
-| `admin_log`, en las dos bases | `tb_auth.staff_users.email` y `tb_debt.organizations.rut` | Quién lo hizo y sobre qué empresa | Sale del JWT de la sesión del `admin`, no del cuerpo de la petición |
+| `admin_log`, en las tres bases | `tb_auth.staff_users.email` y, en `tb_auth` y `tb_debt`, `tb_debt.organizations.rut` | Quién lo hizo y sobre qué empresa | Sale del JWT de la sesión del `admin`, no del cuerpo de la petición |
 
 #### `tb_debt` — la cartera
 
@@ -1228,7 +1241,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action
+        varchar(40) action "empresa_creada o aviso_reintentado"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -1558,6 +1571,13 @@ erDiagram
         varchar(40) source "de dónde se trajo"
         datetime fetched_at
     }
+    admin_log {
+        bigint id PK
+        varchar(254) admin_email "el admin que lo hizo"
+        varchar(40) action "aviso_reintentado o uf_cargada"
+        varchar(254) subject "opcional · el aviso de qué pago, o el día y el valor de la UF"
+        datetime occurred_at
+    }
 ```
 
 Un pago se crea al abrir el cobro, no al confirmarlo, y cambia de estado; cada cambio queda en
@@ -1565,7 +1585,8 @@ Un pago se crea al abrir el cobro, no al confirmarlo, y cambia de estado; cada c
 confirmación de Transbank, o lo que dijo Khipu) queda entero en `payment_events.gateway_payload`.
 `UNIQUE (gateway, gateway_txn_id)` impide cobrar dos veces la misma transacción aunque la pasarela
 repita el aviso. `debt_notifications` es el aviso a ms-debt, con sus reintentos, y la vista
-`v_collection` suma lo recaudado por acreedor y por mes.
+`v_collection` suma lo recaudado por acreedor y por mes. `admin_log` anota lo que el `admin` hizo
+desde *Operación*: los avisos que reintentó y la UF que cargó a mano.
 
 ### 7.3 Casos de uso
 
@@ -1708,9 +1729,12 @@ flowchart LR
         A9(["Ver las reglas que rigen"])
         A10(["Consultar la comisión mensual<br/>de cada empresa"])
         A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
+        A12(["Ver lo que no se entregó<br/>y reintentarlo"])
+        A13(["Cargar a mano la UF de un día"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13
+    A13 -. "«extend»<br/>si falta la UF de hoy" .-> A12
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -2344,6 +2368,7 @@ classDiagram
             +para(Subscription, String, String, String, Instant)$ OutboxEvent
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class OutboxEvent_Status["OutboxEvent.Status"] {
             <<enumeration>>
@@ -2364,6 +2389,7 @@ classDiagram
         class AdminLog_Action["AdminLog.Action"] {
             <<enumeration>>
             empresa_creada
+            aviso_reintentado
         }
     }
     Organization ..> Organization_Kind
@@ -2503,6 +2529,7 @@ classDiagram
             +para(Long)$ DebtNotification
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class DebtNotification_Status["DebtNotification.Status"] {
             <<enumeration>>
@@ -2516,6 +2543,20 @@ classDiagram
             -value : BigDecimal
             -source : String
             -fetchedAt : Instant
+        }
+        class AdminLog {
+            <<entity>>
+            -id : Long
+            -adminEmail : String
+            -action : Action
+            -subject : String
+            -occurredAt : Instant
+            +de(String, Action, String)$ AdminLog
+        }
+        class AdminLog_Action["AdminLog.Action"] {
+            <<enumeration>>
+            aviso_reintentado
+            uf_cargada
         }
     }
     namespace events {
@@ -2545,6 +2586,7 @@ classDiagram
     PaymentEvent ..> PaymentEvent_Type
     PaymentEvent ..> PaymentEvent_Source
     DebtNotification ..> DebtNotification_Status
+    AdminLog ..> AdminLog_Action
     PaymentEvent ..> Payment : paymentId
     DebtNotification ..> Payment : paymentId
     PagoConfirmado ..> Payment : se arma con
@@ -3831,14 +3873,14 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1119 pruebas**, todas en Java y sin fallos:
+**1145 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 310 |
-| `ms-debt` | 479 |
-| `ms-payments` | 268 |
+| `ms-debt` | 492 |
+| `ms-payments` | 281 |
 | `ms-ai` | 43 |
 
 Además, `pruebas/secretos.test.cjs` (Node, 21 pruebas) comprueba que las reglas de gitleaks detecten
@@ -3954,7 +3996,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1119 pruebas Java sin fallos**, y el portal compila (765 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1145 pruebas Java sin fallos**, y el portal compila (766 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -3975,7 +4017,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1119**, sin fallos ([§11](#11-pruebas)); ms-auth se repitió con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1145**, sin fallos ([§11](#11-pruebas)); ms-debt y ms-payments se repitieron con #139, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, `separar-bases.ps1` pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
@@ -3983,7 +4025,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
-| Build del portal | Correcto, 765 módulos |
+| Build del portal | Correcto, 766 módulos |
 | Cadena completa, sobre los contenedores reconstruidos | **16 de 16** comprobaciones: el cliente moroso nuevo llega desde Patrimonio, DataBridge registra al acreedor y lo invita, el deudor reclama y la disputa llega al acreedor, la agencia reanuda, el pago vuelve hasta el contrato y un lote repetido no se procesa dos veces |
 | Khipu | Contra un Khipu falso con la forma de la API v3, con los contenedores reconstruidos y en Edge: el deudor se arrepiente y el portal dice *El pago no se completó*; paga y dice *Pago aprobado*; paga y cierra la ventana sin volver, y la consulta periódica lo registra sola. En los tres casos el contrato de Patrimonio queda con lo que corresponde. Y contra **Khipu real**, con una cuenta en modo desarrollador: se pagó con DemoBank, Khipu lo concilió (4 min 20 s desde que se abrió el cobro, contando lo que tarda la persona en Khipu) y ms-payments lo registró 21 s después, cuando todavía revisaba cada 30 s Al cancelar, el cobro se anula en Khipu: probado contra Khipu real, donde queda `deleted` y ya no se puede pagar |
 | Mercado Pago | Contra el Mercado Pago real con credenciales de prueba, con ms-payments reconstruido y en Edge: la preferencia se crea con vencimiento a 30 minutos; el deudor paga con la tarjeta de prueba y no vuelve al portal, y la consulta periódica registra el pago en unos 10 s: queda `paid` y la deuda del contrato en Patrimonio baja a $0 |
@@ -4002,6 +4044,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Roles y panel ([#137](https://github.com/TechnicalBridge/TB_web/issues/137), [#138](https://github.com/TechnicalBridge/TB_web/issues/138)) | `V4` de `tb_auth` probada en una base aparte y aplicada sobre la real. En vivo, 34 de 34 comprobaciones de los roles; en Edge, 18 de 18. El `admin` da de alta empresas y personas desde el panel, y la invitación llega con su enlace de un solo uso |
 | Correos de verdad ([#62](https://github.com/TechnicalBridge/TB_web/issues/62)) | Los cinco correos (código, recordatorio, enlace, invitación y prueba) salieron por la API de Brevo y llegaron a un Gmail del equipo, en HTML y en texto. Un correo que no sale no cuenta como contacto, y la empresa ve el motivo en su cartera |
 | Horario de la ley en todos los correos ([#187](https://github.com/TechnicalBridge/TB_web/issues/187)) | Con los tres sistemas en Docker, un miércoles a las 22:30: cuatro deudas nuevas llegaron por la cadena y quedaron en cobranza sin ningún contacto, con el aviso *se invita en la próxima pasada*. Las invitaciones salieron con la pasada de las 8:00 |
+| Operación en el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)) | Con Docker reconstruido desde la rama y las migraciones `V11` de `tb_debt` y `V6` de `tb_payments` aplicadas, con respaldo previo. Por el gateway, 24 de 24: los 21 avisos fallidos a APOFYX salen por destinatario, con sus intentos y su último error y sin su contenido; con un receptor de prueba en su puerto, uno reintentado se entrega y queda anotado sobre la empresa, y reintentarlo otra vez responde `409`; sin receptor, los 20 restantes vuelven a fallidos tras su intento extra. Los totales de pagos calzan con la base; una UF cargada a mano queda como la de ese día, con quién la cargó, y una negativa responde `400`. Un aviso de pago reintentado llega a ms-debt sin abonar dos veces. Una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: reintentar desde el botón, la pantalla que se actualiza sola, la UF escrita como en Chile, y con ms-payments detenido sus bloques dicen *No responde* mientras los avisos a las empresas se siguen viendo. Al terminar, los avisos quedaron como estaban y sin la UF de prueba |
 | Accesos en el panel ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)) | Por el gateway: tres códigos equivocados contra el mismo RUT salen juntos al filtrar por resultado, como `21.***.***-K`; un enlace pedido para un correo sin cuenta sale como rechazado; recorriendo las 9 páginas están las 411 filas de la bitácora, y ninguna trae un RUT completo, un correo, una IP ni su huella; los totales de hoy calzan con la base, y una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: los filtros, las páginas y la tabla entera sin desplazarse de lado |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |
@@ -4035,7 +4078,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 - **El correo en Outlook:** las plantillas se probaron en Gmail; en un buzón de Outlook no se
   vieron. Y un rebote que Brevo recibe después de aceptar un correo no llega a DataBridge, así que
   no cuenta para *correo con problemas*.
-- **Del panel de administración** falta el estado de la operación y suspender una empresa
+- **Del panel de administración** falta suspender una empresa
   ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)).
 
 ---
