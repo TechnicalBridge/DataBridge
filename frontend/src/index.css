@@ -457,6 +457,14 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .filtros-accesos > .btn { margin-bottom: 14px; }
 .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 .paginas .hint { margin: 0; }
+/* La operacion del panel (#139): un destinatario de avisos por bloque, y la UF de hoy. */
+.destino-avisos + .destino-avisos { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.destino-avisos .card-cab { flex-wrap: wrap; gap: 8px; }
+.error-de-aviso { display: block; margin-top: 4px; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.accion-de-aviso { text-align: right; }
+.uf-de-hoy { margin: 0 0 6px; }
+.uf-de-hoy b { font-size: 26px; font-variant-numeric: tabular-nums; }
+.form-uf { margin-top: 16px; }
 .chip {
   border: 1px solid var(--line-2);
   background: transparent;

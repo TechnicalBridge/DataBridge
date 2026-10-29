@@ -15,7 +15,8 @@ import java.time.Instant;
 @Table(name = "admin_log")
 public class AdminLog {
 
-    public enum Action { empresa_creada }
+    //  aviso_reintentado: un aviso a una empresa que se volvio a poner en cola (#139).
+    public enum Action { empresa_creada, aviso_reintentado }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

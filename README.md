@@ -77,7 +77,7 @@ la suscripción se hace por `/api/v1/suscripciones`.
 | **La persona que debe** | Entra, mira, repacta, paga o reclama. Es quien usa el portal de verdad |
 | **La empresa que cobra**: una agencia de cobranza (APOFYX) o el acreedor que cobra sin agencia | Crea sus campañas, carga a sus deudores en ellas, reenvía el código, resuelve los reclamos y sigue la recuperación, todo desde el portal de empresas. Los códigos los manda DataBridge |
 | **El acreedor** (una inmobiliaria, un instituto, una clínica), si cobra por una agencia | No entra: su agencia ve la cartera. Con la entrega por API encendida, recibe en su propio sistema el aviso de cada pago, convenio o reclamo |
-| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, y mira el estado, las reglas y los accesos en el panel de administración |
+| **El equipo de DataBridge** (`admin`) | Da de alta a las empresas y a su gente, mira el estado de la operación, las reglas y los accesos en el panel de administración, y reintenta lo que no se entregó |
 
 **Contexto.** Kobra fue el cliente directo original del equipo y se retiró. Para continuar el
 Capstone se creó **APOFYX**, una agencia de cobranza ficticia. DataBridge es la solución
@@ -1053,6 +1053,7 @@ erDiagram
     payment_events["tb_payments · payment_events"]
     debt_notifications["tb_payments · debt_notifications"]
     uf_values["tb_payments · uf_values"]
+    pay_admin_log["tb_payments · admin_log"]
 
     organizations ||--o{ api_keys : "se identifica con"
     organizations ||--o{ mandates : "encarga o recibe"
@@ -1080,6 +1081,7 @@ erDiagram
     organizations ||..o{ staff_users : "su gente (org_rut)"
     organizations ||..o{ auth_admin_log : "sobre la empresa (org_rut)"
     staff_users ||..o{ debt_admin_log : "lo hizo (admin_email)"
+    staff_users ||..o{ pay_admin_log : "lo hizo (admin_email)"
     debtors ||..o{ access_codes : "entra con (debtor_rut)"
     debtors ||..o{ magic_links : "pide (debtor_rut)"
     debtors ||..o{ sessions : "abre (rut)"
@@ -1097,7 +1099,7 @@ erDiagram
 | `tb_payments.payments.debt_id` e `installment_ids` | `tb_debt.debts.id` e `installments.id` | Los id de la deuda y de sus cuotas | ms-payments se los pide a ms-debt al abrir el cobro, junto con el monto |
 | `tb_payments.payments.debtor_rut` y `creditor_rut` | `tb_debt.debtors.rut` y `organizations.rut` | El RUT de quien paga y de a quién | Vienen en la misma respuesta de ms-debt |
 | `tb_debt.debt_events.detail` | `tb_payments.payments.id` | El id del pago aplicado | Lo trae el aviso `pago.confirmado` |
-| `admin_log`, en las dos bases | `tb_auth.staff_users.email` y `tb_debt.organizations.rut` | Quién lo hizo y sobre qué empresa | Sale del JWT de la sesión del `admin`, no del cuerpo de la petición |
+| `admin_log`, en las tres bases | `tb_auth.staff_users.email` y, en `tb_auth` y `tb_debt`, `tb_debt.organizations.rut` | Quién lo hizo y sobre qué empresa | Sale del JWT de la sesión del `admin`, no del cuerpo de la petición |
 
 #### `tb_debt` — la cartera
 
@@ -2162,7 +2164,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Modelo de negocio ([#200](https://github.com/TechnicalBridge/TB_web/issues/200)) | Por el gateway, empresa y admin coinciden en cinco meses de prueba, con los cortes de $800.000, $1.000.001 y $12.000.000, un pago en UF con sus pesos guardados y un mes vacío. Una segunda empresa no ve los pagos de la primera; deudor, empresa y admin respetan sus permisos. Reasignar una deuda conserva la atribución de los pagos nuevos. En Edge, a 1360 y 390 px y en ambos temas, Campañas y Empresas no se salen del ancho. Cambiar de mes limpia las cifras anteriores, incluso con una respuesta fallida. Los ocho diagramas afectados se dibujaron con Mermaid 11 |
 | Asistente en Java | Antes de borrar la versión en Python se compararon las dos: 1148 comparaciones de las reglas, sin diferencias. En vivo, por el gateway y con la sesión de tres deudores, 30 de 30 respuestas iguales. En Edge, el deudor conversa con el asistente en tema claro y oscuro, en escritorio y en celular |
 | Webpay | Contra el ambiente de integración de Transbank, con los contenedores reconstruidos y en Edge: el deudor anula en Webpay y el portal dice *El pago no se completó*; paga con la tarjeta de prueba y vuelve con *Pago aprobado*, el pago queda `paid` con la respuesta `AUTHORIZED` guardada, y el contrato de Patrimonio queda con lo que corresponde |
-| Build del portal | Correcto, 765 módulos |
+| Build del portal | Correcto, 766 módulos |
 | Cadena completa, sobre los contenedores reconstruidos | **16 de 16** comprobaciones: el cliente moroso nuevo llega desde Patrimonio, DataBridge registra al acreedor y lo invita, el deudor reclama y la disputa llega al acreedor, la agencia reanuda, el pago vuelve hasta el contrato y un lote repetido no se procesa dos veces |
 | Khipu | Contra un Khipu falso con la forma de la API v3, con los contenedores reconstruidos y en Edge: el deudor se arrepiente y el portal dice *El pago no se completó*; paga y dice *Pago aprobado*; paga y cierra la ventana sin volver, y la consulta periódica lo registra sola. En los tres casos el contrato de Patrimonio queda con lo que corresponde. Y contra **Khipu real**, con una cuenta en modo desarrollador: se pagó con DemoBank, Khipu lo concilió (4 min 20 s desde que se abrió el cobro, contando lo que tarda la persona en Khipu) y ms-payments lo registró 21 s después, cuando todavía revisaba cada 30 s Al cancelar, el cobro se anula en Khipu: probado contra Khipu real, donde queda `deleted` y ya no se puede pagar |
 | Mercado Pago | Contra el Mercado Pago real con credenciales de prueba, con ms-payments reconstruido y en Edge: la preferencia se crea con vencimiento a 30 minutos; el deudor paga con la tarjeta de prueba y no vuelve al portal, y la consulta periódica registra el pago en unos 10 s: queda `paid` y la deuda del contrato en Patrimonio baja a $0 |
@@ -2215,7 +2217,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 - **El correo en Outlook:** las plantillas se probaron en Gmail; en un buzón de Outlook no se
   vieron. Y un rebote que Brevo recibe después de aceptar un correo no llega a DataBridge, así que
   no cuenta para *correo con problemas*.
-- **Del panel de administración** falta el estado de la operación y suspender una empresa
+- **Del panel de administración** falta suspender una empresa
   ([#136](https://github.com/TechnicalBridge/TB_web/issues/136)).
 
 ---
