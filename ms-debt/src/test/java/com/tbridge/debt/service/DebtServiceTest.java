@@ -478,7 +478,7 @@ class DebtServiceTest {
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.listFor(empresa("76999888-7")));
         assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
-        assertEquals("La empresa esta suspendida", error.getMessage());
+        assertEquals("La empresa está suspendida", error.getMessage());
     }
 
     @Test

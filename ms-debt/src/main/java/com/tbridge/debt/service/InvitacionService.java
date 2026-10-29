@@ -83,6 +83,13 @@ public class InvitacionService {
         if (deuda == null || deuda.getStatus() != Debt.Status.open) {
             return;
         }
+        if (deuda.congelada()) {
+            //  La empresa que la cobra esta suspendida (#152): queda sin invitar,
+            //  y la invita la primera pasada despues de que la reactiven
+            //  (invitarPendientes).
+            log.info("La deuda {} se invita cuando reactiven a la empresa que la cobra", deuda.getId());
+            return;
+        }
         Debtor deudor = deuda.getDebtor();
         if (deudor.getEmail() == null || deudor.getEmail().isBlank()) {
             //  Sin correo no hay por donde: el aviso por WhatsApp aun no esta

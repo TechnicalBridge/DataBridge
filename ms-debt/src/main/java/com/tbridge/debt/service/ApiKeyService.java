@@ -103,7 +103,7 @@ public class ApiKeyService {
             Organization org = registro.getOrganization();
             if (org.getStatus() == Organization.Status.suspended) {
                 throw new CarteraInvalida("empresa_suspendida",
-                        "La empresa esta suspendida: sus claves de API no pueden operar", 403);
+                        "La empresa está suspendida: sus claves de API no pueden operar", 403);
             }
             registro.setLastUsedAt(Instant.now());
             claves.save(registro);

@@ -213,9 +213,9 @@ export default function AdminEmpresa() {
         <div className="card aparece" style={{ "--i": 4 }}>
           <h3>Darle acceso a una persona</h3>
           {empresa?.activa === false ? (
-            <div className="notice" style={{ marginTop: 10 }}>
-              Esta empresa está suspendida: no se le pueden agregar personas mientras esté suspendida.
-            </div>
+            <p className="hint" style={{ marginTop: 10 }}>
+              Mientras esté suspendida no se le pueden agregar personas.
+            </p>
           ) : (
             <>
               <FormPersona prefijo="p" boton="Dar acceso" alGuardar={agregar} />

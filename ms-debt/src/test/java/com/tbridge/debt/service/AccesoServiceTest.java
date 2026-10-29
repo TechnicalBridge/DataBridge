@@ -5,6 +5,7 @@ import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.client.AuthClient;
 import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.CodigoEnviadoResponse;
+import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Debtor;
@@ -175,5 +176,41 @@ class AccesoServiceTest {
         assertTrue(contacto.getValue().deLaEmpresa());
         assertSame(deuda, contacto.getValue().getDebt());
         assertEquals("fe**********@correo.cl", contacto.getValue().getDestination());
+    }
+
+    @Test
+    void si_la_agencia_que_la_cobra_esta_suspendida_el_acreedor_no_puede_reenviarle_el_codigo() {
+        DebtService debts = mock(DebtService.class);
+        AuthClient auth = mock(AuthClient.class);
+        LimiteDeContacto limite = mock(LimiteDeContacto.class);
+        ContactRepository contactos = mock(ContactRepository.class);
+        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
+        JwtPrincipal acreedor = new JwtPrincipal("2", "ana@patrimonio.cl", "CREDITOR", "Ana", "76418902-7");
+        Organization patrimonio = new Organization();
+        Organization apofyx = new Organization();
+        apofyx.setStatus(Organization.Status.suspended);
+        Campaign campana = new Campaign();
+        campana.setAgency(apofyx);
+        Debtor deudor = new Debtor();
+        deudor.setEmail("felipe.rojas@correo.cl");
+        Debt deuda = new Debt();
+        deuda.setDebtor(deudor);
+        deuda.setCreditor(patrimonio);
+        deuda.setCampaign(campana);
+        deuda.setStatus(Debt.Status.open);
+        when(debts.requireVisible(acreedor, 3L)).thenReturn(deuda);
+        when(limite.permite(any(), any())).thenReturn(true);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(acreedor, 3L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertEquals("La empresa que cobra esta deuda está suspendida: por ahora no se le escribe al deudor",
+                error.getMessage());
+        verify(auth, never()).emitirCodigo(any());
+        verify(contactos, never()).save(any());
+
+        apofyx.setStatus(Organization.Status.active);
+        servicio.enviarCodigo(acreedor, 3L);
+        verify(auth).emitirCodigo(any());
     }
 }

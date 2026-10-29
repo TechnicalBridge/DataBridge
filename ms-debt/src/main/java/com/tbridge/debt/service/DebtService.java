@@ -140,7 +140,7 @@ public class DebtService {
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "Esa empresa no esta registrada en DataBridge"));
         if (org.getStatus() == Organization.Status.suspended) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "La empresa esta suspendida");
+            throw new ApiException(HttpStatus.FORBIDDEN, "La empresa está suspendida");
         }
         return org;
     }

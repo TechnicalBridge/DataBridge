@@ -186,7 +186,9 @@ public class AdminController {
 
     @PostMapping("/empresas/{rut}/suspender")
     @Operation(summary = "Suspender una empresa usuaria",
-            description = "Le corta el acceso a la empresa: sus personas no pueden entrar y sus claves de API no pueden entregar cartera.")
+            description = "Le corta todo a la empresa, sin borrar nada: sus personas no pueden entrar y sus claves de API "
+                    + "no pueden entregar cartera. Las deudas que cobra (como acreedor, o como agencia de la campana o "
+                    + "del mandato) quedan en pausa: no se le escribe al deudor, y no se pagan ni se repactan.")
     @ApiResponse(responseCode = "200", description = "La empresa suspendida")
     @ApiResponse(responseCode = "404", description = "No hay ninguna empresa con ese RUT",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -198,7 +200,8 @@ public class AdminController {
 
     @PostMapping("/empresas/{rut}/reactivar")
     @Operation(summary = "Reactivar una empresa usuaria",
-            description = "Vuelve a habilitar a la empresa: sus personas y claves de API vuelven a funcionar.")
+            description = "Vuelve a habilitar a la empresa: sus personas y claves de API vuelven a funcionar, y sus "
+                    + "deudas siguen donde quedaron.")
     @ApiResponse(responseCode = "200", description = "La empresa reactivada")
     @ApiResponse(responseCode = "404", description = "No hay ninguna empresa con ese RUT",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
