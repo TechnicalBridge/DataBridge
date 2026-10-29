@@ -83,6 +83,17 @@ export default function Pay() {
     );
   }
 
+  //  La empresa que la cobra esta suspendida (#152). Un pago que ya estaba en curso se sigue mostrando.
+  if (deuda.enPausa && !pago) {
+    return (
+      <div className="card" style={{ maxWidth: 560 }}>
+        <h2>Por ahora esta deuda no se puede pagar</h2>
+        <p className="hint">La cobranza de esta deuda está en pausa. Mientras tanto no se cobra ni te llegan correos; cuando se reanude, vas a poder pagarla aquí.</p>
+        <Link className="btn btn-ghost btn-sm" to="/app"><IconoVolver size={16} /> Volver a mis deudas</Link>
+      </div>
+    );
+  }
+
   const moneda = deuda.moneda;
   const vigentes = (deuda.cuotas || []).filter((c) => c.estado !== "anulada").sort(porVencimiento);
   const pendientes = vigentes.filter((c) => c.estado === "pending");

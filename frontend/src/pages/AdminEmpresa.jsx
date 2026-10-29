@@ -67,11 +67,14 @@ export default function AdminEmpresa() {
 
   async function cambiarEstadoEmpresa(accion) {
     if (accion === "suspender") {
-      if (!window.confirm(`¿Suspender a ${empresa.nombre}? Sus personas no podrán entrar al portal y sus claves de API no podrán entregar cartera.`)) {
+      if (!window.confirm(`¿Suspender a ${empresa.nombre}? Sus personas no podrán entrar al portal y sus claves de API `
+        + "dejan de servir. A sus deudores no se les escribe y no pueden pagar ni repactar hasta que la reactives. "
+        + "No se borra nada.")) {
         return;
       }
     } else {
-      if (!window.confirm(`¿Reactivar a ${empresa.nombre}? Sus personas y claves de API volverán a funcionar.`)) {
+      if (!window.confirm(`¿Reactivar a ${empresa.nombre}? Sus personas y sus claves de API vuelven a funcionar, y a `
+        + "sus deudores se les vuelve a escribir y pueden pagar, desde donde quedó.")) {
         return;
       }
     }

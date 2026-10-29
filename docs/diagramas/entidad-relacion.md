@@ -7,7 +7,7 @@ DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su p
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
 | [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 4 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 ![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
@@ -201,7 +201,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "empresa_creada o aviso_reintentado"
+        varchar(40) action "empresa_creada, aviso_reintentado, empresa_suspendida o empresa_reactivada"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -381,7 +381,7 @@ erDiagram
 
 | Tabla | Qué guarda |
 | --- | --- |
-| `admin_log` | Lo que un admin de DataBridge hizo con las empresas desde su panel: las que dio de alta y los avisos que les reintentó. |
+| `admin_log` | Lo que un admin de DataBridge hizo con las empresas desde su panel: las que dio de alta, los avisos que les reintentó, y cuándo las suspendió o reactivó. |
 | `api_keys` | Las claves de API con que el sistema de una empresa entrega cartera. |
 | `batches` | Cada cartera recibida, por la API o por archivo, con su huella para no procesarla dos veces y la respuesta que se dio. |
 | `campaigns` | La estrategia de contacto de una agencia para la cartera de un acreedor. La define la agencia y la ejecuta DataBridge. |
@@ -409,7 +409,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
-| `admin_log` | `ck_admin_log_action` | `(action in ('empresa_creada','aviso_reintentado'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('empresa_creada','aviso_reintentado','empresa_suspendida','empresa_reactivada'))` |
 | `batches` | `ck_batch_source` | `(source in ('api','file'))` |
 | `batches` | `ck_batch_status` | `(status in ('processed','rejected'))` |
 | `campaigns` | `ck_campaign_attempts` | `(attempts between 1 and 10)` |

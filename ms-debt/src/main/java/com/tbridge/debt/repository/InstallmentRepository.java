@@ -29,6 +29,9 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long> 
                and not exists (select 1 from Contact k where k.installment = c)
                and c.dueDate > :hoy and c.dueDate <= :hasta
                and d.status in :enCobranza
+               and d.creditor.status = com.tbridge.debt.model.Organization.Status.active
+               and not exists (select 1 from Campaign k where k = d.campaign and k.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
+               and not exists (select 1 from Mandate m where m = d.mandate and m.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
              order by c.dueDate""")
     List<Installment> porRecordar(@Param("pendiente") Installment.Status pendiente,
                                   @Param("hoy") LocalDate hoy,

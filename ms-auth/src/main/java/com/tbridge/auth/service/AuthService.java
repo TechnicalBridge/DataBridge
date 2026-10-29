@@ -282,6 +282,8 @@ public class AuthService {
         } else {
             destino = personal.findByEmailIgnoreCase(correoValido(email))
                     .filter(StaffUser::habilitado)
+                    //  A la gente de una empresa suspendida no se le manda nada (#152).
+                    .filter(s -> s.esAdmin() || !sinEmpresaActiva(s))
                     .map(s -> s.getEmail().toLowerCase(Locale.ROOT))
                     .orElse(null);
         }
@@ -387,7 +389,29 @@ public class AuthService {
             sesiones.revocarFamilia(renovada.familia());
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no esta habilitado");
         }
+        //  La gente de una empresa suspendida pierde la sesion en cuanto vence su JWT (#152).
+        if (!staff.esAdmin() && sinEmpresaActiva(staff)) {
+            sesiones.revocarFamilia(renovada.familia());
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La empresa está suspendida");
+        }
         return new Sesion(jwtDePersonal(staff), UsuarioResponse.personal(staff), renovada.llave());
+    }
+
+    /**
+     * Si la empresa de esta persona ya no esta activa: suspendida (#152) o que ya
+     * no existe. Si ms-debt no responde cuenta como activa, como decidio el PO,
+     * para no sacar a nadie por una caida: la suspension se nota apenas vuelve.
+     * Al entrar no se usa: ahi, sin ms-debt no se entra (#222).
+     */
+    private boolean sinEmpresaActiva(StaffUser staff) {
+        try {
+            return deudas.empresa(staff.getOrgRut()).filter(DeudasClient.Empresa::activa).isEmpty();
+        } catch (ApiException noResponde) {
+            if (noResponde.getStatus() != HttpStatus.SERVICE_UNAVAILABLE) {
+                throw noResponde;
+            }
+            return false;
+        }
     }
 
     public void cerrar(String llave) {

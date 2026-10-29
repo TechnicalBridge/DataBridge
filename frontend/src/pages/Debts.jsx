@@ -85,6 +85,8 @@ export default function Debts() {
 function TarjetaDeuda({ deuda: d, i, onCambio }) {
   const pagada = d.estado === "paid";
   const cobrable = d.estado === "open" || d.estado === "repacted";
+  //  La empresa que la cobra esta suspendida: no se paga ni se repacta, pero se puede reclamar (#152).
+  const enPausa = !!d.enPausa;
   const abonado = Number(d.pagado) > 0 && !pagada;
   const [disputando, setDisputando] = useState(false);
 
@@ -135,6 +137,13 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
         </div>
       ) : null}
 
+      {enPausa ? (
+        <div className="aviso-revision">
+          <b>Por ahora no se puede pagar</b>
+          <span>La cobranza de esta deuda está en pausa. Mientras tanto no se cobra ni te llegan correos; cuando se reanude, vas a poder pagarla aquí.</span>
+        </div>
+      ) : null}
+
       {disputando ? (
         <FormularioDisputa deuda={d} onCancelar={() => setDisputando(false)}
                            onListo={() => { setDisputando(false); onCambio(); }} />
@@ -147,7 +156,7 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
             Certificado de pago
           </button>
         ) : null}
-        {d.estado === "open" ? (
+        {d.estado === "open" && !enPausa ? (
           <Link className="btn btn-ghost btn-sm" to={`/app/repactar/${d.id}`}>
             <IconoCalendario size={16} />
             Pagar en cuotas
@@ -158,7 +167,7 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
             No reconozco esta deuda
           </button>
         ) : null}
-        {cobrable ? (
+        {cobrable && !enPausa ? (
           <Link className="btn btn-primary btn-sm" to={`/app/pagar/${d.id}`}>
             {d.estado === "repacted" ? "Pagar cuotas" : "Pagar"}
             <IconoFlecha size={16} />
