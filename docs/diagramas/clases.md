@@ -642,7 +642,7 @@ classDiagram
 | `DataSeeder` | `config` | La persona de la empresa que cobra directamente en la demo, solo con `DEMO_DATOS=true` y sin personal de empresas previo. |
 | `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
 | `CorreoConfig` | `config` | Por dónde salen los correos: con `BREVO_API_KEY`, por Brevo; sin ella, por SMTP o al buzón de prueba. |
-| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway, con su texto y su HTML. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
+| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que sale aunque el servidor bloquee el SMTP, con su texto y su HTML. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |

@@ -5,10 +5,10 @@ la red de Docker Compose mide el camino completo: nginx → gateway → servicio
 
 | Escenario | Qué responde |
 | --- | --- |
-| [`capacidad.js`](capacidad.js) | Cómo lo siente una persona: cien personas a la vez, leyendo su deuda |
-| [`estres.js`](estres.js) | Cuánto aguanta el sistema, y dónde empieza a doler |
-| [`limite.js`](limite.js) | Que el límite de peticiones corte donde dice, y que se recargue solo |
-| [`pagos.js`](pagos.js) | Cuánto aguanta abrir cobros: muchos deudores tocando *Pagar* a la vez, con las pasarelas simuladas |
+| [`capacidad.js`](../../rendimiento/capacidad.js) | Cómo lo siente una persona: cien personas a la vez, leyendo su deuda |
+| [`estres.js`](../../rendimiento/estres.js) | Cuánto aguanta el sistema, y dónde empieza a doler |
+| [`limite.js`](../../rendimiento/limite.js) | Que el límite de peticiones corte donde dice, y que se recargue solo |
+| [`pagos.js`](../../rendimiento/pagos.js) | Cuánto aguanta abrir cobros: muchos deudores tocando *Pagar* a la vez, con las pasarelas simuladas |
 
 ## Antes de correrlas
 
@@ -173,7 +173,7 @@ terminar, y cada conexión cerrada deja su puerto ocupado sesenta segundos. Pasa
 por segundo se acababan los puertos, y nginx respondía `connect() failed (99: Address not
 available)`. **El gateway y los servicios no registraron un solo error**: estaban bien.
 
-El arreglo está en [`frontend/nginx.conf`](../../frontend/nginx.conf): un bloque `upstream` con
+El arreglo está en [`frontend/nginx.conf.template`](../../frontend/nginx.conf.template): un bloque `upstream` con
 `keepalive`, para que las conexiones se reutilicen. Con eso los `502` desaparecieron y el techo
 pasó de ~500 a ~1.800 peticiones por segundo.
 

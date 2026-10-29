@@ -41,20 +41,47 @@ no se entra a las otras.
 
 ### Si ya tenías datos de antes de #238
 
-Hasta #238 las tres bases vivían en un solo MySQL (`tbridge-db`, con el volumen `tbridge_db_data`). Para
-pasar esos datos a las tres, una sola vez por equipo y antes de levantar los servicios:
+Hasta [#238](https://github.com/TechnicalBridge/TB_web/issues/238) las tres bases vivían en un solo MySQL (`tbridge-db`, con el volumen
+`tbridge_db_data`). Si tu equipo tiene datos de esa época, se pasan una sola vez a las tres, desde la carpeta
+del repositorio. En un equipo nuevo no hace falta. El volumen de antes no se toca: queda con sus datos hasta
+que lo borres tú.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1
-powershell -ExecutionPolicy Bypass -File .\db\separar-bases.ps1
-docker compose --profile app up -d --build --wait --remove-orphans
-```
+1. Las claves de las tres bases: `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1`.
+2. El nombre del volumen de antes: `docker volume ls`, el que termina en `tbridge_db_data` (por ejemplo,
+   `tb_web_tbridge_db_data`).
+3. Copiar los datos, con ese nombre en la primera línea. **Reemplaza lo que haya en las bases nuevas**: hazlo
+   antes de cargar nada en ellas (las tablas vacías que crea Flyway al arrancar no importan).
 
-`separar-bases.ps1` abre el volumen de antes sin tocarlo, vuelca cada base y la carga en la suya, y compara
-las filas de cada tabla. No pisa una base nueva que ya tenga tablas: si ya levantaste todo antes de correrlo,
-las tablas vacías que creó Flyway se reemplazan por las de antes con `-Forzar`. El volumen de antes
-queda intacto: cuando compruebes que todo está bien, se borra con `docker volume rm` y el nombre que muestra
-el script.
+   ```powershell
+   $volumen = "tb_web_tbridge_db_data"
+   function Clave($nombre) { ((Select-String -Path .env -Pattern "^$nombre=").Line -split '=', 2)[1] }
+   docker compose --profile app stop ms-auth ms-debt ms-payments
+   docker stop tbridge-db
+   docker run -d --name tbridge-db-separar -v "${volumen}:/var/lib/mysql" mysql:8.4 --performance-schema=OFF
+   docker compose up -d --wait db-auth db-debt db-payments
+   do { Start-Sleep -Seconds 2; docker exec tbridge-db-separar mysqladmin ping -h 127.0.0.1 --silent 2>$null } until ($LASTEXITCODE -eq 0)
+   foreach ($b in @(@("tb_auth", "tbridge-db-auth", "DB_AUTH_ROOT_PASSWORD"),
+                    @("tb_debt", "tbridge-db-debt", "DB_DEBT_ROOT_PASSWORD"),
+                    @("tb_payments", "tbridge-db-payments", "DB_PAYMENTS_ROOT_PASSWORD"))) {
+       $base, $destino, $clave = $b
+       $env:MYSQL_PWD = Clave "MYSQL_ROOT_PASSWORD"
+       docker exec -e MYSQL_PWD tbridge-db-separar sh -c "mysqldump -uroot --single-transaction --routines --triggers --events --hex-blob --no-tablespaces --databases $base > /tmp/$base.sql"
+       docker cp "tbridge-db-separar:/tmp/$base.sql" "$env:TEMP\$base.sql"
+       docker cp "$env:TEMP\$base.sql" "${destino}:/tmp/$base.sql"
+       $env:MYSQL_PWD = Clave $clave
+       docker exec -e MYSQL_PWD $destino sh -c "mysql -uroot -e 'DROP DATABASE IF EXISTS $base' && mysql -uroot < /tmp/$base.sql && rm /tmp/$base.sql"
+       Remove-Item "$env:TEMP\$base.sql"
+   }
+   Remove-Item Env:MYSQL_PWD
+   docker rm -f tbridge-db-separar
+   docker compose --profile app up -d --build --wait --remove-orphans
+   ```
+
+   Las claves viajan por el entorno, nunca en la línea de comandos ni en la pantalla. `MYSQL_ROOT_PASSWORD` es
+   la del MySQL de antes, que tu `.env` todavía trae. Si un `mysqldump` dice *Access denied*, esa no es la clave
+   con que se creó el volumen.
+4. Entra al portal y comprueba que estén tus datos. Recién ahí, si quieres, el volumen de antes se borra con
+   `docker volume rm` y su nombre. `--remove-orphans` ya borró el contenedor `tbridge-db`, no sus datos.
 
 ## Por qué tres bases y no una
 

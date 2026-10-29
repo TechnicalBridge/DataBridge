@@ -184,39 +184,3 @@ ms-payments no depende de esos avisos: les pregunta a las pasarelas cada 10 segu
 La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`: el mismo compose de arriba, con
 Caddy delante (el único que publica puertos) y las imágenes que compila GitHub Actions. El diagrama y la guía
 están en [`docs/despliegue`](../despliegue/README.md).
-
-## En Railway
-
-Una alternativa que quedó preparada y se descartó por costo (#173).
-
-Las mismas imágenes, una por servicio, cada una desde su carpeta y con su `railway.json`. La guía, con las
-variables de cada servicio, está en [`docs/railway`](../railway/README.md), y lo que falta decidir, en #173.
-
-```mermaid
-flowchart LR
-    V(("Visitante")) -->|"HTTPS"| PX["Proxy de Railway"]
-    PX -->|"X-Real-IP"| POR["portal<br/>nginx :8080"]
-    subgraph PRIV["Red privada · *.railway.internal"]
-        POR --> GW["gateway :8082"]
-        GW --> AUTH["ms-auth :8081"]
-        GW --> DEBT["ms-debt :8083"]
-        GW --> PAY["ms-payments :8084"]
-        GW --> AI["ms-ai :8085"]
-        AUTH <--> DEBT
-        PAY -->|"aviso de pago, por HTTP"| DEBT
-        AI --> DEBT
-        AUTH & DEBT & PAY --> MY[("MySQL 8.4<br/>con su volumen")]
-    end
-    AUTH -->|"los correos, por HTTPS"| BRE{{"Brevo"}}
-    PAY --> PAS{{"Pasarelas"}}
-```
-
-| Lo distinto de Docker Compose | Por qué |
-| --- | --- |
-| Solo el portal tiene dirección pública | El gateway y los servicios se hablan por la red privada; ninguno se publica |
-| No hay RabbitMQ | El aviso de un pago va de ms-payments a ms-debt por HTTP, con sus reintentos: un servicio menos que pagar |
-| No hay buzón de prueba: los correos salen por la API de Brevo | Railway bloquea el SMTP fuera de su plan Pro, y Brevo va por HTTPS |
-| Las bases las crea cada servicio | Cada servicio se conecta con `createDatabaseIfNotExist` |
-| Cada servicio escucha también en IPv6 (`SERVER_ADDRESS=::`) | La red privada de los ambientes antiguos de Railway es solo IPv6 |
-| nginx le cree al proxy de Railway la IP del visitante | Sin eso, el límite de peticiones contaría a todos como uno solo |
-| La memoria de cada JVM tiene techo (`JAVA_TOOL_OPTIONS`) | En Railway se cobra la que se usa, y no hay un límite de contenedor tan bajo como el del compose |

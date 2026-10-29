@@ -37,11 +37,13 @@ regex = '''(?mi)^[ \t]*(?:export[ \t]+)?(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_
 secretGroup = 1
 
 #  Un valor por omision para un secreto, en el compose o en las propiedades:
-#  ${CIFRADO_LLAVE:-valor} o ${CIFRADO_LLAVE:valor}.
+#  ${CIFRADO_LLAVE:-valor} o ${CIFRADO_LLAVE:valor}. El valor puede empezar con
+#  un guion (${CIFRADO_LLAVE:--valor}): una clave en base64url lo hace una de
+#  cada 64 veces (#270).
 [[rules]]
 id = "databridge-secreto-por-omision"
 description = "Un valor por omision para una variable secreta"
-regex = '''(?i)\$\{(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY):-?([A-Za-z0-9_][A-Za-z0-9_./+=!?@%-]{7,})\}'''
+regex = '''(?i)\$\{(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY):-?([A-Za-z0-9_-][A-Za-z0-9_./+=!?@%-]{7,})\}'''
 secretGroup = 1
 
 #  Solo valores publicos, exactos: la llave de integracion que publica

@@ -424,9 +424,8 @@ flowchart TB
             AI["ms-ai"]
         end
         FE["frontend<br/>React y Vite"]
-        CON["docs/integracion<br/>el contrato v1 y su esquema JSON"]
-        EVT["docs/eventos<br/>pago-confirmado.json"]
-        DBI["db/separar-bases.ps1<br/>pasa los datos de antes"]
+        CON["docs/integracion<br/>el contrato v1"]
+        EVT["docs/eventos<br/>el aviso de pago"]
         DC["docker-compose.yml<br/>levanta todo, con una<br/>base por servicio"]
         CI[".github/workflows<br/>un workflow por módulo"]
         K6["rendimiento<br/>las pruebas de carga"]
@@ -434,7 +433,6 @@ flowchart TB
     CON -. "lo implementa" .-> DEBT
     EVT -. "lo escribe" .-> PAY
     EVT -. "lo lee" .-> DEBT
-    DBI -. "copia el MySQL único de antes a las tres bases" .-> DC
     DC -. "construye y conecta" .-> JAVA
     DC -. "construye" .-> FE
     CI -. "prueba cada uno por separado" .-> JAVA
@@ -447,7 +445,7 @@ Lo único que dos servicios comparten es **lo publicado**, y los dos se prueban 
 | Qué | Dónde | Quién lo cumple |
 | --- | --- | --- |
 | El contrato de integración v1 | [`docs/integracion`](../integracion/README.md) | ms-debt lo implementa; el sistema de cada empresa lo usa |
-| El aviso de pago | `docs/eventos/pago-confirmado.json` | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
+| El aviso de pago | [`docs/eventos`](../eventos/README.md), con una copia del JSON en las pruebas de cada uno, que la CI compara | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
 | El JWT | ES256/P-256: privada solo en auth, publicas en JWKS | auth firma con kid estable; debt/payments verifican con Resource Server |
 | La clave interna | `INTERNAL_KEY`, la misma en los tres | Quien llama a `/internal` de otro |
 
