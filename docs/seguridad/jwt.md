@@ -173,9 +173,6 @@ aislado, volumen nuevo y correos reservados en Mailpit, con pasarelas simuladas.
 No usar los contenedores, volumen ni `.env` real del equipo para probar V7 o rotacion.
 No imprimir JWT/cookies/PEM/passwords al registrar evidencias.
 
-Railway necesita una auditoria de despliegue separada; esta guia no provisiona
-servicios ni reutiliza su configuracion historica.
-
 ### Harness E2E local
 
 Tras construir las seis imagenes con una etiqueta local nueva `issue82-<sha>`:

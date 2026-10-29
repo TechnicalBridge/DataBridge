@@ -127,9 +127,9 @@ sistemas es una comparación directa.
 
 ## 6. Contrato ① — Cartera v1
 
-Esquema validable: [`cartera-v1.schema.json`](cartera-v1.schema.json) (JSON Schema draft-07).
-Ejemplo completo, tal como Patrimonio se lo entrega a APOFYX:
-[`ejemplos/cartera-v1.patrimonio.json`](ejemplos/cartera-v1.patrimonio.json).
+La forma exacta de cada campo la muestra Swagger, en el grupo *integracion* (`CarteraV1`). Un ejemplo completo,
+tal como Patrimonio se lo entrega a APOFYX, está en las pruebas de ms-debt:
+[`cartera-v1.patrimonio.json`](../../ms-debt/src/test/resources/cartera/cartera-v1.patrimonio.json).
 
 ### 6.1 Transporte
 
@@ -391,7 +391,8 @@ Se acepta cualquier dirección válida, de cualquier proveedor: con `+`
 ### 6.6 Variante CSV
 
 Para el emisor sin integración (modo archivo, §9): el mismo contrato en una planilla.
-Plantilla: [`ejemplos/cartera-v1.plantilla.csv`](ejemplos/cartera-v1.plantilla.csv).
+Plantilla: [`cartera-v1.plantilla.csv`](../../ms-debt/src/test/resources/cartera/cartera-v1.plantilla.csv), en las
+pruebas de ms-debt, que comprueban que es la misma cartera que el ejemplo JSON.
 
 ```
 POST /api/v1/carteras   (multipart/form-data)
@@ -458,8 +459,7 @@ su contenido.
   ```
 
   Lo de negocio (el dígito del RUT, la mora mínima, la tasa) lo sigue decidiendo la ingesta, deuda por deuda,
-  como en el CSV. Ejemplos llenos, uno correcto y uno con errores a propósito, en
-  [`docs/cartera/ejemplos`](../cartera/ejemplos/README.md).
+  como en el CSV. Cómo probarla, en [`docs/cartera`](../cartera/README.md).
 
 No es otra ingesta: el archivo, en Excel o en CSV, se convierte a Cartera v1 y entra por el mismo camino.
 

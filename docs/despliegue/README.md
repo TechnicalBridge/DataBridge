@@ -1,7 +1,7 @@
 # DataBridge en un servidor
 
 Cómo dejar DataBridge en línea en **`https://technicalbridge.site`**, en un VPS de Namecheap, siempre encendido y
-hasta diciembre de 2026. La decisión, y por qué no Railway, están en
+hasta diciembre de 2026. La decisión está en
 [#173](https://github.com/TechnicalBridge/TB_web/issues/173); la tarea, en
 [#172](https://github.com/TechnicalBridge/TB_web/issues/172).
 

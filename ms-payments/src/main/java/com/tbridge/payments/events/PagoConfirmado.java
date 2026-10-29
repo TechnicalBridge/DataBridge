@@ -13,8 +13,9 @@ import java.util.List;
  *
  * <p>ms-payments lo emite y ms-debt lo recibe, y cada uno tiene su propia
  * copia de esta clase. Que esten de acuerdo en la forma y en el camino por
- * RabbitMQ lo fija docs/eventos/pago-confirmado.json: una prueba en cada
- * servicio (PagoConfirmadoContratoTest) compara su clase con ese archivo.
+ * RabbitMQ lo fija pago-confirmado.json, del que cada servicio guarda una copia
+ * en src/test/resources/contratos (la CI revisa que sean iguales): una prueba
+ * en cada servicio (PagoConfirmadoContratoTest) compara su clase con su copia.
  */
 public record PagoConfirmado(
         String tipo,

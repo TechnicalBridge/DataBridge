@@ -18,10 +18,9 @@ FROM maven:3.9-eclipse-temurin-25 AS construccion
 WORKDIR /obra
 
 #  Primero solo el pom, y se bajan sus dependencias. Esa capa queda guardada
-#  y se reutiliza mientras el pom no cambie, aunque cambie el codigo. Antes lo
-#  hacia un cache de ~/.m2 montado en la construccion, pero Railway rechaza
-#  esos montajes si no llevan el id de cada servicio suyo, que cambia de un
-#  proyecto a otro.
+#  y se reutiliza mientras el pom no cambie, aunque cambie el codigo. No se usa
+#  un cache de ~/.m2 montado en la construccion: no todos los constructores de
+#  imagenes lo aceptan, y la capa guardada sirve igual.
 COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
 

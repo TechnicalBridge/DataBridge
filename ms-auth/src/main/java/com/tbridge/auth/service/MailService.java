@@ -42,7 +42,7 @@ import java.util.Optional;
  *
  * <p>Sirve con cualquier servidor SMTP (el buzon de prueba de Docker, una
  * cuenta de Gmail, un proveedor de correo transaccional) o con la API de Brevo,
- * que va por HTTPS y es lo que funciona en Railway. Pasar de uno a otro es
+ * que va por HTTPS y sale aunque el servidor bloquee el SMTP. Pasar de uno a otro es
  * cambiar variables del {@code .env}, no codigo.
  *
  * <p>Lo que dice cada correo esta en {@code resources/correos}

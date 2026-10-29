@@ -30,7 +30,7 @@
 #
 #  MYSQL_DATABASE crea la base vacia y le da permisos al usuario de la
 #  aplicacion la primera vez, cuando el volumen esta vacio; el esquema lo
-#  ponen las migraciones de Flyway del servicio al arrancar (ver db/README.md).
+#  ponen las migraciones de Flyway del servicio al arrancar (ver docs/base-de-datos).
 #  El usuario se llama igual en las tres (MYSQL_USER) porque las vistas lo
 #  tienen como DEFINER; lo que cambia es la clave.
 x-mysql: &mysql
@@ -366,7 +366,7 @@ services:
       #  El limite de peticiones por IP, por minuto. Se declara aca para poder
       #  subirlo durante la prueba de capacidad: todo el trafico de k6 sale de
       #  una sola IP, y con el cupo de fabrica la prueba mediria el limitador
-      #  en vez del sistema. Ver rendimiento/README.md
+      #  en vez del sistema. Ver docs/rendimiento.
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
       #  Quien puede hacerle peticiones con credenciales desde otro origen. El
@@ -445,7 +445,7 @@ services:
 #  ninguno confia en que otro ya lo haya revisado.
 
 #  Un volumen por base. El de antes, tbridge_db_data, ya no se usa: sus datos
-#  se pasan a estos con db/separar-bases.ps1, y despues se puede borrar.
+#  se pasan a estos como dice docs/base-de-datos, y despues se puede borrar.
 volumes:
   tb_auth_data:
   tb_debt_data:
