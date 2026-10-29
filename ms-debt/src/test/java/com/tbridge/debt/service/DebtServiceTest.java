@@ -20,6 +20,7 @@ import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Installment;
+import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.model.Repactation;
 import com.tbridge.debt.repository.ContactRepository;
@@ -53,8 +54,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -467,6 +470,18 @@ class DebtServiceTest {
     }
 
     @Test
+    void una_empresa_suspendida_no_ve_su_cartera() {
+        Organization suspendida = organizacion(10L, "76999888-7", "Suspendida");
+        suspendida.setStatus(Organization.Status.suspended);
+        when(organizations.findByRut("76999888-7")).thenReturn(Optional.of(suspendida));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.listFor(empresa("76999888-7")));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        assertEquals("La empresa está suspendida", error.getMessage());
+    }
+
+    @Test
     void ms_payments_cobra_el_saldo_y_la_cuota_que_vence_primero() {
         DebtSnapshotResponse snapshot = servicio.snapshotInterno(3L, null);
 
@@ -790,5 +805,57 @@ class DebtServiceTest {
         assertEquals(new BigDecimal("18.00"), servicio.listFor(empresa("77305118-6")).getFirst().cae());
         verify(repactations, org.mockito.Mockito.times(2)).findByDebtInAndSupersededAtIsNull(List.of(deuda));
         verify(repactations, never()).findByDebtAndSupersededAtIsNull(any());
+    }
+
+    // ------------------------------------------------------------------
+    //  Una empresa suspendida (#152): lo suyo queda congelado
+    // ------------------------------------------------------------------
+
+    @Test
+    void con_el_acreedor_suspendido_la_deuda_no_se_cobra_ni_se_repacta() {
+        patrimonio.setStatus(Organization.Status.suspended);
+
+        ApiException cobrar = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+        ApiException repactar = assertThrows(ApiException.class,
+                () -> servicio.applyRepact(deudor("18905214-6"), 3L, 3));
+
+        assertEquals(HttpStatus.CONFLICT, cobrar.getStatus());
+        assertEquals("La empresa que cobra esta deuda está suspendida: por ahora no se puede pagar",
+                cobrar.getMessage());
+        assertEquals(HttpStatus.CONFLICT, repactar.getStatus());
+        verify(installments, never()).save(any());
+        assertTrue(DebtSummaryResponse.from(deuda, cuotas, null).enPausa(), "el portal del deudor lo sabe");
+    }
+
+    @Test
+    void reactivada_la_empresa_la_deuda_se_cobra_como_antes() {
+        patrimonio.setStatus(Organization.Status.suspended);
+        assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+
+        patrimonio.setStatus(Organization.Status.active);
+
+        assertEquals(new BigDecimal("410000"), servicio.snapshotInterno(3L, null).amount());
+        assertFalse(DebtSummaryResponse.from(deuda, cuotas, null).enPausa());
+    }
+
+    @Test
+    void con_la_agencia_de_su_campana_o_de_su_mandato_suspendida_tambien_se_congela() {
+        Campaign campana = new Campaign();
+        campana.setAgency(apofyx);
+        campana.setCreditor(patrimonio);
+        deuda.setCampaign(campana);
+        apofyx.setStatus(Organization.Status.suspended);
+        assertTrue(deuda.congelada(), "por la agencia de su campana");
+
+        deuda.setCampaign(null);
+        Mandate mandato = new Mandate();
+        mandato.setAgency(apofyx);
+        deuda.setMandate(mandato);
+        assertTrue(deuda.congelada(), "por la agencia de su mandato");
+        assertEquals(HttpStatus.CONFLICT,
+                assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null)).getStatus());
+
+        apofyx.setStatus(Organization.Status.active);
+        assertFalse(deuda.congelada());
     }
 }

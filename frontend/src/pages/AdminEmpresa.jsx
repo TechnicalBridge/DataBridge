@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
   crearPersona, devolverAcceso, historialDeEmpresa, listarPersonal, obtenerEmpresa, quitarAcceso,
+  reactivarEmpresa, suspenderEmpresa,
 } from "../api/admin";
 import { TIPO_DE_EMPRESA, dinero, fecha, rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
@@ -64,6 +65,31 @@ export default function AdminEmpresa() {
     }
   }
 
+  async function cambiarEstadoEmpresa(accion) {
+    if (accion === "suspender") {
+      if (!window.confirm(`¿Suspender a ${empresa.nombre}? Sus personas no podrán entrar al portal y sus claves de API `
+        + "dejan de servir. A sus deudores no se les escribe y no pueden pagar ni repactar hasta que la reactives. "
+        + "No se borra nada.")) {
+        return;
+      }
+    } else {
+      if (!window.confirm(`¿Reactivar a ${empresa.nombre}? Sus personas y sus claves de API vuelven a funcionar, y a `
+        + "sus deudores se les vuelve a escribir y pueden pagar, desde donde quedó.")) {
+        return;
+      }
+    }
+    setAviso("");
+    setError("");
+    try {
+      const resp = await (accion === "suspender" ? suspenderEmpresa(rut) : reactivarEmpresa(rut));
+      setEmpresa(resp);
+      setAviso(accion === "suspender" ? `${empresa.nombre} quedó suspendida.` : `${empresa.nombre} quedó reactivada.`);
+      await cargarPersonas();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (noExiste) {
     return (
       <div>
@@ -81,7 +107,16 @@ export default function AdminEmpresa() {
       <Link className="btn btn-ghost btn-sm" to="/admin/empresas" style={{ marginBottom: 14 }}><IconoVolver size={16} /> Empresas</Link>
       <header className="topbar aparece">
         <div>
-          <h1>{empresa?.nombre || rutLegible(rut)}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1>{empresa?.nombre || rutLegible(rut)}</h1>
+            {empresa ? (
+              empresa.activa ? (
+                <span className="badge badge-ok">Activa</span>
+              ) : (
+                <span className="badge badge-muted">Suspendida</span>
+              )
+            ) : null}
+          </div>
           {empresa ? (
             <p>
               {empresa.razonSocial} · RUT {rutLegible(empresa.rut)} · {TIPO_DE_EMPRESA[empresa.tipo] || empresa.tipo}
@@ -89,6 +124,19 @@ export default function AdminEmpresa() {
             </p>
           ) : null}
         </div>
+        {empresa ? (
+          <div>
+            {empresa.activa ? (
+              <button className="btn btn-danger btn-sm" onClick={() => cambiarEstadoEmpresa("suspender")}>
+                Suspender empresa
+              </button>
+            ) : (
+              <button className="btn btn-outline btn-sm" onClick={() => cambiarEstadoEmpresa("reactivar")}>
+                Reactivar empresa
+              </button>
+            )}
+          </div>
+        ) : null}
       </header>
       {error ? <div className="error" role="alert">{error}</div> : null}
       {aviso ? <div className="notice" role="status">{aviso}</div> : null}
@@ -164,11 +212,19 @@ export default function AdminEmpresa() {
 
         <div className="card aparece" style={{ "--i": 4 }}>
           <h3>Darle acceso a una persona</h3>
-          <FormPersona prefijo="p" boton="Dar acceso" alGuardar={agregar} />
-          <p className="hint">
-            Queda como usuario de esta empresa: ve solo su cartera y no entra a este panel. Le llega un enlace a su
-            correo, y entra sin contraseña.
-          </p>
+          {empresa?.activa === false ? (
+            <p className="hint" style={{ marginTop: 10 }}>
+              Mientras esté suspendida no se le pueden agregar personas.
+            </p>
+          ) : (
+            <>
+              <FormPersona prefijo="p" boton="Dar acceso" alGuardar={agregar} />
+              <p className="hint">
+                Queda como usuario de esta empresa: ve solo su cartera y no entra a este panel. Le llega un enlace a su
+                correo, y entra sin contraseña.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

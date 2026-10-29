@@ -298,4 +298,19 @@ class InvitacionServiceTest {
         assertFalse(pasada.cortada(), "las campanas siguen: el tope no es una falla del correo");
         verify(auth, times(2)).emitirCodigo(any());
     }
+
+    @Test
+    void la_deuda_de_un_acreedor_suspendido_no_se_invita_al_llegar_y_queda_para_la_pasada() {
+        deuda.getCreditor().setStatus(Organization.Status.suspended);
+
+        invitar();
+
+        //  Queda sin ningun contacto: invitarPendientes la invita cuando la reactiven.
+        verify(auth, never()).emitirCodigo(any());
+        verify(contactos, never()).save(any());
+
+        deuda.getCreditor().setStatus(Organization.Status.active);
+        invitar();
+        verify(auth).emitirCodigo(any());
+    }
 }

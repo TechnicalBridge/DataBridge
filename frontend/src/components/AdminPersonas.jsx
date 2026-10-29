@@ -108,6 +108,8 @@ export function FormPersona({ prefijo, boton, alGuardar, ejemplo = "nombre@empre
 
 const QUE_SE_HIZO = {
   empresa_creada: () => "Dio de alta a la empresa",
+  empresa_suspendida: () => "Suspendió a la empresa",
+  empresa_reactivada: () => "Reactivó a la empresa",
   persona_creada: (a) => `Le dio acceso a ${a.sobre}`,
   admin_creado: (a) => `Dio de alta como admin a ${a.sobre}`,
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,

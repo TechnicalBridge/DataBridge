@@ -184,6 +184,33 @@ public class AdminController {
         return ResponseEntity.created(creada.getRequiredLink(IanaLinkRelations.SELF).toUri()).body(creada);
     }
 
+    @PostMapping("/empresas/{rut}/suspender")
+    @Operation(summary = "Suspender una empresa usuaria",
+            description = "Le corta todo a la empresa, sin borrar nada: sus personas no pueden entrar y sus claves de API "
+                    + "no pueden entregar cartera. Las deudas que cobra (como acreedor, o como agencia de la campana o "
+                    + "del mandato) quedan en pausa: no se le escribe al deudor, y no se pagan ni se repactan.")
+    @ApiResponse(responseCode = "200", description = "La empresa suspendida")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna empresa con ese RUT",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public EntityModel<EmpresaResponse> suspender(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable String rut) {
+        return conEnlaces(empresas.suspender(rut, admin.email()));
+    }
+
+    @PostMapping("/empresas/{rut}/reactivar")
+    @Operation(summary = "Reactivar una empresa usuaria",
+            description = "Vuelve a habilitar a la empresa: sus personas y claves de API vuelven a funcionar, y sus "
+                    + "deudas siguen donde quedaron.")
+    @ApiResponse(responseCode = "200", description = "La empresa reactivada")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna empresa con ese RUT",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public EntityModel<EmpresaResponse> reactivar(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable String rut) {
+        return conEnlaces(empresas.reactivar(rut, admin.email()));
+    }
+
     @GetMapping("/empresas/{rut}/historial")
     @Operation(summary = "Lo que se hizo sobre una empresa desde el panel",
             description = "Quien la dio de alta y cuando. Lo que se hizo con sus personas lo anota ms-auth. "

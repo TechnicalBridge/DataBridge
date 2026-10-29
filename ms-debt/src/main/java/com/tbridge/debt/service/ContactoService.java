@@ -133,8 +133,9 @@ public class ContactoService {
             }
             List<Integer> cadencia = cadencia(campana, json);
             int tope = Math.min(campana.getAttempts(), cadencia.size());
+            //  Las de una empresa suspendida esperan a que la reactiven (#152).
             List<Debt> abiertas = debts.findByCampaign(campana).stream()
-                    .filter(d -> d.getStatus() == Debt.Status.open)
+                    .filter(d -> d.getStatus() == Debt.Status.open && !d.congelada())
                     .toList();
             if (abiertas.isEmpty()) {
                 continue;

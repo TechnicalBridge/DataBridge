@@ -74,6 +74,17 @@ export default function Repact() {
 
   if (!deuda) return error ? <div className="error">{error}</div> : <Cargando tarjetas={1} />;
 
+  //  La empresa que la cobra esta suspendida (#152): tampoco se repacta.
+  if (deuda.enPausa) {
+    return (
+      <div className="card" style={{ maxWidth: 560 }}>
+        <h2>Por ahora esta deuda no se puede repactar</h2>
+        <p className="hint">La cobranza de esta deuda está en pausa. Mientras tanto no se cobra ni te llegan correos; cuando se reanude, vas a poder pagarla aquí.</p>
+        <Link className="btn btn-ghost btn-sm" to="/app"><IconoVolver size={16} /> Volver a mis deudas</Link>
+      </div>
+    );
+  }
+
   const moneda = deuda.moneda;
   const plan = planes[meses];
   const esperando = !plan && pedido !== meses;

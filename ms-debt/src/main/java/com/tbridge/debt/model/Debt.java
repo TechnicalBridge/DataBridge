@@ -117,6 +117,21 @@ public class Debt {
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
     public void setMandate(Mandate mandate) { this.mandate = mandate; }
+
+    /**
+     * Si la empresa que la cobra esta suspendida (#152): su acreedor, o la
+     * agencia de su campana o de su mandato. Mientras tanto no se le escribe al
+     * deudor, ni se cobra ni se repacta; al reactivarla, sigue donde quedo.
+     */
+    public boolean congelada() {
+        return suspendida(creditor)
+                || (campaign != null && suspendida(campaign.getAgency()))
+                || (mandate != null && suspendida(mandate.getAgency()));
+    }
+
+    private static boolean suspendida(Organization empresa) {
+        return empresa != null && empresa.suspendida();
+    }
     public Campaign getCampaign() { return campaign; }
     public void setCampaign(Campaign campaign) { this.campaign = campaign; }
     public void setFirstBatch(Batch firstBatch) { this.firstBatch = firstBatch; }

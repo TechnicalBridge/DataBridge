@@ -16,7 +16,8 @@ import java.time.Instant;
 public class AdminLog {
 
     //  aviso_reintentado: un aviso a una empresa que se volvio a poner en cola (#139).
-    public enum Action { empresa_creada, aviso_reintentado }
+    //  empresa_suspendida y empresa_reactivada: el admin le corto o le devolvio todo a la empresa (#152).
+    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

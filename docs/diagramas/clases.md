@@ -682,6 +682,7 @@ classDiagram
             -createdAt : Instant
             -updatedAt : Instant
             +esAgencia() boolean
+            +suspendida() boolean
         }
         class Organization_Kind["Organization.Kind"] {
             <<enumeration>>
@@ -814,6 +815,7 @@ classDiagram
             -withdrawnReason : String
             -createdAt : Instant
             -updatedAt : Instant
+            +congelada() boolean
         }
         class Debt_Currency["Debt.Currency"] {
             <<enumeration>>
@@ -997,6 +999,8 @@ classDiagram
             <<enumeration>>
             empresa_creada
             aviso_reintentado
+            empresa_suspendida
+            empresa_reactivada
         }
     }
     Organization ..> Organization_Kind
@@ -1845,6 +1849,8 @@ classDiagram
             +avisos() AvisosResponse
             +reintentar(JwtPrincipal, Long) AvisosResponse.Aviso
             +reintentarDestino(JwtPrincipal, Long) Reintentados
+            +suspender(JwtPrincipal, String) EmpresaResponse
+            +reactivar(JwtPrincipal, String) EmpresaResponse
         }
     }
     namespace service {
@@ -1859,6 +1865,8 @@ classDiagram
             +listar() List~EmpresaResponse~
             +ficha(String) EmpresaResponse
             +crear(NuevaEmpresaRequest, String) EmpresaResponse
+            +suspender(String, String) EmpresaResponse
+            +reactivar(String, String) EmpresaResponse
             +historial(String) List~AccionResponse~
             +buscar(String) Optional~OrganizacionResponse~
         }
@@ -1939,7 +1947,7 @@ classDiagram
 | --- | --- | --- |
 | `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
 | `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
-| `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, y dar de alta una empresa usuaria. |
+| `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, dar de alta una empresa usuaria, y suspenderla o reactivarla. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `ConteoDeDeudas` | `repository` | Cuántas deudas hay de un acreedor, entregadas por un emisor, en un estado. Un total, sin deudas. |

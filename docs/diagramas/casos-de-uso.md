@@ -210,10 +210,12 @@ flowchart LR
         A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
         A12(["Ver lo que no se entregó<br/>y reintentarlo"])
         A13(["Cargar a mano la UF de un día"])
+        A14(["Suspender o reactivar<br/>una empresa"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13 & A14
     A13 -. "«extend»<br/>si falta la UF de hoy" .-> A12
+    A14 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -236,6 +238,7 @@ flowchart LR
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
 | Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
 | Ver lo que no se entregó y reintentarlo | `AdminOperacion` | `GET /api/admin/debt/avisos`, `POST /api/admin/debt/avisos/{id}/reintentar`, `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar`, `GET /api/admin/payments/operacion`, `POST /api/admin/payments/avisos/{id}/reintentar` | Los avisos a las empresas y a ms-debt que no se entregaron, con sus intentos y su último error, y los pagos que hay que mirar ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)). Reintentar los vuelve a poner en cola; el despachador los entrega en su pasada siguiente y ms-debt abona una sola vez. Sin el contenido de ningún aviso ni un dato de un deudor. Queda anotado quién lo hizo |
+| Suspender o reactivar una empresa | `AdminEmpresa` | `POST /api/admin/debt/empresas/{rut}/suspender` y `/reactivar` | Corta todo de una vez y sin borrar nada ([#152](https://github.com/TechnicalBridge/DataBridge/issues/152)): su gente no entra ni renueva la sesión, sus claves de API no entregan cartera, y a los deudores de sus deudas no se les escribe ni pueden pagar o repactar (sí reclamar). Al reactivarla, todo sigue donde quedó. Queda anotado quién lo hizo |
 | Cargar a mano la UF de un día | `AdminOperacion` | `POST /api/admin/payments/uf` | Para cuando el Banco Central no la entregó: queda como la UF de ese día, que es la que usan los cobros en UF, y queda anotado quién la cargó |
 | Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
 
@@ -358,7 +361,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **96 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **98 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -397,6 +400,8 @@ Cada caso de uso de arriba termina en uno o más de estos **96 endpoints**. La l
 | `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
 | `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
 | `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
+| `POST /api/admin/debt/empresas/{rut}/suspender` | Suspender una empresa usuaria: se congela todo lo suyo | Admin de DataBridge | JWT | Sí | `AdminController.suspender` |
+| `POST /api/admin/debt/empresas/{rut}/reactivar` | Reactivar una empresa suspendida | Admin de DataBridge | JWT | Sí | `AdminController.reactivar` |
 | `GET /api/admin/debt/avisos` | Los avisos a las empresas que no se han entregado | Admin de DataBridge | JWT | Sí | `AdminController.avisos` |
 | `POST /api/admin/debt/avisos/{id}/reintentar` | Volver a poner en cola un aviso | Admin de DataBridge | JWT | Sí | `AdminController.reintentar` |
 | `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar` | Volver a poner en cola los avisos fallidos de un destinatario | Admin de DataBridge | JWT | Sí | `AdminController.reintentarDestino` |

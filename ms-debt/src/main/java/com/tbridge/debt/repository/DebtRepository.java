@@ -58,13 +58,16 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
      * Las deudas en cobranza por las que todavia no se le escribio nada al
      * deudor: su invitacion fallo, la ley la dejo para despues, o el deudor no
      * tenia correo y una cartera se lo trajo. Sin las de una direccion con
-     * problemas, que esperan otra.
+     * problemas, que esperan otra, ni las de una empresa suspendida (#152).
      */
     @Query("""
             select d from Debt d join fetch d.debtor r join fetch d.creditor
              where d.status = com.tbridge.debt.model.Debt.Status.open
                and r.email is not null and r.email <> '' and r.emailRejections < :rechazos
                and not exists (select 1 from Contact c where c.debt = d)
+               and d.creditor.status = com.tbridge.debt.model.Organization.Status.active
+               and not exists (select 1 from Campaign k where k = d.campaign and k.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
+               and not exists (select 1 from Mandate m where m = d.mandate and m.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
              order by d.id""")
     List<Debt> sinInvitar(@Param("rechazos") int rechazos);
 

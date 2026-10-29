@@ -63,6 +63,12 @@ public class AccesoService {
         if (deuda.getStatus() == Debt.Status.withdrawn || deuda.getStatus() == Debt.Status.paid) {
             throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya no esta en cobranza");
         }
+        //  La empresa que la cobra esta suspendida (#152): al deudor no se le escribe. Puede verla
+        //  otra empresa que siga activa, como el acreedor cuando la suspendida es su agencia.
+        if (deuda.congelada()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "La empresa que cobra esta deuda está suspendida: por ahora no se le escribe al deudor");
+        }
         Debtor deudor = deuda.getDebtor();
         if (deudor.getEmail() == null || deudor.getEmail().isBlank()) {
             throw new ApiException(HttpStatus.CONFLICT,

@@ -136,9 +136,13 @@ public class DebtService {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "El token no dice de que empresa eres: no se puede mostrar una cartera");
         }
-        return organizations.findByRut(user.rut())
+        Organization org = organizations.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "Esa empresa no esta registrada en DataBridge"));
+        if (org.getStatus() == Organization.Status.suspended) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "La empresa está suspendida");
+        }
+        return org;
     }
 
     /**
@@ -406,6 +410,10 @@ public class DebtService {
         if (deuda.getStatus() == Debt.Status.disputed) {
             throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se repacta mientras tanto");
         }
+        if (deuda.congelada()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "La empresa que cobra esta deuda está suspendida: por ahora no se repacta");
+        }
 
         RepactPlan plan = plan(deuda, months);
         boolean conInteres = plan.tasaInteresMensual() != null;
@@ -495,6 +503,11 @@ public class DebtService {
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
             throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
+        }
+        //  Mientras la empresa que la cobra esta suspendida, tampoco (#152).
+        if (deuda.congelada()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "La empresa que cobra esta deuda está suspendida: por ahora no se puede pagar");
         }
         List<Installment> pendientes = installments.findByDebtAndStatus(deuda, Installment.Status.pending).stream()
                 .sorted(EN_ORDEN).toList();

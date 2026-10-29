@@ -290,6 +290,76 @@ class AuthServiceTest {
         assertEquals(AccessLog.Outcome.refused, ultimoPedido());
     }
 
+    // ------------------------------------------------------------------
+    //  Una empresa suspendida (#152)
+    // ------------------------------------------------------------------
+
+    private void empresaDeCamila(boolean activa) {
+        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", activa)));
+    }
+
+    private void msDebtNoResponde() {
+        when(deudas.empresa("77305118-6")).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                "No se pudo comprobar la empresa: el servicio de deudas no responde. Intenta de nuevo."));
+    }
+
+    @Test
+    void a_la_gente_de_una_empresa_suspendida_no_se_le_manda_ni_codigo_ni_enlace() {
+        when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
+        empresaDeCamila(false);
+
+        var enlace = auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
+        var codigo = auth.pedirCodigo(null, "camila.reyes@apofyx.cl", "10.0.0.1");
+
+        verify(correo, never()).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
+        assertEquals(AuthService.RESPUESTA_ENLACE, enlace.mensaje(), "la respuesta no revela que esta suspendida");
+        assertEquals(AccessLog.Outcome.refused, ultimoPedido());
+        assertTrue(codigo.mensaje() != null);
+    }
+
+    @Test
+    void si_ms_debt_no_responde_al_pedir_el_acceso_se_manda_igual_y_al_entrar_se_vuelve_a_mirar() {
+        when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
+        msDebtNoResponde();
+
+        auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
+
+        verify(correo).enviarAcceso(eq("camila.reyes@apofyx.cl"), anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void con_la_empresa_suspendida_la_sesion_no_se_renueva_y_se_cierra() {
+        conEnlaceDe(camila(true));
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+        empresaDeCamila(false);
+
+        ApiException error = assertThrows(ApiException.class, () -> auth.renovar(sesion.llave().valor(), "10.0.0.1"));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
+        assertEquals("La empresa está suspendida", error.getMessage());
+        assertTrue(sesiones.filas.stream().allMatch(Session::revocada), "toda la familia queda revocada");
+    }
+
+    @Test
+    void si_ms_debt_no_responde_al_renovar_se_renueva_igual() {
+        conEnlaceDe(camila(true));
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+        msDebtNoResponde();
+
+        AuthService.Sesion renovada = auth.renovar(sesion.llave().valor(), "10.0.0.1");
+
+        assertEquals("CREDITOR", renovada.user().role());
+    }
+
+    @Test
+    void reactivada_la_empresa_su_gente_vuelve_a_renovar_sin_que_nadie_haga_nada() {
+        conEnlaceDe(camila(true));
+        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
+        empresaDeCamila(true);
+
+        assertEquals("CREDITOR", auth.renovar(sesion.llave().valor(), "10.0.0.1").user().role());
+    }
+
     @Test
     void un_correo_que_no_es_de_nadie_no_recibe_enlace() {
         var respuesta = auth.pedirEnlace(null, "cualquiera@correo.cl", "10.0.0.1");

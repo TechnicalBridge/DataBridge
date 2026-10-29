@@ -286,4 +286,17 @@ class EmpresaServiceTest {
         assertTrue(servicio.buscar("77305118-6").orElseThrow().activa());
         assertTrue(servicio.buscar("11111111-1").isEmpty());
     }
+
+    @Test
+    void suspender_y_reactivar_una_empresa() {
+        EmpresaResponse suspendida = servicio.suspender(apofyx.getRut(), ADMIN);
+        assertFalse(suspendida.activa());
+        assertEquals(Organization.Status.suspended, apofyx.getStatus());
+        verify(organizations).save(apofyx);
+        verify(bitacora).save(any(AdminLog.class));
+
+        EmpresaResponse reactivada = servicio.reactivar(apofyx.getRut(), ADMIN);
+        assertTrue(reactivada.activa());
+        assertEquals(Organization.Status.active, apofyx.getStatus());
+    }
 }

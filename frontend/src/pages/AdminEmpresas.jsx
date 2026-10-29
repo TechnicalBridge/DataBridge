@@ -94,6 +94,7 @@ export default function AdminEmpresas() {
                     <tr key={e.rut}>
                       <td>
                         <Link to={`/admin/empresas/${e.rut}`}>{e.nombre}</Link>
+                        {!e.activa ? <span className="badge badge-muted" style={{ marginLeft: 6 }}>Suspendida</span> : null}
                         <span className="sub sin-corte">{rutLegible(e.rut)}</span>
                       </td>
                       <td>{TIPO_DE_EMPRESA[e.tipo] || e.tipo}</td>
