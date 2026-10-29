@@ -74,6 +74,9 @@ const casos = [
     'databridge-secreto-por-omision'],
   ['un valor por omision en el compose', () => 'BREVO_API_KEY: ${BREVO_API_KEY:-' + azar(32) + '}',
     'databridge-secreto-por-omision'],
+  //  base64url empieza con guion una de cada 64 veces: esta lo prueba siempre (#270).
+  ['un valor por omision que empieza con guion', () => 'BREVO_API_KEY: ${BREVO_API_KEY:--' + azar(32) + '}',
+    'databridge-secreto-por-omision'],
   ['un valor por omision para la llave anterior',
     () => 'CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-' + azar(32) + '}', 'databridge-secreto-por-omision'],
   ['una llave privada (como la de ES256)', pem, 'private-key'],
