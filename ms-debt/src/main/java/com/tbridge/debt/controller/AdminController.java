@@ -3,12 +3,14 @@ package com.tbridge.debt.controller;
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
+import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
+import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
@@ -61,11 +63,59 @@ public class AdminController {
     private final EmpresaService empresas;
     private final ReglasService reglas;
     private final ComisionService comisiones;
+    private final AvisosService avisos;
 
-    public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones) {
+    public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
+                           AvisosService avisos) {
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
+        this.avisos = avisos;
+    }
+
+    // ------------------------------------------------------------------
+    //  Los avisos a las empresas que no se entregan (#139)
+    // ------------------------------------------------------------------
+
+    /** Cuantos avisos se volvieron a poner en cola. */
+    public record Reintentados(@Schema(example = "21") int reintentados) {
+    }
+
+    @GetMapping("/avisos")
+    @Operation(summary = "Los avisos a las empresas que no se han entregado",
+            description = "Pendientes (esperan su proximo intento) y fallidos (se rindieron despues del sexto), "
+                    + "agrupados por destinatario, con sus intentos y su ultimo error. Sin el contenido de ningun "
+                    + "aviso, que lleva datos de la deuda, y del destinatario solo el esquema, el host y el puerto.")
+    @ApiResponse(responseCode = "200", description = "Los avisos sin entregar")
+    public AvisosResponse avisos() {
+        return avisos.sinEntregar();
+    }
+
+    @PostMapping("/avisos/{id}/reintentar")
+    @Operation(summary = "Volver a poner en cola un aviso",
+            description = "Queda pendiente para ahora y el despachador lo entrega en su pasada siguiente (cada 15 "
+                    + "segundos). Si vuelve a fallar despues del sexto intento, queda otra vez como fallido. Queda "
+                    + "anotado quien lo hizo, en la historia de la empresa.")
+    @ApiResponse(responseCode = "200", description = "El aviso, ya en cola")
+    @ApiResponse(responseCode = "404", description = "No hay ningun aviso con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Ese aviso ya se entrego",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public AvisosResponse.Aviso reintentar(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+                                           @PathVariable Long id) {
+        return avisos.reintentar(id, admin.email());
+    }
+
+    @PostMapping("/avisos/destinos/{suscripcion}/reintentar")
+    @Operation(summary = "Volver a poner en cola los avisos fallidos de un destinatario",
+            description = "Para cuando la empresa vuelve a responder despues de una caida. Los pendientes siguen su "
+                    + "curso. Queda anotado quien lo hizo y cuantos fueron.")
+    @ApiResponse(responseCode = "200", description = "Cuantos se volvieron a poner en cola")
+    @ApiResponse(responseCode = "404", description = "Ese destinatario no tiene avisos fallidos",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public Reintentados reintentarDestino(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+                                          @PathVariable Long suscripcion) {
+        return new Reintentados(avisos.reintentarDestino(suscripcion, admin.email()));
     }
 
     @GetMapping("/comisiones")

@@ -28,13 +28,13 @@ classDiagram
     namespace ms_auth {
         class AccessCode
         class AccessLog
-        class AdminLog
+        class AuthAdminLog["AdminLog"]
         class MagicLink
         class Session
         class StaffUser
     }
     namespace ms_debt {
-        class AdminLog
+        class DebtAdminLog["AdminLog"]
         class ApiKey
         class Batch
         class Campaign
@@ -55,6 +55,7 @@ classDiagram
         class Payment
         class PaymentEvent
         class UfValue
+        class PaymentsAdminLog["AdminLog"]
     }
     ApiKey "*" --> "1" Organization : organization
     Batch "*" --> "1" Organization : sender
@@ -974,6 +975,7 @@ classDiagram
             +para(Subscription, String, String, String, Instant)$ OutboxEvent
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class OutboxEvent_Status["OutboxEvent.Status"] {
             <<enumeration>>
@@ -994,6 +996,7 @@ classDiagram
         class AdminLog_Action["AdminLog.Action"] {
             <<enumeration>>
             empresa_creada
+            aviso_reintentado
         }
     }
     Organization ..> Organization_Kind
@@ -1825,7 +1828,7 @@ classDiagram
 
 ### El panel de administración
 
-Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor. Las reglas salen de la configuración y de `HorarioDeContacto`, el mismo que usan las campañas.
+Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor. Las reglas salen de la configuración y de `HorarioDeContacto`, el mismo que usan las campañas. Los avisos sin entregar salen de la bandeja (`outbox`), agrupados por destinatario y sin su contenido ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)).
 
 ```mermaid
 classDiagram
@@ -1839,9 +1842,18 @@ classDiagram
             +empresa(String) EmpresaResponse
             +crear(JwtPrincipal, NuevaEmpresaRequest) EmpresaResponse
             +historial(String) List~AccionResponse~
+            +avisos() AvisosResponse
+            +reintentar(JwtPrincipal, Long) AvisosResponse.Aviso
+            +reintentarDestino(JwtPrincipal, Long) Reintentados
         }
     }
     namespace service {
+        class AvisosService {
+            <<service>>
+            +sinEntregar() AvisosResponse
+            +reintentar(Long, String) AvisosResponse.Aviso
+            +reintentarDestino(Long, String) int
+        }
         class EmpresaService {
             <<service>>
             +listar() List~EmpresaResponse~
@@ -1888,6 +1900,12 @@ classDiagram
             <<repository>>
             +findByOrgRutOrderByOccurredAtDesc(String) List~AdminLog~
         }
+        class OutboxEventRepository {
+            <<repository>>
+            +findTop500ByStatusInOrderByIdDesc(Collection~OutboxEvent.Status~) List~OutboxEvent~
+            +countByStatus(OutboxEvent.Status) long
+            +findBySubscriptionIdAndStatus(Long, OutboxEvent.Status) List~OutboxEvent~
+        }
         class OrganizationRepository {
             <<repository>>
         }
@@ -1901,7 +1919,10 @@ classDiagram
     EmpresaService ..> EmpresaService_Totales
     AdminController --> EmpresaService
     AdminController --> ReglasService
+    AdminController --> AvisosService
     AdminController ..> HorarioDeContacto
+    AvisosService --> OutboxEventRepository
+    AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
     EmpresaService --> MandateRepository
     EmpresaService --> DebtRepository
@@ -1916,13 +1937,15 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas y las reglas de cobranza. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, y dar de alta una empresa usuaria. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `ConteoDeDeudas` | `repository` | Cuántas deudas hay de un acreedor, entregadas por un emisor, en un estado. Un total, sin deudas. |
 | `SaldoPendiente` | `repository` | Lo que falta por cobrar de un acreedor, entregado por un emisor, en una moneda. Un total. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
+| `OutboxEventRepository` | `repository` | La bandeja de salida: aquí, los avisos sin entregar y los fallidos de un destinatario. |
 
 ### Los repositorios
 
@@ -2008,6 +2031,9 @@ classDiagram
         class OutboxEventRepository {
             <<repository>>
             +findTop100ByStatusAndNextAttemptAtBeforeOrderByIdAsc(OutboxEvent.Status, Instant) List~OutboxEvent~
+            +findTop500ByStatusInOrderByIdDesc(Collection~OutboxEvent.Status~) List~OutboxEvent~
+            +countByStatus(OutboxEvent.Status) long
+            +findBySubscriptionIdAndStatus(Long, OutboxEvent.Status) List~OutboxEvent~
         }
         class RepactationRepository {
             <<repository>>
@@ -2309,7 +2335,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
 | `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ComisionResponse`, `ComisionesResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `AvisosResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ComisionResponse`, `ComisionesResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 
@@ -2409,6 +2435,7 @@ classDiagram
             +para(Long)$ DebtNotification
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class DebtNotification_Status["DebtNotification.Status"] {
             <<enumeration>>
@@ -2422,6 +2449,20 @@ classDiagram
             -value : BigDecimal
             -source : String
             -fetchedAt : Instant
+        }
+        class AdminLog {
+            <<entity>>
+            -id : Long
+            -adminEmail : String
+            -action : Action
+            -subject : String
+            -occurredAt : Instant
+            +de(String, Action, String)$ AdminLog
+        }
+        class AdminLog_Action["AdminLog.Action"] {
+            <<enumeration>>
+            aviso_reintentado
+            uf_cargada
         }
     }
     namespace events {
@@ -2451,6 +2492,7 @@ classDiagram
     PaymentEvent ..> PaymentEvent_Type
     PaymentEvent ..> PaymentEvent_Source
     DebtNotification ..> DebtNotification_Status
+    AdminLog ..> AdminLog_Action
     PaymentEvent ..> Payment : paymentId
     DebtNotification ..> Payment : paymentId
     PagoConfirmado ..> Payment : se arma con
@@ -2462,6 +2504,7 @@ classDiagram
 | `PaymentEvent` | `model` | El libro del pago: solo se agrega. |
 | `DebtNotification` | `model` | El aviso pendiente hacia ms-debt. |
 | `UfValue` | `model` | El valor de la UF de un día. |
+| `AdminLog` | `model` | Lo que el admin hizo desde el panel con los pagos: los avisos reintentados y la UF cargada a mano. |
 | `PagoConfirmado` | `events` | El aviso que se le manda a ms-debt cuando un pago se concreta. |
 
 ### El cobro
@@ -2504,6 +2547,9 @@ classDiagram
             <<controller>>
             +reglas() ReglasResponse
             +estado() EstadoResponse
+            +operacion() OperacionResponse
+            +reintentarAviso(JwtPrincipal, Long) OperacionResponse.Aviso
+            +cargarUf(JwtPrincipal, UfManualRequest) UfResponse
         }
     }
     namespace assembler {
@@ -2577,9 +2623,18 @@ classDiagram
         class ReglasService {
             <<service>>
         }
+        class OperacionService {
+            <<service>>
+            +operacion() OperacionResponse
+            +reintentarAviso(Long, String) OperacionResponse.Aviso
+            +cargarUf(LocalDate, BigDecimal, String) UfResponse
+        }
     }
     namespace repository {
         class PaymentRepository {
+            <<repository>>
+        }
+        class AdminLogRepository {
             <<repository>>
         }
         class PaymentEventRepository {
@@ -2615,6 +2670,13 @@ classDiagram
     InternalController --> UfService
     InternalController --> UfLoader
     AdminController --> ReglasService
+    AdminController --> OperacionService
+    OperacionService --> PaymentRepository
+    OperacionService --> PaymentEventRepository
+    OperacionService --> DebtNotificationRepository
+    OperacionService --> UfValueRepository
+    OperacionService --> UfService
+    OperacionService --> AdminLogRepository
     PaymentService --> PaymentRepository
     PaymentService --> PaymentEventRepository
     PaymentService --> DebtNotificationRepository
@@ -2639,7 +2701,8 @@ classDiagram
 | `PaymentController` | `controller` | Los pagos del portal, la página de la pasarela, la ida y vuelta de Webpay y Mercado Pago, y el aviso de Khipu. |
 | `WebhookController` | `controller` | Donde avisa la pasarela simulada, con firma. |
 | `InternalController` | `controller` | Cargar la UF a mano o desde el Banco Central. Con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago y la operación. Solo para el admin. |
+| `OperacionService` | `service` | La operación de los pagos para el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): los totales, la UF de hoy en Chile y los avisos a ms-debt sin entregar; reintentar uno y cargar la UF a mano, anotando quién lo hizo. |
 | `PaymentModelAssembler` | `assembler` | Los enlaces HATEOAS de un pago. |
 | `PaymentService` | `service` | El cobro: abrirlo, confirmarlo con la pasarela, vencerlo y dejar el aviso. |
 | `ConciliacionPasarelas` | `service` | Cada 10 segundos pregunta a las pasarelas por los cobros abiertos, y cada 5 minutos por los vencidos. |
@@ -2848,10 +2911,17 @@ classDiagram
             <<repository>>
             +findByStatusAndNextAttemptAtBefore(DebtNotification.Status, Instant) List~DebtNotification~
             +findByPaymentId(Long) Optional~DebtNotification~
+            +findTop200ByStatusInOrderByIdDesc(Collection~DebtNotification.Status~) List~DebtNotification~
+            +countByStatus(DebtNotification.Status) long
         }
         class PaymentEventRepository {
             <<repository>>
             +findByPaymentIdOrderByIdAsc(Long) List~PaymentEvent~
+            +countByTypeAndOccurredAtAfter(PaymentEvent.Type, Instant) long
+        }
+        class AdminLogRepository {
+            <<repository>>
+            +findTop20ByOrderByOccurredAtDesc() List~AdminLog~
         }
         class PaymentRepository {
             <<repository>>
@@ -2864,6 +2934,8 @@ classDiagram
             +findByDebtIdAndStatus(Long, Payment.Status) List~Payment~
             +findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status, Collection~Long~) List~Payment~
             +findByCreditorRutOrderByCreatedAtDesc(String) List~Payment~
+            +countByStatus(Payment.Status) long
+            +countByStatusAndCreatedAtBefore(Payment.Status, Instant) long
         }
         class UfValueRepository {
             <<repository>>
@@ -2951,7 +3023,11 @@ classDiagram
         class UfValue {
             <<entity>>
         }
+        class AdminLog {
+            <<entity>>
+        }
     }
+    AdminLogRepository ..> AdminLog : guarda
     DebtNotificationRepository ..> DebtNotification : guarda
     PaymentEventRepository ..> PaymentEvent : guarda
     PaymentRepository ..> Payment : guarda
@@ -2968,6 +3044,7 @@ classDiagram
 | `PaymentEventRepository` | `repository` |  |
 | `PaymentRepository` | `repository` |  |
 | `UfValueRepository` | `repository` |  |
+| `AdminLogRepository` | `repository` | La bitácora del panel: lo último que se hizo con los pagos. |
 | `SecurityConfig` | `config` | Quién puede llamar a qué. |
 | `JwtAuthFilter` | `security` | Valida el JWT de cada petición. |
 | `JwtService` | `security` | Lee el JWT que firmó ms-auth. |
@@ -2983,7 +3060,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.gateway` | Lo que se habla con Transbank | `WebpayCommitResponse`, `WebpayCreateRequest`, `WebpayCreateResponse` |
 | `dto.request` | Lo que entra | `CheckoutRequest`, `UfManualRequest`, `WebhookRequest` |
-| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `PaymentEventResponse`, `PaymentResponse`, `ReglasResponse`, `UfCargaResponse`, `UfResponse` |
+| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `OperacionResponse`, `PaymentEventResponse`, `PaymentResponse`, `ReglasResponse`, `UfCargaResponse`, `UfResponse` |
 
 ---
 

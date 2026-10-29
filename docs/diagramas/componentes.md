@@ -327,6 +327,7 @@ flowchart LR
             AdminInicio
             AdminEmpresas
             AdminEmpresa
+            AdminOperacion
             AdminEquipo
             AdminAccesos
             AdminReglas
@@ -369,7 +370,7 @@ flowchart LR
     Cargar --> deudas
     Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
-    AdminInicio & AdminEmpresas & AdminReglas & AdminAccesos --> admin
+    AdminInicio & AdminEmpresas & AdminReglas & AdminAccesos & AdminOperacion --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
@@ -381,7 +382,7 @@ flowchart LR
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 23 pantallas |
 | `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `FormCampana` (crear o cambiar una campaña, en Campañas y en Cargar cartera), `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
@@ -398,7 +399,7 @@ Qué módulo de `api/` habla con qué servicio:
 | `campanas.js` | `/api/debts/campanas/**` | ms-debt |
 | `pagos.js` | `/api/payments/**`, y `/api/debts/pagos/**` para el historial y el comprobante | ms-payments y ms-debt |
 | `asistente.js` | `/api/ai/chat` | ms-ai |
-| `admin.js` | `/api/admin/<servicio>/estado`, `/api/admin/debt/empresas/**` y `/api/admin/auth/**` | ms-auth, ms-debt y ms-payments |
+| `admin.js` | `/api/admin/auth/**`, `/api/admin/debt/**` y `/api/admin/payments/**`: el estado y las reglas de cada servicio, las empresas y sus comisiones, la gente, los accesos y la operación | ms-auth, ms-debt y ms-payments |
 
 La pantalla del portal de empresas trae los gráficos (recharts), que pesan más que todo lo demás junto: se
 descarga solo al entrar ahí, y el deudor nunca la baja.
