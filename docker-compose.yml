@@ -250,8 +250,10 @@ services:
       #  La entrega por API (/api/v1, con clave) y las claves (/api/claves):
       #  apagadas, los deudores entran solo por campana. true las enciende.
       INTEGRACION_API: ${INTEGRACION_API:-false}
-      #  Cifra en la base el secreto de las suscripciones a los avisos.
+      #  Cifra en la base el secreto de las suscripciones a los avisos. La
+      #  anterior, solo mientras se cambia (preparar-env.ps1 -Cambiar CIFRADO_LLAVE).
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
+      CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-}
       DEMO_DATOS: ${DEMO_DATOS:-false}
       EVENTS_RABBIT: "true"
       RABBIT_HOST: rabbitmq

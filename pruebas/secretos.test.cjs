@@ -62,6 +62,8 @@ const casos = [
     'databridge-mercadopago-token'],
   ['una API key de Render', () => 'RENDER_API_KEY=rnd_' + hex(20), 'databridge-render-key'],
   ['CIFRADO_LLAVE con su valor', () => 'CIFRADO_LLAVE=' + azar(48), 'databridge-variable-con-valor'],
+  ['la llave anterior con su valor, mientras se cambia', () => 'CIFRADO_LLAVE_ANTERIOR=' + azar(48),
+    'databridge-variable-con-valor'],
   ['la clave de una de las tres bases', () => 'DB_DEBT_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
   ['una clave de root de una base', () => 'DB_AUTH_ROOT_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
   ['una clave de un .env viejo', () => 'MYSQL_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
@@ -72,6 +74,8 @@ const casos = [
     'databridge-secreto-por-omision'],
   ['un valor por omision en el compose', () => 'BREVO_API_KEY: ${BREVO_API_KEY:-' + azar(32) + '}',
     'databridge-secreto-por-omision'],
+  ['un valor por omision para la llave anterior',
+    () => 'CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-' + azar(32) + '}', 'databridge-secreto-por-omision'],
   ['una llave privada (como la de ES256)', pem, 'private-key'],
   ['la llave de integracion que publica Transbank',
     () => 'TRANSBANK_API_KEY=579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', null],
@@ -79,11 +83,14 @@ const casos = [
     () => "$secretos = [ordered]@{\n    RABBIT_PASSWORD     = '84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec'\n"
       + "    CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'\n}\n", null],
   ['las variables vacias de .env.example',
-    () => 'MYSQL_USER=tbridge\nDB_AUTH_ROOT_PASSWORD=\nDB_AUTH_PASSWORD=\nCIFRADO_LLAVE=\nBCENTRAL_PASS=\n', null],
+    () => 'MYSQL_USER=tbridge\nDB_AUTH_ROOT_PASSWORD=\nDB_AUTH_PASSWORD=\nCIFRADO_LLAVE=\nCIFRADO_LLAVE_ANTERIOR=\nBCENTRAL_PASS=\n', null],
   ['la Public Key de Mercado Pago', () => 'MERCADOPAGO_PUBLIC_KEY=APP_USR-' + crypto.randomUUID(), null],
   ['una referencia obligatoria del compose',
     () => '      MYSQL_PASSWORD: ${DB_DEBT_PASSWORD:?Falta DB_DEBT_PASSWORD en el .env (crealo con preparar-env.ps1)}\n'
-      + '      CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE}\n', null],
+      + '      CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE}\n'
+      + '      CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-}\n', null],
+  ['la llave anterior vacia por omision, en las propiedades',
+    () => 'app.cifrado.llave-anterior=${CIFRADO_LLAVE_ANTERIOR:}\n', null],
 ];
 
 const binario = process.env.GITLEAKS;

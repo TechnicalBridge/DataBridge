@@ -29,10 +29,11 @@ regex = '''\brnd_[A-Za-z0-9_-]{20,}\b'''
 #  Una variable secreta con su valor escrito: en un .env que se subio, en un
 #  script o en la documentacion. Las vacias y las ${VARIABLE:?...} no cuentan.
 #  MYSQL_* y JWT_SECRET ya no se usan, pero un .env viejo todavia los trae.
+#  CIFRADO_LLAVE_ANTERIOR solo tiene valor mientras se cambia CIFRADO_LLAVE.
 [[rules]]
 id = "databridge-variable-con-valor"
 description = "Una variable secreta de DataBridge escrita con su valor"
-regex = '''(?mi)^[ \t]*(?:export[ \t]+)?(?:CIFRADO_LLAVE|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY)[ \t]*[=:][ \t]*['"]?([A-Za-z0-9_./+=!?@%#$&*-]{8,})'''
+regex = '''(?mi)^[ \t]*(?:export[ \t]+)?(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY)[ \t]*[=:][ \t]*['"]?([A-Za-z0-9_./+=!?@%#$&*-]{8,})'''
 secretGroup = 1
 
 #  Un valor por omision para un secreto, en el compose o en las propiedades:
@@ -40,7 +41,7 @@ secretGroup = 1
 [[rules]]
 id = "databridge-secreto-por-omision"
 description = "Un valor por omision para una variable secreta"
-regex = '''(?i)\$\{(?:CIFRADO_LLAVE|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY):-?([A-Za-z0-9_][A-Za-z0-9_./+=!?@%-]{7,})\}'''
+regex = '''(?i)\$\{(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY):-?([A-Za-z0-9_][A-Za-z0-9_./+=!?@%-]{7,})\}'''
 secretGroup = 1
 
 #  Solo valores publicos, exactos: la llave de integracion que publica
