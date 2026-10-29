@@ -2022,7 +2022,7 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-payments` | 268 |
 | `ms-ai` | 43 |
 
-Además, `pruebas/secretos.test.cjs` (Node, 24 pruebas) comprueba que las reglas de gitleaks detecten
+Además, `pruebas/secretos.test.cjs` (Node, 25 pruebas) comprueba que las reglas de gitleaks detecten
 cada tipo de clave y dejen pasar los valores públicos ([`docs/seguridad/secretos.md`](docs/seguridad/secretos.md)).
 La cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
