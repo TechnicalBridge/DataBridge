@@ -798,14 +798,14 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 
 | Pieza | Qué hace |
 | --- | --- |
-| **portal** | React con Zustand y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
-| **gateway** | La única puerta: CORS, límite de peticiones con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
-| **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT, maneja las sesiones y manda los correos, incluido el recordatorio de cuota |
-| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados de vuelta a quien se suscribió |
-| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt, nunca el navegador. En UF fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
-| **ms-ai** | Asistente de solo lectura. Lee las deudas con la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM si hay `XAI_API_KEY` (Grok, con el SDK oficial de OpenAI para Java); si no, o si el LLM falla, responde con reglas |
-| **MySQL 8.4** | Una base por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
-| **RabbitMQ** | Lleva el aviso de pago de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
+| **portal** | React 18, Zustand 5, React Router 7, Vite 6 y CSS propio. Se compila y lo sirve nginx, que además hace de proxy hacia el gateway: el navegador ve un solo origen y no hay CORS que resolver |
+| **gateway** | La única puerta (`Spring Cloud Gateway`): CORS, límite de peticiones por IP con Bucket4j y enrutamiento. Al retorno de Webpay le quita el `Origin`, porque es la página de Transbank la que devuelve al navegador con un formulario; CORS no se abre a nadie más |
+| **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT firmado con **ES256 (ECDSA P-256)** y expone `/.well-known/jwks.json`, maneja las sesiones y manda los correos por la API de Brevo o SMTP, incluido el recordatorio de cuota |
+| **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas con cálculo de CAE y costo total; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados con HMAC-SHA256 de vuelta a quien se suscribió |
+| **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt (`GET /internal/debts/{id}`), nunca el navegador. En UF consulta la **API del Banco Central (`si3.bcentral.cl`)**, guarda el valor diario en `uf_values` y fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
+| **ms-ai** | Asistente de solo lectura. Lee las deudas en ms-debt con el JWT de la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM vía el SDK oficial de OpenAI (`LlmService`, configurable con `XAI_API_KEY`, `XAI_BASE_URL` y `XAI_MODEL` para xAI Grok o proveedores compatibles como Groq y Gemini); si no hay llave o el proveedor falla, responde con su motor local de reglas (`MotorLocal`) |
+| **MySQL 8.4** | Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`), una por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
+| **RabbitMQ** | Lleva el aviso de pago (`pago.confirmado`) de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
 ### Los roles de acceso
 
@@ -831,55 +831,18 @@ portal del deudor con su RUT y su código de acceso.
   panel. La regla es de la ruta entera, no de cada endpoint, así que uno nuevo no puede quedar
   abierto por olvido.
 
-<details>
-<summary><b>El panel de administración</b>: qué tiene y cómo se da y se quita el acceso</summary>
+**El panel de administración** (`/admin`) tiene *Inicio* (si cada servicio responde con esa
+sesión), *Empresas* (dar de alta una empresa con su primera persona y ver sus totales, mandatos y
+gente, nunca un deudor), *Equipo de DataBridge* (otros `admin`), *Accesos* (la bitácora de entradas
+y rechazos, con el RUT a medias y la IP solo como huella) y *Reglas* (lo que rige en cada servicio,
+de solo lectura).
 
-El panel está en `/admin`, y se entra por `/admin/login` con el correo del `admin`. Hoy tiene:
-
-- **Inicio**, que muestra si cada servicio responde con esa sesión (`/api/admin/<servicio>/estado`).
-- **Empresas**, para dar de alta una empresa usuaria (una agencia, o un acreedor que cobra directo)
-  con su primera persona, y ver las que hay. De cada una se ven totales (cuántas deudas y cuánto
-  falta por cobrar), sus mandatos y quiénes entran en su nombre. Nunca una deuda ni un deudor.
-- **Operación** ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): lo que no se está entregando o cobrando, para arreglarlo antes de que
-  una empresa reclame. Si cada servicio responde; los pagos abiertos (y cuántos llevan más de una
-  hora), los vencidos en 24 horas y los duplicados por devolver; los avisos a las empresas que no se
-  entregaron, por destinatario, con sus intentos y su último error, y los avisos de pago a ms-debt.
-  Un aviso fallido se vuelve a poner en cola con un botón (uno, o todos los de un destinatario) y el
-  despachador lo entrega en su pasada siguiente, cada 15 segundos; ms-debt abona una sola vez
-  aunque un aviso de pago le llegue dos. También muestra la UF de hoy y deja cargarla a mano cuando
-  el Banco Central no la entregó. Cada bloque se pide aparte: si un servicio no responde, su bloque
-  lo dice y los demás siguen. Ninguno muestra un dato de un deudor ni el contenido de un aviso, y del
-  destinatario solo el esquema, el host y el puerto.
-- **Equipo de DataBridge**, para dar de alta a otro `admin`.
-- **Accesos** ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)): quién entró y qué accesos se rechazaron, para ver si alguien prueba códigos
-  contra un RUT. Arriba, los totales de hoy; abajo, la bitácora por páginas de 50, lo más reciente
-  primero, filtrable por resultado, por código o enlace, y por fechas. El RUT va a medias
-  (`18.***.***-6`) y ninguna fila muestra un correo ni una IP (de la IP, ms-auth guarda solo su huella).
-- **Reglas**, de solo lectura: lo que rige en cada servicio y de qué variable del `.env` sale. La
-  mora mínima, la tasa máxima, el aviso antes de una cuota, el horario y el límite de contacto de
-  la ley con los feriados de este año y del siguiente (los mismos que usan las campañas), cuánto
-  duran el código, el enlace y la sesión, por dónde salen los correos, qué pasarelas cobran de
-  verdad y en cuánto vence un cobro, de dónde sale la UF y cómo entran los deudores (solo por
-  campaña, o también por la API). De las credenciales dice solo si están.
-
-Dar de alta a una persona es darle acceso: le llega una **invitación** a su correo, con un enlace de
-un solo uso que dura 24 horas (`INVITACION_TTL_HORAS`) y que dice por dónde entrar las veces
-siguientes. A cualquiera se le puede **quitar el acceso** y devolvérselo: al quitarlo no le llegan
-más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un `admin` no se
-puede quitar el acceso a sí mismo, así que siempre queda uno que puede entrar.
-
-- **El rol lo decide por dónde se da de alta, no un campo.** Una persona creada bajo una empresa
-  es `usuario` de esa empresa; un `admin` se crea aparte y sin empresa. Un correo que ya es de una
-  empresa no puede pasar a ser `admin`.
-- **La empresa vive en ms-debt y su gente en ms-auth**, unidas por el RUT. Antes de darle una
-  persona a una empresa, ms-auth le pregunta a ms-debt si existe.
-- **Todo queda anotado**, con el `admin` que lo hizo y cuándo, en la tabla `admin_log` de cada
-  servicio. Lo de las empresas, su gente y sus avisos se ve en la ficha de la empresa; lo de los
-  pagos (un aviso reintentado o la UF cargada a mano), en *Operación*.
-
-Lo que falta del panel está en [#136](https://github.com/TechnicalBridge/TB_web/issues/136).
-
-</details>
+- **Dar de alta es dar acceso:** llega una invitación de un solo uso que dura 24 horas. Quitar el
+  acceso anula los enlaces sin abrir y cierra las sesiones; un `admin` no se lo puede quitar a sí
+  mismo.
+- **La empresa vive en ms-debt y su gente en ms-auth**, unidas por el RUT, y todo queda en
+  `admin_log` con el `admin` que lo hizo. Lo que falta del panel está en
+  [#136](https://github.com/TechnicalBridge/TB_web/issues/136).
 
 ### Cómo está organizado cada servicio
 
@@ -900,72 +863,35 @@ com/tbridge/<servicio>/
 └── exception/     los errores propios del servicio
 ```
 
-**Cada servicio por sí solo.** No hay un pom padre ni una librería compartida: cada servicio
-tiene su `pom.xml` (con Spring Boot como padre y sus propias versiones), su `Dockerfile`, su
-workflow y su base, y se compila, se prueba y se despliega sin los demás. Lo que antes estaba en
-una librería común lo tiene cada uno en sus paquetes, solo lo que usa: `security/` (verificar el
-JWT; ms-auth además lo firma), `exception/` (todos responden `{"error": "..."}` con el código que
-corresponde) y `util/` (el RUT y el hash). El aviso de pago (`events/PagoConfirmado`) lo tienen
+**Cada servicio por sí solo.** No hay pom padre ni librería compartida: cada uno tiene su
+`pom.xml`, su `Dockerfile`, su workflow y su base, y copia en sus paquetes solo lo que usa
+(`security/`, `exception/`, `util/`). El aviso de pago (`events/PagoConfirmado`) lo tienen
 ms-payments, que lo escribe, y ms-debt, que lo lee, y los dos se prueban contra el mismo contrato:
-[`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json). El gateway no tiene
-base: solo `config/` (las rutas) y `filter/` (el límite de peticiones, la IP real y el retorno de
-Webpay). ms-ai tampoco: `controller/`, `service/` (las reglas y el LLM), `client/` (las deudas, que
-pide a ms-debt con la sesión del deudor), `dto/` y `exception/`.
+[`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json). El gateway y ms-ai no
+tienen base.
 
-**Swagger.** Cada servicio documenta sus endpoints en grupos según quién los llama —el **portal**,
-el **panel de administración**, el **contrato de integración** y lo **interno**—, y el gateway los junta en una sola
-página: http://localhost:8080/swagger-ui.html. Cada grupo ofrece en *Authorize* solo la llave que
-usa: el JWT del portal, la clave de API del contrato o la clave interna. Lo público se llama por la
-misma dirección desde la que se abrió Swagger, sea `localhost:8080` o el dominio. Lo interno apunta
-directo al servicio, porque el gateway no expone `/internal`: con Docker ese puerto no se publica,
-así que *Try it out* no llega desde el navegador, y el grupo dice cómo llamarlo desde dentro del
-contenedor, como en [§3](#3-cómo-ejecutar-el-proyecto-localmente).
-
-<details>
-<summary><b>HATEOAS y configuración</b>: los enlaces de cada respuesta y de dónde sale cada valor</summary>
-
-**HATEOAS.** Las respuestas del portal traen `_links` con lo que se puede hacer después, según el
-estado y quién mira:
-
-- una deuda pendiente le ofrece al deudor `simular`, `repactar`, `pagar` y `disputar`;
-- a la empresa, `enviar-codigo`, y si la deuda está en reclamo, `resolver-disputa`;
-- una deuda pagada ofrece el `certificado`, y un pago su `comprobante`;
-- con la entrega por API encendida, una clave de API vigente ofrece `revocar`.
-
-Los enlaces salen con la dirección pública (`http://localhost:8080/...`) porque cada servicio lee
-las cabeceras `X-Forwarded-*` del gateway. El contrato `/api/v1` no lleva enlaces: su forma está
-publicada y la leen sistemas de otras empresas.
-
-**Configuración.** Cada servicio tiene `application.properties`, con todo en
-`${VARIABLE:valor por omisión}` salvo los secretos, que van como `${VARIABLE}` y sin valor: si
-falta uno, el servicio no arranca y dice cuál. `application-dev.properties` es para programar, y
-`application-test.properties`, con sus propios valores, para las pruebas.
-
-</details>
+**Swagger, HATEOAS y configuración.** El gateway junta la documentación de todos en
+http://localhost:8080/swagger-ui.html, en grupos según quién llama (portal, panel, contrato e
+interno), cada uno con su llave en *Authorize*. Las respuestas del portal traen `_links` con lo que
+se puede hacer después según el estado (`simular`, `repactar`, `pagar`, `certificado`…). Cada
+servicio se configura con `${VARIABLE:valor por omisión}`; los secretos no tienen valor por
+omisión y, si falta uno, el servicio no arranca y dice cuál.
 
 ---
 
 ## 7. Diagramas
 
-Los diagramas que hicimos, cada uno con su **vista general** y, desplegable, el de **cada servicio**.
-Salen del código: los nombres son las clases, las rutas y las tablas de verdad.
+Los diagramas siguen el modelo **4+1** de Kruchten. Aquí se presentan los **cinco diagramas
+generales del 4+1** junto con lo que está implementado en el código; el desglose por servicio, con
+todas las columnas, clases y secuencias, está en [`docs/diagramas`](docs/diagramas/README.md).
 
-| Diagrama | General | De cada servicio | Dónde |
-| --- | --- | --- | --- |
-| Comunicación entre servicios | Quién le habla a quién, por dónde y con qué llave | — (cada par está en la tabla) | [§7.1](#71-comunicación-entre-servicios) |
-| Entidad-relación | Las 26 tablas de las tres bases | `tb_auth`, `tb_debt` y `tb_payments` | [§7.2](#72-entidad-relación) |
-| Casos de uso | El sistema completo | De cada actor | [§7.3](#73-casos-de-uso) |
-| Clases | El dominio | ms-auth, ms-debt, ms-payments, ms-ai y gateway | [§7.4](#74-clases) |
-| Secuencias | El pago, de punta a punta | ms-auth, ms-debt, ms-payments y ms-ai | [§7.5](#75-secuencias) |
-| Componentes | El repositorio y las capas | ms-auth, ms-debt, ms-payments, ms-ai, gateway y el portal | [§7.6](#76-componentes) |
-
-Los demás están en [`docs/diagramas`](docs/diagramas/README.md): los
-[estados](docs/diagramas/estados.md) de una deuda, una cuota, un pago y una campaña; los
-[procesos](docs/diagramas/procesos.md) (el BPMN del negocio, el flujo de la cartera, la actividad de una
-campaña y lo que corre solo); el [despliegue](docs/diagramas/despliegue.md), y todas las clases, secuencias y
-casos de uso con su detalle.
-
-La arquitectura está en [§6](#6-arquitectura-de-la-solución).
+| Vista 4+1 | Diagrama general en este README | El detalle en `docs/diagramas/` |
+| --- | --- | --- |
+| **Escenarios** (el +1) | [§7.3 Casos de uso](#73-casos-de-uso) (`casos-de-uso.png`) | [Cada actor y sus endpoints](docs/diagramas/casos-de-uso.md) |
+| **Lógica** | [§7.2 Entidad-relación](#72-entidad-relación) (`entidad-relacion.png`) y [§7.4 Clases](#74-clases) | [Las tres bases con sus columnas](docs/diagramas/entidad-relacion.md) · [Clases de cada servicio](docs/diagramas/clases.md) · [Estados](docs/diagramas/estados.md) |
+| **Procesos** | [§7.5 Secuencias](#75-secuencias) (`secuencia-pago.png`) y [§7.1 Comunicación](#71-comunicación-entre-servicios) | [Las 16 secuencias](docs/diagramas/secuencia.md) · [BPMN y flujos](docs/diagramas/procesos.md) |
+| **Desarrollo** | [§7.1 Comunicación](#71-comunicación-entre-servicios) y [§7.6 Componentes](#76-componentes) (`componentes.png`) | [Cada servicio y el portal por dentro](docs/diagramas/componentes.md) |
+| **Física** | [§10 Docker y despliegue](#los-contenedores-y-sus-puertos) (`despliegue.png`) | [Contenedores, orden de arranque y perfiles](docs/diagramas/despliegue.md) |
 
 ### 7.1 Comunicación entre servicios
 
@@ -1016,16 +942,26 @@ flowchart LR
     DEBT -.->|"eventos firmados con HMAC<br/>(con la API encendida)"| SIS
 ```
 
+![Diagrama de componentes y protocolos de comunicación](docs/diagramas/img/componentes.png)
+
 | Entre quiénes | Cómo | Por qué así |
 | --- | --- | --- |
-| Navegador → servicios | HTTP por el gateway, con JWT | Una sola puerta que revisar |
+| Navegador → Portal (nginx) → Gateway | HTTPS/HTTP hacia nginx y proxy `/api` al gateway, con JWT **ES256** | Una sola puerta pública con CORS y límite de peticiones (Bucket4j) |
 | Sistemas de las empresas → ms-debt | HTTP por el gateway (`/api/v1`), con clave de API. **Solo con `INTEGRACION_API=true`** | Entran por la misma puerta, con su límite de peticiones |
-| ms-payments → ms-debt | **RabbitMQ**, cola `ms-debt.pagos-confirmados` | El pago ya ocurrió: si ms-debt está caído, el aviso espera en la cola en vez de perderse |
-| ms-debt → ms-auth, ms-payments → ms-debt | HTTP interno con `X-Internal-Key`, fuera del gateway | Son llamadas entre servicios, no de usuarios. El gateway no las expone |
-| ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave | Crear la transacción y confirmarla; el navegador solo va y vuelve |
+| ms-payments → ms-debt | **RabbitMQ** (AMQP), cola `ms-debt.pagos-confirmados` | El pago ya ocurrió: si ms-debt está caído, el aviso espera en la cola en vez de perderse |
+| ms-debt ↔ ms-auth, ms-payments → ms-debt | HTTP interno (`/internal/**`) con `X-Internal-Key`, fuera del gateway | Son llamadas entre servicios (pedir código, consultar correo/empresa, verificar monto de deuda en `GET /internal/debts/{id}`); el gateway no las expone |
+| ms-ai → ms-debt | HTTP (`GET /api/debts`) reenviando el JWT del deudor | El asistente no tiene base ni acceso privilegiado: ve solo lo que el deudor autenticado puede ver |
+| ms-payments ↔ Transbank | HTTPS con el código de comercio y su llave (`TBK API`) | Crear la transacción Webpay Plus y confirmarla; el navegador solo va y vuelve |
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
-| APOFYX ↔ DataBridge | HTTP con clave de API, y eventos firmados con HMAC-SHA256. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
+| ms-payments ↔ Mercado Pago | HTTPS con el token de acceso (`Bearer`) | Crear la preferencia de Checkout Pro y verificar el pago servidor a servidor |
+| ms-payments → Banco Central | HTTPS contra el Web Service REST (`si3.bcentral.cl`) | Traer el valor oficial de la UF del día, guardarlo en `tb_payments.uf_values` y fijar los pesos al abrir un cobro en UF |
+| ms-ai → Proveedor LLM | HTTPS con el SDK de OpenAI (`XAI_BASE_URL` / `XAI_API_KEY`) | Consultar el modelo configurado (xAI Grok, o APIs compatibles como Groq y Gemini); si no hay llave o falla, responde `MotorLocal` |
+| APOFYX ↔ DataBridge | HTTP con clave de API, y webhooks firmados con `HMAC-SHA256`. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
 | ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP; sin ninguno, Mailpit | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
+
+**Lo que hace el código en las firmas y las bases respecto al diagrama de componentes:**
+- **JWT con ES256 (ECDSA P-256):** `ms-auth` firma los tokens con la llave privada montada en `JWT_KEY_DIRECTORY` (`JwtKeyRing`, `JwtService`) y publica la llave pública en `/.well-known/jwks.json`. `ms-debt` y `ms-payments` verifican la firma consultando ese JWKS (la migración `V7` dejó atrás `HS256`).
+- **Conexión JDBC, huellas SHA-256 y cifrado AES-256-GCM:** Cada servicio se conecta a su MySQL por JDBC. En `tb_auth`, los códigos, enlaces mágicos, llaves de renovación e IPs se guardan como hashes **SHA-256** (`Hash.java`). En `tb_debt`, el secreto de cada suscripción (`subscriptions.secret`) se cifra en reposo con **AES-256-GCM** (`Cifrado.java`) usando `CIFRADO_LLAVE`.
 
 Si RabbitMQ no está, ms-payments manda el mismo aviso por HTTP (`POST /internal/events/pago-confirmado`);
 en los dos casos sale de una bandeja con reintentos, así que no se pierde.
@@ -1045,33 +981,10 @@ del enlace de pago, y lo que dicen se le vuelve a preguntar a la pasarela.
 
 </details>
 
-**Apagado por omisión.** Desde que los deudores entran solo por campaña, todo `/api/v1` y
-`/api/claves` responde `404` mientras `INTEGRACION_API` no sea `true`. Encendido funciona como se
-describe aquí, salvo que el portal ya no tiene *Claves de API*: la clave se emite con
-`POST /api/claves`, con la sesión de la empresa, o por dentro con `POST /internal/claves`.
-
-**La cadena con APOFYX la necesita encendida.** APOFYX entrega la cartera por `/api/v1`, así que
-para correr los tres sistemas juntos ms-debt arranca con `INTEGRACION_API=true`. Los scripts de la
-demo de la cadena la encienden solos.
-
-<details>
-<summary><b>El contrato v1</b>, de sistema a sistema (solo con <code>INTEGRACION_API=true</code>)</summary>
-
-- `GET /api/v1/cuenta`: el sistema comprueba su clave y ve a qué empresa pertenece.
-- `POST /api/v1/carteras`, `/mandatos`, `/campanas` y `/suscripciones`: entrega la cartera, registra sus
-  mandatos y campañas, y se suscribe a los avisos.
-- De vuelta, ms-debt le manda los eventos firmados (`pago.confirmado`, `deuda.disputada`, …).
-
-**Con la API encendida, la conexión se hace sola.** La agencia pega su clave en su sistema, y al
-conectarse la comprueba con `GET /api/v1/cuenta` y se suscribe a los avisos. Un acreedor que
-DataBridge no conoce **lo registra el mandato** de su agencia, que trae su RUT, su razón social y
-su nombre. Solo la agencia, APOFYX, existe desde el arranque; las demás empresas las da de alta
-un `admin` en el panel.
-
-El contrato completo, con sus ejemplos y su esquema JSON, está en
-[`docs/integracion/`](docs/integracion/README.md).
-
-</details>
+**La API de integración está apagada por omisión.** Desde que los deudores entran solo por campaña,
+todo `/api/v1` y `/api/claves` responde `404` mientras `INTEGRACION_API` no sea `true`. La cadena
+con APOFYX la necesita encendida, y sus scripts la encienden solos. El contrato completo, con sus
+ejemplos y su esquema JSON, está en [`docs/integracion/`](docs/integracion/README.md).
 
 ### 7.2 Entidad-relación
 
@@ -1081,21 +994,30 @@ necesita saber cuánto se debe, se lo **pregunta** a ms-debt. Así cada servicio
 sin romper a los demás, y un error en pagos no puede corromper la cartera.
 
 El esquema lo versiona **Flyway**, y cada servicio arranca con `ddl-auto: validate`, que compara
-las entidades con las tablas y se niega a partir si no calzan. En total son **26 tablas, 3 vistas y
-26 llaves foráneas**, ninguna entre una base y otra.
+las entidades con las tablas y se niega a partir si no calzan. En total son **25 tablas de negocio**
+(más las **3 tablas `flyway_schema_history`**, una en cada instancia MySQL), **3 vistas**, **26
+llaves foráneas físicas** (`24` en `tb_debt`, `2` en `tb_payments` y `0` en `tb_auth`) y **68
+reglas `CHECK`**, sin ninguna llave foránea entre una base y otra.
 
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores · `V11` avisos reintentados desde el panel |
-| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
-| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
+| [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
+| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
 llave foránea y `UK` un valor que no se repite; en las líneas, `||` es *uno*, `o{` es *cero o
-muchos* y `|o` es *cero o uno*. Las reglas que exige cada base (`CHECK`) están en
+muchos* y `|o` es *cero o uno*. Las 68 reglas que exige cada base (`CHECK`) están en
 [`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
 #### El diagrama general: las tres bases
+
+![Diagrama Entidad-Relación de las tres bases](docs/diagramas/img/entidad-relacion.png)
+
+> **Alineación entre el diagrama ER y las migraciones vigentes:**
+> - **Tablas por instancia:** Las tres cajas `flyway_schema_history` y las dos `admin_log` corresponden a las bases separadas `tb_auth`, `tb_debt` y `tb_payments`.
+> - **Uniones entre bases vs. llaves foráneas:** En MySQL solo existen las **26 llaves foráneas físicas** dentro de `tb_debt` (24) y `tb_payments` (2). Las líneas punteadas que en la vista consolidada cruzan de una base a otra (`payments` hacia `debts`, `organizations` o `debtors`; y `staff_users`, `access_codes`, `magic_links`, `sessions`, `access_log` o `admin_log` entre `tb_auth` y `tb_debt`) son **relaciones lógicas por RUT o por ID** mantenidas por los servicios en código, como detalla la tabla siguiente.
+> - **CAE en `repactations`:** Con las migraciones `V9` y `V10` de `ms-debt`, la tabla `repactations` incorpora además la columna `cae DECIMAL(6,2)` (`ck_repactation_cae`) para conservar la Carga Anual Equivalente informada al aceptar el convenio.
 
 Todas las tablas de DataBridge en un solo diagrama, cada una con el nombre de su base. Las **líneas
 continuas** son llaves foráneas dentro de una base. Las **punteadas** cruzan de una base a otra: no
@@ -1181,414 +1103,45 @@ erDiagram
 
 #### `tb_debt` — la cartera
 
-```mermaid
-erDiagram
-    organizations ||--o{ api_keys : "se identifica con"
-    campaigns |o--o{ batches : "recibe"
-    organizations ||--o{ batches : "es acreedora en (creditor_id)"
-    organizations ||--o{ batches : "entrega (sender_id)"
-    organizations ||--o{ campaigns : "ejecuta (agency_id)"
-    organizations ||--o{ campaigns : "encarga (creditor_id)"
-    campaigns |o--o{ contacts : "ordena cada toque de"
-    debts ||--o{ contacts : "motiva"
-    installments |o--o| contacts : "se recuerda con"
-    debts ||--o{ debt_charges : "se desglosa en"
-    debts ||--o{ debt_events : "deja historia en"
-    campaigns |o--o{ debts : "gestiona"
-    organizations ||--o{ debts : "es acreedora de"
-    debtors ||--o{ debts : "debe"
-    batches ||--o{ debts : "trae por primera vez (first_batch_id)"
-    batches ||--o{ debts : "actualiza (last_batch_id)"
-    mandates |o--o{ debts : "ampara"
-    debts ||--o{ installments : "se paga en"
-    repactations |o--o{ installments : "arma"
-    organizations ||--o{ mandates : "cobra por otros en (agency_id)"
-    organizations ||--o{ mandates : "encarga su cobranza en (creditor_id)"
-    subscriptions ||--o{ outbox : "recibe"
-    debts ||--o{ repactations : "se repacta en"
-    organizations ||--o{ subscriptions : "se suscribe con"
-```
-
-<details>
-<summary>Las 15 tablas de <code>tb_debt</code> con todas sus columnas</summary>
-
-```mermaid
-erDiagram
-    organizations ||--o{ api_keys : "se identifica con"
-    campaigns |o--o{ batches : "recibe"
-    organizations ||--o{ batches : "es acreedora en (creditor_id)"
-    organizations ||--o{ batches : "entrega (sender_id)"
-    organizations ||--o{ campaigns : "ejecuta (agency_id)"
-    organizations ||--o{ campaigns : "encarga (creditor_id)"
-    campaigns |o--o{ contacts : "ordena cada toque de"
-    debts ||--o{ contacts : "motiva"
-    installments |o--o| contacts : "se recuerda con"
-    debts ||--o{ debt_charges : "se desglosa en"
-    debts ||--o{ debt_events : "deja historia en"
-    campaigns |o--o{ debts : "gestiona"
-    organizations ||--o{ debts : "es acreedora de"
-    debtors ||--o{ debts : "debe"
-    batches ||--o{ debts : "trae por primera vez (first_batch_id)"
-    batches ||--o{ debts : "actualiza (last_batch_id)"
-    mandates |o--o{ debts : "ampara"
-    debts ||--o{ installments : "se paga en"
-    repactations |o--o{ installments : "arma"
-    organizations ||--o{ mandates : "cobra por otros en (agency_id)"
-    organizations ||--o{ mandates : "encarga su cobranza en (creditor_id)"
-    subscriptions ||--o{ outbox : "recibe"
-    debts ||--o{ repactations : "se repacta en"
-    organizations ||--o{ subscriptions : "se suscribe con"
-    admin_log {
-        bigint id PK
-        varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "empresa_creada o aviso_reintentado"
-        varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
-        varchar(254) subject "opcional · a qué o a quién"
-        datetime occurred_at
-    }
-    api_keys {
-        bigint id PK
-        bigint organization_id FK
-        varchar(80) name
-        char(64) key_hash UK "SHA-256 de la clave"
-        varchar(12) prefix "para reconocerla sin revelarla"
-        datetime created_at
-        datetime last_used_at "opcional"
-        datetime revoked_at "opcional · desde cuándo no sirve"
-    }
-    batches {
-        bigint id PK
-        bigint sender_id FK "no se repite junto con external_id"
-        bigint creditor_id FK
-        bigint campaign_id FK "opcional"
-        varchar(64) external_id "el id que le puso quien la envió · no se repite junto con sender_id"
-        date cut_off "la fecha de corte de la cartera"
-        varchar(10) source "api o file"
-        varchar(12) status "processed o rejected"
-        int received_count
-        int accepted_count
-        int rejected_count
-        char(64) payload_hash "para reconocer un reenvío idéntico"
-        json response "lo que se respondió, deuda por deuda"
-        datetime received_at
-    }
-    campaigns {
-        bigint id PK
-        bigint agency_id FK "no se repite junto con external_id"
-        bigint creditor_id FK
-        varchar(64) external_id "el id que le puso la agencia · no se repite junto con agency_id"
-        varchar(120) name
-        date starts_on
-        date ends_on "opcional"
-        json channels "por dónde se contacta"
-        smallint attempts "entre 1 y 10"
-        json cadence_days "opcional · en qué días se le escribe al deudor"
-        json mora_discount "opcional · % de descuento por tramo de mora"
-        varchar(10) status "running, paused o finished"
-        datetime created_at
-    }
-    contacts {
-        bigint id PK
-        bigint debt_id FK "la deuda por la que se le escribió; el deudor es el de esa deuda · no se repite junto con campaign_id y touch_number"
-        varchar(12) kind "invitation, campaign, reminder o resend"
-        varchar(10) channel "por dónde se le escribió: hoy, solo email"
-        varchar(254) destination "opcional · a dónde, con la dirección tapada"
-        bigint campaign_id FK "opcional · solo en un toque de campaña · no se repite junto con debt_id y touch_number"
-        smallint touch_number "opcional · qué toque es de esa campaña para esa deuda: 1, 2… · no se repite junto con debt_id y campaign_id"
-        bigint installment_id FK, UK "opcional · solo en un recordatorio: la cuota que se avisó"
-        datetime occurred_at
-    }
-    debt_charges {
-        bigint id PK
-        bigint debt_id FK
-        varchar(120) concept
-        varchar(7) period "opcional · el mes del cargo"
-        decimal(18_2) amount
-        date due_date
-    }
-    debt_events {
-        bigint id PK
-        bigint debt_id FK
-        varchar(30) type "registered, updated, withdrawn, portal_entered, repacted, payment_applied, settled o disputed"
-        varchar(10) actor "debtor, creditor, agency o system"
-        decimal(18_2) amount "opcional"
-        varchar(3) currency "opcional · CLP o UF"
-        varchar(80) reference "opcional · a qué se refiere: el pago, la cartera, el motivo"
-        json detail "opcional · lo que no calza en una columna"
-        datetime occurred_at
-    }
-    debtors {
-        bigint id PK
-        varchar(12) rut UK
-        varchar(10) kind "person o company"
-        varchar(160) full_name
-        varchar(254) email "opcional"
-        datetime email_failed_at "opcional · la última vez que un correo no salió; vacío si el último salió"
-        varchar(300) email_failure "opcional · por qué no salió, con la dirección tapada"
-        smallint email_rejections "rechazos seguidos de la dirección; a los 3, no se le escribe solo"
-        varchar(20) phone "opcional"
-        boolean reminders "si quiere el recordatorio de sus cuotas"
-        datetime created_at
-        datetime updated_at
-    }
-    debts {
-        bigint id PK
-        bigint creditor_id FK "no se repite junto con external_id"
-        bigint debtor_id FK
-        varchar(64) external_id "el id que le puso el acreedor · no se repite junto con creditor_id"
-        varchar(3) currency "CLP o UF"
-        varchar(200) concept
-        json refs "opcional · referencias del acreedor"
-        decimal(18_2) original_amount "el monto con que llegó"
-        decimal(5_2) interest_rate "opcional · % mensual que pactó el acreedor; vacío, sin interés"
-        varchar(12) status "open, repacted, paid, withdrawn o disputed"
-        bigint mandate_id FK "opcional"
-        bigint campaign_id FK "opcional"
-        bigint first_batch_id FK "la cartera que la trajo"
-        bigint last_batch_id FK "la última cartera que la actualizó"
-        varchar(30) withdrawn_reason "opcional · por qué se retiró"
-        datetime created_at
-        datetime updated_at
-    }
-    installments {
-        bigint id PK
-        bigint debt_id FK "no se repite junto con number"
-        bigint repactation_id FK "opcional · vacío en la cuota original"
-        smallint number "no se repite junto con debt_id"
-        date due_date
-        decimal(18_2) amount
-        decimal(18_2) interest_amount "el interés del convenio dentro de la cuota"
-        varchar(10) status "pending, paid o void"
-        datetime paid_at "opcional"
-    }
-    mandates {
-        bigint id PK
-        bigint agency_id FK "no se repite junto con creditor_id y valid_from"
-        bigint creditor_id FK "no se repite junto con agency_id y valid_from"
-        date valid_from "no se repite junto con agency_id y creditor_id"
-        date valid_to "opcional"
-        smallint max_overdue_days "días de mora hasta donde cobra la agencia"
-        decimal(5_2) max_mora_discount "opcional · % máximo de la mora que se puede condonar"
-        varchar(10) status "active o ended"
-        varchar(160) declared_by "opcional · quién lo declaró"
-        datetime created_at
-    }
-    organizations {
-        bigint id PK
-        varchar(12) rut UK
-        varchar(160) legal_name
-        varchar(120) trade_name
-        varchar(10) kind "creditor, agency o both"
-        varchar(10) status "active o suspended"
-        datetime created_at
-        datetime updated_at
-    }
-    outbox {
-        bigint id PK
-        char(36) event_id "el mismo evento, una fila por suscriptor · no se repite junto con subscription_id"
-        bigint subscription_id FK "no se repite junto con event_id"
-        varchar(30) type
-        json payload
-        datetime occurred_at
-        varchar(10) status "pending, delivered o failed"
-        smallint attempts
-        datetime next_attempt_at "cuándo se reintenta"
-        datetime delivered_at "opcional"
-        varchar(300) last_error "opcional"
-    }
-    repactations {
-        bigint id PK
-        bigint debt_id FK
-        smallint months "entre 1 y 24"
-        decimal(18_2) monthly_amount "el valor de la cuota"
-        decimal(5_2) interest_rate "opcional"
-        decimal(18_2) principal "opcional · lo repactado: capital más mora"
-        decimal(6_2) cae "opcional · la CAE informada al aceptar (D.S. 43)"
-        varchar(3) currency "CLP o UF"
-        datetime accepted_at
-        datetime superseded_at "opcional · cuándo lo reemplazó otro convenio"
-    }
-    subscriptions {
-        bigint id PK
-        bigint organization_id FK "no se repite junto con url"
-        varchar(300) url "no se repite junto con organization_id"
-        varchar(255) secret "cifrado, con una llave fuera de la base"
-        json events "opcional · cuáles quiere; vacío, todos"
-        boolean active
-        datetime created_at
-    }
-```
-
-</details>
-
 Quince tablas y dos vistas (`v_debt_balance`, `v_creditor_portfolio`). Lo que conviene mirar:
 
-- **`organizations`** guarda a los acreedores y a la agencia, con un `kind` que dice cuál es cuál.
-  No hay rubro: un acreedor es cualquiera que tenga cobros. Un `mandates` las une: *esta agencia
-  cobra por cuenta de este acreedor, desde esta fecha*. Sin mandato vigente, una cartera se
-  rechaza.
-- **El saldo no se guarda, se calcula.** `debts` tiene sus `debt_charges`, los pagos se anotan
-  aparte y el saldo sale de la vista. Así no hay dos números que puedan discrepar.
-- **La mora tampoco se guarda.** `debts.interest_rate` es la tasa que pactó el acreedor (vacía, sin
-  interés) y la mora se calcula al día. Lo que sí queda escrito es lo que ya se fijó: el interés del
-  convenio dentro de cada cuota (`installments.interest_amount`), lo repactado y su tasa
-  (`repactations`), y el interés que se cobró en cada pago (`tb_payments.payments.interest_amount`).
-- **`debts.status`** es uno de `open`, `repacted`, `disputed`, `paid` o `withdrawn`
-  ([estados de una deuda](docs/diagramas/estados.md#una-deuda)). Un reclamo queda en `debt_events` con su motivo y el texto del
-  deudor, que no sale de DataBridge.
-- **`contacts`** guarda cada vez que DataBridge le escribió a un deudor: la invitación, un toque de
-  campaña con su número, el recordatorio de una cuota o el código que reenvía la empresa. Es el
-  registro de gestiones que pide la ley, y de ahí se cuenta el límite de dos por semana. La base
-  misma impide repetir un toque de una campaña para una deuda, o recordar dos veces una cuota.
-- **`outbox`** es la bandeja de salida de los eventos, escrita en la misma transacción que el
-  hecho que los provoca. Si el sistema se cae entre "cobré" y "avisé", el aviso sigue ahí.
-- **`subscriptions.secret`** va **cifrado** ([§9](#9-requisitos-no-funcionales)).
+- **`organizations`** guarda a los acreedores y a las agencias, con un `kind` que dice cuál es
+  cuál. Un **`mandates`** las une, y sin mandato vigente una cartera se rechaza.
+- **El saldo y la mora no se guardan, se calculan** con los `debt_charges`, las cuotas y la tasa
+  que pactó el acreedor. Queda escrito solo lo que ya se fijó: el interés de cada cuota, lo
+  repactado con su tasa y su CAE (`repactations`), y lo cobrado en cada pago.
+- **`contacts`** es el registro de gestiones que pide la ley: de ahí se cuenta el límite de dos por
+  semana, y la base impide repetir un toque de campaña o recordar dos veces una cuota.
+- **`outbox`** es la bandeja de salida de los eventos, escrita en la misma transacción que el hecho
+  que los provoca, y **`subscriptions.secret`** va cifrado ([§9](#9-requisitos-no-funcionales)).
 
 #### `tb_auth` — quién entra
 
-```mermaid
-erDiagram
-    direction LR
-    access_codes {
-        bigint id PK
-        char(64) code_hash UK "SHA-256 de RUT y código: el código no se guarda"
-        varchar(12) debtor_rut "el RUT del deudor (debtors.rut, en tb_debt)"
-        json channels "por dónde se mandó"
-        datetime issued_at
-        datetime expires_at
-        datetime consumed_at "opcional · cuándo se usó"
-        smallint attempts "intentos fallidos"
-        smallint max_attempts "el tope: 5"
-        varchar(64) issued_for "opcional"
-    }
-    access_log {
-        bigint id PK
-        varchar(12) debtor_rut "opcional · vacío si es del personal"
-        varchar(12) method "code o magic_link"
-        varchar(12) outcome "granted, expired, invalid, exhausted, sent o refused"
-        char(64) ip_hash "opcional · SHA-256 de la IP: la IP no se guarda"
-        datetime occurred_at
-    }
-    admin_log {
-        bigint id PK
-        varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada o persona_habilitada"
-        varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
-        varchar(254) subject "opcional · a qué o a quién"
-        datetime occurred_at
-    }
-    magic_links {
-        bigint id PK
-        char(64) token_hash UK "SHA-256 del enlace"
-        char(64) code_hash "opcional · SHA-256 de identidad y código solicitado"
-        smallint attempts "intentos fallidos compartidos"
-        smallint max_attempts "5 por omisión"
-        boolean link_enabled "false en el envío de solo código"
-        varchar(12) debtor_rut "opcional · solo si el enlace es de un deudor"
-        varchar(254) email
-        datetime issued_at
-        datetime expires_at
-        datetime consumed_at "opcional · cuándo se usó"
-    }
-    sessions {
-        bigint id PK
-        char(36) family_id "las llaves de un mismo inicio de sesión"
-        char(64) refresh_hash UK "SHA-256 de la llave de renovación"
-        varchar(10) role "DEBTOR, CREDITOR o ADMIN"
-        varchar(12) rut "opcional · el del deudor"
-        varchar(254) email "opcional · el del usuario de una empresa o del admin"
-        datetime issued_at
-        datetime expires_at
-        datetime rotated_at "opcional · cuándo se cambió por la siguiente"
-        datetime revoked_at "opcional · cuándo se revocó"
-        char(64) ip_hash "opcional · SHA-256 de la IP"
-    }
-    staff_users {
-        bigint id PK
-        varchar(12) org_rut "opcional · su empresa (organizations.rut, en tb_debt); el admin no tiene"
-        varchar(254) email UK
-        varchar(160) full_name
-        varchar(10) role "usuario o admin"
-        datetime created_at
-        datetime last_login_at "opcional"
-        datetime disabled_at "opcional · si se le quitó el acceso"
-    }
-```
-
-**No hay tabla de usuarios deudores:** el deudor no tiene cuenta. Se guarda el hash del código,
-nunca el código; el hash de la llave de renovación, nunca la llave; y en `access_log` el hash de
-la IP, nunca la IP. Las seis tablas no tienen llaves foráneas entre sí: cada una se busca por su
-propia huella, o por el RUT o el correo de alguien. `staff_users` guarda a la gente de las
-empresas (`usuario`) y a los `admin` de DataBridge, y `admin_log` lo que un `admin` hizo con ellas.
+Seis tablas, sin llaves foráneas entre sí. **El deudor no tiene cuenta:** se guarda el hash del
+código, nunca el código; el de la llave de renovación, nunca la llave; y en `access_log`, el de la
+IP, nunca la IP. `staff_users` guarda a la gente de las empresas (`usuario`) y a los `admin`, y
+`admin_log` lo que un `admin` hizo con ellas.
 
 #### `tb_payments` — la plata
 
-```mermaid
-erDiagram
-    payments ||--o| debt_notifications : "avisa con"
-    payments ||--o{ payment_events : "deja rastro en"
-    debt_notifications {
-        bigint id PK
-        bigint payment_id FK, UK
-        varchar(10) status "pending, delivered o failed"
-        smallint attempts
-        datetime next_attempt_at "cuándo se reintenta"
-        datetime delivered_at "opcional"
-        varchar(300) last_error "opcional"
-    }
-    payment_events {
-        bigint id PK
-        bigint payment_id FK
-        varchar(12) type "created, authorized, paid, failed, expired, refunded o duplicated"
-        varchar(10) source "portal, webhook o manual"
-        boolean signature_ok "opcional · si la firma del aviso era válida"
-        json gateway_payload "opcional · lo que respondió la pasarela"
-        datetime occurred_at
-    }
-    payments {
-        bigint id PK
-        bigint debt_id "la deuda (debts.id, en tb_debt)"
-        bigint installment_id "opcional · la cuota, si es una sola"
-        varchar(2000) installment_ids "opcional · las cuotas que cubre"
-        varchar(12) debtor_rut
-        varchar(12) creditor_rut
-        decimal(18_2) amount "en la moneda de la deuda"
-        decimal(18_2) interest_amount "opcional · la mora cobrada"
-        decimal(18_2) discount_amount "opcional · lo condonado"
-        varchar(3) currency "CLP o UF"
-        bigint amount_clp "opcional · los pesos que cobra la pasarela"
-        decimal(12_2) uf_value "opcional · la UF del día, si la deuda es en UF"
-        varchar(20) gateway "mercadopago, khipu o webpay · no se repite junto con gateway_txn_id"
-        varchar(80) gateway_txn_id "opcional · el id del cobro en la pasarela · no se repite junto con gateway"
-        varchar(12) status "created, authorized, paid, failed, expired, refunded o duplicated"
-        datetime created_at
-        datetime redirected_at "opcional · cuándo se lo llevó a Webpay"
-        datetime paid_at "opcional"
-    }
-    uf_values {
-        date day PK
-        decimal(12_2) value
-        varchar(40) source "de dónde se trajo"
-        datetime fetched_at
-    }
-    admin_log {
-        bigint id PK
-        varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "aviso_reintentado o uf_cargada"
-        varchar(254) subject "opcional · el aviso de qué pago, o el día y el valor de la UF"
-        datetime occurred_at
-    }
-```
+Cuatro tablas y la vista `v_collection` (lo recaudado por acreedor y por mes). Un pago se crea al
+abrir el cobro, y cada cambio queda en `payment_events`, que solo se agrega, con lo que respondió
+la pasarela. `UNIQUE (gateway, gateway_txn_id)` impide cobrar dos veces la misma transacción, y
+`debt_notifications` es el aviso a ms-debt con sus reintentos.
 
-Un pago se crea al abrir el cobro, no al confirmarlo, y cambia de estado; cada cambio queda en
-`payment_events`, que es **append-only**: solo se agrega. Lo que respondió la pasarela (la
-confirmación de Transbank, o lo que dijo Khipu) queda entero en `payment_events.gateway_payload`.
-`UNIQUE (gateway, gateway_txn_id)` impide cobrar dos veces la misma transacción aunque la pasarela
-repita el aviso. `debt_notifications` es el aviso a ms-debt, con sus reintentos, y la vista
-`v_collection` suma lo recaudado por acreedor y por mes. `admin_log` anota lo que el `admin` hizo
-desde *Operación*: los avisos que reintentó y la UF que cargó a mano.
+Cada tabla con todas sus columnas, y las reglas `CHECK` de cada base, están en
+[`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
 ### 7.3 Casos de uso
+
+![Diagrama de casos de uso de DataBridge](docs/diagramas/img/casos-de-uso.png)
+
+**Qué está hecho en el código para cada actor del diagrama:**
+
+- **Deudor:** entra con su RUT y el código de 6 caracteres o el enlace enviado por **Brevo**/SMTP (`ms-auth`); ve sus deudas, cargos y mora (`ms-debt`); simula y acepta planes de repactación de 3 a 24 cuotas con su CAE y costo total; paga el total de la deuda o cuotas en orden de vencimiento mediante **Webpay, Khipu o Mercado Pago** (`ms-payments`); descarga el certificado de deuda pagada y los comprobantes en PDF; y consulta al asistente (`ms-ai`).
+- **Personal de la empresa (`CREDITOR`):** entra con su correo corporativo y código/enlace; gestiona sus campañas de cobranza (crear, pausar, terminar, cargar cartera en planilla y reenviar códigos); resuelve reclamos y revisa el panel de recuperación y los pagos recibidos.
+- **Administrador de DataBridge (`ADMIN`):** entra a `/admin` con correo y código/enlace; da de alta empresas usuarias y a su gente; habilita y deshabilita accesos del personal; y revisa el estado de los servicios, las reglas vigentes y la bitácora de auditoría (`admin_log` y `access_log`). *(En el código actual, dar de alta empresas, habilitar/deshabilitar accesos del personal y revisar la bitácora global son exclusivos del rol `ADMIN` en `/api/admin/**`).*
+- **APOFYX y sistemas externos:** APOFYX registra mandatos, campañas y entrega cartera por `/api/v1` (cuando `INTEGRACION_API=true`); el **Banco Central (BDE)** provee el valor diario de la UF a `ms-payments` para convertir los cobros en UF a pesos chilenos (CLP); **Webpay, Khipu y Mercado Pago** procesan el cobro y `ms-payments` verifica el estado servidor a servidor antes de aprobar o rechazar y notificar por RabbitMQ; y el proveedor LLM (**Grok / Groq / Gemini** vía `LlmService`, o `MotorLocal` sin llave) procesa las consultas del asistente leyendo las deudas del deudor en `ms-debt`.
 
 ```mermaid
 flowchart LR
@@ -1637,183 +1190,9 @@ flowchart LR
 El certificado (`U7`) solo se emite si la deuda está **pagada**: una deuda retirada también queda
 en saldo cero, y certificar eso sería decir algo falso.
 
-#### De cada actor
-
-<details>
-<summary><b>El deudor</b></summary>
-
-```mermaid
-flowchart LR
-    DEU(("Deudor"))
-    subgraph TB["Portal de pago · /app"]
-        direction TB
-        D1(["Entrar con su RUT y su código"])
-        D2(["Pedir el enlace de respaldo"])
-        D3(["Ver sus deudas: a quién, cuánto,<br/>la mora y el total de hoy"])
-        D4(["Simular un convenio"])
-        D5(["Aceptar un convenio"])
-        D6(["Pagar la deuda o sus cuotas"])
-        D7(["Reclamar una deuda"])
-        D8(["Ver sus próximos vencimientos"])
-        D9(["Ver sus pagos y<br/>descargar el comprobante"])
-        D10(["Descargar el certificado<br/>de deuda pagada"])
-        D11(["Ver sus datos y encender o<br/>apagar los recordatorios"])
-        D12(["Preguntarle al asistente"])
-        D13(["Cerrar sesión"])
-    end
-    PAS{{"Webpay · Khipu<br/>Mercado Pago"}}
-    COR{{"Servidor de correo"}}
-    LLM{{"LLM"}}
-
-    DEU --> D1 & D3 & D4 & D5 & D6 & D7 & D8 & D9 & D10 & D11 & D12 & D13
-    D2 -. "«extend»<br/>si no le llegó el código" .-> D1
-    D5 -. "«include»" .-> D4
-    D6 -. "«include»" .-> D3
-    D10 -. "«extend»<br/>solo si está pagada" .-> D3
-    D6 --- PAS
-    D2 --- COR
-    D12 --- LLM
-```
-
-</details>
-
-<details>
-<summary><b>El usuario de una empresa</b></summary>
-
-```mermaid
-flowchart LR
-    USU(("Usuario de<br/>una empresa"))
-    subgraph DBE["Portal de empresas · /databridge"]
-        direction TB
-        E1(["Entrar con correo y código"])
-        E2(["Ver la cartera y el<br/>resumen de recuperación"])
-        E3(["Ver una deuda y su historia"])
-        E4(["Reenviarle el código al deudor"])
-        E5(["Resolver un reclamo"])
-        E6(["Revisar los pagos recibidos<br/>y los pagos para devolver"])
-        E7(["Seguir los convenios en riesgo"])
-        E8(["Cargar deudores<br/>en una campaña"])
-        E9(["Crear, pausar y terminar campañas"])
-        E12(["Consultar la comisión mensual<br/>y lo recuperado por campaña"])
-        E11(["Exportar la cartera a un archivo"])
-    end
-    COR{{"Servidor de correo"}}
-
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12
-    E3 -. "«include»" .-> E2
-    E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
-    E5 -. "«extend»<br/>si está en reclamo" .-> E3
-    E11 -. "«include»" .-> E2
-    E1 --- COR
-    E4 --- COR
-```
-
-</details>
-
-<details>
-<summary><b>El admin de DataBridge</b></summary>
-
-```mermaid
-flowchart LR
-    ADM(("Admin de<br/>DataBridge"))
-    subgraph PAN["Panel de administración · /admin"]
-        direction TB
-        A1(["Entrar con correo y código"])
-        A2(["Ver si cada servicio<br/>responde con su sesión"])
-        A3(["Ver las empresas y los<br/>totales de su cartera"])
-        A4(["Dar de alta una empresa usuaria<br/>con su primera persona"])
-        A5(["Darle acceso a otra<br/>persona de una empresa"])
-        A6(["Quitarle o devolverle<br/>el acceso a una persona"])
-        A7(["Dar de alta a otro admin"])
-        A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
-        A9(["Ver las reglas que rigen"])
-        A10(["Consultar la comisión mensual<br/>de cada empresa"])
-        A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
-        A12(["Ver lo que no se entregó<br/>y reintentarlo"])
-        A13(["Cargar a mano la UF de un día"])
-    end
-    COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13
-    A13 -. "«extend»<br/>si falta la UF de hoy" .-> A12
-    A4 -. "«include»" .-> A5
-    A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
-    A6 -. "«extend»" .-> A3
-    A8 -. "«extend»" .-> A3
-    A1 --- COR
-    A5 --- COR
-    A7 --- COR
-```
-
-</details>
-
-<details>
-<summary><b>El sistema de una empresa, con la API encendida</b></summary>
-
-```mermaid
-flowchart LR
-    SIS(("Sistema de<br/>una empresa"))
-    subgraph API["Contrato de integración · /api/v1 · apagado por omisión"]
-        direction TB
-        S1(["Comprobar su clave y<br/>con quién se conecta"])
-        S2(["Registrar un mandato"])
-        S3(["Registrar o actualizar una campaña"])
-        S4(["Entregar una cartera,<br/>en JSON o en CSV"])
-        S5(["Suscribirse a los eventos"])
-        S6(["Recibir cada evento, firmado"])
-    end
-    SIS --> S1 & S2 & S3 & S4 & S5
-    S6 --> SIS
-    S4 -. "«include»<br/>de una agencia" .-> S2
-    S3 -. "«include»" .-> S2
-    S6 -. "«include»" .-> S5
-```
-
-</details>
-
-<details>
-<summary><b>Lo que corre solo, y la operación</b></summary>
-
-```mermaid
-flowchart LR
-    REL(("El reloj"))
-    OPE(("Operación de<br/>DataBridge"))
-    subgraph AUT["Tareas de DataBridge"]
-        direction TB
-        R0(["Invitar al deudor cuando<br/>su deuda entra a cobranza"])
-        R1(["Escribirle al deudor<br/>según la campaña"])
-        R2(["Recordar las cuotas<br/>que vencen pronto"])
-        R3(["Publicar el avance<br/>de las campañas"])
-        R4(["Entregar los eventos pendientes"])
-        R5(["Preguntar a las pasarelas<br/>por los cobros abiertos"])
-        R6(["Vencer los cobros abandonados"])
-        R7(["Avisar a ms-debt cada pago confirmado"])
-        R8(["Traer la UF del día"])
-        O1(["Cargar la UF a mano"])
-        O2(["Emitir una clave de API<br/>para una empresa"])
-        O3(["Mandar un correo de prueba"])
-    end
-    COR{{"Servidor de correo"}}
-    PAS{{"Webpay · Khipu<br/>Mercado Pago"}}
-    BCC{{"Banco Central"}}
-    SIS{{"Sistema de<br/>una empresa"}}
-
-    REL --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8
-    OPE --> R1 & R2 & R3 & R8 & O1 & O2 & O3
-    O3 --- COR
-    R0 --- COR
-    R1 --- COR
-    R2 --- COR
-    R3 -. "«include»" .-> R4
-    R4 --- SIS
-    R5 --- PAS
-    R6 --- PAS
-    R8 --- BCC
-    O1 -. "«extend»<br/>si el Banco Central no responde" .-> R8
-```
-
-</details>
-
-Cada caso con su endpoint está en [`docs/diagramas/casos-de-uso.md`](docs/diagramas/casos-de-uso.md).
+Los casos de uso **de cada actor** (el deudor, el usuario de una empresa, el `admin`, el sistema de
+una empresa y lo que corre solo), con el endpoint de cada uno, están en
+[`docs/diagramas/casos-de-uso.md`](docs/diagramas/casos-de-uso.md).
 
 #### Los escenarios que recorren los diagramas
 
@@ -1924,850 +1303,14 @@ los cargos, las cuotas y la tasa ([§7.2](#72-entidad-relación)). Lo que sí qu
 fijó: el interés de cada cuota del convenio, y el interés y el descuento de cada pago. El descuento
 de una campaña nunca pasa del máximo que el acreedor autorizó en el mandato.
 
-#### De cada servicio
-
-<details>
-<summary><b>ms-auth</b> · el acceso: códigos, enlaces, sesiones y personas</summary>
-
-```mermaid
-classDiagram
-    direction LR
-    namespace model {
-        class AccessCode {
-            <<entity>>
-            -id : Long
-            -codeHash : String
-            -debtorRut : String
-            -channels : String
-            -issuedAt : Instant
-            -expiresAt : Instant
-            -consumedAt : Instant
-            -attempts : Short
-            -maxAttempts : Short
-            -issuedFor : String
-            +fallo() void
-            +consumir() void
-        }
-        class MagicLink {
-            <<entity>>
-            -id : Long
-            -tokenHash : String
-            -codeHash : String
-            -attempts : Short
-            -maxAttempts : Short
-            -linkEnabled : boolean
-            -debtorRut : String
-            -email : String
-            -issuedAt : Instant
-            -expiresAt : Instant
-            -consumedAt : Instant
-            +vigente() boolean
-            +fallo() void
-        }
-        class Session {
-            <<entity>>
-            -id : Long
-            -familyId : String
-            -refreshHash : String
-            -role : Role
-            -rut : String
-            -email : String
-            -issuedAt : Instant
-            -expiresAt : Instant
-            -rotatedAt : Instant
-            -revokedAt : Instant
-            -ipHash : String
-            +revocada() boolean
-            +rotada() boolean
-            +vencida(Instant) boolean
-        }
-        class Session_Role["Session.Role"] {
-            <<enumeration>>
-            DEBTOR
-            CREDITOR
-            ADMIN
-        }
-        class StaffUser {
-            <<entity>>
-            -id : Long
-            -orgRut : String
-            -email : String
-            -fullName : String
-            -role : Role
-            -createdAt : Instant
-            -lastLoginAt : Instant
-            -disabledAt : Instant
-            +habilitado() boolean
-            +esAdmin() boolean
-            +deshabilitar() void
-            +habilitar() void
-        }
-        class StaffUser_Role["StaffUser.Role"] {
-            <<enumeration>>
-            usuario
-            admin
-        }
-        class AccessLog {
-            <<entity>>
-            -id : Long
-            -debtorRut : String
-            -method : Method
-            -outcome : Outcome
-            -ipHash : String
-            -occurredAt : Instant
-            +de(String, Method, Outcome, String)$ AccessLog
-        }
-        class AccessLog_Method["AccessLog.Method"] {
-            <<enumeration>>
-            code
-            magic_link
-        }
-        class AccessLog_Outcome["AccessLog.Outcome"] {
-            <<enumeration>>
-            granted
-            expired
-            invalid
-            exhausted
-            sent
-            refused
-        }
-        class AdminLog {
-            <<entity>>
-            -id : Long
-            -adminEmail : String
-            -action : Action
-            -orgRut : String
-            -subject : String
-            -occurredAt : Instant
-            +de(String, Action, String, String)$ AdminLog
-        }
-        class AdminLog_Action["AdminLog.Action"] {
-            <<enumeration>>
-            persona_creada
-            admin_creado
-            persona_deshabilitada
-            persona_habilitada
-        }
-    }
-    Session ..> Session_Role
-    StaffUser ..> StaffUser_Role
-    AccessLog ..> AccessLog_Method
-    AccessLog ..> AccessLog_Outcome
-    AdminLog ..> AdminLog_Action
-```
-
-</details>
-
-<details>
-<summary><b>ms-debt</b> · la cartera: deudas, cuotas, convenios, campañas y empresas</summary>
-
-```mermaid
-classDiagram
-    direction TB
-    namespace model {
-        class Organization {
-            <<entity>>
-            -id : Long
-            -rut : String
-            -legalName : String
-            -tradeName : String
-            -kind : Kind
-            -status : Status
-            -createdAt : Instant
-            -updatedAt : Instant
-            +esAgencia() boolean
-        }
-        class Organization_Kind["Organization.Kind"] {
-            <<enumeration>>
-            creditor
-            agency
-            both
-        }
-        class Organization_Status["Organization.Status"] {
-            <<enumeration>>
-            active
-            suspended
-        }
-        class ApiKey {
-            <<entity>>
-            -id : Long
-            -organization : Organization
-            -name : String
-            -keyHash : String
-            -prefix : String
-            -createdAt : Instant
-            -lastUsedAt : Instant
-            -revokedAt : Instant
-        }
-        class Mandate {
-            <<entity>>
-            -id : Long
-            -agency : Organization
-            -creditor : Organization
-            -validFrom : LocalDate
-            -validTo : LocalDate
-            -maxOverdueDays : Short
-            -maxMoraDiscount : BigDecimal
-            -status : Status
-            -declaredBy : String
-            -createdAt : Instant
-            +vigenteAl(LocalDate) boolean
-        }
-        class Mandate_Status["Mandate.Status"] {
-            <<enumeration>>
-            active
-            ended
-        }
-        class Campaign {
-            <<entity>>
-            -id : Long
-            -agency : Organization
-            -creditor : Organization
-            -externalId : String
-            -name : String
-            -startsOn : LocalDate
-            -endsOn : LocalDate
-            -channels : String
-            -attempts : Short
-            -cadenceDays : String
-            -moraDiscount : String
-            -status : Status
-            -createdAt : Instant
-        }
-        class Campaign_Status["Campaign.Status"] {
-            <<enumeration>>
-            running
-            paused
-            finished
-        }
-        class Batch {
-            <<entity>>
-            -id : Long
-            -sender : Organization
-            -creditor : Organization
-            -externalId : String
-            -cutOff : LocalDate
-            -source : Source
-            -status : Status
-            -receivedCount : Integer
-            -acceptedCount : Integer
-            -rejectedCount : Integer
-            -payloadHash : String
-            -response : String
-            -receivedAt : Instant
-        }
-        class Batch_Source["Batch.Source"] {
-            <<enumeration>>
-            api
-            file
-        }
-        class Batch_Status["Batch.Status"] {
-            <<enumeration>>
-            processed
-            rejected
-        }
-        class Debtor {
-            <<entity>>
-            -id : Long
-            -rut : String
-            -kind : Kind
-            -fullName : String
-            -email : String
-            -emailFailedAt : Instant
-            -emailFailure : String
-            -emailRejections : short
-            -phone : String
-            -reminders : boolean
-            -createdAt : Instant
-            -updatedAt : Instant
-            +correoNoSalio(String, boolean, Instant) void
-            +correoSalio() void
-            +correoConProblemas() boolean
-        }
-        class Debtor_Kind["Debtor.Kind"] {
-            <<enumeration>>
-            person
-            company
-        }
-        class Debt {
-            <<entity>>
-            -id : Long
-            -creditor : Organization
-            -debtor : Debtor
-            -externalId : String
-            -currency : Currency
-            -concept : String
-            -refs : String
-            -originalAmount : BigDecimal
-            -interestRate : BigDecimal
-            -status : Status
-            -mandate : Mandate
-            -campaign : Campaign
-            -firstBatch : Batch
-            -lastBatch : Batch
-            -withdrawnReason : String
-            -createdAt : Instant
-            -updatedAt : Instant
-        }
-        class Debt_Currency["Debt.Currency"] {
-            <<enumeration>>
-            CLP
-            UF
-        }
-        class Debt_Status["Debt.Status"] {
-            <<enumeration>>
-            open
-            repacted
-            paid
-            withdrawn
-            disputed
-        }
-        class DebtCharge {
-            <<entity>>
-            -id : Long
-            -debt : Debt
-            -concept : String
-            -period : String
-            -amount : BigDecimal
-            -dueDate : LocalDate
-        }
-        class Repactation {
-            <<entity>>
-            -id : Long
-            -debt : Debt
-            -months : Short
-            -monthlyAmount : BigDecimal
-            -currency : Debt.Currency
-            -interestRate : BigDecimal
-            -principal : BigDecimal
-            -acceptedAt : Instant
-            -supersededAt : Instant
-        }
-        class Installment {
-            <<entity>>
-            -id : Long
-            -debt : Debt
-            -repactation : Repactation
-            -number : Short
-            -dueDate : LocalDate
-            -amount : BigDecimal
-            -interestAmount : BigDecimal
-            -status : Status
-            -paidAt : Instant
-            +enConvenio() boolean
-            +capital() BigDecimal
-        }
-        class Installment_Status["Installment.Status"] {
-            <<enumeration>>
-            pending
-            paid
-            void_
-        }
-        class DebtEvent {
-            <<entity>>
-            -id : Long
-            -debt : Debt
-            -type : Type
-            -actor : Actor
-            -amount : BigDecimal
-            -currency : Debt.Currency
-            -reference : String
-            -detail : String
-            -occurredAt : Instant
-            +de(Debt, Type, Actor)$ DebtEvent
-            +conMonto(BigDecimal, Debt.Currency) DebtEvent
-            +conReferencia(String) DebtEvent
-            +conDetalle(String) DebtEvent
-        }
-        class DebtEvent_Type["DebtEvent.Type"] {
-            <<enumeration>>
-            registered
-            updated
-            withdrawn
-            portal_entered
-            repacted
-            payment_applied
-            settled
-            disputed
-        }
-        class DebtEvent_Actor["DebtEvent.Actor"] {
-            <<enumeration>>
-            debtor
-            creditor
-            agency
-            system
-        }
-        class Contact {
-            <<entity>>
-            -id : Long
-            -debt : Debt
-            -kind : Kind
-            -channel : Channel
-            -destination : String
-            -campaign : Campaign
-            -touchNumber : Short
-            -installment : Installment
-            -occurredAt : Instant
-            +invitacion(Debt, String)$ Contact
-            +toque(Debt, Campaign, int, String)$ Contact
-            +recordatorio(Installment, String)$ Contact
-            +reenvio(Debt, String)$ Contact
-            +el(Instant) Contact
-            +deLaEmpresa() boolean
-        }
-        class Contact_Kind["Contact.Kind"] {
-            <<enumeration>>
-            invitation
-            campaign
-            reminder
-            resend
-        }
-        class Contact_Channel["Contact.Channel"] {
-            <<enumeration>>
-            email
-        }
-        class DetallePago {
-            <<record>>
-            +pagoId : Long
-            +montoClp : Long
-            +valorUf : BigDecimal
-            +pasarela : String
-            +cuotas : List~Integer~
-            +de : Integer
-            +fuera : Integer
-            +interes : BigDecimal
-            +descuento : BigDecimal
-            +empresaRut : String
-            +empresaNombre : String
-            +campanaId : String
-            +campanaNombre : String
-        }
-        class Subscription {
-            <<entity>>
-            -id : Long
-            -organization : Organization
-            -url : String
-            -secret : String
-            -events : String
-            -active : Boolean
-            -createdAt : Instant
-        }
-        class OutboxEvent {
-            <<entity>>
-            -id : Long
-            -eventId : String
-            -subscription : Subscription
-            -type : String
-            -payload : String
-            -occurredAt : Instant
-            -status : Status
-            -attempts : Short
-            -nextAttemptAt : Instant
-            -deliveredAt : Instant
-            -lastError : String
-            +para(Subscription, String, String, String, Instant)$ OutboxEvent
-            +entregado() void
-            +fallo(String) void
-            +reintentar() void
-        }
-        class OutboxEvent_Status["OutboxEvent.Status"] {
-            <<enumeration>>
-            pending
-            delivered
-            failed
-        }
-        class AdminLog {
-            <<entity>>
-            -id : Long
-            -adminEmail : String
-            -action : Action
-            -orgRut : String
-            -subject : String
-            -occurredAt : Instant
-            +de(String, Action, String, String)$ AdminLog
-        }
-        class AdminLog_Action["AdminLog.Action"] {
-            <<enumeration>>
-            empresa_creada
-            aviso_reintentado
-        }
-    }
-    Organization ..> Organization_Kind
-    Organization ..> Organization_Status
-    Mandate ..> Mandate_Status
-    Campaign ..> Campaign_Status
-    Batch ..> Batch_Source
-    Batch ..> Batch_Status
-    Debtor ..> Debtor_Kind
-    Debt ..> Debt_Currency
-    Debt ..> Debt_Status
-    Installment ..> Installment_Status
-    DebtEvent ..> DebtEvent_Type
-    DebtEvent ..> DebtEvent_Actor
-    Contact ..> Contact_Kind
-    Contact ..> Contact_Channel
-    OutboxEvent ..> OutboxEvent_Status
-    AdminLog ..> AdminLog_Action
-    ApiKey "*" --> "1" Organization : organization
-    Mandate "*" --> "1" Organization : agency
-    Mandate "*" --> "1" Organization : creditor
-    Campaign "*" --> "1" Organization : agency
-    Campaign "*" --> "1" Organization : creditor
-    Batch "*" --> "1" Organization : sender
-    Batch "*" --> "1" Organization : creditor
-    Debt "*" --> "1" Organization : creditor
-    Debt "*" --> "1" Debtor : debtor
-    Debt "*" --> "0..1" Mandate : mandate
-    Debt "*" --> "0..1" Campaign : campaign
-    Debt "*" --> "1" Batch : firstBatch
-    Debt "*" --> "1" Batch : lastBatch
-    DebtCharge "*" --> "1" Debt : debt
-    Repactation "*" --> "1" Debt : debt
-    Installment "*" --> "1" Debt : debt
-    Installment "*" --> "0..1" Repactation : repactation
-    DebtEvent "*" --> "1" Debt : debt
-    Contact "*" --> "1" Debt : debt
-    Contact "*" --> "0..1" Campaign : campaign
-    Contact "*" --> "0..1" Installment : installment
-    Subscription "*" --> "1" Organization : organization
-    OutboxEvent "*" --> "1" Subscription : subscription
-    DebtEvent ..> DetallePago : detail
-    Repactation ..> Debt_Currency
-    DebtEvent ..> Debt_Currency
-```
-
-</details>
-
-<details>
-<summary><b>ms-payments</b> · los cobros: pagos, sus eventos, el aviso y la UF</summary>
-
-```mermaid
-classDiagram
-    direction LR
-    namespace model {
-        class Payment {
-            <<entity>>
-            -id : Long
-            -debtId : Long
-            -installmentId : Long
-            -installmentIds : String
-            -debtorRut : String
-            -creditorRut : String
-            -amount : BigDecimal
-            -interestAmount : BigDecimal
-            -discountAmount : BigDecimal
-            -currency : Currency
-            -amountClp : Long
-            -ufValue : BigDecimal
-            -gateway : Gateway
-            -gatewayTxnId : String
-            -status : Status
-            -createdAt : Instant
-            -paidAt : Instant
-            -redirectedAt : Instant
-            +cuotas() Set~Long~
-        }
-        class Payment_Currency["Payment.Currency"] {
-            <<enumeration>>
-            CLP
-            UF
-        }
-        class Payment_Gateway["Payment.Gateway"] {
-            <<enumeration>>
-            mercadopago
-            khipu
-            webpay
-        }
-        class Payment_Status["Payment.Status"] {
-            <<enumeration>>
-            created
-            authorized
-            paid
-            failed
-            expired
-            refunded
-            duplicated
-        }
-        class PaymentEvent {
-            <<entity>>
-            -id : Long
-            -paymentId : Long
-            -type : Type
-            -source : Source
-            -signatureOk : Boolean
-            -gatewayPayload : String
-            -occurredAt : Instant
-            +de(Long, Type, Source)$ PaymentEvent
-            +conFirma(Boolean) PaymentEvent
-            +conRespuesta(String) PaymentEvent
-        }
-        class PaymentEvent_Type["PaymentEvent.Type"] {
-            <<enumeration>>
-            created
-            authorized
-            paid
-            failed
-            expired
-            refunded
-            duplicated
-        }
-        class PaymentEvent_Source["PaymentEvent.Source"] {
-            <<enumeration>>
-            portal
-            webhook
-            manual
-        }
-        class DebtNotification {
-            <<entity>>
-            -id : Long
-            -paymentId : Long
-            -status : Status
-            -attempts : Short
-            -nextAttemptAt : Instant
-            -deliveredAt : Instant
-            -lastError : String
-            +para(Long)$ DebtNotification
-            +entregado() void
-            +fallo(String) void
-            +reintentar() void
-        }
-        class DebtNotification_Status["DebtNotification.Status"] {
-            <<enumeration>>
-            pending
-            delivered
-            failed
-        }
-        class UfValue {
-            <<entity>>
-            -day : LocalDate
-            -value : BigDecimal
-            -source : String
-            -fetchedAt : Instant
-        }
-        class AdminLog {
-            <<entity>>
-            -id : Long
-            -adminEmail : String
-            -action : Action
-            -subject : String
-            -occurredAt : Instant
-            +de(String, Action, String)$ AdminLog
-        }
-        class AdminLog_Action["AdminLog.Action"] {
-            <<enumeration>>
-            aviso_reintentado
-            uf_cargada
-        }
-    }
-    namespace events {
-        class PagoConfirmado {
-            <<record>>
-            +tipo : String
-            +paymentId : Long
-            +debtId : Long
-            +installmentId : Long
-            +debtorRut : String
-            +creditorRut : String
-            +amount : BigDecimal
-            +currency : String
-            +amountClp : Long
-            +ufValue : BigDecimal
-            +gateway : String
-            +gatewayTxnId : String
-            +paidAt : Instant
-            +installmentIds : List~Long~
-            +interest : BigDecimal
-            +discount : BigDecimal
-        }
-    }
-    Payment ..> Payment_Currency
-    Payment ..> Payment_Gateway
-    Payment ..> Payment_Status
-    PaymentEvent ..> PaymentEvent_Type
-    PaymentEvent ..> PaymentEvent_Source
-    DebtNotification ..> DebtNotification_Status
-    AdminLog ..> AdminLog_Action
-    PaymentEvent ..> Payment : paymentId
-    DebtNotification ..> Payment : paymentId
-    PagoConfirmado ..> Payment : se arma con
-```
-
-</details>
-
-<details>
-<summary><b>ms-ai</b> · el asistente, todo el servicio</summary>
-
-```mermaid
-classDiagram
-    direction LR
-    namespace controller {
-        class ChatController {
-            <<controller>>
-            +chat(Pregunta, String) Respuesta
-        }
-        class SaludController {
-            <<controller>>
-            +salud() Salud
-        }
-    }
-    namespace service {
-        class AsistenteService {
-            <<service>>
-            +responder(Pregunta, String) Respuesta
-        }
-        class LlmService {
-            <<service>>
-            +configurado() boolean
-            +responder(List, List, String) Optional~String~
-            +destroy() void
-        }
-        class LlmService_Mensaje["LlmService.Mensaje"] {
-            <<record>>
-            +rol : String
-            +contenido : String
-        }
-        class MotorLocal {
-            <<utility>>
-            +sentimiento(String)$ Animo
-            +dinero(Object)$ String
-            +dinero(Object, String)$ String
-            +totales(List)$ String
-            +responder(String, List)$ String
-        }
-    }
-    namespace client {
-        class DeudasClient {
-            <<client>>
-            +deudasDelDeudor(String) List
-        }
-    }
-    namespace dto_request {
-        class Pregunta {
-            <<record>>
-            +message : String
-            +messages : List
-        }
-    }
-    namespace dto_response {
-        class Respuesta {
-            <<record>>
-            +reply : String
-            +source : String
-            +debts : int
-            +sentimiento : Animo
-        }
-        class Animo {
-            <<record>>
-            +etiqueta : String
-            +intensidad : int
-        }
-        class Salud {
-            <<record>>
-            +ok : boolean
-            +service : String
-            +llm : boolean
-        }
-    }
-    namespace util {
-        class Valor {
-            <<utility>>
-            +presente(Object)$ boolean
-            +primero(Object[])$ Object
-            +texto(Object)$ String
-        }
-    }
-    namespace config {
-        class OpenApiConfig {
-            <<configuration>>
-        }
-    }
-    namespace exception {
-        class ApiExceptionHandler {
-            <<handler>>
-            +conMotivo(ResponseStatusException) ApiError
-            +cuerpoIlegible(HttpMessageNotReadableException) ApiError
-            +deSpring(Exception) ApiError
-            +inesperado(Exception) ApiError
-        }
-        class ApiError {
-            <<record>>
-            +error : String
-        }
-    }
-    namespace raiz {
-        class AiApplication {
-            <<application>>
-            +main(String[])$ void
-        }
-    }
-    LlmService ..> LlmService_Mensaje
-    ChatController --> AsistenteService
-    ChatController ..> OpenApiConfig
-    SaludController --> LlmService
-    AsistenteService --> DeudasClient
-    AsistenteService --> LlmService
-    AsistenteService ..> MotorLocal
-    AsistenteService ..> Valor
-    LlmService ..> MotorLocal
-    LlmService ..> Valor
-    MotorLocal ..> Valor
-    ChatController ..> Pregunta : recibe
-    ChatController ..> Respuesta : devuelve
-    Respuesta ..> Animo
-    SaludController ..> Salud : devuelve
-```
-
-</details>
-
-<details>
-<summary><b>gateway</b> · la puerta, todo el servicio</summary>
-
-```mermaid
-classDiagram
-    direction LR
-    namespace raiz {
-        class GatewayApplication {
-            <<application>>
-            +main(String[])$ void
-        }
-    }
-    namespace config {
-        class RutasConfig {
-            <<configuration>>
-            +rutas(RouteLocatorBuilder, String, String, String, String) RouteLocator
-        }
-    }
-    namespace filter {
-        class RateLimitFilter {
-            <<filter>>
-            +filter(ServerWebExchange, GatewayFilterChain) Mono~Void~
-            +getOrder() int
-        }
-        class RequestLogFilter {
-            <<filter>>
-            +filter(ServerWebExchange, GatewayFilterChain) Mono~Void~
-            +getOrder() int
-        }
-        class RetornoDePasarela {
-            <<filter>>
-            +filter(ServerWebExchange, WebFilterChain) Mono~Void~
-            +getOrder() int
-        }
-        class ClienteReal {
-            <<utility>>
-        }
-    }
-    RateLimitFilter ..> ClienteReal
-```
-
-</details>
-
-Las demás clases de cada servicio (controladores, servicios, repositorios, seguridad) están en
-[`docs/diagramas/clases.md`](docs/diagramas/clases.md).
+Las clases **de cada servicio** (ms-auth, ms-debt, ms-payments, ms-ai y gateway), de la petición a
+la base, están en [`docs/diagramas/clases.md`](docs/diagramas/clases.md).
 
 ### 7.5 Secuencias
 
 #### El pago con Khipu, la funcionalidad principal
+
+![Diagrama de secuencia del flujo de pago](docs/diagramas/img/secuencia-pago.png)
 
 ```mermaid
 sequenceDiagram
@@ -2845,209 +1388,9 @@ aviso de vuelta tampoco pasa por el navegador.
 
 </details>
 
-#### De cada servicio
-
-<details>
-<summary><b>ms-auth</b> · el deudor entra con su RUT y su código</summary>
-
-```mermaid
-sequenceDiagram
-    actor D as Deudor
-    participant P as Portal (React)
-    participant G as Gateway
-    participant AC as AuthController
-    participant AS as AuthService
-    participant SS as SessionService
-    participant B as tb_auth
-
-    D->>P: escribe su RUT y su código
-    P->>G: POST /api/auth/acceso {rut, codigo}
-    Note over G: RateLimitFilter: 10 por minuto<br/>por origen en /api/auth
-    alt se pasó del límite
-        G-->>P: 429 Demasiadas solicitudes
-    else dentro del límite
-        G->>AC: la enruta a ms-auth
-        AC->>AS: entrarConCodigo(rut, codigo, ip)
-        AS->>B: access_log: intentos fallidos de ese origen<br/>en los últimos 10 minutos
-        Note over AS: con 10 o más, responde 429
-        AS->>B: bloquea el último código de campaña y el último solicitado del RUT
-        Note over AS: elige el más reciente, aunque esté usado:<br/>no revive códigos anteriores
-        alt no hay código, venció, se agotó o no calza
-            AS->>B: suma el intento y anota en access_log
-            AS-->>P: 401 o 429, con el mismo mensaje
-            Note over AS: «no hay código» y «no corresponde» responden igual:<br/>así no se puede averiguar qué RUT tienen deuda
-        else el código calza
-            Note over AS: compara la huella SHA-256(rut:codigo),<br/>en tiempo constante
-            opt es código de campaña
-                AS->>B: consume el código y anota granted
-            end
-            AS->>SS: abrir(DEBTOR, rut)
-            SS->>B: sessions: familia nueva, con la huella de la llave
-            SS-->>AS: la llave de renovación, en claro una sola vez
-            opt es código solicitado
-                AS->>B: consume el pedido y anota granted
-            end
-            AS-->>AC: Sesion(JWT de 15 minutos, usuario, llave)
-            AC-->>P: 200 {token, user, expiraEnSegundos}<br/>y la cookie tb_renovacion
-        end
-    end
-    P->>G: GET /api/me, con el JWT
-    G-->>P: quién es
-    P-->>D: sus deudas
-```
-
-</details>
-
-<details>
-<summary><b>ms-debt</b> · la empresa carga a sus deudores en una campaña</summary>
-
-```mermaid
-sequenceDiagram
-    actor U as Usuario de una empresa
-    participant P as Portal (Cargar cartera)
-    participant CC as CargaController
-    participant CS as CargaService
-    participant CI as CarteraIntakeService
-    participant B as tb_debt
-    participant IV as InvitacionService
-    participant AU as ms-auth
-
-    U->>P: abre Cargar cartera
-    P->>CC: GET /api/debts/cartera/opciones
-    CC->>CS: opciones(sesión)
-    CS->>B: la empresa, los acreedores que le dieron mandato y sus campañas
-    CC-->>P: acreedores y campañas, con su estado
-    opt no hay una campaña que sirva
-        U->>P: la crea ahí mismo
-        P->>CC: POST /api/debts/campanas (CampanaController)
-    end
-    U->>P: elige la campaña y sube la planilla
-    P->>CC: POST /api/debts/cartera/revision<br/>(planilla, acreedor, campaña, id del lote)
-    CC->>CS: revisar(...)
-    Note over CS: abre una transacción marcada<br/>para deshacerse desde el primer momento
-    alt sin campaña
-        CS-->>P: 400 sin_campana
-    else la campaña está terminada
-        CS-->>P: 409 campana_terminada
-    else
-        CS->>CI: recibir(empresa, cartera, archivo)
-        CI->>B: las mismas validaciones y escrituras de siempre
-        CS->>B: se deshace: no queda ni la deuda, ni el lote, ni un contacto
-        CC-->>P: lo que entraría y cuánto suma por moneda,<br/>lo que se rechazaría y por qué
-    end
-    U->>P: Confirmar
-    P->>CC: POST /api/debts/cartera, con el mismo id del lote
-    CC->>CS: subir(...)
-    CS->>CI: recibir(empresa, cartera, archivo)
-    alt el lote ya se cargó con el mismo contenido
-        CI-->>P: la misma respuesta de la primera vez: no se carga dos veces
-    else es nuevo
-        CI->>B: debtors, debts, debt_charges e installments, en la campaña
-        CI-)IV: DeudaEnCobranza, una por deuda aceptada
-        CC-->>P: recibidas, aceptadas y rechazadas
-    end
-    Note over IV: después del commit, en segundo plano,<br/>dentro del horario y el límite de la ley
-    IV->>AU: POST /internal/codigos
-    AU-->>U: al deudor le llega su código por correo
-```
-
-</details>
-
-<details>
-<summary><b>ms-payments</b> · pagar con Webpay</summary>
-
-```mermaid
-sequenceDiagram
-    actor D as Deudor
-    participant P as Portal
-    participant G as Gateway
-    participant PS as PaymentService
-    participant DB as ms-debt
-    participant T as Transbank
-    participant B as tb_payments
-
-    D->>P: Pagar, con Webpay
-    P->>PS: POST /api/payments/checkout
-    PS->>DB: el monto y a quién se le debe
-    PS->>B: payments: created
-    PS->>T: crea la transacción: orden, sesión, monto y dirección de vuelta
-    T-->>PS: el token
-    PS->>B: payments: guarda el token
-    PS-->>P: el enlace /api/payments/public/{id}/webpay?sig=…
-    P->>PS: abre ese enlace
-    PS->>B: payments: anota que ya se abrió
-    PS-->>D: una página que envía el token a Webpay por POST
-    Note over PS: el token se manda una sola vez. Abrir el enlace de nuevo<br/>explica que Webpay ya se abrió, en vez de repetirlo
-
-    D->>T: paga en Webpay
-    T-->>D: lo devuelve a /api/payments/public/webpay/retorno
-    D->>G: llega con token_ws, o con TBK_TOKEN si anuló
-    Note over G: RetornoDePasarela le quita el Origin:<br/>es la página de Transbank la que hace volver al navegador
-    G->>PS: retornoWebpay(token_ws, TBK_TOKEN, orden, sesión)
-    alt solo token_ws: pagó
-        PS->>T: confirma la transacción
-        T-->>PS: estado, código de respuesta, monto y orden
-        alt AUTHORIZED, código 0, y el monto y la orden calzan
-            PS->>B: payments: paid, payment_events: paid<br/>y debt_notifications: pendiente
-        else no calza
-            PS->>B: payments: failed
-        end
-    else TBK_TOKEN: anuló, o el formulario falló
-        PS->>B: payments: failed
-    else solo orden y sesión: se le acabó el tiempo
-        Note over PS: la sesión tiene que ser la de ese cobro:<br/>la orden se puede adivinar, la sesión no
-        PS->>B: payments: failed
-    end
-    PS-->>D: 302 a la página del resultado, en el portal
-```
-
-</details>
-
-<details>
-<summary><b>ms-ai</b> · preguntarle al asistente</summary>
-
-```mermaid
-sequenceDiagram
-    actor D as Deudor
-    participant P as Portal (Chatbot)
-    participant G as Gateway
-    participant CC as ChatController
-    participant AS as AsistenteService
-    participant DC as DeudasClient
-    participant MD as ms-debt
-    participant L as LlmService
-    participant X as LLM
-    participant ML as MotorLocal
-
-    D->>P: escribe su pregunta
-    P->>G: POST /api/ai/chat {message, messages}, con el JWT
-    G->>CC: la enruta a ms-ai
-    Note over CC: sin Authorization: 401 No autorizado
-    CC->>AS: responder(pregunta, authorization)
-    AS->>DC: deudasDelDeudor(authorization)
-    DC->>MD: GET /api/debts, con el JWT del deudor
-    MD-->>DC: sus deudas, y solo las suyas
-    AS->>ML: sentimiento(último mensaje)
-    ML-->>AS: el ánimo: para ajustar el tono
-    AS->>L: responder(conversación, deudas, ánimo)
-    alt hay un LLM configurado y responde
-        L->>X: la conversación, con las deudas como contexto
-        X-->>L: la respuesta
-        L-->>AS: el texto
-    else no hay, o falló
-        L-->>AS: nada
-        AS->>ML: responder(mensaje, deudas)
-        ML-->>AS: la respuesta por reglas
-    end
-    AS-->>CC: Respuesta: el texto, de dónde salió y el ánimo
-    CC-->>P: 200
-    P-->>D: la respuesta
-```
-
-</details>
-
-El gateway aparece en la de ms-auth: es por donde pasa toda petición, con su límite por origen. Las
-16 secuencias del sistema están en [`docs/diagramas/secuencia.md`](docs/diagramas/secuencia.md).
+Las secuencias **de cada servicio** (entrar con RUT y código, cargar deudores en una campaña, pagar
+con Webpay o Mercado Pago, preguntarle al asistente) y las 16 del sistema están en
+[`docs/diagramas/secuencia.md`](docs/diagramas/secuencia.md).
 
 ### 7.6 Componentes
 
@@ -3102,243 +1445,7 @@ Una regla las ordena: **el controller traduce y delega, y las reglas viven en el
 las reglas se prueban sin levantar el servidor web, con los repositorios simulados, y la capa web
 se prueba sin base de datos ([§11](#11-pruebas)).
 
-#### De cada servicio
-
-<details>
-<summary><b>ms-auth</b> · el acceso</summary>
-
-```mermaid
-flowchart LR
-    controller["controller<br/>3 clases"]
-    assembler["assembler<br/>1 clase"]
-    service["service<br/>7 clases"]
-    client["client<br/>1 clase"]
-    repository["repository<br/>6 clases"]
-    model["model<br/>6 clases"]
-    dto["dto<br/>16 clases"]
-    subgraph TRANSVERSAL["Los usa cualquiera"]
-        direction TB
-        security["security<br/>3 clases"]
-        config["config<br/>7 clases"]
-        exception["exception<br/>4 clases"]
-        util["util<br/>3 clases"]
-    end
-    controller --> assembler
-    controller --> service
-    controller -.-> dto
-    assembler -.-> controller
-    assembler -.-> dto
-    service --> client
-    service --> repository
-    service --> model
-    service -.-> dto
-    repository --> model
-    dto -.-> model
-```
-
-</details>
-
-<details>
-<summary><b>ms-debt</b> · la cartera</summary>
-
-```mermaid
-flowchart LR
-    controller["controller<br/>11 clases"]
-    assembler["assembler<br/>1 clase"]
-    service["service<br/>31 clases"]
-    client["client<br/>2 clases"]
-    repository["repository<br/>19 clases"]
-    model["model<br/>17 clases"]
-    events["events<br/>1 clase"]
-    dto["dto<br/>54 clases"]
-    subgraph TRANSVERSAL["Los usa cualquiera"]
-        direction TB
-        security["security<br/>4 clases"]
-        config["config<br/>6 clases"]
-        exception["exception<br/>6 clases"]
-        util["util<br/>3 clases"]
-    end
-    controller --> assembler
-    controller --> service
-    controller --> model
-    controller -.-> events
-    controller -.-> dto
-    assembler -.-> controller
-    assembler -.-> model
-    assembler -.-> dto
-    service --> client
-    service --> repository
-    service --> model
-    service -.-> events
-    service -.-> dto
-    repository --> model
-    dto -.-> model
-```
-
-</details>
-
-<details>
-<summary><b>ms-payments</b> · los cobros</summary>
-
-```mermaid
-flowchart LR
-    controller["controller<br/>4 clases"]
-    assembler["assembler<br/>1 clase"]
-    service["service<br/>9 clases"]
-    client["client<br/>6 clases"]
-    repository["repository<br/>4 clases"]
-    model["model<br/>4 clases"]
-    events["events<br/>1 clase"]
-    dto["dto<br/>13 clases"]
-    subgraph TRANSVERSAL["Los usa cualquiera"]
-        direction TB
-        security["security<br/>3 clases"]
-        config["config<br/>3 clases"]
-        exception["exception<br/>3 clases"]
-        util["util<br/>1 clase"]
-    end
-    controller --> assembler
-    controller --> service
-    controller -.-> dto
-    assembler -.-> controller
-    assembler -.-> dto
-    service --> client
-    service --> repository
-    service --> model
-    service -.-> events
-    service -.-> dto
-    client --> model
-    client -.-> dto
-    repository --> model
-    dto -.-> model
-```
-
-</details>
-
-<details>
-<summary><b>ms-ai</b> · el asistente</summary>
-
-```mermaid
-flowchart LR
-    controller["controller<br/>2 clases"]
-    service["service<br/>3 clases"]
-    client["client<br/>1 clase"]
-    dto["dto<br/>4 clases"]
-    subgraph TRANSVERSAL["Los usa cualquiera"]
-        direction TB
-        config["config<br/>1 clase"]
-        exception["exception<br/>2 clases"]
-        util["util<br/>1 clase"]
-    end
-    controller --> service
-    controller -.-> dto
-    service --> client
-    service -.-> dto
-```
-
-</details>
-
-<details>
-<summary><b>gateway</b> · la puerta</summary>
-
-```mermaid
-flowchart LR
-    filter["filter<br/>4 clases"]
-    subgraph TRANSVERSAL["Los usa cualquiera"]
-        direction TB
-        config["config<br/>1 clase"]
-    end
-    config --> filter
-```
-
-</details>
-
-<details>
-<summary><b>portal</b> · React: páginas, componentes y llamadas a la API</summary>
-
-```mermaid
-flowchart LR
-    subgraph PAG["pages · las pantallas"]
-        direction TB
-        subgraph PUB["Sin sesión"]
-            Landing
-            Login
-            Magic
-            Pasarela
-        end
-        subgraph DEU["/app · el deudor"]
-            Debts
-            Repact
-            Pay
-            Vencimientos
-            Historial
-            MisDatos
-        end
-        subgraph EMP["/databridge · la empresa"]
-            DataBridge
-            PagosRecibidos
-            EnRiesgo
-            Cargar
-            Campanas
-        end
-        subgraph ADM["/admin · DataBridge"]
-            AdminInicio
-            AdminEmpresas
-            AdminEmpresa
-            AdminEquipo
-            AdminReglas
-        end
-    end
-
-    subgraph COM["components"]
-        direction TB
-        Layout
-        Chatbot
-        FormCampana
-        AdminPersonas
-    end
-
-    subgraph STO["store"]
-        authStore
-    end
-
-    subgraph API["api · una función por endpoint"]
-        direction TB
-        sesion["sesion.js"]
-        deudas["deudas.js"]
-        pagos["pagos.js"]
-        analitica["analitica.js"]
-        campanas["campanas.js"]
-        asistente["asistente.js"]
-        admin["admin.js"]
-        client["client.js<br/>el JWT en memoria<br/>y la renovación"]
-    end
-
-    GW{{"gateway"}}
-
-    Login & Magic --> authStore
-    authStore --> sesion
-    Debts & Repact & Vencimientos & MisDatos --> deudas
-    Pay --> deudas & pagos
-    Historial & Pasarela & PagosRecibidos --> pagos
-    DataBridge --> deudas & analitica
-    EnRiesgo --> deudas
-    Cargar --> deudas
-    Cargar & Campanas --> FormCampana --> campanas
-    Campanas --> campanas & deudas
-    AdminInicio & AdminEmpresas & AdminReglas --> admin
-    AdminEmpresa & AdminEquipo --> admin
-    AdminEmpresa & AdminEquipo --> AdminPersonas
-    Layout --> deudas
-    Chatbot --> asistente
-
-    sesion & deudas & pagos & analitica & campanas & asistente & admin --> client
-    client -->|"/api"| GW
-```
-
-</details>
-
-Qué hay en cada paquete, y cómo se conecta cada componente, está en
+Cada servicio y el portal **por dentro**, con lo que hay en cada paquete, están en
 [`docs/diagramas/componentes.md`](docs/diagramas/componentes.md).
 
 ---
@@ -3685,6 +1792,10 @@ solo la infraestructura (las tres bases, RabbitMQ y el buzón); con `--profile a
 
 ### Los contenedores y sus puertos
 
+![Diagrama físico de despliegue](docs/diagramas/img/despliegue.png)
+
+En el código y en [`docker-compose.yml`](docker-compose.yml), el navegador (`Dispositivo`) entra únicamente al **Databridge Web Portal** (`nginx`), que reenvía `/api` al **API Gateway** y este reparte el tráfico a `ms-auth`, `ms-debt`, `ms-payments` y `ms-ai`. Cada servicio con persistencia habla solo con su propio servidor MySQL (`tb-auth`, `tb-debt`, `tb-payments`); `ms-payments` publica el evento `pago.confirmado` en `RabbitMQ` (que entrega a `ms-debt`), y `ms-ai` no se conecta directo a la base `tb-debt`, sino que consulta a `ms-debt` por HTTP con el JWT del deudor.
+
 | Contenedor | Puerto interno | Publicado en el equipo | Para qué |
 | --- | --- | --- | --- |
 | `portal` | 8080 | **8080** | La única puerta: el portal y `/api` hacia el gateway |
@@ -3753,14 +1864,15 @@ no es secreto sí tiene un valor de desarrollo.
 </details>
 
 <details>
-<summary><b>Secretos, sesión y acceso</b> (10)</summary>
+<summary><b>Secretos, sesión y acceso</b> (11)</summary>
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
 | `JWT_KEY_DIRECTORY` | obligatoria | Ruta absoluta a PKCS#8/SPKI y publicas de rotacion, montada solo en auth |
 | `AUTH_JWKS_URI` | local con Maven, interna en Compose | JWKS publico de auth para verificar ES256 |
 | `INTERNAL_KEY` | el `.env` | Autentica las llamadas entre servicios |
-| `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Si se cambia, los suscritos tienen que volver a suscribirse |
+| `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Se cambia sin perderlos, como dice [Cambiar `CIFRADO_LLAVE`](#cambiar-cifrado_llave) |
+| `CIFRADO_LLAVE_ANTERIOR` | vacía | Solo mientras se cambia `CIFRADO_LLAVE`: la de antes, con la que ms-debt abre los secretos guardados para volver a cifrarlos con la nueva al arrancar. Después se vacía |
 | `ADMIN_CORREO` | vacía | El correo del primer `admin` de DataBridge, que entra al panel de administración. Vacía, no hay `admin`. No puede ser el de una persona de una empresa |
 | `JWT_TTL_MINUTES` | `15` | Cuánto dura el JWT. Corto a propósito: no se puede revocar |
 | `REFRESH_TTL_HOURS` | `168` | Cuánto dura una sesión desde que se entra. Renovar no la alarga |
@@ -3847,6 +1959,33 @@ no es secreto sí tiene un valor de desarrollo.
 **Los valores por omisión son de desarrollo y están escritos en un archivo público: no sirven
 para nada que no sea una demostración.**
 
+### Cambiar `CIFRADO_LLAVE`
+
+`CIFRADO_LLAVE` cifra en `tb_debt` el secreto con que ms-debt firma los avisos a cada sistema suscrito. Se
+cambia sin que ninguno tenga que volver a suscribirse ([#258](https://github.com/TechnicalBridge/DataBridge/issues/258)), desde la carpeta del repositorio:
+
+1. **Un respaldo de `tb_debt`**, fuera del repositorio:
+
+   ```powershell
+   $env:MYSQL_PWD = ((Select-String -Path .env -Pattern '^DB_DEBT_ROOT_PASSWORD=').Line -split '=', 2)[1]
+   docker exec -e MYSQL_PWD tbridge-db-debt sh -c "mysqldump -uroot --single-transaction --databases tb_debt > /tmp/tb_debt.sql"
+   docker cp tbridge-db-debt:/tmp/tb_debt.sql ..\tb_debt-antes-de-cambiar-la-llave.sql
+   docker exec tbridge-db-debt rm /tmp/tb_debt.sql
+   Remove-Item Env:MYSQL_PWD
+   ```
+
+2. **La llave nueva:** `powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1 -Cambiar CIFRADO_LLAVE`.
+   La de antes queda en `CIFRADO_LLAVE_ANTERIOR`. Si ya hay un cambio sin terminar, no hace otro.
+3. **`docker compose --profile app up -d --wait ms-debt`.** Al arrancar, ms-debt abre cada secreto con la
+   llave anterior y lo vuelve a cifrar con la nueva, todo en una transacción. Su registro dice cuántos y que
+   ya se puede sacar la anterior: `docker compose --profile app logs ms-debt | Select-String CIFRADO_LLAVE_ANTERIOR`.
+4. **Sacar la anterior:** se deja vacía `CIFRADO_LLAVE_ANTERIOR=` en el `.env`, y otra vez el paso 3.
+
+Si algún secreto no se abre con ninguna de las dos llaves, **no se cambia ninguno** y ms-debt no arranca: su
+registro dice qué suscripción es. Para volver atrás, la llave de `CIFRADO_LLAVE_ANTERIOR` vuelve a
+`CIFRADO_LLAVE` y la anterior se vacía: la base quedó como estaba. En el servidor no hay PowerShell: el paso 2
+se hace a mano en `/opt/databridge/.env`, con una llave nueva de `openssl rand -base64 48`.
+
 ---
 
 ## 11. Pruebas
@@ -3873,17 +2012,17 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1145 pruebas**, todas en Java y sin fallos:
+**1128 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 310 |
-| `ms-debt` | 492 |
-| `ms-payments` | 281 |
+| `ms-debt` | 488 |
+| `ms-payments` | 268 |
 | `ms-ai` | 43 |
 
-Además, `pruebas/secretos.test.cjs` (Node, 21 pruebas) comprueba que las reglas de gitleaks detecten
+Además, `pruebas/secretos.test.cjs` (Node, 24 pruebas) comprueba que las reglas de gitleaks detecten
 cada tipo de clave y dejen pasar los valores públicos ([`docs/seguridad/secretos.md`](docs/seguridad/secretos.md)).
 La cadena completa con los tres sistemas se prueba de punta a punta con un script que
 vive fuera de este repositorio, en la carpeta que reúne a los tres
@@ -3996,7 +2135,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1145 pruebas Java sin fallos**, y el portal compila (766 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1128 pruebas Java sin fallos**, y el portal compila (765 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -4017,7 +2156,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1145**, sin fallos ([§11](#11-pruebas)); ms-debt y ms-payments se repitieron con #139, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1128**, sin fallos ([§11](#11-pruebas)); ms-debt se repitió con #258, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, `separar-bases.ps1` pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
@@ -4044,7 +2183,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Roles y panel ([#137](https://github.com/TechnicalBridge/TB_web/issues/137), [#138](https://github.com/TechnicalBridge/TB_web/issues/138)) | `V4` de `tb_auth` probada en una base aparte y aplicada sobre la real. En vivo, 34 de 34 comprobaciones de los roles; en Edge, 18 de 18. El `admin` da de alta empresas y personas desde el panel, y la invitación llega con su enlace de un solo uso |
 | Correos de verdad ([#62](https://github.com/TechnicalBridge/TB_web/issues/62)) | Los cinco correos (código, recordatorio, enlace, invitación y prueba) salieron por la API de Brevo y llegaron a un Gmail del equipo, en HTML y en texto. Un correo que no sale no cuenta como contacto, y la empresa ve el motivo en su cartera |
 | Horario de la ley en todos los correos ([#187](https://github.com/TechnicalBridge/TB_web/issues/187)) | Con los tres sistemas en Docker, un miércoles a las 22:30: cuatro deudas nuevas llegaron por la cadena y quedaron en cobranza sin ningún contacto, con el aviso *se invita en la próxima pasada*. Las invitaciones salieron con la pasada de las 8:00 |
-| Operación en el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)) | Con Docker reconstruido desde la rama y las migraciones `V11` de `tb_debt` y `V6` de `tb_payments` aplicadas, con respaldo previo. Por el gateway, 24 de 24: los 21 avisos fallidos a APOFYX salen por destinatario, con sus intentos y su último error y sin su contenido; con un receptor de prueba en su puerto, uno reintentado se entrega y queda anotado sobre la empresa, y reintentarlo otra vez responde `409`; sin receptor, los 20 restantes vuelven a fallidos tras su intento extra. Los totales de pagos calzan con la base; una UF cargada a mano queda como la de ese día, con quién la cargó, y una negativa responde `400`. Un aviso de pago reintentado llega a ms-debt sin abonar dos veces. Una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: reintentar desde el botón, la pantalla que se actualiza sola, la UF escrita como en Chile, y con ms-payments detenido sus bloques dicen *No responde* mientras los avisos a las empresas se siguen viendo. Al terminar, los avisos quedaron como estaban y sin la UF de prueba |
+| Cambiar `CIFRADO_LLAVE` ([#258](https://github.com/TechnicalBridge/DataBridge/issues/258)) | En este equipo, con respaldo previo del `.env` y de las tres bases y Docker reconstruido entero desde la rama, 18 de 18: `preparar-env.ps1 -Cambiar CIFRADO_LLAVE` dejó la de antes en `CIFRADO_LLAVE_ANTERIOR` sin mostrar ninguna; al arrancar, ms-debt pasó el secreto de la suscripción de APOFYX a la llave nueva, que ya no se abre con la vieja y es el mismo secreto, y un aviso entregado después lleva la firma hecha con él. Con un secreto que no abre con ninguna llave, ms-debt no arrancó, dijo qué suscripción era y la base quedó idéntica; sacado ese, pasó las demás. Ningún registro muestra una llave ni un secreto |
 | Accesos en el panel ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)) | Por el gateway: tres códigos equivocados contra el mismo RUT salen juntos al filtrar por resultado, como `21.***.***-K`; un enlace pedido para un correo sin cuenta sale como rechazado; recorriendo las 9 páginas están las 411 filas de la bitácora, y ninguna trae un RUT completo, un correo, una IP ni su huella; los totales de hoy calzan con la base, y una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: los filtros, las páginas y la tabla entera sin desplazarse de lado |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |

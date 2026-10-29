@@ -14,15 +14,19 @@
 #        por su huella SHA-256, sin guardarlos aqui).
 #
 #    .\preparar-env.ps1 -Renovar -TambienCifrado
-#        Lo mismo, y tambien CIFRADO_LLAVE. Cuidado: con ella se cifran los
-#        secretos de las suscripciones guardadas; despues de cambiarla, cada
-#        sistema conectado (APOFYX, Patrimonio) tiene que volver a conectarse.
+#        Lo mismo, y tambien CIFRADO_LLAVE, como se explica abajo.
 #
 #    .\preparar-env.ps1 -Cambiar INTERNAL_KEY[,OTRO]
 #        Cambia esos secretos aunque ya tengan un valor propio: para cuando uno
 #        se filtro (quedo en una captura, en un registro, en un chat). Las
 #        claves de una base (DB_DEBT_PASSWORD, ...) se cambian tambien dentro de
 #        esa base, que tiene que estar arriba, sin perder datos.
+#
+#  CIFRADO_LLAVE cifra los secretos de las suscripciones guardadas. Al
+#  cambiarla, la de antes queda en CIFRADO_LLAVE_ANTERIOR: al reiniciar,
+#  ms-debt vuelve a cifrar con la nueva cada secreto, en una transaccion, y
+#  ningun sistema conectado tiene que volver a conectarse. Despues se saca
+#  CIFRADO_LLAVE_ANTERIOR del .env (#258).
 #
 #  Nunca muestra un valor. Despues: docker compose --profile app up -d.
 # =============================================================================
@@ -129,6 +133,7 @@ function Esta-Arriba([string]$Contenedor) {
 $usuarioBase = Valor $lineas 'MYSQL_USER'
 if (-not $usuarioBase) { $usuarioBase = 'tbridge' }
 
+$cambioElCifrado = $false
 foreach ($nombre in $secretos.Keys) {
     $actual = Valor $lineas $nombre
     if (-not $actual) {
@@ -146,8 +151,18 @@ foreach ($nombre in $secretos.Keys) {
         continue
     }
     if ($nombre -eq 'CIFRADO_LLAVE' -and -not $TambienCifrado -and -not $forzado) {
-        Write-Host "CIFRADO_LLAVE: tiene el valor publico de antes. No la cambio sin -TambienCifrado (los sistemas conectados tendrian que volver a conectarse)." -ForegroundColor Yellow
+        Write-Host "CIFRADO_LLAVE: tiene el valor publico de antes. No la cambio sin -TambienCifrado." -ForegroundColor Yellow
         continue
+    }
+    if ($nombre -eq 'CIFRADO_LLAVE') {
+        #  La de antes queda en CIFRADO_LLAVE_ANTERIOR, para que ms-debt lea con
+        #  ella los secretos guardados y los vuelva a cifrar con la nueva.
+        if (Valor $lineas 'CIFRADO_LLAVE_ANTERIOR') {
+            Write-Host "CIFRADO_LLAVE: hay un cambio sin terminar (CIFRADO_LLAVE_ANTERIOR tiene valor). Levanta ms-debt para que termine, saca CIFRADO_LLAVE_ANTERIOR del .env y vuelve a correrlo." -ForegroundColor Yellow
+            continue
+        }
+        Poner $lineas 'CIFRADO_LLAVE_ANTERIOR' $actual
+        $cambioElCifrado = $true
     }
     $nueva = Nueva-Clave
     if ($nombre -like 'DB_*') {
@@ -193,5 +208,12 @@ if (-not $directorioJwt -or
 [System.IO.File]::WriteAllLines($archivo, $lineas, $sinBom)
 Write-Host ""
 Write-Host "Listo. Para que los servicios tomen los valores: docker compose --profile app up -d"
+if ($cambioElCifrado) {
+    Write-Host ""
+    Write-Host "CIFRADO_LLAVE cambio, y la de antes quedo en CIFRADO_LLAVE_ANTERIOR. Al levantar ms-debt, vuelve a" -ForegroundColor Green
+    Write-Host "cifrar con la nueva los secretos de las suscripciones. Cuando su registro diga que ya se puede," -ForegroundColor Green
+    Write-Host "saca CIFRADO_LLAVE_ANTERIOR del .env y levantalo otra vez:" -ForegroundColor Green
+    Write-Host "   docker compose --profile app logs ms-debt | Select-String CIFRADO_LLAVE_ANTERIOR"
+}
 
 exit 0
