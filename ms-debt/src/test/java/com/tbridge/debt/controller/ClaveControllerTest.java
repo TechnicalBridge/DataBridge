@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.ClaveEmitidaResponse;
 import com.tbridge.debt.dto.response.ClaveResponse;
@@ -30,14 +30,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Las claves de API desde el portal: solo la empresa, y solo las suyas. */
-@WebMvcTest(ClaveController.class)
-@Import({SecurityConfig.class, JwtService.class})
+/** Las claves de API desde el portal: solo la empresa, y solo las suyas. Con la entrega por API encendida. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
+@WebMvcTest(controllers = ClaveController.class, properties = "app.integracion.api=true")
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class ClaveControllerTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ApiKeyService claves;
     @MockitoBean private DebtService debts;
 

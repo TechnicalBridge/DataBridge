@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.exception.CarteraInvalidaHandler;
@@ -29,10 +29,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Lo que Swagger publica del contrato v1. Lo leen sistemas de otras empresas,
- * asi que una operacion mal documentada es un contrato mal publicado.
+ * asi que una operacion mal documentada es un contrato mal publicado. Con la
+ * entrega por API encendida: apagada, no hay contrato que publicar.
  */
-@WebMvcTest(IntegracionController.class)
-@Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
+@WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")

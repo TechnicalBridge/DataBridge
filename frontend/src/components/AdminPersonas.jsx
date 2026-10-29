@@ -114,6 +114,7 @@ const QUE_SE_HIZO = {
   admin_creado: (a) => `Dio de alta como admin a ${a.sobre}`,
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,
   persona_habilitada: (a) => `Le devolvió el acceso a ${a.sobre}`,
+  aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
 };
 
 /** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero. */

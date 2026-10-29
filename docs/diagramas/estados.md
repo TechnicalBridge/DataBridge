@@ -14,7 +14,7 @@ Salen del código: de cada lugar donde un servicio cambia un estado.
 | --- | --- | --- | --- |
 | [Una deuda](#una-deuda) | `Debt.Status` | ms-debt | `open`, `repacted`, `disputed`, `paid`, `withdrawn` |
 | [Una cuota](#una-cuota) | `Installment.Status` | ms-debt | `pending`, `paid`, `void` |
-| [Un pago](#un-pago) | `Payment.Status` | ms-payments | `created`, `paid`, `failed`, `expired`, `duplicated` |
+| [Un pago](#un-pago) | `Payment.Status` | ms-payments | `created`, `paid`, `failed`, `expired`, `duplicated`, `refunded` |
 | [Una campaña](#una-campaña) | `Campaign.Status` | ms-debt | `running`, `paused`, `finished` |
 | [Un aviso por entregar](#un-aviso-por-entregar) | `OutboxEvent.Status` y `DebtNotification.Status` | ms-debt y ms-payments | `pending`, `delivered`, `failed` |
 | [Un código de acceso](#un-código-de-acceso) | `AccessCode` | ms-auth | Sin usar, usado, vencido, agotado |
@@ -104,7 +104,8 @@ stateDiagram-v2
     expired --> duplicated: lo concilió después, y esas cuotas ya estaban pagadas
     paid --> [*]
     failed --> [*]
-    duplicated --> [*]
+    duplicated --> refunded: la empresa registra que ya lo devolvió en la pasarela
+    refunded --> [*]
 ```
 
 | Estado | Qué significa | Qué pasa después |
@@ -114,14 +115,15 @@ stateDiagram-v2
 | `failed` | No se cobró | Nada. El deudor puede abrir otro pago |
 | `expired` | Nadie lo pagó a tiempo, o lo reemplazó otro | Se sigue revisando por 24 horas: si la pasarela lo cobró igual, se registra |
 | `duplicated` | Se cobró dos veces lo mismo | No se abona. La empresa lo ve en *Pagos para devolver*, con su referencia en la pasarela |
+| `refunded` | La empresa ya lo devolvió en la pasarela | Nada más: DataBridge no mueve plata, solo deja constancia. El libro (`payment_events`) guarda la referencia de la devolución, la empresa y la persona que la registró. La empresa lo ve en *Pagos devueltos* y el deudor en su historial. Registrarla de nuevo no cambia nada |
 
 Mientras la pasarela está verificando un pago, ese cobro no se vence y no se puede abrir otro de la misma
 deuda. Confirmar un pago ya confirmado no hace nada, así que un aviso repetido de la pasarela no cobra dos
 veces.
 
-`authorized` y `refunded` existen en `Payment.Status` y la base los acepta, pero hoy ningún flujo deja un pago
-en esos estados: las tres pasarelas pasan directo de `created` a `paid`, y las devoluciones se hacen en la
-pasarela, por fuera.
+`authorized` existe en `Payment.Status` y la base lo acepta, pero hoy ningún flujo deja un pago en ese estado:
+las tres pasarelas pasan directo de `created` a `paid`. Las devoluciones se hacen en la pasarela, por fuera, y la
+empresa las anota después (#153).
 
 ---
 
@@ -137,7 +139,7 @@ stateDiagram-v2
     paused --> running: la reanuda
     running --> finished: la termina
     paused --> finished: la termina
-    finished --> running: solo por la API, el portal no lo ofrece
+    finished --> [*]
 ```
 
 | Estado | En el contrato | Qué hace DataBridge |
@@ -147,9 +149,9 @@ stateDiagram-v2
 | `finished` | `terminada` | Lo mismo que pausada |
 
 El estado se cambia con `POST /api/v1/campanas` o, desde el portal, con
-`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`, que
-acepta cualquiera de los tres estados sin mirar el anterior. Por eso una campaña terminada **se puede volver a
-poner en curso por la API**, aunque el portal la muestre como cerrada y no ofrezca reanudarla.
+`POST /api/debts/campanas/{idExterno}/estado`. Los dos terminan en `MandatoService.registrarCampana`.
+**Terminada es final:** volver a ponerla en curso o pausarla responde `409` (`campana_terminada`), por
+cualquiera de los dos caminos. Mandarla terminada de nuevo no cambia nada.
 
 ---
 
@@ -196,7 +198,10 @@ stateDiagram-v2
 | Agotado | `attempts` llegó a `max_attempts`, que es 5 | `429`: pide uno nuevo |
 | Vencido | `expires_at` ya pasó | `401`: pide uno nuevo |
 
-El enlace de respaldo (`MagicLink`) es más simple: sin usar, usado o vencido a los 15 minutos.
+El acceso solicitado (`MagicLink`) tiene los mismos estados: el código y el enlace opcional
+comparten `consumed_at`, `expires_at` y el contador de cinco intentos. Dura 15 minutos por omisión;
+usar cualquiera consume ambos. Solicitar otro marca como usado el pedido anterior. Los enlaces
+antiguos y de invitación conservan `code_hash` vacío y su vencimiento original.
 
 ---
 
@@ -242,7 +247,7 @@ stateDiagram-v2
 
 | Estado | Cómo se sabe | Qué puede hacer |
 | --- | --- | --- |
-| Con acceso | `disabled_at` vacío | Pedir su enlace, entrar y renovar su sesión |
+| Con acceso | `disabled_at` vacío | Pedir su código o respaldo, entrar y renovar su sesión |
 | Sin acceso | `disabled_at` con la fecha desde cuando | Nada: no le llegan enlaces, los que tenía sin abrir quedaron usados y sus sesiones, revocadas |
 
 La cuenta nunca se borra: queda la persona y desde cuándo no entra. Cada cambio lo anota `admin_log`, con el

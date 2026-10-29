@@ -42,7 +42,7 @@ flowchart LR
     LLM{{"LLM"}}
 
     NAV -->|"HTTP: las páginas y /api"| POR
-    SIS -->|"/api/v1, con clave de API"| POR
+    SIS -.->|"/api/v1, con clave de API<br/>(apagado por omisión)"| POR
     POR -->|"/api · /v3/api-docs · /swagger-ui"| GW
 
     GW -->|"/api/auth/** · /api/me<br/>/api/admin/auth/**"| AUTH
@@ -86,9 +86,9 @@ en los mismos grupos:
 
 | Interfaz | Rutas | Para quién | Con qué se entra | ¿La publica el gateway? |
 | --- | --- | --- | --- | --- |
-| **Portal** | `/api/auth/**`, `/api/me`, `/api/debts/**`, `/api/analytics/**`, `/api/claves/**`, `/api/payments/**`, `/api/ai/**` | El deudor y el usuario de una empresa, desde el navegador | JWT de una sesión `DEBTOR` o `CREDITOR` | Sí |
+| **Portal** | `/api/auth/**`, `/api/me`, `/api/debts/**`, `/api/analytics/**`, `/api/payments/**`, `/api/ai/**` | El deudor y el usuario de una empresa, desde el navegador | JWT de una sesión `DEBTOR` o `CREDITOR` | Sí |
 | **Panel de administración** | `/api/admin/auth/**`, `/api/admin/debt/**`, `/api/admin/payments/**` | El admin de DataBridge | JWT de una sesión `ADMIN` | Sí |
-| **Contrato de integración** | `/api/v1/**` | El sistema de una empresa | Clave de API | Sí |
+| **Contrato de integración** | `/api/v1/**`, y las claves en `/api/claves/**` | El sistema de una empresa | Clave de API | Sí, pero apagado por omisión (`INTEGRACION_API`): responde `404` |
 | **Interno** | `/internal/**` | Otro servicio, o la operación | Clave interna (`X-Internal-Key`) | No |
 
 Los avisos y las vueltas de las pasarelas (`/api/payments/public/**`) entran por el portal sin sesión: se
@@ -127,22 +127,22 @@ utilidades se usan desde todas las capas.
 
 ### ms-auth
 
-`com.tbridge.auth` · 51 tipos en 11 paquetes.
+`com.tbridge.auth` · 58 tipos en 11 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>3 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>5 clases"]
+    service["service<br/>7 clases"]
     client["client<br/>1 clase"]
     repository["repository<br/>6 clases"]
     model["model<br/>6 clases"]
-    dto["dto<br/>14 clases"]
+    dto["dto<br/>16 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
-        config["config<br/>5 clases"]
-        exception["exception<br/>3 clases"]
+        config["config<br/>7 clases"]
+        exception["exception<br/>4 clases"]
         util["util<br/>3 clases"]
     end
     controller --> assembler
@@ -160,18 +160,18 @@ flowchart LR
 
 ### ms-debt
 
-`com.tbridge.debt` · 151 tipos en 12 paquetes.
+`com.tbridge.debt` · 156 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>11 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>29 clases"]
-    client["client<br/>1 clase"]
+    service["service<br/>31 clases"]
+    client["client<br/>2 clases"]
     repository["repository<br/>19 clases"]
     model["model<br/>17 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>52 clases"]
+    dto["dto<br/>54 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>4 clases"]
@@ -198,18 +198,18 @@ flowchart LR
 
 ### ms-payments
 
-`com.tbridge.payments` · 51 tipos en 12 paquetes.
+`com.tbridge.payments` · 53 tipos en 12 paquetes.
 
 ```mermaid
 flowchart LR
     controller["controller<br/>4 clases"]
     assembler["assembler<br/>1 clase"]
-    service["service<br/>8 clases"]
+    service["service<br/>9 clases"]
     client["client<br/>6 clases"]
     repository["repository<br/>4 clases"]
     model["model<br/>4 clases"]
     events["events<br/>1 clase"]
-    dto["dto<br/>12 clases"]
+    dto["dto<br/>13 clases"]
     subgraph TRANSVERSAL["Los usa cualquiera"]
         direction TB
         security["security<br/>3 clases"]
@@ -275,18 +275,18 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- | --- |
 | `controller` | Los endpoints. Traducen HTTP y delegan: no tienen reglas de negocio | 3 | 11 | 4 | 2 | — |
 | `assembler` | Los enlaces HATEOAS de cada respuesta | 1 | 1 | 1 | — | — |
-| `service` | Las reglas de negocio, y las tareas programadas | 5 | 29 | 8 | 3 | — |
-| `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 1 | 6 | 1 | — |
+| `service` | Las reglas de negocio, y las tareas programadas | 7 | 31 | 9 | 3 | — |
+| `client` | Las llamadas a otros sistemas: otro servicio, una pasarela, el Banco Central | 1 | 2 | 6 | 1 | — |
 | `repository` | El acceso a la base, con Spring Data JPA | 6 | 19 | 4 | — | — |
 | `model` | Las entidades, una por tabla | 6 | 17 | 4 | — | — |
 | `events` | El aviso de pago que viaja entre ms-payments y ms-debt | — | 1 | 1 | — | — |
-| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 14 | 52 | 12 | 4 | — |
+| `dto` | Lo que entra (`request`), lo que sale (`response`) y lo que se publica (`evento`) | 16 | 54 | 13 | 4 | — |
 | `security` | El JWT: leerlo en cada petición (ms-auth, además, lo firma) | 3 | 4 | 3 | — | — |
-| `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 5 | 6 | 3 | 1 | 1 |
-| `exception` | Los errores propios y su forma de respuesta | 3 | 6 | 3 | 2 | — |
+| `config` | Quién puede llamar a qué, Swagger, la cola, el cifrado y los datos de ejemplo | 7 | 6 | 3 | 1 | 1 |
+| `exception` | Los errores propios y su forma de respuesta | 4 | 6 | 3 | 2 | — |
 | `util` | El RUT, el correo y las huellas | 3 | 3 | 1 | 1 | — |
 | `filter` | Lo que el gateway le hace a cada petición antes de enrutarla | — | — | — | — | 4 |
-| **Total** | Contando la clase que arranca cada servicio | **51** | **151** | **51** | **15** | **6** |
+| **Total** | Contando la clase que arranca cada servicio | **58** | **156** | **53** | **15** | **6** |
 
 El detalle de cada clase está en los [diagramas de clases](clases.md).
 
@@ -322,13 +322,15 @@ flowchart LR
             EnRiesgo
             Cargar
             Campanas
-            Claves
         end
         subgraph ADM["/admin · DataBridge"]
             AdminInicio
             AdminEmpresas
             AdminEmpresa
+            AdminOperacion
             AdminEquipo
+            AdminAccesos
+            AdminReglas
         end
     end
 
@@ -336,7 +338,7 @@ flowchart LR
         direction TB
         Layout
         Chatbot
-        CargaCsv
+        FormCampana
         AdminPersonas
     end
 
@@ -351,7 +353,6 @@ flowchart LR
         pagos["pagos.js"]
         analitica["analitica.js"]
         campanas["campanas.js"]
-        claves["claves.js"]
         asistente["asistente.js"]
         admin["admin.js"]
         client["client.js<br/>el JWT en memoria<br/>y la renovación"]
@@ -366,40 +367,39 @@ flowchart LR
     Historial & Pasarela & PagosRecibidos --> pagos
     DataBridge --> deudas & analitica
     EnRiesgo --> deudas
-    Cargar --> CargaCsv --> deudas
+    Cargar --> deudas
+    Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
-    Claves --> claves
-    AdminInicio & AdminEmpresas --> admin
+    AdminInicio & AdminEmpresas & AdminReglas & AdminAccesos & AdminOperacion --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
     Chatbot --> asistente
 
-    sesion & deudas & pagos & analitica & campanas & claves & asistente & admin --> client
+    sesion & deudas & pagos & analitica & campanas & asistente & admin --> client
     client -->|"/api"| GW
 ```
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
-| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `CargaCsv`, `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 23 pantallas |
+| `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `FormCampana` (crear o cambiar una campaña, en Campañas y en Cargar cartera), `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
-| `utils/` | Cómo se escriben montos, RUT y fechas en Chile, y las descargas | `formato.js`, `calendario.js`, `exportar.js` |
+| `utils/` | Cómo se escriben montos, RUT y fechas en Chile, y las descargas | `formato.js`, `calendario.js`, `exportar.js` y `plantillaCartera.js` (las columnas de la planilla) |
 
 Qué módulo de `api/` habla con qué servicio:
 
 | Módulo | Rutas que llama | Servicio |
 | --- | --- | --- |
-| `sesion.js` | `/api/auth/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
+| `sesion.js` | `/api/auth/codigo`, `/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
 | `client.js` | `/api/auth/refresh`, cuando el JWT vence | ms-auth |
 | `deudas.js` | `/api/debts/**` | ms-debt |
 | `analitica.js` | `/api/analytics/summary` | ms-debt |
 | `campanas.js` | `/api/debts/campanas/**` | ms-debt |
-| `claves.js` | `/api/claves/**` | ms-debt |
 | `pagos.js` | `/api/payments/**`, y `/api/debts/pagos/**` para el historial y el comprobante | ms-payments y ms-debt |
 | `asistente.js` | `/api/ai/chat` | ms-ai |
-| `admin.js` | `/api/admin/<servicio>/estado`, `/api/admin/debt/empresas/**` y `/api/admin/auth/**` | ms-auth, ms-debt y ms-payments |
+| `admin.js` | `/api/admin/auth/**`, `/api/admin/debt/**` y `/api/admin/payments/**`: el estado y las reglas de cada servicio, las empresas y sus comisiones, la gente, los accesos y la operación | ms-auth, ms-debt y ms-payments |
 
 La pantalla del portal de empresas trae los gráficos (recharts), que pesan más que todo lo demás junto: se
 descarga solo al entrar ahí, y el deudor nunca la baja.
@@ -426,15 +426,15 @@ flowchart TB
         FE["frontend<br/>React y Vite"]
         CON["docs/integracion<br/>el contrato v1 y su esquema JSON"]
         EVT["docs/eventos<br/>pago-confirmado.json"]
-        DBI["db/init<br/>crea las tres bases"]
-        DC["docker-compose.yml<br/>levanta todo"]
+        DBI["db/separar-bases.ps1<br/>pasa los datos de antes"]
+        DC["docker-compose.yml<br/>levanta todo, con una<br/>base por servicio"]
         CI[".github/workflows<br/>un workflow por módulo"]
         K6["rendimiento<br/>las pruebas de carga"]
     end
     CON -. "lo implementa" .-> DEBT
     EVT -. "lo escribe" .-> PAY
     EVT -. "lo lee" .-> DEBT
-    DBI -. "deja las bases que migra cada servicio" .-> JAVA
+    DBI -. "copia el MySQL único de antes a las tres bases" .-> DC
     DC -. "construye y conecta" .-> JAVA
     DC -. "construye" .-> FE
     CI -. "prueba cada uno por separado" .-> JAVA
@@ -448,7 +448,7 @@ Lo único que dos servicios comparten es **lo publicado**, y los dos se prueban 
 | --- | --- | --- |
 | El contrato de integración v1 | [`docs/integracion`](../integracion/README.md) | ms-debt lo implementa; el sistema de cada empresa lo usa |
 | El aviso de pago | `docs/eventos/pago-confirmado.json` | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
-| El JWT | `JWT_SECRET`, el mismo en los tres | ms-auth lo firma; ms-debt y ms-payments lo verifican |
+| El JWT | ES256/P-256: privada solo en auth, publicas en JWKS | auth firma con kid estable; debt/payments verifican con Resource Server |
 | La clave interna | `INTERNAL_KEY`, la misma en los tres | Quien llama a `/internal` de otro |
 
 Lo que antes habría ido en una librería común lo tiene cada servicio en sus paquetes, y solo lo que usa:

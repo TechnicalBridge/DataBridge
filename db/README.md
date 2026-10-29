@@ -13,13 +13,48 @@ Las migraciones están en `<servicio>/src/main/resources/db/migration/`. La lín
 Es la diferencia con lo que había antes, donde `ddl-auto: update` cambiaba el esquema en silencio y
 nadie podía decir en qué estado estaba una base.
 
+En `tb_auth`, `V6__codigo_y_enlace_del_mismo_acceso.sql` agrega a `magic_links` la huella del código
+solicitado, sus intentos y si el enlace está habilitado. Código y enlace comparten consumo y
+vencimiento. Es aditiva: los enlaces anteriores conservan `code_hash` vacío y siguen habilitados.
+Respaldar antes de aplicarla. Para volver al código anterior se conserva V6 en el historial de
+Flyway; no se borran columnas ni se edita una migración aplicada.
+
 ## Levantar las bases
 
 ```bash
-docker compose up -d mysql
+docker compose up -d db-auth db-debt db-payments
 ```
 
-Crea el motor con las tres bases vacías. Cada servicio corre sus migraciones al arrancar.
+Cada base vive en **su propio MySQL** ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)), con su volumen, sus
+claves y su puerto. Si una se cae, se llena o se restaura, las otras dos siguen:
+
+| Servicio | Contenedor | Base | Puerto en el equipo | Volumen | Claves en el `.env` |
+| --- | --- | --- | --- | --- | --- |
+| `db-auth` | `tbridge-db-auth` | `tb_auth` | 3308 (`DB_AUTH_PORT`) | `tb_auth_data` | `DB_AUTH_ROOT_PASSWORD`, `DB_AUTH_PASSWORD` |
+| `db-debt` | `tbridge-db-debt` | `tb_debt` | 3309 (`DB_DEBT_PORT`) | `tb_debt_data` | `DB_DEBT_ROOT_PASSWORD`, `DB_DEBT_PASSWORD` |
+| `db-payments` | `tbridge-db-payments` | `tb_payments` | 3310 (`DB_PAYMENTS_PORT`) | `tb_payments_data` | `DB_PAYMENTS_ROOT_PASSWORD`, `DB_PAYMENTS_PASSWORD` |
+
+La primera vez, cada una crea su base vacía y le da permisos al usuario de la aplicación (`MYSQL_USER`, el
+mismo nombre en las tres porque las vistas lo tienen como `DEFINER`, pero con otra clave en cada una). Cada
+servicio corre sus migraciones al arrancar. Las claves las genera `preparar-env.ps1`, y con la de una base
+no se entra a las otras.
+
+### Si ya tenías datos de antes de #238
+
+Hasta #238 las tres bases vivían en un solo MySQL (`tbridge-db`, con el volumen `tbridge_db_data`). Para
+pasar esos datos a las tres, una sola vez por equipo y antes de levantar los servicios:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1
+powershell -ExecutionPolicy Bypass -File .\db\separar-bases.ps1
+docker compose --profile app up -d --build --wait --remove-orphans
+```
+
+`separar-bases.ps1` abre el volumen de antes sin tocarlo, vuelca cada base y la carga en la suya, y compara
+las filas de cada tabla. No pisa una base nueva que ya tenga tablas: si ya levantaste todo antes de correrlo,
+las tablas vacías que creó Flyway se reemplazan por las de antes con `-Forzar`. El volumen de antes
+queda intacto: cuando compruebes que todo está bien, se borra con `docker volume rm` y el nombre que muestra
+el script.
 
 ## Por qué tres bases y no una
 

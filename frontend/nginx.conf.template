@@ -1,0 +1,115 @@
+# =============================================================================
+#  El portal, servido como archivos estaticos.
+# =============================================================================
+#  Es una plantilla: al arrancar, la imagen de nginx reemplaza cada ${VARIABLE}
+#  por su valor y deja el resultado en /etc/nginx/conf.d/default.conf. Los
+#  valores por omision estan en el Dockerfile y sirven para Docker Compose; en
+#  Railway se cambian con variables del servicio (docs/railway).
+#
+#    GATEWAY_HOST, GATEWAY_PORT  donde esta el gateway.
+#    PROXY_DE_ENTRADA            desde donde se le cree la IP del visitante
+#                                (ver mas abajo).
+#    NGINX_LOCAL_RESOLVERS       el DNS que trae el contenedor: lo escribe la
+#                                propia imagen al arrancar.
+# =============================================================================
+
+#  El DNS del contenedor: el de Docker en local, el de la red privada en
+#  Railway. Con el, si el gateway se reinicia y cambia de IP, nginx lo vuelve
+#  a encontrar en diez segundos en vez de seguir tocando la puerta vieja hasta
+#  que alguien lo reinicie a el tambien. Sin "ipv6=off": hay redes privadas que
+#  solo dan direcciones IPv6.
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+
+#  Las conexiones hacia el gateway se REUTILIZAN.
+#
+#  Sin esto, nginx abria una conexion TCP nueva por cada peticion y la cerraba
+#  al terminar. Cada conexion cerrada deja su puerto ocupado sesenta segundos
+#  (TIME_WAIT), y a partir de unas quinientas peticiones por segundo se
+#  acababan los puertos: nginx respondia 502 al instante con "connect() failed
+#  (99: Address not available)", mientras el gateway y los servicios estaban
+#  perfectamente. Lo encontro la prueba de estres (rendimiento/estres.js).
+upstream gateway {
+    zone gateway 64k;
+    server ${GATEWAY_HOST}:${GATEWAY_PORT} resolve;
+    keepalive 64;
+}
+
+server {
+    #  8080 y no 80: nginx corre sin privilegios, y los puertos bajo el 1024
+    #  solo los puede tomar root.
+    listen 8080;
+    server_name _;
+
+    #  La IP de quien visita. En local nginx es la puerta de entrada y la ve
+    #  directo: PROXY_DE_ENTRADA no calza con nadie y esto no hace nada. En
+    #  Railway la puerta es su proxy, que entrega la IP del visitante en
+    #  X-Real-IP y la sobrescribe siempre: con PROXY_DE_ENTRADA=0.0.0.0/0 se le
+    #  cree. Sin esto, el limite de peticiones del gateway contaria a todos los
+    #  visitantes como uno solo, el proxy de Railway.
+    set_real_ip_from ${PROXY_DE_ENTRADA};
+    real_ip_header   X-Real-IP;
+
+    root  /usr/share/nginx/html;
+
+    #  La planilla de la cartera sube por aca: el mismo tope que ms-debt (5 MB).
+    #  Sin esto, nginx corta en 1 MB con un 413.
+    client_max_body_size 5m;
+    index index.html;
+
+    #  React maneja sus propias rutas. Si alguien recarga estando en
+    #  /deudas, el servidor no tiene ese archivo: hay que devolverle el
+    #  index y dejar que React decida, o vera un 404 en su propia aplicacion.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    #  Todo lo que sea /api va al gateway, igual que en desarrollo lo manda
+    #  el proxy de Vite. Asi el navegador habla con un solo origen y no hay
+    #  CORS que resolver. Tambien la documentacion: la pagina de Swagger
+    #  (/swagger-ui.html, que carga sus archivos de /webjars) y las
+    #  especificaciones que junta el gateway (/v3/api-docs).
+    location ~ ^/(api/|v3/api-docs|swagger-ui|webjars/) {
+        proxy_pass http://gateway;
+        #  Las dos lineas que hacen falta para que la conexion se reutilice:
+        #  HTTP/1.1, y no pasarle al gateway el "Connection: close" que pueda
+        #  traer el navegador.
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        #  El limite de peticiones del gateway y el de ms-auth cuentan por IP,
+        #  y leen X-Forwarded-For. Sin esto verian siempre la IP de nginx y
+        #  todos los visitantes compartirian un mismo cupo.
+        #  $http_host y no $host: $host es el nombre SIN el puerto. El gateway
+        #  compara el origen de la peticion con su propio host para saber si
+        #  es del mismo sitio, y con "localhost" contra "localhost:8080" la
+        #  tomaba por cruzada y la validaba contra la lista de CORS. Quien
+        #  entrara como 127.0.0.1:8080, o cambiara el puerto, no podia ni
+        #  iniciar sesion.
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        #  $remote_addr y NO $proxy_add_x_forwarded_for: este nginx es la
+        #  puerta de entrada, asi que lo que traiga el navegador en esa
+        #  cabecera lo escribio el propio cliente y no vale nada. La variante
+        #  "add" lo conservaba y agregaba la IP real al final; el gateway leia
+        #  el primer valor, y un atacante que mandara uno distinto en cada
+        #  intento conseguia un cupo nuevo del limitador cada vez.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    #  Los archivos con hash en el nombre no cambian nunca: se pueden guardar
+    #  para siempre. El index si cambia, y por eso no se guarda.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    gzip              on;
+    gzip_types        text/css application/javascript application/json image/svg+xml;
+    gzip_min_length   1024;
+
+    #  Cabeceras que no cuestan nada y cierran ataques conocidos.
+    add_header X-Content-Type-Options "nosniff"        always;
+    add_header X-Frame-Options        "DENY"           always;
+    add_header Referrer-Policy        "no-referrer"    always;
+}

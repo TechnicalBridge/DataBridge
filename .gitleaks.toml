@@ -1,0 +1,59 @@
+# =============================================================================
+#  Las claves que no pueden llegar al repositorio (#232)
+# =============================================================================
+#  Lo usa gitleaks, en la CI (.github/workflows/secretos.yml) y en el hook
+#  .githooks/pre-commit, a traves de scripts/verificar-secretos.cjs. Ver
+#  docs/seguridad/secretos.md.
+#
+#  Las reglas de gitleaks (useDefault) cubren las llaves privadas, los tokens
+#  de GitHub y los de muchos proveedores. Estas suman lo de DataBridge: los
+#  tokens de Mercado Pago, las claves de Render y nuestras variables escritas
+#  con un valor. GitHub, por su lado, bloquea el push de los proveedores que
+#  conoce.
+# =============================================================================
+title = "Secretos de DataBridge"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "databridge-mercadopago-token"
+description = "Access token de Mercado Pago (la Public Key no es secreta)"
+regex = '''\b(?:APP_USR|TEST)-[0-9]+-[0-9]+-[A-Za-z0-9]{20,}-[0-9]+\b'''
+
+[[rules]]
+id = "databridge-render-key"
+description = "API key de Render"
+regex = '''\brnd_[A-Za-z0-9_-]{20,}\b'''
+
+#  Una variable secreta con su valor escrito: en un .env que se subio, en un
+#  script o en la documentacion. Las vacias y las ${VARIABLE:?...} no cuentan.
+#  MYSQL_* y JWT_SECRET ya no se usan, pero un .env viejo todavia los trae.
+#  CIFRADO_LLAVE_ANTERIOR solo tiene valor mientras se cambia CIFRADO_LLAVE.
+[[rules]]
+id = "databridge-variable-con-valor"
+description = "Una variable secreta de DataBridge escrita con su valor"
+regex = '''(?mi)^[ \t]*(?:export[ \t]+)?(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY)[ \t]*[=:][ \t]*['"]?([A-Za-z0-9_./+=!?@%#$&*-]{8,})'''
+secretGroup = 1
+
+#  Un valor por omision para un secreto, en el compose o en las propiedades:
+#  ${CIFRADO_LLAVE:-valor} o ${CIFRADO_LLAVE:valor}.
+[[rules]]
+id = "databridge-secreto-por-omision"
+description = "Un valor por omision para una variable secreta"
+regex = '''(?i)\$\{(?:CIFRADO_LLAVE(?:_ANTERIOR)?|INTERNAL_KEY|WEBHOOK_SECRET|RABBIT_PASSWORD|DB_(?:AUTH|DEBT|PAYMENTS)_(?:ROOT_)?PASSWORD|MYSQL_(?:ROOT_)?PASSWORD|JWT_SECRET|BREVO_API_KEY|SMTP_PASSWORD|KHIPU_LLAVE|KHIPU_SECRETO|BCENTRAL_PASS|MERCADOPAGO_ACCESS_TOKEN|TRANSBANK_API_KEY|XAI_API_KEY):-?([A-Za-z0-9_][A-Za-z0-9_./+=!?@%-]{7,})\}'''
+secretGroup = 1
+
+#  Solo valores publicos, exactos: la llave de integracion que publica
+#  Transbank y las huellas SHA-256 con que preparar-env.ps1 reconoce los
+#  valores de desarrollo de antes (de una huella no se saca el valor).
+[allowlist]
+description = "Valores publicos, no credenciales"
+regexTarget = "secret"
+regexes = [
+  '^579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C$',
+  '^84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec$',
+  '^cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621$',
+  '^774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318$',
+  '^ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5$'
+]

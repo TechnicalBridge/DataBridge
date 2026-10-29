@@ -1,11 +1,17 @@
 package com.tbridge.debt.controller;
 
+import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
+import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
+import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
+import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -34,8 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** El panel de administracion es solo del admin de DataBridge: ni una empresa ni un deudor entran. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(AdminController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class AdminControllerTest {
 
@@ -45,8 +53,11 @@ class AdminControllerTest {
             {"rut":"76.086.428-5","razonSocial":"Empresa Test SpA","nombre":"Empresa Test","tipo":"acreedor"}""";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private EmpresaService empresas;
+    @MockitoBean private ReglasService reglas;
+    @MockitoBean private ComisionService comisiones;
+    @MockitoBean private AvisosService avisos;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -95,6 +106,17 @@ class AdminControllerTest {
         mvc.perform(get(ESTADO))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("No autorizado"));
+    }
+
+    @Test
+    void las_reglas_las_ve_el_admin_y_una_empresa_no() throws Exception {
+        when(reglas.reglas(any())).thenReturn(new ReglasResponse("ms-debt", List.of()));
+
+        mvc.perform(get("/api/admin/debt/reglas").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.servicio").value("ms-debt"));
+        mvc.perform(get("/api/admin/debt/reglas").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -192,6 +214,23 @@ class AdminControllerTest {
     }
 
     @Test
+    void lo_que_databridge_cobra_a_cada_empresa_lo_ve_solo_el_admin() throws Exception {
+        when(comisiones.deTodas(java.time.YearMonth.of(2026, 10))).thenReturn(new ComisionesResponse(
+                java.time.LocalDate.of(2026, 10, 1), java.util.List.of(new ComisionesResponse.Empresa("77305118-6", "APOFYX",
+                1_420_000, 4, new java.math.BigDecimal("10"), 142_000, 1_278_000)), 1_420_000, 142_000));
+
+        mvc.perform(get("/api/admin/debt/comisiones").param("mes", "2026-10").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.empresas[0].nombre").value("APOFYX"))
+                .andExpect(jsonPath("$.empresas[0].comision").value(142000))
+                .andExpect(jsonPath("$.comision").value(142000));
+        mvc.perform(get("/api/admin/debt/comisiones").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/debt/comisiones").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void el_historial_de_una_empresa_dice_quien_hizo_que() throws Exception {
         when(empresas.historial("76086428-5")).thenReturn(List.of(new AccionResponse(
                 "empresa_creada", "Empresa Test", "admin@databridge.cl", Instant.parse("2026-10-13T15:00:00Z"))));
@@ -231,5 +270,68 @@ class AdminControllerTest {
                 .andExpect(status().isForbidden());
         mvc.perform(post(EMPRESAS + "/77305118-6/reactivar").header("Authorization", deudor()))
                 .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------------------------
+    //  Los avisos a las empresas (#139)
+    // ------------------------------------------------------------------
+
+    @Test
+    void el_admin_ve_los_avisos_sin_entregar_con_sus_intentos_y_su_ultimo_error() throws Exception {
+        when(avisos.sinEntregar()).thenReturn(new AvisosResponse(0, 21, List.of(new AvisosResponse.Destino(1L,
+                "APOFYX", "77305118-6", "http://host.docker.internal:8000", 0, 21,
+                List.of(new AvisosResponse.Aviso(40L, "pago.confirmado", Instant.parse("2026-10-20T15:00:00Z"),
+                        "failed", 6, null, "Connection refused"))))));
+
+        mvc.perform(get("/api/admin/debt/avisos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fallidos").value(21))
+                .andExpect(jsonPath("$.destinos[0].empresa").value("APOFYX"))
+                .andExpect(jsonPath("$.destinos[0].direccion").value("http://host.docker.internal:8000"))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].intentos").value(6))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].ultimoError").value("Connection refused"))
+                .andExpect(jsonPath("$.destinos[0].avisos[0].payload").doesNotExist());
+    }
+
+    @Test
+    void reintentar_un_aviso_anota_al_admin_de_la_sesion() throws Exception {
+        when(avisos.reintentar(40L, "admin@databridge.cl")).thenReturn(new AvisosResponse.Aviso(40L,
+                "pago.confirmado", Instant.parse("2026-10-20T15:00:00Z"), "pending", 6,
+                Instant.parse("2026-10-27T18:00:00Z"), "Connection refused"));
+
+        mvc.perform(post("/api/admin/debt/avisos/40/reintentar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("pending"));
+        verify(avisos).reintentar(40L, "admin@databridge.cl");
+    }
+
+    @Test
+    void reintentar_un_destinatario_dice_cuantos_fueron() throws Exception {
+        when(avisos.reintentarDestino(1L, "admin@databridge.cl")).thenReturn(21);
+
+        mvc.perform(post("/api/admin/debt/avisos/destinos/1/reintentar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reintentados").value(21));
+    }
+
+    @Test
+    void un_aviso_ya_entregado_responde_409_con_el_motivo() throws Exception {
+        when(avisos.reintentar(eq(41L), any())).thenThrow(new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entrego"));
+
+        mvc.perform(post("/api/admin/debt/avisos/41/reintentar").header("Authorization", admin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Ese aviso ya se entrego"));
+    }
+
+    @Test
+    void ni_una_empresa_ni_un_deudor_ven_ni_reintentan_avisos() throws Exception {
+        for (String sesion : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/avisos").header("Authorization", sesion)).andExpect(status().isForbidden());
+            mvc.perform(post("/api/admin/debt/avisos/40/reintentar").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post("/api/admin/debt/avisos/destinos/1/reintentar").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(avisos);
     }
 }

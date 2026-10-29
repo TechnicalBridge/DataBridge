@@ -23,6 +23,14 @@ RUN npm run build
 #  en el 8080, porque un proceso sin privilegios no puede tomar el puerto 80.
 FROM nginxinc/nginx-unprivileged:alpine
 COPY --from=construccion /obra/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+#  La configuracion es una plantilla que la imagen completa al arrancar (ver
+#  nginx.conf.template). Estos son sus valores por omision, los de Docker
+#  Compose; en Railway se cambian con variables del servicio.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV GATEWAY_HOST=gateway \
+    GATEWAY_PORT=8082 \
+    PROXY_DE_ENTRADA=127.0.0.1 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 
 EXPOSE 8080

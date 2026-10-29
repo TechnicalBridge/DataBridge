@@ -1,0 +1,96 @@
+# =============================================================================
+#  DataBridge en un servidor (#172). Se suma al compose de siempre:
+#
+#    docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d --wait
+#
+#  Lo que cambia respecto de local:
+#    - Caddy va delante y es lo unico que publica puertos (80 y 443): saca el
+#      certificado de Let's Encrypt para DOMINIO y le pasa todo al portal.
+#    - Las tres bases, RabbitMQ y el portal ya no publican puertos: solo se
+#      ven por dentro. El buzon de prueba no se levanta: el correo sale por Brevo.
+#    - Las imagenes no se compilan aqui: las compila GitHub Actions
+#      (.github/workflows/desplegar.yml) y el servidor las descarga de GHCR.
+#      VERSION es el commit; sin el, la ultima de main.
+#
+#  La guia esta en docs/despliegue/README.md.
+# =============================================================================
+
+#  Las descarga el despliegue (pull). Un `up` a mano, o un reinicio, usa las
+#  que ya estan, sin pedir permiso a GHCR.
+x-imagen: &imagen
+  pull_policy: missing
+
+services:
+  db-auth:
+    ports: !reset []
+
+  db-debt:
+    ports: !reset []
+
+  db-payments:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  #  El buzon de prueba no va en produccion: queda en un perfil que nadie usa.
+  mailpit:
+    profiles: ["solo-local"]
+
+  ms-auth:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-ms-auth:${VERSION:-main}
+    environment:
+      #  Sin Mailpit en el servidor: lo de un dominio reservado va al desvio
+      #  del modo de prueba (con su tope por dia), no a un buzon que no existe.
+      CORREO_BUZON_DE_PRUEBA: ""
+
+  ms-debt:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-ms-debt:${VERSION:-main}
+
+  ms-payments:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-ms-payments:${VERSION:-main}
+
+  ms-ai:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-ms-ai:${VERSION:-main}
+
+  gateway:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-gateway:${VERSION:-main}
+
+  portal:
+    <<: *imagen
+    image: ghcr.io/technicalbridge/databridge-portal:${VERSION:-main}
+    ports: !reset []
+    environment:
+      #  nginx le cree a Caddy la IP del visitante (X-Real-IP): Caddy esta en
+      #  la red de Docker, que usa direcciones privadas.
+      PROXY_DE_ENTRADA: 172.16.0.0/12
+
+  caddy:
+    profiles: ["app"]
+    image: caddy:2.11.6-alpine
+    restart: unless-stopped
+    depends_on:
+      portal: { condition: service_healthy }
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en el .env (por ejemplo, technicalbridge.site)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      #  Los certificados: si se pierden, Let's Encrypt limita cuantos se piden.
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy:
+      resources:
+        limits: { memory: 128M }
+
+volumes:
+  caddy_data:
+  caddy_config:

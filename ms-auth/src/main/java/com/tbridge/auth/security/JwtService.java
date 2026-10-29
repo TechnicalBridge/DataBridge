@@ -1,89 +1,41 @@
 package com.tbridge.auth.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.*;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
+import java.time.*;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
-
-/**
- * Firma y lee el JWT de la sesion.
- *
- * <p><b>El JWT dura poco a proposito</b> —15 minutos por omision—. Es un token
- * que ningun servicio puede revocar: se valida solo con la firma, sin
- * preguntarle a nadie. Lo que mantiene a una persona adentro mas tiempo es la
- * llave de renovacion, que si se puede revocar (ver SessionService en
- * ms-auth). Antes duraba siete dias, y cerrar sesion solo lo borraba del
- * navegador: quien lo hubiera copiado seguia adentro una semana.
- */
 @Service
 public class JwtService {
-
-    /** HMAC-SHA256 necesita una llave de 256 bits. */
-    private static final int BYTES_MINIMOS = 32;
-
-    private final SecretKey key;
+    private final JwtKeyRing keys;
+    private final JwtEncoder encoder;
+    private final JwtDecoder decoder;
     private final Duration vida;
-
-    public JwtService(@Value("${jwt.secret}") String secret,
-                      @Value("${jwt.ttl-minutes:15}") long minutos) {
-        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
-        //  Antes un secreto corto se rellenaba con ceros hasta los 32 bytes y
-        //  el servicio arrancaba como si nada: un JWT_SECRET de cinco letras
-        //  quedaba aceptado con casi nada de entropia. Mejor no arrancar.
-        if (bytes.length < BYTES_MINIMOS) {
-            throw new IllegalStateException("jwt.secret tiene " + bytes.length
-                    + " bytes y necesita al menos " + BYTES_MINIMOS + ". Revisa JWT_SECRET.");
-        }
-        if (minutos < 1) {
-            throw new IllegalStateException("jwt.ttl-minutes tiene que ser al menos 1");
-        }
-        this.key = Keys.hmacShaKeyFor(bytes);
-        this.vida = Duration.ofMinutes(minutos);
+    private final Clock clock;
+    @Autowired
+    public JwtService(JwtKeyRing keys, @Value("${jwt.ttl-minutes:15}") long minutes) {
+        this(keys, minutes, Clock.systemUTC());
     }
-
-    /** Cuanto dura un JWT recien emitido. */
-    public Duration vida() {
-        return vida;
+    public JwtService(JwtKeyRing keys, long minutes, Clock clock) {
+        if (minutes < 1) throw new IllegalStateException("jwt.ttl-minutes tiene que ser al menos 1");
+        this.keys = keys;
+        this.encoder = keys.encoder();
+        this.decoder = JwtValidation.secure(keys.decoder(), clock);
+        this.vida = Duration.ofMinutes(minutes);
+        this.clock = clock;
     }
-
-    /** El RUT es lo que los servicios usan para acotar lo que cada quien ve. */
+    public Duration vida() { return vida; }
     public String issue(String id, String email, String role, String name, String rut) {
-        Instant now = Instant.now();
-        return Jwts.builder()
-                .subject(id)
-                .claim("id", id)
-                .claim("email", email)
-                .claim("role", role)
-                .claim("name", name)
-                .claim("rut", rut)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(vida)))
-                .signWith(key)
-                .compact();
+        Instant now = clock.instant();
+        var claims = JwtClaimsSet.builder().subject(id).claim("id", id).claim("role", role)
+                .issuedAt(now).expiresAt(now.plus(vida));
+        if (email != null) claims.claim("email", email);
+        if (name != null) claims.claim("name", name);
+        if (rut != null) claims.claim("rut", rut);
+        var header = JwsHeader.with(SignatureAlgorithm.ES256).keyId(keys.activeKid()).build();
+        return encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
     }
-
-    public Claims parse(String token) {
-        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-    }
-
-    public JwtPrincipal toPrincipal(Claims claims) {
-        String id = claims.get("id", String.class);
-        if (id == null) {
-            id = claims.getSubject();
-        }
-        return new JwtPrincipal(
-                id,
-                claims.get("email", String.class),
-                claims.get("role", String.class),
-                claims.get("name", String.class),
-                claims.get("rut", String.class)
-        );
-    }
+    public Jwt parse(String token) { return decoder.decode(token); }
+    public JwtPrincipal toPrincipal(Jwt jwt) { return JwtPrincipal.fromClaims(jwt.getClaims()); }
 }

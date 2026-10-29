@@ -1,0 +1,16 @@
+Hola,
+
+El [(${vence})] vence una cuota de tu convenio[# th:if="${acreedor}"] con [(${acreedor})][/].
+
+Si quieres pagarla ahora, entra a [(${portal})] y escribe tu RUT y este código:
+
+    [(${codigo})]
+
+Si ya la pagaste, no tienes que hacer nada.
+
+Como siempre, este correo no trae ningún enlace. Escribe tú la dirección del portal: así compruebas dónde estás antes de poner cualquier dato. Nadie de DataBridge te va a pedir este código.
+
+DataBridge
+
+--
+Te llegó porque tienes un convenio de pago y una de sus cuotas vence pronto.

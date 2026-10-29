@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.CarteraResponse.ErrorDeuda;
@@ -35,10 +35,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * El borde del contrato v1: la clave de API decide quien envia, los errores
  * salen con la forma del contrato, y la respuesta con sus nombres en
- * snake_case y sin enlaces de HATEOAS.
+ * snake_case y sin enlaces de HATEOAS. Con la entrega por API encendida, que
+ * por omision esta apagada ({@link EntregaPorApiApagadaTest}).
  */
-@WebMvcTest(IntegracionController.class)
-@Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class})
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
+@WebMvcTest(controllers = IntegracionController.class, properties = "app.integracion.api=true")
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class})
 @ActiveProfiles("test")
 class IntegracionControllerTest {
 

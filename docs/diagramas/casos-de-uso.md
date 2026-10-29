@@ -17,9 +17,9 @@ controlador; las reglas, de los servicios que los atienden.
 | Actor | Quién es | Cómo se identifica | Por dónde entra |
 | --- | --- | --- | --- |
 | **Deudor** | El cliente de una empresa usuaria, con una deuda en cobranza. No tiene cuenta ni contraseña | Su RUT y un código de 6 caracteres, de un solo uso, que le llega por correo. De respaldo, un enlace a su correo registrado | El portal de pago, `/app` |
-| **Usuario de una empresa** | Una persona de una empresa usuaria: una agencia de cobranza, o un acreedor que cobra directo | Un enlace de un solo uso a su correo. Rol `usuario`; su sesión lleva `CREDITOR` y el RUT de su empresa | El portal de empresas, `/databridge` |
-| **Admin de DataBridge** | El equipo de DataBridge. Ninguna otra empresa puede tener uno | Un enlace de un solo uso a su correo. Rol `admin`; su sesión lleva `ADMIN` y ningún RUT | El panel de administración, `/admin` |
-| **Sistema de una empresa** | El software de la agencia o del acreedor, que entrega la cartera y recibe los avisos | Una clave de API (`tbk_…`), que la empresa emite en su portal | El contrato de integración, `/api/v1` |
+| **Usuario de una empresa** | Una persona de una empresa usuaria: una agencia de cobranza, o un acreedor que cobra directo | Correo y código. De respaldo, código y enlace juntos en un correo. Rol `usuario`; su sesión lleva `CREDITOR` y el RUT de su empresa | El portal de empresas, `/databridge` |
+| **Admin de DataBridge** | El equipo de DataBridge. Ninguna otra empresa puede tener uno | Correo y código. De respaldo, código y enlace juntos en un correo. Rol `admin`; su sesión lleva `ADMIN` y ningún RUT | El panel de administración, `/admin` |
+| **Sistema de una empresa** | El software de la agencia o del acreedor, que entrega la cartera y recibe los avisos. Solo con la entrega por API encendida: por omisión está apagada (`INTEGRACION_API`) | Una clave de API (`tbk_…`) | El contrato de integración, `/api/v1` |
 | **Operación de DataBridge** | Quien opera la plataforma desde dentro de la red de los servicios | La clave interna (`X-Internal-Key`) | `/internal`, que el gateway no publica |
 | **El reloj** | Las tareas programadas de ms-debt y ms-payments | — | Corren solas |
 
@@ -49,8 +49,7 @@ flowchart LR
         G5(["Preguntarle al asistente"])
         G6(["Seguir la cartera y sus pagos"])
         G7(["Cargar cartera y llevar campañas"])
-        G8(["Emitir y revocar claves de API"])
-        G9(["Entregar cartera, mandatos<br/>y campañas por la API"])
+        G9(["Entregar cartera, mandatos<br/>y campañas por la API<br/>(apagado por omisión)"])
         G10(["Avisar lo que pasa con cada deuda"])
         G11(["Ver si la plataforma responde"])
         G15(["Dar de alta empresas y personas,<br/>y quitarles el acceso"])
@@ -65,7 +64,7 @@ flowchart LR
     LLM{{"LLM"}}
 
     DEU --> G1 & G2 & G3 & G4 & G5
-    USU --> G1 & G6 & G7 & G8
+    USU --> G1 & G6 & G7
     ADM --> G1 & G11 & G15
     G15 --- COR
     SIS --> G9
@@ -121,8 +120,8 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con su RUT y su código | `Login` | `POST /api/auth/acceso` | El código sirve una vez, dura 24 horas y se agota a los 5 intentos. Con 10 intentos fallidos desde un mismo origen en 10 minutos, ese origen queda frenado |
-| Pedir el enlace de respaldo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El enlace dura 15 minutos y va **solo** al correo que registró el acreedor, nunca al que alguien escriba. La respuesta es la misma, exista o no ese RUT |
+| Entrar con su RUT y su código | `Login` | `POST /api/auth/codigo`, `POST /api/auth/acceso` | Enviar código entrega solo el código, de un uso y 5 intentos. El solicitado dura 15 min; el de campaña, 24 h. Con 10 registros no concedidos desde un origen en 10 min, ese origen queda frenado |
+| Pedir el enlace de respaldo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | Un único correo con código nuevo y enlace, solo al correo que registró el acreedor. Comparten uso, 15 minutos y 5 intentos; usar cualquiera invalida ambos. La respuesta no revela si existe el RUT |
 | Ver sus deudas | `Debts` | `GET /api/debts`, `GET /api/debts/{id}` | Solo las de su RUT. La mora se calcula al día con la tasa que pactó el acreedor |
 | Simular un convenio | `Repact` | `GET /api/debts/{id}/simulate` | De 3 a 24 cuotas. Lo repactado es el capital más la mora de hoy |
 | Aceptar un convenio | `Repact` | `POST /api/debts/{id}/repact` | Las cuotas pendientes se anulan y se emiten las del convenio. El anterior queda marcado como reemplazado |
@@ -147,21 +146,21 @@ flowchart LR
     USU(("Usuario de<br/>una empresa"))
     subgraph DBE["Portal de empresas · /databridge"]
         direction TB
-        E1(["Entrar con un enlace a su correo"])
+        E1(["Entrar con correo y código"])
         E2(["Ver la cartera y el<br/>resumen de recuperación"])
         E3(["Ver una deuda y su historia"])
         E4(["Reenviarle el código al deudor"])
         E5(["Resolver un reclamo"])
         E6(["Revisar los pagos recibidos<br/>y los pagos para devolver"])
         E7(["Seguir los convenios en riesgo"])
-        E8(["Cargar una cartera en CSV"])
+        E8(["Cargar deudores<br/>en una campaña"])
         E9(["Crear, pausar y terminar campañas"])
-        E10(["Emitir y revocar claves de API"])
+        E12(["Consultar la comisión mensual<br/>y lo recuperado por campaña"])
         E11(["Exportar la cartera a un archivo"])
     end
     COR{{"Servidor de correo"}}
 
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E10 & E11
+    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12
     E3 -. "«include»" .-> E2
     E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
     E5 -. "«extend»<br/>si está en reclamo" .-> E3
@@ -172,17 +171,18 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con un enlace a su correo | `Login`, `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | Sale solo si el correo es de una cuenta habilitada. En cada renovación se vuelve a revisar que lo siga estando |
+| Entrar con correo y código | `Login`, `Magic` | `POST /api/auth/codigo`, `/api/auth/acceso`; respaldo: `/api/auth/enlace`, `/api/auth/verify` | Solo personal habilitado. El código solicitado dura 15 min. El respaldo manda código y enlace juntos, de un solo uso compartido. Al entrar se exige empresa activa; al renovar se vuelve a revisar la habilitación del personal |
 | Ver la cartera y el resumen | `DataBridge` | `GET /api/debts`, `GET /api/analytics/summary` | Nunca «todas las deudas»: siempre las de la empresa de la sesión |
 | Ver una deuda y su historia | `DataBridge` | `GET /api/debts/{id}` | Si la deuda no es de su cartera, no la ve |
 | Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409`. Queda como un contacto de la deuda (`contacts`) |
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
-| Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
+| Revisar los pagos | `PagosRecibidos` | `GET /api/debts/pagos`, `GET /api/payments/para-devolver`, `GET /api/payments/devueltos` | Un pago duplicado no se abona: queda para devolver, con su referencia en la pasarela |
+| Registrar que ya devolvió un pago duplicado | `PagosRecibidos` | `POST /api/payments/{id}/devolucion` | Con la referencia que dio la pasarela (obligatoria, hasta 100 caracteres). El pago queda `refunded` y su libro guarda quién lo registró. Solo los de su cartera (`403`); registrarlo de nuevo no cambia nada |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
-| Cargar una cartera en CSV | `Cargar` | `GET /api/debts/cartera/opciones`, `POST /api/debts/cartera` | Pasa por las mismas reglas que la API: la planilla se convierte al JSON del contrato |
+| Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `GET /api/debts/cartera/plantilla`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. Es la única entrada de deudores mientras la entrega por API esté apagada |
 | Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
-| Emitir y revocar claves de API | `Claves` | `GET` y `POST /api/claves`, `DELETE /api/claves/{id}` | La clave se muestra una sola vez. En la base queda su huella |
 | Exportar la cartera | `DataBridge` | — | Se arma en el navegador con lo que ya está en pantalla |
+| Consultar su comisión mensual | `Campanas` | `GET /api/analytics/comision?mes=2026-10` | Solo la empresa de la sesión. El porcentaje sale del recuperado de todas sus campañas en el mes de Chile; la comisión se aplica sobre el total |
 
 ---
 
@@ -197,7 +197,7 @@ flowchart LR
     ADM(("Admin de<br/>DataBridge"))
     subgraph PAN["Panel de administración · /admin"]
         direction TB
-        A1(["Entrar con un enlace a su correo"])
+        A1(["Entrar con correo y código"])
         A2(["Ver si cada servicio<br/>responde con su sesión"])
         A3(["Ver las empresas y los<br/>totales de su cartera"])
         A4(["Dar de alta una empresa usuaria<br/>con su primera persona"])
@@ -205,9 +205,15 @@ flowchart LR
         A6(["Quitarle o devolverle<br/>el acceso a una persona"])
         A7(["Dar de alta a otro admin"])
         A8(["Ver lo que se hizo desde<br/>el panel, y quién"])
+        A9(["Ver las reglas que rigen"])
+        A10(["Consultar la comisión mensual<br/>de cada empresa"])
+        A11(["Ver quién entró y qué<br/>accesos se rechazaron"])
+        A12(["Ver lo que no se entregó<br/>y reintentarlo"])
+        A13(["Cargar a mano la UF de un día"])
     end
     COR{{"Servidor de correo"}}
-    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8
+    ADM --> A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10 & A11 & A12 & A13
+    A13 -. "«extend»<br/>si falta la UF de hoy" .-> A12
     A4 -. "«include»" .-> A5
     A5 -. "«extend»<br/>desde la ficha de la empresa" .-> A3
     A6 -. "«extend»" .-> A3
@@ -219,14 +225,19 @@ flowchart LR
 
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
-| Entrar con un enlace a su correo | `Login` (`/admin/login`), `Magic` | `POST /api/auth/enlace`, `POST /api/auth/verify` | El primer admin nace de `ADMIN_CORREO` al arrancar. Sin esa variable no hay admin y nadie entra al panel |
+| Entrar con correo y código | `Login` (`/admin/login`), `Magic` | `POST /api/auth/codigo`, `/api/auth/acceso`; respaldo: `/api/auth/enlace`, `/api/auth/verify` | Mismo flujo de código primero y respaldo combinado, con el rol que existe en la base. El primer admin nace de `ADMIN_CORREO` al arrancar |
 | Ver si cada servicio responde | `AdminInicio` | `GET /api/admin/auth/estado`, `/api/admin/debt/estado`, `/api/admin/payments/estado` | Todo `/api/admin/**` exige una sesión `ADMIN`: a un usuario o a un deudor les responde `403`. Y al revés: el admin no entra a los otros portales |
 | Ver las empresas y sus totales | `AdminEmpresas`, `AdminEmpresa` | `GET /api/admin/debt/empresas`, `GET /api/admin/debt/empresas/{rut}` | De cada empresa se ven totales: cuántas deudas y cuánto falta por cobrar. Nunca una deuda ni un deudor |
+| Consultar las comisiones por empresa | `AdminEmpresas` | `GET /api/admin/debt/comisiones?mes=2026-10` | Solo el admin. Cada pago se atribuye a quien cargó la deuda, sin contar dos veces al acreedor y su agencia |
 | Dar de alta una empresa usuaria | `AdminEmpresas` | `POST /api/admin/debt/empresas`, y después `POST /api/admin/auth/empresas/{rut}/personal` | Una agencia, o un acreedor que cobra directo. El RUT tiene que ser válido y no existir. Son dos pasos, uno en cada servicio: si el segundo falla, la empresa ya quedó y la persona se agrega desde su ficha |
 | Darle acceso a una persona de una empresa | `AdminEmpresa` | `POST /api/admin/auth/empresas/{rut}/personal` | Queda como `usuario` de esa empresa: el rol lo decide la ruta, no un campo. Le llega una invitación con un enlace de un solo uso, que dura 24 horas |
 | Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
 | Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
+| Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
+| Ver lo que no se entregó y reintentarlo | `AdminOperacion` | `GET /api/admin/debt/avisos`, `POST /api/admin/debt/avisos/{id}/reintentar`, `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar`, `GET /api/admin/payments/operacion`, `POST /api/admin/payments/avisos/{id}/reintentar` | Los avisos a las empresas y a ms-debt que no se entregaron, con sus intentos y su último error, y los pagos que hay que mirar ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)). Reintentar los vuelve a poner en cola; el despachador los entrega en su pasada siguiente y ms-debt abona una sola vez. Sin el contenido de ningún aviso ni un dato de un deudor. Queda anotado quién lo hizo |
+| Cargar a mano la UF de un día | `AdminOperacion` | `POST /api/admin/payments/uf` | Para cuando el Banco Central no la entregó: queda como la UF de ese día, que es la que usan los cobros en UF, y queda anotado quién la cargó |
+| Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
 
 ---
 
@@ -235,10 +246,15 @@ flowchart LR
 De sistema a sistema, con una clave de API. Es el contrato de integración, publicado en
 [`docs/integracion`](../integracion/README.md).
 
+**Apagado por omisión.** Los deudores entran por campaña, desde el portal. Mientras `INTEGRACION_API` no sea
+`true`, todo `/api/v1` y `/api/claves` responde `404`. Encendido funciona como se describe aquí; la clave se
+emite con `POST /api/claves`, con la sesión de la empresa, o por dentro con `POST /internal/claves`, porque el
+portal ya no tiene la pantalla.
+
 ```mermaid
 flowchart LR
     SIS(("Sistema de<br/>una empresa"))
-    subgraph API["Contrato de integración · /api/v1"]
+    subgraph API["Contrato de integración · /api/v1 · apagado por omisión"]
         direction TB
         S1(["Comprobar su clave y<br/>con quién se conecta"])
         S2(["Registrar un mandato"])
@@ -310,7 +326,7 @@ flowchart LR
 
 | Caso de uso | Cuándo | Quién lo hace | La regla que importa |
 | --- | --- | --- | --- |
-| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, y solo si la ley lo deja esa semana. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
+| Invitar al deudor | Cuando una deuda entra, o vuelve, a cobranza | `InvitacionService`, ms-debt | Un correo con su código, sin monto ni enlace. Sale después de guardar la cartera, solo dentro del horario de la ley y si la ley lo deja esa semana; si no, la manda la primera pasada de contacto que pueda. Con un servidor de correo real, el modo de prueba decide si le llega a él o al buzón del equipo |
 | Escribirle según la campaña | Cada 15 minutos | `ContactoService`, ms-debt | De lunes a sábado, de 8:00 a 20:00, sin feriados. Según la cadencia de la campaña (por omisión, los días 1, 4, 11, 25 y 45) y hasta sus intentos |
 | Recordar las cuotas | Todos los días, 9:00 | `RecordatorioService`, ms-debt | Las que vencen en los próximos 3 días, si el deudor no apagó el recordatorio. Una cuota se recuerda una sola vez: la base no deja que tenga dos contactos |
 | Publicar el avance de las campañas | Todos los días, 8:00 | `CampanaAvanceService`, ms-debt | Deja el evento `campana.avance` en la bandeja de salida |
@@ -320,7 +336,7 @@ flowchart LR
 | Avisar cada pago confirmado | Cada 15 segundos | `NotificationDispatcher`, ms-payments | Por RabbitMQ, o por HTTP si no está. El aviso se guardó junto con el pago, así que no se pierde |
 | Traer la UF del día | Al arrancar y todos los días, 9:30 | `UfLoader`, ms-payments | Desde el Banco Central. Se guarda, para que un pago se pueda reconstruir después |
 | Cargar la UF a mano | Cuando haga falta | `POST /internal/uf` | Para que el cobro en UF no se detenga si la fuente está caída |
-| Emitir una clave de API | Cuando haga falta | `POST /internal/claves` | El camino de antes de que la empresa pudiera emitir la suya en su portal |
+| Emitir una clave de API | Cuando haga falta | `POST /internal/claves` | Solo sirve con la entrega por API encendida. El portal ya no tiene *Claves de API* |
 | Mandar un correo de prueba | Al cambiar el servidor de correo | `POST /internal/correo/prueba` | Dice si salió, adónde llegó de verdad y con qué remitente, o lo que respondió el servidor. Nunca muestra la clave |
 
 ---
@@ -342,13 +358,14 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios.
+Cada caso de uso de arriba termina en uno o más de estos **96 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/auth/estado` | Si ms-auth responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/auth/reglas` | Las reglas de acceso y de correo que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/auth/empresas/{rut}/personal` | Las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.personalDeEmpresa` |
 | `POST /api/admin/auth/empresas/{rut}/personal` | Dar de alta a una persona de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.crearUsuario` |
 | `GET /api/admin/auth/empresas/{rut}/historial` | Lo que se hizo con las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.historialDeEmpresa` |
@@ -357,33 +374,45 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 | `GET /api/admin/auth/admins/historial` | Lo que se hizo con los admin de DataBridge | Admin de DataBridge | JWT | Sí | `AdminController.historialDeAdmins` |
 | `POST /api/admin/auth/personal/{id}/deshabilitar` | Quitarle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.deshabilitar` |
 | `POST /api/admin/auth/personal/{id}/habilitar` | Devolverle el acceso a una persona | Admin de DataBridge | JWT | Sí | `AdminController.habilitar` |
-| `POST /api/auth/acceso` | Entrar con RUT y código | Deudor | Ninguna | Sí | `AuthController.acceso` |
-| `POST /api/auth/enlace` | Pedir un enlace de acceso al correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
+| `GET /api/admin/auth/accesos` | La bitácora de acceso, por páginas y con filtros | Admin de DataBridge | JWT | Sí | `AdminController.accesos` |
+| `GET /api/admin/auth/accesos/hoy` | Los totales de acceso de hoy, en Chile | Admin de DataBridge | JWT | Sí | `AdminController.accesosDeHoy` |
+| `POST /api/auth/codigo` | Pedir solo código al correo registrado | Deudor, usuario o admin | Ninguna | Sí | `AuthController.codigo` |
+| `POST /api/auth/acceso` | Entrar con código y RUT o correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.acceso` |
+| `POST /api/auth/enlace` | Pedir código y enlace en un único correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
 | `POST /api/auth/verify` | Canjear el enlace del correo por una sesión | Deudor, usuario o admin | Ninguna | Sí | `AuthController.verify` |
 | `POST /api/auth/refresh` | Renovar la sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.refresh` |
 | `POST /api/auth/logout` | Cerrar sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.logout` |
 | `GET /api/me` | Quién soy | Quien tenga sesión | JWT | Sí | `AuthController.me` |
 | `POST /internal/codigos` | Emitir un código de acceso | ms-debt | Clave interna | No | `InternalController.emitir` |
 | `POST /internal/correo/prueba` | Mandar un correo de prueba | Operación de DataBridge | Clave interna | No | `InternalController.probarCorreo` |
+| `GET /.well-known/jwks.json` | Las llaves públicas con que se verifican las sesiones | ms-debt y ms-payments | Ninguna | No | `JwksController.keys` |
 
 ### ms-debt
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/debt/estado` | Si ms-debt responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/debt/reglas` | Las reglas de cobranza y de contacto que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/debt/empresas` | Las empresas registradas | Admin de DataBridge | JWT | Sí | `AdminController.empresas` |
 | `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
 | `POST /api/admin/debt/empresas` | Dar de alta una empresa usuaria | Admin de DataBridge | JWT | Sí | `AdminController.crear` |
 | `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
+| `GET /api/admin/debt/avisos` | Los avisos a las empresas que no se han entregado | Admin de DataBridge | JWT | Sí | `AdminController.avisos` |
+| `POST /api/admin/debt/avisos/{id}/reintentar` | Volver a poner en cola un aviso | Admin de DataBridge | JWT | Sí | `AdminController.reintentar` |
+| `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar` | Volver a poner en cola los avisos fallidos de un destinatario | Admin de DataBridge | JWT | Sí | `AdminController.reintentarDestino` |
 | `GET /api/analytics/summary` | El resumen de mi cartera | Usuario de una empresa | JWT | Sí | `AnalyticsController.summary` |
+| `GET /api/analytics/comision` | Lo recuperado y la comisión de mi empresa en un mes | Usuario de una empresa | JWT | Sí | `AnalyticsController.comision` |
+| `GET /api/admin/debt/comisiones` | La comisión mensual por empresa y el total | Admin de DataBridge | JWT | Sí | `AdminController.comisiones` |
 | `GET /api/debts/campanas` | Las campañas de la empresa | Usuario de una empresa | JWT | Sí | `CampanaController.listar` |
 | `POST /api/debts/campanas` | Crear o cambiar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.guardar` |
 | `POST /api/debts/campanas/{idExterno}/estado` | Pausar, reanudar o terminar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.estado` |
 | `GET /api/debts/cartera/opciones` | Por cuenta de quién puedo cargar | Usuario de una empresa | JWT | Sí | `CargaController.opciones` |
-| `POST /api/debts/cartera` | Cargar una cartera en CSV | Usuario de una empresa | JWT | Sí | `CargaController.subir` |
-| `GET /api/claves` | Las claves de la empresa | Usuario de una empresa | JWT | Sí | `ClaveController.listar` |
-| `POST /api/claves` | Emitir una clave | Usuario de una empresa | JWT | Sí | `ClaveController.emitir` |
-| `DELETE /api/claves/{id}` | Revocar una clave | Usuario de una empresa | JWT | Sí | `ClaveController.revocar` |
+| `GET /api/debts/cartera/plantilla` | Descargar la plantilla de la cartera en Excel | Usuario de una empresa | JWT | Sí | `CargaController.plantilla` |
+| `POST /api/debts/cartera` | Cargar una cartera, en Excel o en CSV, en una campaña | Usuario de una empresa | JWT | Sí | `CargaController.subir` |
+| `POST /api/debts/cartera/revision` | Revisar una planilla antes de cargarla | Usuario de una empresa | JWT | Sí | `CargaController.revisar` |
+| `GET /api/claves` | Las claves de la empresa | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.listar` |
+| `POST /api/claves` | Emitir una clave | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.emitir` |
+| `DELETE /api/claves/{id}` | Revocar una clave | Usuario de una empresa | JWT | Solo con `INTEGRACION_API=true` | `ClaveController.revocar` |
 | `GET /api/debts/vencimientos` | Las cuotas por pagar del deudor, por fecha | Deudor | JWT | Sí | `CuotaController.vencimientos` |
 | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas | Usuario de una empresa | JWT | Sí | `CuotaController.enRiesgo` |
 | `GET /api/debts` | Las deudas de quién pregunta | Deudor y usuario de una empresa | JWT | Sí | `DebtController.list` |
@@ -396,12 +425,12 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 | `GET /api/debts/{id}/certificate` | Certificado de deuda pagada (PDF) | Deudor y usuario de una empresa | JWT | Sí | `DebtController.certificate` |
 | `GET /api/debts/pagos` | Los pagos de quién pregunta | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.pagos` |
 | `GET /api/debts/pagos/{id}/comprobante` | El comprobante de un pago (PDF) | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.comprobante` |
-| `POST /api/v1/carteras` | Entregar una cartera, en JSON | Sistema de una empresa | Clave de API | Sí | `IntegracionController.carteras` |
-| `POST /api/v1/carteras` | Entregar una cartera, en CSV | Sistema de una empresa | Clave de API | Sí | `IntegracionController.carterasCsv` |
-| `GET /api/v1/cuenta` | Quién es el dueño de la clave | Sistema de una empresa | Clave de API | Sí | `IntegracionController.cuenta` |
-| `POST /api/v1/mandatos` | Registrar un mandato | Sistema de una empresa | Clave de API | Sí | `IntegracionController.mandatos` |
-| `POST /api/v1/campanas` | Registrar o actualizar una campaña | Sistema de una empresa | Clave de API | Sí | `IntegracionController.campanas` |
-| `POST /api/v1/suscripciones` | Suscribirse a los eventos (contrato 3) | Sistema de una empresa | Clave de API | Sí | `IntegracionController.suscripciones` |
+| `POST /api/v1/carteras` | Entregar una cartera, en JSON | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.carteras` |
+| `POST /api/v1/carteras` | Entregar una cartera, en CSV | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.carterasCsv` |
+| `GET /api/v1/cuenta` | Quién es el dueño de la clave | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.cuenta` |
+| `POST /api/v1/mandatos` | Registrar un mandato | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.mandatos` |
+| `POST /api/v1/campanas` | Registrar o actualizar una campaña | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.campanas` |
+| `POST /api/v1/suscripciones` | Suscribirse a los eventos (contrato 3) | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.suscripciones` |
 | `GET /internal/debts/{id}` | Cuánto se debe y a quién (para ms-payments) | ms-payments | Clave interna | No | `InternalController.deuda` |
 | `GET /internal/deudores/{rut}/correo` | El correo registrado de un deudor (para ms-auth) | ms-auth | Clave interna | No | `InternalController.correoDelDeudor` |
 | `GET /internal/cartera/{rut}` | Las deudas de la cartera de una empresa (para ms-payments) | ms-payments | Clave interna | No | `InternalController.cartera` |
@@ -418,20 +447,26 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
+| `GET /api/admin/payments/reglas` | Las reglas de pago que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/payments/estado` | Si ms-payments responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/payments/operacion` | Los pagos que hay que mirar, la UF de hoy y los avisos a ms-debt sin entregar | Admin de DataBridge | JWT | Sí | `AdminController.operacion` |
+| `POST /api/admin/payments/avisos/{id}/reintentar` | Volver a poner en cola un aviso de pago a ms-debt | Admin de DataBridge | JWT | Sí | `AdminController.reintentarAviso` |
+| `POST /api/admin/payments/uf` | Cargar a mano la UF de un día | Admin de DataBridge | JWT | Sí | `AdminController.cargarUf` |
 | `POST /internal/uf` | Cargar a mano la UF de un día | Operación de DataBridge | Clave interna | No | `InternalController.cargarAMano` |
 | `POST /internal/uf/cargar` | Cargar ahora la UF desde el Banco Central | Operación de DataBridge | Clave interna | No | `InternalController.cargarAhora` |
 | `POST /api/payments/checkout` | Abrir el cobro de una deuda o de una cuota | Deudor | JWT | Sí | `PaymentController.checkout` |
 | `GET /api/payments` | Mis pagos | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.list` |
 | `GET /api/payments/para-devolver` | Los pagos para devolver | Usuario de una empresa | JWT | Sí | `PaymentController.paraDevolver` |
+| `POST /api/payments/{id}/devolucion` | Registrar la devolución de un pago duplicado | Usuario de una empresa | JWT | Sí | `PaymentController.registrarDevolucion` |
+| `GET /api/payments/devueltos` | Los pagos devueltos | Usuario de una empresa, o el deudor (los suyos) | JWT | Sí | `PaymentController.devueltos` |
 | `GET /api/payments/{id}` | Un pago | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.one` |
 | `GET /api/payments/{id}/historia` | El libro de un pago | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.historia` |
 | `GET /api/payments/public/{id}` | El pago visto desde la pasarela | La página de pago | La firma del enlace de pago | Sí | `PaymentController.pub` |
 | `POST /api/payments/public/{id}/confirm` | Confirmar el pago desde la pasarela simulada | La página de pago | La firma del enlace de pago | Sí | `PaymentController.confirm` |
 | `GET /api/payments/public/{id}/webpay` | Ir a pagar a Webpay | La página de pago | La firma del enlace de pago | Sí | `PaymentController.webpay` |
 | `GET/POST /api/payments/public/webpay/retorno` | La vuelta desde Webpay | El navegador, al volver de Webpay | El token de la pasarela | Sí | `PaymentController.retornoWebpay` |
-| `GET/POST /api/payments/public/mercadopago/retorno` | La vuelta desde Mercado Pago | El navegador, al volver de Mercado Pago | El token de la pasarela | Sí | `PaymentController.retornoMercadoPago` |
-| `GET/POST /api/payments/public/mercadopago/aviso` | El aviso de Mercado Pago (Webhook) | Mercado Pago | La firma de la pasarela, y se le vuelve a preguntar | Sí | `PaymentController.avisoDeMercadoPago` |
+| `GET/POST /api/payments/public/mercadopago/retorno` | La vuelta desde Mercado Pago | El navegador, al volver de Mercado Pago | `pago` y `sig`; se consulta la preferencia guardada. Sin firma vuelve al portal | Sí | `PaymentController.retornoMercadoPago` |
+| `GET/POST /api/payments/public/mercadopago/aviso` | El aviso de Mercado Pago (Webhook) | Mercado Pago | Se consulta el pago a la pasarela y se concilia la preferencia guardada; el cuerpo no autoriza abonos | Sí | `PaymentController.avisoDeMercadoPago` |
 | `POST /api/payments/public/{id}/verificar` | Preguntarle a Khipu en qué va el pago | La página de pago | La firma del enlace de pago | Sí | `PaymentController.verificar` |
 | `POST /api/payments/public/{id}/cancelar` | El deudor se arrepintió en Khipu | La página de pago | La firma del enlace de pago | Sí | `PaymentController.cancelar` |
 | `POST /api/payments/public/khipu/aviso` | El aviso de Khipu | Khipu | La firma de la pasarela, y se le vuelve a preguntar | Sí | `PaymentController.avisoDeKhipu` |
@@ -442,5 +477,5 @@ Cada caso de uso de arriba termina en uno o más de estos **80 endpoints**. La l
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `POST /api/ai/chat` | Preguntarle al asistente | Deudor | JWT | Sí | `ChatController.chat` |
-| `GET /api/health` | Estado del asistente | Monitoreo | Ninguna | No | `SaludController.salud` |
+| `GET /api/ai/salud` | Estado del asistente | Monitoreo | Ninguna | Sí | `SaludController.salud` |
 

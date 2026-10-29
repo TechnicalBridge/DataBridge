@@ -1,7 +1,7 @@
 package com.tbridge.debt.controller;
 
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.assembler.DebtModelAssembler;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.DebtDetailResponse;
@@ -44,8 +44,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * mira y el estado, la direccion publica en los enlaces, y los codigos de
  * error.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(DebtController.class)
-@Import({SecurityConfig.class, JwtService.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class DebtControllerTest {
 
@@ -60,7 +61,7 @@ class DebtControllerTest {
     private static final String PUBLICA = "http://localhost:8080";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private DebtService debts;
     @MockitoBean private CertificateService certificates;
     @MockitoBean private AccesoService acceso;
@@ -79,7 +80,7 @@ class DebtControllerTest {
                 "Comercial Nandu SpA", "76991245-2", "Arriendo local comercial", Debt.Currency.UF,
                 new BigDecimal("115.50"), new BigDecimal("115.50"), BigDecimal.ZERO, estado,
                 Instant.parse("2026-09-24T12:00:00Z"), 0, 1, false, 0, null, null, null, BigDecimal.ZERO,
-                new BigDecimal("115.50"), null, null, false);
+                new BigDecimal("115.50"), null, null, false, null, null);
     }
 
     @Test

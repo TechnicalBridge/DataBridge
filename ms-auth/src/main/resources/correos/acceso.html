@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta('Tu código de acceso', |Tu acceso a DataBridge, válido por ${dura}.|, ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#4b453c;">
+    Entra a <strong th:text="${portal}" style="overflow-wrap:anywhere;">localhost:8080</strong>
+    con tu RUT o correo y este código:
+  </p>
+  <p class="caja" style="margin:20px 0;padding:20px 12px;background:#e4efe2;border-radius:8px;text-align:center;">
+    <strong class="codigo" style="font-family:monospace;font-size:32px;line-height:1.2;color:#2f6140;"
+            th:text="${codigo}">K7M2QX</strong>
+  </p>
+  <p class="tinta-2" style="font-size:15px;line-height:1.5;color:#4b453c;">
+    Vence en <strong th:text="${dura}">15 minutos</strong> y sirve una sola vez. No lo compartas.
+  </p>
+  <div th:if="${url != null}">
+    <p class="tinta-2" style="font-size:15px;line-height:1.5;color:#4b453c;">
+      También puedes entrar con este enlace de respaldo. Al usar el código o el enlace, el otro deja de servir.
+    </p>
+    <p style="margin:24px 0;">
+      <a th:href="${url}" class="boton boton-texto"
+         style="display:inline-block;padding:13px 24px;border-radius:8px;background:#3e7b4f;color:#ffffff;font-weight:700;text-decoration:none;">Entrar a DataBridge</a>
+    </p>
+    <p class="tenue" style="font-size:13px;line-height:1.5;color:#7c7266;overflow-wrap:anywhere;word-break:break-all;"
+       th:text="${url}">Enlace de respaldo</p>
+  </div>
+  <p class="tenue" style="font-size:13px;line-height:1.5;color:#7c7266;">Si no lo pediste, ignora este correo.</p>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">Se solicitó acceso a DataBridge con tus datos.</p>
+</body>
+</html>

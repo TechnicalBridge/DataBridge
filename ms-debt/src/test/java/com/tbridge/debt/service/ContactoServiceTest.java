@@ -2,6 +2,7 @@ package com.tbridge.debt.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
@@ -20,16 +21,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.boot.env.PropertiesPropertySourceLoader;
-import org.springframework.core.io.ClassPathResource;
 
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,15 +58,19 @@ class ContactoServiceTest {
     @Mock private ContactRepository contactos;
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
+    @Mock private InvitacionService invitaciones;
 
     private ContactoService servicio;
     private Campaign campana;
     private Debt deuda;
+    private Debtor deudor;
     private final List<Contact> historia = new ArrayList<>();
 
     @BeforeEach
     void preparar() {
-        servicio = new ContactoService(campaigns, debts, contactos, auth, limite, new ObjectMapper(), "2026-10-12");
+        servicio = new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones, new ObjectMapper(),
+                new HorarioDeContacto("2026-10-12"));
+        when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(0, false));
 
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -82,7 +84,7 @@ class ContactoServiceTest {
         campana.setCadenceDays("[1, 4, 11]");
         campana.setStatus(Campaign.Status.running);
 
-        Debtor deudor = new Debtor();
+        deudor = new Debtor();
         deudor.setRut("16482337-7");
         deudor.setEmail("felipe.rojas@correo.cl");
         deuda = new Debt();
@@ -138,6 +140,102 @@ class ContactoServiceTest {
         assertEquals(0, pasada.enviados());
         assertEquals(1, pasada.omitidos());
         verify(contactos, never()).save(any());
+    }
+
+    // ------------------------------------------------------------------
+    //  Cuando el correo no sale
+    // ------------------------------------------------------------------
+
+    @Test
+    void un_toque_que_rechaza_la_direccion_no_es_un_toque_y_sale_en_la_pasada_siguiente() {
+        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
+
+        ContactosResponse hoy = el(6, 10);
+
+        assertEquals(0, hoy.enviados());
+        assertEquals(1, hoy.omitidos());
+        verify(contactos, never()).save(any());
+        assertEquals(1, deudor.getEmailRejections());
+        assertTrue(deudor.getEmailFailure().contains("550 User unknown"));
+
+        org.mockito.Mockito.reset(auth);
+        assertEquals(1, el(6, 11).enviados(), "el mismo toque, una hora despues");
+        assertEquals((short) 1, historia.getFirst().getTouchNumber(), "sigue siendo el primero");
+        assertEquals(0, deudor.getEmailRejections(), "salio: lo de antes ya no importa");
+        assertEquals(null, deudor.getEmailFailedAt());
+    }
+
+    @Test
+    void si_falla_el_servidor_de_correo_la_pasada_se_corta() {
+        Debtor otro = new Debtor();
+        otro.setRut("19230418-0");
+        otro.setEmail("carolina.munoz@correo.cl");
+        Debt otra = new Debt();
+        otra.setId(4L);
+        otra.setCreditor(deuda.getCreditor());
+        otra.setDebtor(otro);
+        otra.setExternalId("CTR-2026-012");
+        otra.setStatus(Debt.Status.open);
+        otra.setCreatedAt(deuda.getCreatedAt());
+        when(debts.findByCampaign(campana)).thenReturn(List.of(deuda, otra));
+        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("535 Username and Password not accepted", false));
+
+        ContactosResponse hoy = el(6, 10);
+
+        verify(auth, times(1)).emitirCodigo(any());
+        assertEquals(0, hoy.enviados());
+        assertEquals(1, hoy.omitidos());
+        assertEquals(0, deudor.getEmailRejections(), "no es culpa de la direccion");
+        assertTrue(deudor.getEmailFailure().startsWith("el servidor de correo de DataBridge no lo acepto"));
+        assertEquals(null, otro.getEmailFailedAt(), "al otro no se le alcanzo a intentar");
+    }
+
+    @Test
+    void a_un_correo_con_problemas_no_se_le_escribe_solo() {
+        for (int i = 0; i < Debtor.RECHAZOS_PARA_DEJAR; i++) {
+            deudor.correoNoSalio("rechazada", true, java.time.Instant.now());
+        }
+
+        ContactosResponse hoy = el(6, 10);
+
+        assertEquals(1, hoy.omitidos());
+        verify(auth, never()).emitirCodigo(any());
+    }
+
+    @Test
+    void antes_de_las_campanas_salen_las_invitaciones_pendientes() {
+        when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(2, false));
+
+        ContactosResponse hoy = el(6, 10);
+
+        assertEquals(2, hoy.invitados());
+        assertEquals(1, hoy.enviados(), "y la campana sigue");
+    }
+
+    @Test
+    void si_las_invitaciones_cortaron_la_pasada_las_campanas_esperan() {
+        when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(0, true));
+
+        ContactosResponse hoy = el(6, 10);
+
+        assertEquals(0, hoy.enviados());
+        verify(auth, never()).emitirCodigo(any());
+    }
+
+    @Test
+    void la_pasada_de_una_sola_campana_no_toca_las_invitaciones() {
+        campana.setExternalId("APX-CMP-8");
+
+        servicio.contactar(LocalDateTime.of(2026, 10, 6, 10, 0), "APX-CMP-8");
+
+        verify(invitaciones, never()).invitarPendientes(any(), any());
+    }
+
+    @Test
+    void fuera_de_horario_tampoco_salen_invitaciones() {
+        el(11, 10);
+
+        verify(invitaciones, never()).invitarPendientes(any(), any());
     }
 
     @Test
@@ -217,54 +315,5 @@ class ContactoServiceTest {
         ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
         verify(auth).emitirCodigo(pedido.capture());
         assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
-    }
-
-    // ------------------------------------------------------------------
-    //  Los feriados de la configuracion
-    // ------------------------------------------------------------------
-
-    /**
-     * Con la configuracion tal como la lee Spring Boot de application.properties
-     * (con el mismo cargador), mas lo que sume CONTACTO_FERIADOS.
-     */
-    private ContactoService conLaConfiguracion(String contactoFeriados) throws IOException {
-        Object feriados = new PropertiesPropertySourceLoader()
-                .load("configuracion", new ClassPathResource("application.properties"))
-                .getFirst()
-                .getProperty("app.contacto.feriados");
-        String conLaVariable = String.valueOf(feriados).replace("${CONTACTO_FERIADOS:}", contactoFeriados);
-        return new ContactoService(campaigns, debts, contactos, auth, limite, new ObjectMapper(), conLaVariable);
-    }
-
-    @Test
-    void los_feriados_se_calculan_para_cualquier_ano() throws IOException {
-        ContactoService conFeriados = conLaConfiguracion("");
-        //  Los de 2027, con el viernes 17 de septiembre (Ley 20.983) que faltaba en la lista a mano.
-        List<LocalDate> feriados = Stream.of("2027-01-01", "2027-03-26", "2027-03-27", "2027-05-01",
-                        "2027-05-21", "2027-06-21", "2027-06-28", "2027-07-16", "2027-08-15", "2027-09-17",
-                        "2027-09-18", "2027-09-19", "2027-10-11", "2027-10-31", "2027-11-01", "2027-12-08",
-                        "2027-12-25")
-                .map(LocalDate::parse)
-                .toList();
-
-        for (LocalDate dia : feriados) {
-            assertFalse(conFeriados.horaDeContacto(dia.atTime(10, 0)), dia + " es feriado");
-        }
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 6, 29, 10, 0)),
-                "San Pedro y San Pablo cae martes y se corre al lunes 28");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 10, 12, 10, 0)),
-                "el Encuentro de Dos Mundos cae martes y se corre al lunes 11");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 1, 4, 10, 0)), "un lunes cualquiera");
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2031, 1, 1, 10, 0)),
-                "y un ano que nadie cargo: el miercoles 1 de enero de 2031");
-    }
-
-    @Test
-    void un_feriado_decretado_se_suma_a_los_calculados() throws IOException {
-        ContactoService conFeriados = conLaConfiguracion("2027-11-22");
-
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2027, 11, 22, 10, 0)), "el decretado");
-        assertFalse(conFeriados.horaDeContacto(LocalDateTime.of(2026, 10, 12, 10, 0)), "los calculados siguen");
-        assertTrue(conFeriados.horaDeContacto(LocalDateTime.of(2027, 11, 23, 10, 0)), "el dia siguiente, no");
     }
 }

@@ -1,0 +1,91 @@
+# =============================================================================
+#  Automatización de Fecha de Inicio en Project (Backlog)
+# =============================================================================
+#  Cuando se abre un issue, se localiza automáticamente dentro del tablero de
+#  proyecto de la organización (TechnicalBridge/3) y se establece el campo
+#  "Start date" con la fecha de creación del issue mediante la API GraphQL de
+#  GitHub Projects v2.
+#
+#  También admite ejecución manual (workflow_dispatch) para sincronizar en lote
+#  la fecha de inicio de todos los issues existentes hacia el tablero.
+# =============================================================================
+name: Set Start Date
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  repository-projects: write
+
+jobs:
+  update-project:
+    name: Asignar Fecha de Inicio en Project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Ejecutar asignación de Start Date
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+          ISSUE_CREATED_AT: ${{ github.event.issue.created_at }}
+          ORGANIZATION: "TechnicalBridge"
+          PROJECT_NUMBER: 3
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Ejecución manual: Sincronizando todos los issues existentes..."
+            python scripts/sync_project_start_dates.py
+          else
+            echo "Procesando nuevo issue #${{ github.event.issue.number }}..."
+            python -c '
+          import os, json, subprocess, sys
+          
+          org = os.environ["ORGANIZATION"]
+          num = int(os.environ["PROJECT_NUMBER"])
+          node_id = os.environ["ISSUE_NODE_ID"]
+          created_raw = os.environ.get("ISSUE_CREATED_AT", "")
+          created_date = created_raw.split("T")[0] if created_raw else subprocess.getoutput("date +%F")
+
+          def run_gql(q, v):
+              cmd = ["gh", "api", "graphql", "-f", f"query={q}"]
+              for k, val in v.items():
+                  cmd.extend(["-F" if isinstance(val, int) else "-f", f"{k}={val}"])
+              res = subprocess.run(cmd, capture_output=True, text=True)
+              return json.loads(res.stdout) if res.returncode == 0 else {}
+
+          # 1. Obtener project y campo Start date
+          q_proj = "query($org: String!, $num: Int!) { organization(login: $org) { projectV2(number: $num) { id fields(first: 50) { nodes { ... on ProjectV2FieldCommon { id name dataType } } } } } }"
+          pdata = run_gql(q_proj, {"org": org, "num": num})
+          pv2 = pdata.get("data", {}).get("organization", {}).get("projectV2")
+          if not pv2:
+              print("No se pudo obtener el proyecto", file=sys.stderr)
+              sys.exit(0)
+          
+          project_id = pv2["id"]
+          field_id = next((f["id"] for f in pv2["fields"]["nodes"] if f.get("dataType") == "DATE" and ("start" in f.get("name","").lower() or "inicio" in f.get("name","").lower())), None)
+          if not field_id:
+              field_id = next((f["id"] for f in pv2["fields"]["nodes"] if f.get("dataType") == "DATE"), None)
+          
+          # 2. Add to project
+          m_add = "mutation($pId: ID!, $cId: ID!) { addProjectV2ItemById(input: {projectId: $pId, contentId: $cId}) { item { id } } }"
+          add_res = run_gql(m_add, {"pId": project_id, "cId": node_id})
+          item_id = add_res.get("data", {}).get("addProjectV2ItemById", {}).get("item", {}).get("id")
+          if not item_id:
+              print("No se pudo obtener el item_id", file=sys.stderr)
+              sys.exit(0)
+
+          # 3. Set date
+          m_set = "mutation($pId: ID!, $iId: ID!, $fId: ID!, $d: Date!) { updateProjectV2ItemFieldValue(input: {projectId: $pId, itemId: $iId, fieldId: $fId, value: {date: $d}}) { projectV2Item { id } } }"
+          set_res = run_gql(m_set, {"pId": project_id, "iId": item_id, "fId": field_id, "d": created_date})
+          print(f"Start date ({created_date}) asignado exitosamente al item {item_id}")
+            '
+          fi

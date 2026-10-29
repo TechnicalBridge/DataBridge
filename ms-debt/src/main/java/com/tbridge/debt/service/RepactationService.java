@@ -65,9 +65,54 @@ public class RepactationService {
         BigDecimal total = cuotas.stream().map(InstallmentPreview::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal interesConvenio = cuotas.stream().map(InstallmentPreview::interest)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        //  El costo total que pide la ley es la suma de las cuotas: hoy no hay gastos que sumarle.
         return new RepactPlan(months, cuotas.getFirst().amount(), cuotas.getLast().amount(), total, cuotas,
                 capital.setScale(decimales, RoundingMode.HALF_UP), sinMora.setScale(decimales, RoundingMode.HALF_UP),
-                aRepactar, conInteres ? tasaMensual : null, interesConvenio);
+                aRepactar, conInteres ? tasaMensual : null, interesConvenio,
+                calcularCae(aRepactar, cuotas, tasaMensual), total);
+    }
+
+    /** Cuando dos aproximaciones de la tasa mensual ya no se distinguen: muy por debajo de la decima que se informa. */
+    private static final double PRECISION_CAE = 1e-12;
+
+    /**
+     * La Carga Anual Equivalente (CAE) del convenio, como pide la Ley 20.555 y
+     * el D.S. 43 de 2012: la tasa mensual que iguala lo que se repacta con el
+     * valor presente de las cuotas, por 12, en % y con dos decimales. Los plazos
+     * se cuentan en meses desde que se acepta, como definio #50 (la primera
+     * cuota vence al mes). Sin tasa, 0,00.
+     *
+     * <p>La tasa se busca con Newton, partiendo de la pactada, que con el
+     * sistema frances ya es casi la respuesta: el redondeo de las cuotas es lo
+     * unico que la mueve.
+     */
+    static BigDecimal calcularCae(BigDecimal principal, List<InstallmentPreview> cuotas, BigDecimal tasaMensual) {
+        if (tasaMensual == null || tasaMensual.signum() <= 0 || principal == null || principal.signum() <= 0
+                || cuotas == null || cuotas.isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        double p = principal.doubleValue();
+        double[] montos = cuotas.stream().mapToDouble(c -> c.amount().doubleValue()).toArray();
+        int n = montos.length;
+
+        double r = tasaMensual.doubleValue() / 100.0;
+        for (int vuelta = 0; vuelta < 100; vuelta++) {
+            double f = -p;
+            double df = 0.0;
+            for (int k = 1; k <= n; k++) {
+                double factor = Math.pow(1.0 + r, k);
+                f += montos[k - 1] / factor;
+                df -= k * montos[k - 1] / (factor * (1.0 + r));
+            }
+            double delta = f / df;
+            r = Math.max(r - delta, -0.99);
+            if (Math.abs(delta) < PRECISION_CAE) {
+                break;
+            }
+        }
+        //  Al pasar a BigDecimal antes de escalar, el redondeo a la centesima es decimal, no binario.
+        return new BigDecimal(Double.toString(r)).multiply(BigDecimal.valueOf(1200)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static List<InstallmentPreview> iguales(BigDecimal total, int decimales, int months, LocalDate from) {

@@ -47,6 +47,16 @@ public final class ModoDePrueba {
         this.desvio = desviarA == null || desviarA.isBlank() ? null : desviarA.strip().toLowerCase(Locale.ROOT);
     }
 
+    /** Cuantas direcciones o dominios reciben directo. */
+    public int cuantosPermitidos() {
+        return permitidos.size();
+    }
+
+    /** Si lo que no esta permitido se desvia a un buzon, en vez de no salir. */
+    public boolean desvia() {
+        return desvio != null;
+    }
+
     /** Si hay alguna restriccion. Sin ninguna, se le escribe a cualquiera. */
     public boolean activo() {
         return !permitidos.isEmpty() || desvio != null;
@@ -60,6 +70,18 @@ public final class ModoDePrueba {
         if (!activo() || permitido(destinatario)) {
             return Optional.of(new Destino(destinatario, asunto, false));
         }
+        if (desvio == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new Destino(desvio, "[para " + destinatario + "] " + asunto, true));
+    }
+
+    /**
+     * El desvio de {@code destinatario}, sin mirar la lista: para una direccion
+     * que nunca debe salir directo, como la de un dominio reservado. Vacio si
+     * no hay a donde desviarla.
+     */
+    public Optional<Destino> desviar(String destinatario, String asunto) {
         if (desvio == null) {
             return Optional.empty();
         }

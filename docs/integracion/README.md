@@ -5,6 +5,13 @@ que el otro esté funcionando.
 
 Proyecto de Capstone. Las empresas, personas, RUT y montos de los ejemplos son ficticios.
 
+> **En DataBridge, la entrega por API está apagada por omisión.** Los deudores entran solo por
+> campaña, cargados desde el portal con la planilla de §6.6. Mientras `INTEGRACION_API` no sea
+> `true`, todo `/api/v1` y `/api/claves` de DataBridge responde `404`, así que APOFYX no le puede
+> entregar carteras. Encendida, funciona como dice este contrato, salvo que el portal ya no tiene
+> *Claves de API*: la clave se emite con `POST /api/claves`, con la sesión de la empresa, o por
+> dentro con `POST /internal/claves`.
+
 ---
 
 ## 1. La cadena
@@ -333,7 +340,12 @@ no deshace lo que el deudor ya acordó:
 
 **La invitación.** Cuando una deuda entra —o vuelve— a cobranza en DataBridge, al deudor le llega
 solo su código de acceso por correo, sin monto ni enlace. La agencia lo puede reenviar desde su
-portal.
+portal. Si en ese momento no sale, DataBridge lo vuelve a intentar solo, dentro del horario de
+cobranza, hasta que sale. No sale cuando:
+
+- es de noche, un domingo o un feriado;
+- la ley ya no deja escribirle esa semana;
+- el correo falla.
 
 ### 6.5 Respuesta
 
@@ -401,9 +413,55 @@ POST /api/v1/carteras   (multipart/form-data)
 - `tasa_interes_mensual` es opcional: una planilla sin esa columna sirve igual. Como las otras
   columnas de la deuda, se repite en cada fila de sus cargos; acepta `1,5` o `1.5`.
 
-Desde el portal de empresas de DataBridge la misma planilla se carga arrastrándola
-(`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API). No es otra
-ingesta: el archivo se convierte a Cartera v1 y entra por el mismo camino.
+Desde el portal de empresas de DataBridge la misma planilla se carga **dentro de una campaña**:
+`POST /api/debts/cartera`, con la sesión del personal en vez de la clave de API. Es la única
+entrada mientras la entrega por API esté apagada (`INTEGRACION_API`).
+
+- **La campaña es obligatoria:** sin `campana_id_externo` responde `400` (`sin_campana`), y en
+  una terminada, `409` (`campana_terminada`).
+- **El id del lote y la fecha de corte se arman solos** si no vienen: el corte es hoy.
+- **Antes de confirmar se puede revisar:** `POST /api/debts/cartera/revision` recibe lo mismo y
+  responde lo que pasaría con cada deuda y cuánto entraría por moneda. No guarda nada ni invita a
+  nadie, porque corre la misma ingesta en una transacción que se deshace siempre.
+
+#### La planilla de Excel (desde el portal)
+
+En el portal la forma recomendada es un **Excel** (`.xlsx`), más fácil de llenar que el CSV. La plantilla se
+descarga con `GET /api/debts/cartera/plantilla` (o *Descargar la plantilla de Excel* en *Cargar cartera*) y
+se sube por los mismos `POST /api/debts/cartera` y `/revision`: DataBridge distingue el Excel del CSV por
+su contenido.
+
+| Hoja | Una fila por | Columnas |
+| --- | --- | --- |
+| **Instrucciones** | — | Cada columna con su tipo, si es obligatoria y un ejemplo, y un ejemplo completo |
+| **Deudores** | Persona o empresa que debe | `RUT`, `Tipo` (persona o empresa), `Nombre`, `Correo`, `Teléfono` |
+| **Deudas** | **Mes** que se debe | `Id de la deuda`, `RUT del deudor`, `Acción` (registrar, al día o retirar), `Moneda`, `Concepto de la deuda`, `Mes`, `Monto`, `Vencimiento`; opcionales: `Concepto del mes`, `Tasa de interés mensual`, `Motivo del retiro`, `Referencias` |
+
+- **Granularidad mensual.** Cada fila de *Deudas* es un mes: quien debe tres meses lleva tres filas con el
+  mismo `Id de la deuda`. Cada fila se vuelve un cargo de la Cartera v1, con `periodo` = el mes
+  (`2026-07`). Sin `Concepto del mes`, el cargo se llama como la deuda más el mes (*Arriendo · julio de
+  2026*).
+- **Tipos de verdad.** `Mes` y `Vencimiento` son fechas, `Monto` y `Tasa` son números (en CLP sin
+  decimales, en UF hasta dos), y `Tipo`, `Acción`, `Moneda` y `Motivo` son listas desplegables. Escritos
+  como texto también se leen: `jul-2026`, `2026-07` o `julio de 2026`; `05-07-2026` o `2026-07-05`;
+  `350000` o `350.000`.
+- **Un cliente al día** va con la acción `al día`, sin mes ni monto (`cargos: []`). **Un retiro**, con
+  `retirar`, el `Id` y el `Motivo del retiro`, en una sola fila.
+- **Cada problema con su lugar.** Lo que no calza con la plantilla responde `400 excel_invalido`, y si son
+  varios, **todos** juntos en `error.detalles`, cada uno con su hoja, su fila y su columna:
+
+  ```json
+  {"error": {"codigo": "excel_invalido",
+             "mensaje": "La planilla tiene 2 problemas. Corrígelos y vuelve a revisarla",
+             "detalles": ["Hoja Deudas, fila 2, columna RUT del deudor: el RUT 11111111-1 no está en la hoja Deudores",
+                          "Hoja Deudas, fila 3, columna Monto: '185.000,5' no es un número: va sin puntos de miles, como 185000 o 38,5"]}}
+  ```
+
+  Lo de negocio (el dígito del RUT, la mora mínima, la tasa) lo sigue decidiendo la ingesta, deuda por deuda,
+  como en el CSV. Ejemplos llenos, uno correcto y uno con errores a propósito, en
+  [`docs/cartera/ejemplos`](../cartera/ejemplos/README.md).
+
+No es otra ingesta: el archivo, en Excel o en CSV, se convierte a Cartera v1 y entra por el mismo camino.
 
 Reemplaza al CSV antiguo de ms-debt (`email,nombre,acreedor,monto,...`), que no traía RUT, ni id
 externo, ni forma de reenviar sin duplicar.
@@ -496,7 +554,7 @@ POST /api/v1/campanas
 | `intentos` | Cuántos toques recibe cada deuda como máximo |
 | `inicio`, `fin` | Fuera de esas fechas la campaña no contacta |
 | `canales` | Hoy DataBridge contacta solo por `correo`. Una campaña sin `correo` no contacta: WhatsApp todavía no está conectado |
-| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
+| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. Una campaña terminada no se puede volver a poner en curso ni pausar (`409`, `campana_terminada`). APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
 | `descuento_mora_por_tramo` | El % de los intereses de mora que la campaña condona según el tramo de la deuda (§7.1). Los tramos son `1-30`, `31-90` y `91-120`; un tramo que no viene es 0. Ninguno puede pasar el máximo del mandato (`descuento_sobre_tope`). Sin el campo no cambia; una campaña nueva parte sin descuento. `{}` lo quita |
 
 Cada toque es el mismo correo de la invitación: un código para entrar al portal, sin el monto ni un
@@ -514,6 +572,9 @@ sigue con los recordatorios de su convenio.
 - **Registro:** cada gestión queda guardada como un contacto de la deuda, con qué fue (la
   invitación, un toque y su número, un recordatorio y su cuota, o un reenvío), por dónde, a dónde y
   cuándo. En la historia de la deuda se lee como `code_sent`.
+- **Un correo que no salió no es una gestión:** no queda como contacto ni cuenta para el límite.
+  Si el servidor rechazó la dirección tres veces seguidas, DataBridge deja de escribirle solo
+  hasta que una cartera traiga otro correo.
 
 Un toque que la ley no deja hoy sale en cuanto se puede. Por eso una cadencia con toques muy
 seguidos (1 y 4 está bien; 1 y 2, no) se cumple más tarde de lo que dice.
@@ -612,7 +673,7 @@ ahora en sentido contrario.
 | --- | --- | --- |
 | `lote.procesado` | Termina la ingesta de un lote | `periodo`, `fecha_corte`, `recibidas`, `aceptadas`, `rechazadas`, `tramos: [{tramo, deudas, promedio_clp}]` |
 | `campana.avance` | Una vez al día por campaña | `campana_id_externo`, `fecha_corte`, `deudas`, `enviados`, `ingresos_portal`, `repactaciones`, `pagos`, `saldadas`, `disputas`, `retiradas`, `recuperado_clp`, `recuperado_uf` |
-| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
+| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`, `cae`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
 | `pago.confirmado` | La pasarela confirma un pago | `deuda_id_externo`, `pago_id`, `monto`, `moneda`, `monto_clp`, `valor_uf`, `medio`, `pagado_en`; si el pago trae mora, además `capital` e `interes` (`monto` es la suma); con descuento por pronto pago, además `descuento` |
 | `deuda.saldada` | El saldo llega a cero | `deuda_id_externo`, `saldada_en` |
 | `deuda.disputada` | El deudor dice que la deuda no es suya o no corresponde | `deuda_id_externo`, `motivo` |
@@ -657,6 +718,14 @@ cobra de verdad contra Transbank (ambiente de integración por omisión), Khipu 
 tiene la llave de una cuenta de cobro, y Mercado Pago cuando tiene el access token de una cuenta. Un pago de Webpay se confirma solo
 cuando Transbank lo autoriza y el monto y la orden calzan; uno de Khipu, cuando Khipu dice que la
 transferencia está conciliada, con el monto y la transacción del cobro.
+
+En Mercado Pago, retorno, aviso y consulta periódica concilian la preferencia que ms-payments
+guardó al abrir el cobro. Solo abonan si el pago consultado a la pasarela pertenece a esa
+preferencia y coinciden su identificador, referencia, monto en pesos y moneda CLP. El retorno
+lleva `pago` y `sig`, generados por ms-payments; no usa los estados recibidos del navegador para
+confirmar ni rechazar. Sin firma regresa a `/app`, sin revelar el enlace del pago. Los cobros
+anteriores siguen conciliándose en segundo plano. Si la pasarela no responde, no se abona;
+el aviso devuelve error para permitir su reintento. Un intento rechazado no cierra la preferencia.
 
 **En UF, `pago.confirmado` trae el valor de la UF usado.** La UF cambia todos los días; el acreedor
 tiene que poder reconstruir por qué un pago de `UF 38,5` fueron esos pesos.

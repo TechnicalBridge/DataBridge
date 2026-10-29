@@ -1,6 +1,6 @@
 package com.tbridge.payments.controller;
 
-import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.service.UfLoader;
@@ -26,8 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** La carga de la UF a mano, detras de la clave interna. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(InternalController.class)
-@Import({SecurityConfig.class, JwtService.class})
+@Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class InternalControllerTest {
 

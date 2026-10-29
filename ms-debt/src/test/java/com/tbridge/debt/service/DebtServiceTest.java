@@ -46,12 +46,14 @@ import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -268,6 +270,33 @@ class DebtServiceTest {
         assertEquals(280000, detalle.get("monto_clp").asInt());
         //  Fechado cuando pago el deudor, no cuando llego el aviso.
         assertEquals(pagadoEn, aplicado.getOccurredAt());
+    }
+
+    @Test
+    void la_comision_conserva_la_empresa_y_campana_del_pago_aunque_recarguen_la_deuda() throws Exception {
+        Campaign campana = new Campaign();
+        campana.setExternalId("CMP-ORIGINAL");
+        campana.setName("Campaña original");
+        deuda.setCampaign(campana);
+        servicio.onPagoConfirmado(aviso());
+        DebtEvent aplicado = historia.stream()
+                .filter(e -> e.getType() == DebtEvent.Type.payment_applied).findFirst().orElseThrow();
+        DetallePago detalle = json.readValue(aplicado.getDetail(), DetallePago.class);
+        assertEquals(apofyx.getRut(), detalle.empresaRut());
+        assertEquals(apofyx.getTradeName(), detalle.empresaNombre());
+        assertEquals("CMP-ORIGINAL", detalle.campanaId());
+
+        Batch otroLote = new Batch();
+        otroLote.setSender(patrimonio);
+        deuda.setLastBatch(otroLote);
+        deuda.setCampaign(null);
+        when(events.entre(any(), any(), any())).thenReturn(List.of(aplicado));
+        ComisionService comisiones = new ComisionService(events, servicio, json);
+        var original = comisiones.deLaEmpresa(empresa(apofyx.getRut()), YearMonth.of(2026, 9));
+        assertEquals(410_000, original.recuperado());
+        assertEquals("CMP-ORIGINAL", original.porCampana().getFirst().idExterno());
+        assertEquals(0, comisiones.deLaEmpresa(empresa(patrimonio.getRut()), YearMonth.of(2026, 9)).recuperado());
+        assertEquals(apofyx.getRut(), comisiones.deTodas(YearMonth.of(2026, 9)).empresas().getFirst().rut());
     }
 
     /** Un mes que el acreedor informo despues del convenio: una cuota aparte, la que vence primero. */
@@ -711,10 +740,67 @@ class DebtServiceTest {
         assertEquals(3, delPlan.size());
         assertEquals(plan.cuotas().getFirst().interest(), delPlan.getFirst().getInterestAmount(),
                 "cada cuota guarda su interes, para que la mora corra solo sobre el capital");
+        //  Al 1% mensual en sistema frances, la CAE es 12,00%: el redondeo de las cuotas no la mueve.
+        assertEquals(new BigDecimal("12.00"), plan.cae());
+        ArgumentCaptor<Repactation> convenio = ArgumentCaptor.forClass(Repactation.class);
+        verify(repactations).save(convenio.capture());
+        assertEquals(new BigDecimal("12.00"), convenio.getValue().getCae(), "el convenio guarda la CAE que se informo");
+
         ArgumentCaptor<Object> datos = ArgumentCaptor.forClass(Object.class);
         verify(eventos).publicar(eq(deuda), eq(EventosService.REPACTACION_ACEPTADA), datos.capture(), any());
         RepactacionAceptadaDatos aceptada = (RepactacionAceptadaDatos) datos.getValue();
         assertEquals(new BigDecimal("1"), aceptada.tasaInteresMensual());
         assertEquals(414100L, aceptada.aRepactar());
+        assertEquals(new BigDecimal("12.00"), aceptada.cae(), "el aviso repactacion.aceptada lleva la CAE");
+    }
+
+    // ------------------------------------------------------------------
+    //  La CAE del convenio (#46)
+    // ------------------------------------------------------------------
+
+    private Repactation convenioVigente(String cae, String aceptado) {
+        Repactation convenio = new Repactation();
+        convenio.setDebt(deuda);
+        convenio.setCae(new BigDecimal(cae));
+        convenio.setAcceptedAt(Instant.parse(aceptado));
+        return convenio;
+    }
+
+    @Test
+    void el_detalle_de_un_convenio_trae_su_cae_y_si_hubiera_dos_vigentes_la_del_ultimo() {
+        enConvenioDeTres();
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda))).thenReturn(List.of(
+                convenioVigente("18.00", "2026-10-02T15:00:00Z"),
+                convenioVigente("15.00", "2026-09-10T12:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(new BigDecimal("18.00"), detalle.resumen().cae());
+    }
+
+    @Test
+    void una_deuda_que_ya_no_esta_en_convenio_no_informa_la_cae_del_convenio_viejo() {
+        //  El acreedor la volvio a cargar: queda abierta, con el convenio anterior sin reemplazar.
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(false, detalle.resumen().conConvenio());
+        assertNull(detalle.resumen().cae());
+    }
+
+    @Test
+    void las_listas_traen_la_cae_en_una_sola_consulta() {
+        enConvenioDeTres();
+        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda));
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(deudor("18905214-6")).getFirst().cae());
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(empresa("77305118-6")).getFirst().cae());
+        verify(repactations, org.mockito.Mockito.times(2)).findByDebtInAndSupersededAtIsNull(List.of(deuda));
+        verify(repactations, never()).findByDebtAndSupersededAtIsNull(any());
     }
 }

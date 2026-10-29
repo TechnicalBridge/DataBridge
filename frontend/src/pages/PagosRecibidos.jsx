@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { descargarComprobante, listarPagos, listarParaDevolver } from "../api/pagos";
+import { descargarComprobante, listarDevueltos, listarPagos, listarParaDevolver, registrarDevolucion } from "../api/pagos";
 import { dinero, fechaHora, porMoneda, queSePago, rutLegible } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import Cargando from "../components/Cargando";
@@ -10,6 +10,12 @@ import { IconoAlerta, IconoDescargar } from "../components/Iconos";
 export default function PagosRecibidos() {
   const [pagos, setPagos] = useState(null);
   const [paraDevolver, setParaDevolver] = useState([]);
+  const [devueltos, setDevueltos] = useState([]);
+  //  La devolucion que se esta anotando: el pago, la referencia y si ya se mando.
+  const [devolviendo, setDevolviendo] = useState(null);
+  const [referencia, setReferencia] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [errorDevolucion, setErrorDevolucion] = useState("");
   const [pasarela, setPasarela] = useState("todas");
   const [buscar, setBuscar] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +28,7 @@ export default function PagosRecibidos() {
         setPagos([]);
       });
     listarParaDevolver().then(setParaDevolver).catch(() => setParaDevolver([]));
+    listarDevueltos().then(setDevueltos).catch(() => setDevueltos([]));
   }, []);
 
   if (pagos === null) return <Cargando tarjetas={1} />;
@@ -30,6 +37,28 @@ export default function PagosRecibidos() {
   const visibles = pagos.filter((p) =>
     (pasarela === "todas" || p.pasarela === pasarela)
     && (!texto || [p.deudor, p.deudorRut, p.externalId].some((v) => String(v).toLowerCase().includes(texto))));
+
+  function anotar(id) {
+    setDevolviendo(id);
+    setReferencia("");
+    setErrorDevolucion("");
+  }
+
+  async function guardarDevolucion(e) {
+    e.preventDefault();
+    setGuardando(true);
+    setErrorDevolucion("");
+    try {
+      const devuelto = await registrarDevolucion(devolviendo, referencia.trim());
+      setParaDevolver((antes) => antes.filter((p) => p.id !== devolviendo));
+      setDevueltos((antes) => [devuelto, ...antes.filter((p) => p.id !== devuelto.id)]);
+      setDevolviendo(null);
+    } catch (err) {
+      setErrorDevolucion(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   function exportar() {
     descargarCsv("pagos-recibidos.csv",
@@ -64,7 +93,7 @@ export default function PagosRecibidos() {
               <b>{paraDevolver.length === 1 ? "Un pago para devolver" : `${paraDevolver.length} pagos para devolver`}</b>
               <span className="sub">
                 El deudor pagó dos veces las mismas cuotas y el segundo pago no se abonó. Devuélvelo en la pasarela
-                con su referencia.
+                con su referencia y después anota aquí la referencia que te dio la pasarela.
               </span>
             </div>
           </div>
@@ -77,6 +106,7 @@ export default function PagosRecibidos() {
                   <th>Medio</th>
                   <th>Referencia en la pasarela</th>
                   <th className="num">Monto</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -86,6 +116,61 @@ export default function PagosRecibidos() {
                     <td>{rutLegible(p.deudorRut)}</td>
                     <td><LogoPasarela id={p.gateway} alto={16} /></td>
                     <td>{p.referenciaPasarela}</td>
+                    <td className="num">{p.amountClp ? dinero(p.amountClp) : dinero(p.amount, p.currency)}</td>
+                    <td>
+                      {devolviendo === p.id ? (
+                        <form className="devolucion-en-linea" onSubmit={guardarDevolucion}>
+                          <input className="buscador" value={referencia} maxLength={100} autoFocus required
+                                 aria-label="Referencia de la devolución en la pasarela"
+                                 placeholder="Referencia de la devolución"
+                                 onChange={(e) => setReferencia(e.target.value)} />
+                          <button type="submit" className="btn btn-primary btn-sm"
+                                  disabled={guardando || !referencia.trim()}>
+                            {guardando ? "Guardando…" : "Guardar"}
+                          </button>
+                          <button type="button" className="btn btn-ghost btn-sm" disabled={guardando}
+                                  onClick={() => setDevolviendo(null)}>
+                            Cancelar
+                          </button>
+                        </form>
+                      ) : p._links?.["registrar-devolucion"] ? (
+                        <button type="button" className="btn btn-soft btn-sm" onClick={() => anotar(p.id)}>
+                          Ya lo devolví
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {errorDevolucion ? <div className="error">{errorDevolucion}</div> : null}
+        </div>
+      ) : null}
+
+      {devueltos.length ? (
+        <div className="card bloque aparece">
+          <h3>{devueltos.length === 1 ? "Un pago devuelto" : `${devueltos.length} pagos devueltos`}</h3>
+          <div className="tabla-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Devuelto</th>
+                  <th>Deudor</th>
+                  <th>Medio</th>
+                  <th>Referencia en la pasarela</th>
+                  <th>Referencia de la devolución</th>
+                  <th className="num">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {devueltos.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.devueltoEn ? fechaHora(p.devueltoEn) : "—"}</td>
+                    <td>{rutLegible(p.deudorRut)}</td>
+                    <td><LogoPasarela id={p.gateway} alto={16} /></td>
+                    <td>{p.referenciaPasarela}</td>
+                    <td>{p.referenciaDevolucion || "—"}</td>
                     <td className="num">{p.amountClp ? dinero(p.amountClp) : dinero(p.amount, p.currency)}</td>
                   </tr>
                 ))}

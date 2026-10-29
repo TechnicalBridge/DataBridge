@@ -41,8 +41,18 @@ export const cambiarRecordatorios = (recordatorios) =>
 /** Por cuenta de quien puede cargar cartera la empresa de la sesion. */
 export const opcionesDeCarga = () => pedir("/debts/cartera/opciones");
 
-/** Cargar la cartera en el CSV del contrato. */
+/** Cargar la cartera (la planilla de Excel o el CSV del contrato), dentro de una campaña. */
 export const cargarCartera = (formulario) => pedir("/debts/cartera", { method: "POST", body: formulario });
+
+/** Lo que pasaría al cargar esa planilla, sin cargarla: no guarda nada ni invita a nadie. */
+export const revisarCartera = (formulario) =>
+  pedir("/debts/cartera/revision", { method: "POST", body: formulario });
+
+/** La plantilla de la cartera en Excel: Instrucciones, Deudores y Deudas, lista para llenar. */
+export async function descargarPlantillaExcel() {
+  const res = await client.get("/debts/cartera/plantilla", { responseType: "blob" });
+  descargar(res.data, "cartera-plantilla.xlsx");
+}
 
 /** El certificado de deuda pagada, descargado como archivo. */
 export async function descargarCertificado(id) {

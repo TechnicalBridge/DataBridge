@@ -2,13 +2,13 @@
 
 Vista lógica del [modelo 4+1](README.md): qué clases hay en cada servicio, qué sabe y qué hace cada una, y de quién depende.
 
-TB_web tiene **274 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
+TB_web tiene **296 tipos de Java** repartidos en cinco servicios que no comparten código: cada uno tiene su propio `pom.xml` y sus propias clases, y se hablan por HTTP o por la cola. Por eso hay un grupo de diagramas por servicio.
 
 | Servicio | Tipos | Qué hace | Diagramas |
 | --- | --- | --- | --- |
-| [ms-auth](#ms-auth--el-acceso) | 51 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
-| [ms-debt](#ms-debt--la-cartera) | 151 | La cartera: empresas, deudas, convenios, campañas y eventos | 7 |
-| [ms-payments](#ms-payments--los-cobros) | 51 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
+| [ms-auth](#ms-auth--el-acceso) | 58 | El acceso: códigos, enlaces, sesiones y las personas con cuenta | 3 |
+| [ms-debt](#ms-debt--la-cartera) | 164 | La cartera: empresas, deudas, convenios, campañas, comisiones y eventos | 8 |
+| [ms-payments](#ms-payments--los-cobros) | 53 | Los cobros: pasarelas, conciliación, UF y el aviso de pago | 4 |
 | [ms-ai](#ms-ai--el-asistente) | 15 | El asistente del deudor, de solo lectura | 1 |
 | [gateway](#gateway--la-puerta) | 6 | La única puerta: rutas, límite de peticiones y CORS | 1 |
 
@@ -28,13 +28,13 @@ classDiagram
     namespace ms_auth {
         class AccessCode
         class AccessLog
-        class AdminLog
+        class AuthAdminLog["AdminLog"]
         class MagicLink
         class Session
         class StaffUser
     }
     namespace ms_debt {
-        class AdminLog
+        class DebtAdminLog["AdminLog"]
         class ApiKey
         class Batch
         class Campaign
@@ -55,6 +55,7 @@ classDiagram
         class Payment
         class PaymentEvent
         class UfValue
+        class PaymentsAdminLog["AdminLog"]
     }
     ApiKey "*" --> "1" Organization : organization
     Batch "*" --> "1" Organization : sender
@@ -122,12 +123,17 @@ classDiagram
             <<entity>>
             -id : Long
             -tokenHash : String
+            -codeHash : String
+            -attempts : Short
+            -maxAttempts : Short
+            -linkEnabled : boolean
             -debtorRut : String
             -email : String
             -issuedAt : Instant
             -expiresAt : Instant
             -consumedAt : Instant
             +vigente() boolean
+            +fallo() void
         }
         class Session {
             <<entity>>
@@ -224,7 +230,7 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AccessCode` | `model` | El código que abre el portal del deudor. Se guarda su huella, no el código. |
-| `MagicLink` | `model` | El enlace de un solo uso al correo: para el personal y el admin, y de respaldo para el deudor. |
+| `MagicLink` | `model` | El acceso solicitado en los tres portales: código y enlace opcional con uso, intentos y vencimiento compartidos. Conserva los enlaces anteriores y las invitaciones sin código. |
 | `Session` | `model` | Una llave de renovación de la sesión. Cada uso la jubila y deja otra en la misma familia. |
 | `StaffUser` | `model` | Una persona con cuenta: `usuario` de una empresa o `admin` de DataBridge. |
 | `AccessLog` | `model` | Quién intentó entrar, cómo le fue y desde qué origen. |
@@ -241,6 +247,7 @@ classDiagram
         class AuthController {
             <<controller>>
             +acceso(AccesoRequest, HttpServletRequest) SesionResponse
+            +codigo(EnlaceRequest, HttpServletRequest) EnlaceResponse
             +enlace(EnlaceRequest, HttpServletRequest) EnlaceResponse
             +verify(VerifyRequest, HttpServletRequest) SesionResponse
             +refresh(String, HttpServletRequest) Object
@@ -250,6 +257,7 @@ classDiagram
         class AdminController {
             <<controller>>
             +estado() EstadoResponse
+            +reglas() ReglasResponse
             +personalDeEmpresa(JwtPrincipal, String) List~PersonaResponse~
             +crearUsuario(JwtPrincipal, String, NuevaPersonaRequest) PersonaResponse
             +historialDeEmpresa(String) List~AccionResponse~
@@ -258,6 +266,8 @@ classDiagram
             +historialDeAdmins() List~AccionResponse~
             +deshabilitar(JwtPrincipal, Long) PersonaResponse
             +habilitar(JwtPrincipal, Long) PersonaResponse
+            +accesos(LocalDate, LocalDate, Method, Outcome, int, int) PagedModel~AccesoResponse~
+            +accesosDeHoy() AccesosDeHoyResponse
         }
         class InternalController {
             <<controller>>
@@ -276,7 +286,10 @@ classDiagram
         class AuthService {
             <<service>>
             +emitirCodigo(String, List~String~, String) CodigoEmitidoResponse
+            +anularCodigo(String, String) void
             +entrarConCodigo(String, String, String) Sesion
+            +entrarConCodigoDePersonal(String, String, String) Sesion
+            +pedirCodigo(String, String, String) EnlaceResponse
             +pedirEnlace(String, String, String) EnlaceResponse
             +entrarConEnlace(String, String) Sesion
             +renovar(String, String) Sesion
@@ -298,6 +311,15 @@ classDiagram
             +crearAdmin(NuevaPersonaRequest, JwtPrincipal) PersonaResponse
             +deshabilitar(Long, JwtPrincipal) PersonaResponse
             +habilitar(Long, JwtPrincipal) PersonaResponse
+        }
+        class ReglasService {
+            <<service>>
+            +reglas() ReglasResponse
+        }
+        class BitacoraDeAccesos {
+            <<service>>
+            +buscar(LocalDate, LocalDate, Method, Outcome, int, int) Page~AccesoResponse~
+            +hoy() AccesosDeHoyResponse
         }
         class SessionService {
             <<service>>
@@ -322,14 +344,25 @@ classDiagram
         }
         class MailService {
             <<service>>
+            +comoSalen() ComoSalen
             +enviarCodigo(String, String, String) void
             +enviarRecordatorio(String, String, String, LocalDate) void
             +enviarEnlace(String, String, long) void
+            +enviarAcceso(String, String, String, long) void
             +enviarInvitacion(String, String, String, String, long, String) void
             +probar(String) PruebaDeCorreoResponse
         }
+        class MailService_ComoSalen["MailService.ComoSalen"] {
+            <<record>>
+            +por : String
+            +variables : String
+            +modo : String
+            +remitente : String
+        }
         class ModoDePrueba {
             <<utility>>
+            +cuantosPermitidos() int
+            +desvia() boolean
             +activo() boolean
             +para(String, String) Optional~Destino~
             +descripcion() String
@@ -339,6 +372,14 @@ classDiagram
             +a : String
             +asunto : String
             +desviado : boolean
+        }
+        class PlantillasDeCorreo {
+            <<utility>>
+        }
+        class PlantillasDeCorreo_Carta["PlantillasDeCorreo.Carta"] {
+            <<record>>
+            +texto : String
+            +html : String
         }
     }
     namespace client {
@@ -370,11 +411,16 @@ classDiagram
     namespace repository {
         class AccessCodeRepository {
             <<repository>>
-            +findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(String) Optional~AccessCode~
+            +findFirstByDebtorRutOrderByIssuedAtDescIdDesc(String) Optional~AccessCode~
+            +deleteByCodeHash(String) long
         }
         class MagicLinkRepository {
             <<repository>>
             +findByTokenHash(String) Optional~MagicLink~
+            +findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(String) Optional~MagicLink~
+            +findFirstByEmailIgnoreCaseAndDebtorRutIsNullAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(String) Optional~MagicLink~
+            +anularPedidosDeRut(String, Instant) int
+            +anularPedidosDeCorreo(String, Instant) int
             +anularPendientesDe(String, Instant) int
         }
         class StaffUserRepository {
@@ -387,6 +433,8 @@ classDiagram
         class AccessLogRepository {
             <<repository>>
             +findByIpHashAndOccurredAtAfter(String, Instant) List~AccessLog~
+            +buscar(Instant, Instant, Method, Outcome, Pageable) Page~AccessLog~
+            +contarPorResultadoDesde(Instant) List~PorResultado~
         }
         class SessionRepository {
             <<repository>>
@@ -404,13 +452,18 @@ classDiagram
     AuthService ..> AuthService_Sesion
     SessionService ..> SessionService_Llave
     SessionService ..> SessionService_Renovada
+    MailService ..> MailService_ComoSalen
     ModoDePrueba ..> ModoDePrueba_Destino
+    PlantillasDeCorreo ..> PlantillasDeCorreo_Carta
     DeudasClient ..> DeudasClient_Empresa
     DeudasClient ..> DeudasClient_Correo
     AuthController --> AuthService
     AuthController --> JwtService
     AuthController --> SesionModelAssembler
     AdminController --> PersonalService
+    AdminController --> ReglasService
+    AdminController --> BitacoraDeAccesos
+    BitacoraDeAccesos --> AccessLogRepository
     InternalController --> AuthService
     InternalController --> MailService
     AuthService --> AccessCodeRepository
@@ -427,21 +480,27 @@ classDiagram
     PersonalService --> SessionService
     PersonalService --> DeudasClient
     PersonalService --> MailService
+    ReglasService --> MailService
     SessionService --> SessionRepository
     MailService ..> ModoDePrueba : pregunta a quién
+    MailService ..> PlantillasDeCorreo : escribe con
 ```
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta y las reglas de acceso y correo. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
+| `ReglasService` | `service` | Las reglas de acceso y de correo que rigen, para la pantalla Reglas del panel. Del correo dice por dónde y en qué modo: ninguna clave ni dirección entera. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
-| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, por cualquier servidor SMTP. También manda el correo de prueba. |
+| `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
 | `ModoDePrueba` | `service` | A quién se le escribe de verdad con un servidor real: una lista de permitidos, y un buzón al que se desvía lo demás. |
+| `DominiosReservados` | `service` | Los dominios que nunca entregan correo (`example.com`, `.test`…). Lo que va a uno de ellos no sale por el proveedor: va al buzón de prueba o al desvío (#236). |
+| `TopeDeDesvio` | `service` | Cuántos correos desvía el modo de prueba en un día de Chile (`CORREO_DESVIO_MAXIMO_POR_DIA`): el desvío gasta el cupo del proveedor. |
+| `PlantillasDeCorreo` | `service` | Lo que dice cada correo: las plantillas de `resources/correos`, una en HTML y otra en texto por correo, con Thymeleaf. |
 | `DeudasClient` | `client` | Le pregunta a ms-debt el correo registrado de un deudor, y si una empresa existe. |
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `AccessCodeRepository` | `repository` | Los códigos. |
@@ -476,6 +535,16 @@ classDiagram
             +postProcessEnvironment(ConfigurableEnvironment, SpringApplication) void
             +getOrder() int
         }
+        class CorreoConfig {
+            <<configuration>>
+        }
+        class CorreoPorBrevo {
+            <<component>>
+            +createMimeMessage() MimeMessage
+            +createMimeMessage(InputStream) MimeMessage
+            +send(MimeMessage[]) void
+            +send(SimpleMailMessage[]) void
+        }
         class OpenApiConfig {
             <<configuration>>
         }
@@ -507,6 +576,7 @@ classDiagram
         class ApiExceptionHandler {
             <<handler>>
             +deNegocio(ApiException) ApiError
+            +correoNoSalio(CorreoNoSalio) CorreoNoEnviadoResponse
             +cuerpoInvalido(MethodArgumentNotValidException) ApiError
             +parametroInvalido(HandlerMethodValidationException) ApiError
             +cuerpoIlegible(HttpMessageNotReadableException) ApiError
@@ -520,6 +590,10 @@ classDiagram
         class ApiException {
             <<exception>>
             +getStatus() HttpStatus
+        }
+        class CorreoNoSalio {
+            <<exception>>
+            +deLaDireccion() boolean
         }
         class ApiError {
             <<record>>
@@ -555,6 +629,7 @@ classDiagram
     JwtService ..> JwtPrincipal
     PrimerAdmin --> StaffUserRepository
     DataSeeder --> StaffUserRepository
+    CorreoConfig ..> CorreoPorBrevo
 ```
 
 | Clase | Paquete | Qué es |
@@ -564,11 +639,14 @@ classDiagram
 | `JwtService` | `security` | Firma y lee el JWT de la sesión. |
 | `JwtPrincipal` | `security` | Quién viene en el token: id, correo, rol, nombre y RUT. |
 | `PrimerAdmin` | `config` | Al arrancar, crea el primer admin con `ADMIN_CORREO`, si todavía no hay ninguno. |
-| `DataSeeder` | `config` | El personal de la demo. |
+| `DataSeeder` | `config` | La persona de la empresa que cobra directamente en la demo, solo con `DEMO_DATOS=true` y sin personal de empresas previo. |
 | `BuzonDePrueba` | `config` | Antes de arrancar: sin `SMTP_HOST`, deja configurado el buzón de prueba de Docker e ignora el resto de `SMTP_*`. |
+| `CorreoConfig` | `config` | Por dónde salen los correos: con `BREVO_API_KEY`, por Brevo; sin ella, por SMTP o al buzón de prueba. |
+| `CorreoPorBrevo` | `config` | Manda los correos por la API de Brevo (HTTPS), que es lo que funciona en Railway, con su texto y su HTML. Un destinatario rechazado es culpa de la dirección; lo demás, del servicio. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos: portal, panel e interno. |
 | `ApiExceptionHandler` | `exception` | Todos los errores salen con la misma forma, `{"error": "..."}`, y su código. |
 | `ApiException` | `exception` | Un error que se le puede explicar a quien llamó, con su código HTTP. |
+| `CorreoNoSalio` | `exception` | El servidor de correo no aceptó el correo de un código: lo que dijo, y si la culpa es de la dirección o del servidor. |
 | `ApiError` | `exception` | La forma de todo error. |
 | `Hash` | `util` | SHA-256 y comparación en tiempo constante. |
 | `Rut` | `util` | Normaliza el RUT y revisa su dígito verificador. |
@@ -577,7 +655,7 @@ classDiagram
 | Paquete | Qué son | Clases |
 | --- | --- | --- |
 | `dto.request` | Lo que entra | `AccesoRequest`, `EmitirCodigoRequest`, `EnlaceRequest`, `NuevaPersonaRequest`, `VerifyRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `CodigoEmitidoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `SesionResponse`, `UsuarioResponse` |
+| `dto.response` | Lo que sale | `AccesoResponse`, `AccesosDeHoyResponse`, `AccionResponse`, `CodigoEmitidoResponse`, `CorreoNoEnviadoResponse`, `EnlaceResponse`, `EstadoResponse`, `MeResponse`, `PersonaResponse`, `PruebaDeCorreoResponse`, `ReglasResponse`, `SesionResponse`, `UsuarioResponse` |
 
 ---
 
@@ -701,10 +779,16 @@ classDiagram
             -kind : Kind
             -fullName : String
             -email : String
+            -emailFailedAt : Instant
+            -emailFailure : String
+            -emailRejections : short
             -phone : String
             -reminders : boolean
             -createdAt : Instant
             -updatedAt : Instant
+            +correoNoSalio(String, boolean, Instant) void
+            +correoSalio() void
+            +correoConProblemas() boolean
         }
         class Debtor_Kind["Debtor.Kind"] {
             <<enumeration>>
@@ -762,6 +846,7 @@ classDiagram
             -currency : Debt.Currency
             -interestRate : BigDecimal
             -principal : BigDecimal
+            -cae : BigDecimal
             -acceptedAt : Instant
             -supersededAt : Instant
         }
@@ -859,6 +944,10 @@ classDiagram
             +fuera : Integer
             +interes : BigDecimal
             +descuento : BigDecimal
+            +empresaRut : String
+            +empresaNombre : String
+            +campanaId : String
+            +campanaNombre : String
         }
         class Subscription {
             <<entity>>
@@ -886,6 +975,7 @@ classDiagram
             +para(Subscription, String, String, String, Instant)$ OutboxEvent
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class OutboxEvent_Status["OutboxEvent.Status"] {
             <<enumeration>>
@@ -906,6 +996,7 @@ classDiagram
         class AdminLog_Action["AdminLog.Action"] {
             <<enumeration>>
             empresa_creada
+            aviso_reintentado
         }
     }
     Organization ..> Organization_Kind
@@ -959,7 +1050,7 @@ classDiagram
 | `Mandate` | `model` | Una agencia cobra por cuenta de un acreedor. |
 | `Campaign` | `model` | La estrategia de contacto que define la agencia y ejecuta DataBridge. |
 | `Batch` | `model` | Cada cartera recibida. |
-| `Debtor` | `model` | Quien debe. Una fila por RUT. |
+| `Debtor` | `model` | Quien debe. Una fila por RUT. Si un correo a su dirección no sale, guarda por qué y cuántas veces seguidas la rechazaron. |
 | `Debt` | `model` | Lo que un deudor le debe a un acreedor. |
 | `DebtCharge` | `model` | El desglose con que llegó la deuda. |
 | `Repactation` | `model` | Cada convenio que el deudor aceptó. |
@@ -1034,6 +1125,7 @@ classDiagram
             <<service>>
             +simulate(BigDecimal, Debt.Currency, int, LocalDate) RepactPlan
             +simulate(BigDecimal, BigDecimal, BigDecimal, Debt.Currency, int, LocalDate) RepactPlan
+            ~calcularCae(BigDecimal, List~InstallmentPreview~, BigDecimal)$ BigDecimal
         }
         class Intereses {
             <<utility>>
@@ -1095,6 +1187,9 @@ classDiagram
         }
         class LimiteDeContacto {
             <<service>>
+        }
+        class HorarioDeContacto {
+            <<component>>
         }
     }
     namespace repository {
@@ -1167,6 +1262,7 @@ classDiagram
     AccesoService --> ContactRepository
     AccesoService --> AuthClient
     AccesoService --> LimiteDeContacto
+    AccesoService --> HorarioDeContacto
     CuotaService --> DebtService
     CuotaService --> InstallmentRepository
     HistorialService --> DebtService
@@ -1193,7 +1289,7 @@ classDiagram
 | `Intereses` | `service` | Calcula el interés de mora de una deuda a una fecha. |
 | `DescuentoService` | `service` | El descuento por pronto pago: lo que ofrece la campaña, hasta el tope del mandato. |
 | `DisputaService` | `service` | El reclamo del deudor y su resolución por la empresa. |
-| `AccesoService` | `service` | Reenviarle el código al deudor, dentro del límite legal. |
+| `AccesoService` | `service` | Reenviarle el código al deudor, dentro del horario y el límite de la ley. |
 | `CuotaService` | `service` | Las cuotas mirando al calendario. |
 | `HistorialService` | `service` | Los pagos abonados de quien pregunta. |
 | `MisDatosService` | `service` | Los datos del deudor y sus recordatorios. |
@@ -1222,6 +1318,7 @@ classDiagram
             <<controller>>
             +opciones(JwtPrincipal) OpcionesCargaResponse
             +subir(JwtPrincipal, MultipartFile, String, String, String, String) CarteraResponse
+            +revisar(JwtPrincipal, MultipartFile, String, String, String, String) RevisionResponse
         }
         class CampanaController {
             <<controller>>
@@ -1238,6 +1335,7 @@ classDiagram
         class AnalyticsController {
             <<controller>>
             +summary(JwtPrincipal) ResumenResponse
+            +comision(JwtPrincipal, YearMonth) ComisionResponse
         }
     }
     namespace service {
@@ -1257,6 +1355,15 @@ classDiagram
             <<utility>>
             +leer(byte[], Lote)$ ObjectNode
         }
+        class CarteraExcel {
+            <<utility>>
+            +esExcel(byte[])$ boolean
+            +leer(byte[], Lote)$ ObjectNode
+        }
+        class PlantillaExcel {
+            <<utility>>
+            +generar(int)$ byte[]
+        }
         class CarteraCsv_Lote["CarteraCsv.Lote"] {
             <<record>>
             +idExterno : String
@@ -1269,6 +1376,12 @@ classDiagram
             <<service>>
             +opciones(JwtPrincipal) OpcionesCargaResponse
             +subir(JwtPrincipal, byte[], String, String, String, String) CarteraResponse
+            +revisar(JwtPrincipal, byte[], String, String, String, String) RevisionResponse
+        }
+        class CargaService_Carga["CargaService.Carga"] {
+            <<record>>
+            +organizacion : Organization
+            +cartera : ObjectNode
         }
         class MandatoService {
             <<service>>
@@ -1346,6 +1459,7 @@ classDiagram
     }
     CarteraIntakeService ..> CarteraIntakeService_CargoLeido
     CarteraCsv ..> CarteraCsv_Lote
+    CargaService ..> CargaService_Carga
     IntegracionController --> ApiKeyService
     IntegracionController --> CarteraIntakeService
     IntegracionController --> MandatoService
@@ -1372,6 +1486,9 @@ classDiagram
     CargaService --> MandateRepository
     CargaService --> CampaignRepository
     CargaService ..> CarteraCsv
+    CargaService ..> CarteraExcel
+    CargaService ..> PlantillaExcel
+    CarteraExcel ..> CarteraCsv_Lote
     MandatoService --> OrganizationRepository
     MandatoService --> MandateRepository
     MandatoService --> CampaignRepository
@@ -1394,22 +1511,77 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `IntegracionController` | `controller` | El contrato de integración v1: carteras, cuenta, mandatos, campañas y suscripciones. |
-| `CargaController` | `controller` | Cargar una cartera en CSV desde el portal. |
+| `CargaController` | `controller` | Cargar deudores desde el portal, siempre en una campaña, y revisar la planilla antes sin guardar nada. |
 | `CampanaController` | `controller` | Las campañas desde el portal de empresas. |
 | `ClaveController` | `controller` | Las claves de API de la empresa: emitir, listar y revocar. |
 | `AnalyticsController` | `controller` | El resumen de la cartera de una empresa. |
 | `CarteraIntakeService` | `service` | Recibe una Cartera v1: la valida, la guarda y responde deuda por deuda. |
 | `CarteraCsv` | `service` | Convierte la planilla CSV al JSON del contrato. |
-| `CargaService` | `service` | La carga por archivo desde el portal. |
+| `CarteraExcel` | `service` | Convierte la planilla de Excel (hojas Deudores y Deudas, una fila por mes) al mismo JSON, y junta cada problema con su hoja, fila y columna. |
+| `PlantillaExcel` | `service` | Arma la plantilla de Excel: Instrucciones, Deudores y Deudas, con listas, fechas y números. |
+| `CargaService` | `service` | La carga desde el portal: siempre en una campaña. La revisión corre la misma ingesta en una transacción que se deshace siempre. |
 | `MandatoService` | `service` | Registra mandatos y campañas. |
 | `CampanaService` | `service` | Las campañas desde el portal: crear, cambiar y pausar. |
 | `CampanaAvanceService` | `service` | El avance de cada campaña, publicado una vez al día. |
 | `ApiKeyService` | `service` | Emite, revoca y autentica las claves de API. |
 | `AnalyticsService` | `service` | Los números de una cartera, y de ninguna otra. |
 
+### El modelo de negocio
+
+La comisión de una empresa en un mes se calcula sobre los eventos `payment_applied`, en pesos y
+con los límites del mes en Chile. La base no guarda otra comisión ni se consulta ms-payments:
+el detalle del evento ya conserva los pesos cobrados. Los DTO `ComisionResponse` (con los tipos
+`PorCampana` y `TramoResponse`) y `ComisionesResponse` (con `Empresa`) documentan el resultado en Swagger.
+`DetallePago` guarda la atribución de empresa y campaña al aplicar el pago, para que una recarga
+posterior no la cambie. Solo los eventos antiguos sin atribución usan las relaciones actuales de la
+deuda. Las dos consultas filtran y agrupan por esa atribución, no por el último lote de una deuda.
+
+```mermaid
+classDiagram
+    direction LR
+    class AnalyticsController {
+        <<controller>>
+        +comision(JwtPrincipal, YearMonth) ComisionResponse
+    }
+    class AdminController {
+        <<controller>>
+        +comisiones(YearMonth) ComisionesResponse
+    }
+    class ComisionService {
+        <<service>>
+        +deLaEmpresa(JwtPrincipal, YearMonth) ComisionResponse
+        +deTodas(YearMonth) ComisionesResponse
+    }
+    class ModeloDeNegocio {
+        <<utility>>
+        +tramoDe(long)$ Optional~Tramo~
+        +porcentaje(long)$ BigDecimal
+        +comision(long)$ long
+    }
+    class Tramo {
+        <<record>>
+        +desde : long
+        +hasta : Long
+        +porcentaje : BigDecimal
+    }
+    class DebtEventRepository {
+        <<repository>>
+        +entre(Type, Instant, Instant) List~DebtEvent~
+    }
+    class DebtService {
+        <<service>>
+    }
+    AnalyticsController --> ComisionService
+    AdminController --> ComisionService
+    ComisionService --> DebtEventRepository
+    ComisionService --> DebtService
+    ComisionService ..> ModeloDeNegocio
+    ModeloDeNegocio ..> Tramo
+```
+
 ### Lo que corre solo y lo que se habla con otros servicios
 
-Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments. Todo lo que se le escribe al deudor pasa por `LimiteDeContacto` y queda en `ContactRepository`: de ahí salen el límite legal y los toques que lleva cada deuda (`ToquesHechos`).
+Las tareas programadas (escribirle al deudor, recordar cuotas, entregar eventos) y los bordes con ms-auth y ms-payments. Todo lo que se le escribe al deudor pasa por `HorarioDeContacto` y `LimiteDeContacto`, y queda en `ContactRepository`: de ahí salen el límite legal y los toques que lleva cada deuda (`ToquesHechos`).
 
 ```mermaid
 classDiagram
@@ -1432,15 +1604,20 @@ classDiagram
         class InvitacionService {
             <<service>>
             +invitar(DeudaEnCobranza) void
+            +invitarPendientes(Instant, Set~Debtor~) Pasada
         }
         class InvitacionService_DeudaEnCobranza["InvitacionService.DeudaEnCobranza"] {
             <<record>>
             +debtId : Long
         }
+        class InvitacionService_Pasada["InvitacionService.Pasada"] {
+            <<record>>
+            +enviadas : int
+            +cortada : boolean
+        }
         class ContactoService {
             <<service>>
             +pasar() void
-            +horaDeContacto(LocalDateTime) boolean
             +contactar(LocalDateTime, String) ContactosResponse
         }
         class RecordatorioService {
@@ -1448,8 +1625,18 @@ classDiagram
             +programado() void
             +enviar(LocalDate) RecordatoriosResponse
         }
+        class HorarioDeContacto {
+            <<component>>
+            +apagado() boolean
+            +permite(LocalDateTime) boolean
+            +permiteAhora() boolean
+            +esDiaDeContacto(LocalDate) boolean
+            +feriadosDe(int) SortedSet~LocalDate~
+            +esDecretado(LocalDate) boolean
+        }
         class LimiteDeContacto {
             <<service>>
+            +apagado() boolean
             +permite(Debtor, Instant) boolean
         }
         class FeriadosDeChile {
@@ -1534,6 +1721,16 @@ classDiagram
             <<record>>
             +expiraEn : Instant
         }
+        class AuthClient_CorreoNoEnviado["AuthClient.CorreoNoEnviado"] {
+            <<record>>
+            +error : String
+            +causa : String
+        }
+        class CorreoNoSalio {
+            <<utility>>
+            +motivo() String
+            +deLaDireccion() boolean
+        }
     }
     namespace events {
         class PagoConfirmado {
@@ -1566,8 +1763,10 @@ classDiagram
         }
     }
     InvitacionService ..> InvitacionService_DeudaEnCobranza
+    InvitacionService ..> InvitacionService_Pasada
     AuthClient ..> AuthClient_PedidoDeCodigo
     AuthClient ..> AuthClient_CodigoEmitido
+    AuthClient ..> AuthClient_CorreoNoEnviado
     InternalController --> DebtService
     InternalController --> CampanaAvanceService
     InternalController --> ApiKeyService
@@ -1578,21 +1777,29 @@ classDiagram
     InvitacionService --> ContactRepository
     InvitacionService --> AuthClient
     InvitacionService --> LimiteDeContacto
+    InvitacionService --> HorarioDeContacto
+    InvitacionService ..> CorreoNoSalio
     ContactoService --> CampaignRepository
     ContactoService --> DebtRepository
     ContactoService --> ContactRepository
     ContactoService --> AuthClient
     ContactoService --> LimiteDeContacto
-    ContactoService ..> FeriadosDeChile
+    ContactoService --> InvitacionService
+    ContactoService --> HorarioDeContacto
+    ContactoService ..> CorreoNoSalio
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
     RecordatorioService --> AuthClient
     RecordatorioService --> LimiteDeContacto
+    RecordatorioService --> HorarioDeContacto
+    RecordatorioService ..> CorreoNoSalio
+    HorarioDeContacto ..> FeriadosDeChile
     LimiteDeContacto --> ContactRepository
     EventosService --> SubscriptionRepository
     EventosService --> OutboxEventRepository
     EventDispatcher --> OutboxEventRepository
     RabbitPaymentListener --> DebtService
+    AuthClient ..> CorreoNoSalio
     RabbitPaymentListener ..> PagoConfirmado : recibe
     InternalController ..> PagoConfirmado : recibe
     ContactRepository ..> ToquesHechos : arma
@@ -1602,9 +1809,11 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `InternalController` | `controller` | Lo que le piden o le avisan los otros servicios, con la clave interna. |
-| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza. |
+| `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
+| `TopeDeInvitaciones` | `service` | Cuántas invitaciones salen cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`): una carga grande no las manda todas juntas, y lo que pasa del tope sale en las pasadas siguientes (#236). |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
-| `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto. |
+| `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
+| `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
 | `FeriadosDeChile` | `service` | Los feriados de Chile de cualquier año. |
 | `ContactRepository` | `repository` | Los contactos al deudor: cuándo se le escribió, cuántos toques lleva cada deuda y el último de cada una. |
@@ -1612,13 +1821,14 @@ classDiagram
 | `EventosService` | `service` | Deja en la bandeja de salida los eventos del contrato, y registra suscripciones. |
 | `EventDispatcher` | `service` | Saca los eventos de la bandeja y los entrega firmados, con reintentos. |
 | `RabbitPaymentListener` | `service` | Recibe los avisos de pago que llegan por RabbitMQ. |
-| `AuthClient` | `client` | Le pide a ms-auth que emita y mande un código. |
+| `AuthClient` | `client` | Le pide a ms-auth que emita y mande un código. Un `502` de ms-auth es un `CorreoNoSalio`. |
+| `CorreoNoSalio` | `client` | El correo de un código no salió: el motivo para la empresa, con la dirección tapada, y si la culpa es de la dirección. Responde `502`. |
 | `PagoConfirmado` | `events` | El aviso que manda ms-payments cuando un pago se concreta. |
 | `RabbitConfig` | `config` | La cola de los avisos de pago. |
 
 ### El panel de administración
 
-Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor.
+Lo que ve y hace el admin de DataBridge. Los totales de cada empresa salen de dos consultas que agrupan (`ConteoDeDeudas` y `SaldoPendiente`): aquí no se lee ninguna deuda ni ningún deudor. Las reglas salen de la configuración y de `HorarioDeContacto`, el mismo que usan las campañas. Los avisos sin entregar salen de la bandeja (`outbox`), agrupados por destinatario y sin su contenido ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)).
 
 ```mermaid
 classDiagram
@@ -1627,13 +1837,23 @@ classDiagram
         class AdminController {
             <<controller>>
             +estado() EstadoResponse
+            +reglas() ReglasResponse
             +empresas() List~EmpresaResponse~
             +empresa(String) EmpresaResponse
             +crear(JwtPrincipal, NuevaEmpresaRequest) EmpresaResponse
             +historial(String) List~AccionResponse~
+            +avisos() AvisosResponse
+            +reintentar(JwtPrincipal, Long) AvisosResponse.Aviso
+            +reintentarDestino(JwtPrincipal, Long) Reintentados
         }
     }
     namespace service {
+        class AvisosService {
+            <<service>>
+            +sinEntregar() AvisosResponse
+            +reintentar(Long, String) AvisosResponse.Aviso
+            +reintentarDestino(Long, String) int
+        }
         class EmpresaService {
             <<service>>
             +listar() List~EmpresaResponse~
@@ -1646,6 +1866,19 @@ classDiagram
             <<record>>
             +deudas : Map
             +porCobrar : Map
+        }
+        class ReglasService {
+            <<service>>
+            +reglas(LocalDate) ReglasResponse
+        }
+        class HorarioDeContacto {
+            <<component>>
+            +apagado() boolean
+            +permite(LocalDateTime) boolean
+            +permiteAhora() boolean
+            +esDiaDeContacto(LocalDate) boolean
+            +feriadosDe(int) SortedSet~LocalDate~
+            +esDecretado(LocalDate) boolean
         }
     }
     namespace repository {
@@ -1667,6 +1900,12 @@ classDiagram
             <<repository>>
             +findByOrgRutOrderByOccurredAtDesc(String) List~AdminLog~
         }
+        class OutboxEventRepository {
+            <<repository>>
+            +findTop500ByStatusInOrderByIdDesc(Collection~OutboxEvent.Status~) List~OutboxEvent~
+            +countByStatus(OutboxEvent.Status) long
+            +findBySubscriptionIdAndStatus(Long, OutboxEvent.Status) List~OutboxEvent~
+        }
         class OrganizationRepository {
             <<repository>>
         }
@@ -1679,10 +1918,17 @@ classDiagram
     }
     EmpresaService ..> EmpresaService_Totales
     AdminController --> EmpresaService
+    AdminController --> ReglasService
+    AdminController --> AvisosService
+    AdminController ..> HorarioDeContacto
+    AvisosService --> OutboxEventRepository
+    AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
     EmpresaService --> MandateRepository
     EmpresaService --> DebtRepository
     EmpresaService --> AdminLogRepository
+    ReglasService --> HorarioDeContacto
+    ReglasService --> LimiteDeContacto
     EmpresaService ..> ConteoDeDeudas : lee
     EmpresaService ..> SaldoPendiente : lee
     DebtRepository ..> ConteoDeDeudas : arma
@@ -1691,11 +1937,15 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, y dar de alta una empresa usuaria. |
+| `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
+| `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `ConteoDeDeudas` | `repository` | Cuántas deudas hay de un acreedor, entregadas por un emisor, en un estado. Un total, sin deudas. |
 | `SaldoPendiente` | `repository` | Lo que falta por cobrar de un acreedor, entregado por un emisor, en una moneda. Un total. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
+| `OutboxEventRepository` | `repository` | La bandeja de salida: aquí, los avisos sin entregar y los fallidos de un destinatario. |
 
 ### Los repositorios
 
@@ -1754,6 +2004,7 @@ classDiagram
             +saldoPorEmpresa() List~SaldoPendiente~
             +findByDebtorOrderByUpdatedAtDesc(Debtor) List~Debt~
             +findByCampaign(Campaign) List~Debt~
+            +sinInvitar(int) List~Debt~
             +findByLastBatch(Batch) List~Debt~
             +findByCreditorAndExternalId(Organization, String) Optional~Debt~
         }
@@ -1780,10 +2031,14 @@ classDiagram
         class OutboxEventRepository {
             <<repository>>
             +findTop100ByStatusAndNextAttemptAtBeforeOrderByIdAsc(OutboxEvent.Status, Instant) List~OutboxEvent~
+            +findTop500ByStatusInOrderByIdDesc(Collection~OutboxEvent.Status~) List~OutboxEvent~
+            +countByStatus(OutboxEvent.Status) long
+            +findBySubscriptionIdAndStatus(Long, OutboxEvent.Status) List~OutboxEvent~
         }
         class RepactationRepository {
             <<repository>>
             +findByDebtAndSupersededAtIsNull(Debt) List~Repactation~
+            +findByDebtInAndSupersededAtIsNull(Collection~Debt~) List~Repactation~
         }
         class SubscriptionRepository {
             <<repository>>
@@ -1896,12 +2151,14 @@ classDiagram
         class DataSeeder {
             <<component>>
         }
-        class DataSeeder_Cargo["DataSeeder.Cargo"] {
+        class DataSeeder_Ejemplo["DataSeeder.Ejemplo"] {
             <<record>>
-            +concepto : String
-            +periodo : String
-            +monto : BigDecimal
-            +vence : LocalDate
+            +id : String
+            +rut : String
+            +nombre : String
+            +correo : String
+            +mensual : String
+            +personaJuridica : boolean
         }
         class OpenApiConfig {
             <<configuration>>
@@ -2033,7 +2290,6 @@ classDiagram
             <<repository>>
         }
     }
-    DataSeeder ..> DataSeeder_Cargo
     ErrorContrato ..> ErrorContrato_Detalle
     SecurityConfig --> JwtAuthFilter
     JwtAuthFilter --> JwtService
@@ -2044,13 +2300,13 @@ classDiagram
     CifrarSecretosGuardados --> Cifrado
     DataSeeder --> OrganizationRepository
     DataSeeder --> DebtorRepository
-    DataSeeder --> BatchRepository
     DataSeeder --> DebtRepository
-    DataSeeder --> DebtChargeRepository
     DataSeeder --> InstallmentRepository
-    DataSeeder --> RepactationRepository
-    DataSeeder --> DebtEventRepository
-    DataSeeder --> ContactRepository
+    DataSeeder --> MandatoService
+    DataSeeder --> CarteraIntakeService
+    DataSeeder --> DebtService
+    DataSeeder --> DisputaService
+    DataSeeder ..> DataSeeder_Ejemplo
 ```
 
 | Clase | Paquete | Qué es |
@@ -2063,7 +2319,7 @@ classDiagram
 | `Cifrado` | `config` | Cifra lo que hay que poder leer de vuelta: el secreto de una suscripción. |
 | `SecretoCifrado` | `model` | Convierte un texto a cifrado al guardarlo y a claro al leerlo. |
 | `CifrarSecretosGuardados` | `config` | Al arrancar, cifra los secretos que quedaron en claro. |
-| `DataSeeder` | `config` | Los datos de la demo. |
+| `DataSeeder` | `config` | Demo independiente, solo en una base vacía y con `DEMO_DATOS=true`: registra campañas, ingresa las deudas por la ingesta del portal y prepara los estados con los servicios. |
 | `OpenApiConfig` | `config` | La documentación de Swagger, en grupos. |
 | `ApiExceptionHandler` | `exception` | Los errores del portal, todos con la misma forma. |
 | `CarteraInvalidaHandler` | `exception` | Los errores del contrato de integración, con su código propio. |
@@ -2079,7 +2335,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.evento` | Los eventos del contrato | `CampanaAvanceDatos`, `DeudaDisputadaDatos`, `DeudaReanudadaDatos`, `DeudaRetiradaDatos`, `DeudaSaldadaDatos`, `EventoV1`, `LoteProcesadoDatos`, `PagoConfirmadoDatos`, `RepactacionAceptadaDatos` |
 | `dto.request` | Lo que entra | `CampanaRequest`, `CarteraCsvForm`, `CarteraV1`, `ClaveRequest`, `DisputaRequest`, `EmitirClaveRequest`, `EstadoCampanaRequest`, `MandatoRequest`, `MisDatosRequest`, `NuevaEmpresaRequest`, `RepactRequest`, `ResolucionDisputaRequest`, `SuscripcionRequest` |
-| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `RepactPlan`, `ResumenResponse`, `SimulacionResponse`, `SuscripcionResponse` |
+| `dto.response` | Lo que sale | `AccionResponse`, `AvanceResponse`, `AvisosResponse`, `CampanaPortalResponse`, `CampanaResponse`, `CarteraResponse`, `ClaveEmitidaResponse`, `ClaveResponse`, `CodigoEnviadoResponse`, `ComisionResponse`, `ComisionesResponse`, `ContactosResponse`, `ConvenioEnRiesgoResponse`, `CorreoDelDeudorResponse`, `CuentaResponse`, `CuotaPorVencerResponse`, `DebtDetailResponse`, `DebtSnapshotResponse`, `DebtSummaryResponse`, `EmpresaResponse`, `EstadoResponse`, `InstallmentPreview`, `MandatoResponse`, `MisDatosResponse`, `OkResponse`, `OpcionesCargaResponse`, `OrganizacionResponse`, `PagoResponse`, `RecordatoriosResponse`, `ReglasResponse`, `RepactPlan`, `ResumenResponse`, `RevisionResponse`, `SimulacionResponse`, `SuscripcionResponse` |
 
 ---
 
@@ -2179,6 +2435,7 @@ classDiagram
             +para(Long)$ DebtNotification
             +entregado() void
             +fallo(String) void
+            +reintentar() void
         }
         class DebtNotification_Status["DebtNotification.Status"] {
             <<enumeration>>
@@ -2192,6 +2449,20 @@ classDiagram
             -value : BigDecimal
             -source : String
             -fetchedAt : Instant
+        }
+        class AdminLog {
+            <<entity>>
+            -id : Long
+            -adminEmail : String
+            -action : Action
+            -subject : String
+            -occurredAt : Instant
+            +de(String, Action, String)$ AdminLog
+        }
+        class AdminLog_Action["AdminLog.Action"] {
+            <<enumeration>>
+            aviso_reintentado
+            uf_cargada
         }
     }
     namespace events {
@@ -2221,6 +2492,7 @@ classDiagram
     PaymentEvent ..> PaymentEvent_Type
     PaymentEvent ..> PaymentEvent_Source
     DebtNotification ..> DebtNotification_Status
+    AdminLog ..> AdminLog_Action
     PaymentEvent ..> Payment : paymentId
     DebtNotification ..> Payment : paymentId
     PagoConfirmado ..> Payment : se arma con
@@ -2232,6 +2504,7 @@ classDiagram
 | `PaymentEvent` | `model` | El libro del pago: solo se agrega. |
 | `DebtNotification` | `model` | El aviso pendiente hacia ms-debt. |
 | `UfValue` | `model` | El valor de la UF de un día. |
+| `AdminLog` | `model` | Lo que el admin hizo desde el panel con los pagos: los avisos reintentados y la UF cargada a mano. |
 | `PagoConfirmado` | `events` | El aviso que se le manda a ms-debt cuando un pago se concreta. |
 
 ### El cobro
@@ -2247,13 +2520,15 @@ classDiagram
             +checkout(JwtPrincipal, CheckoutRequest) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
             +paraDevolver(JwtPrincipal) List~PaymentResponse~
+            +registrarDevolucion(JwtPrincipal, Long, DevolucionRequest) PaymentResponse
+            +devueltos(JwtPrincipal) List~PaymentResponse~
             +one(JwtPrincipal, Long) PaymentResponse
             +historia(JwtPrincipal, Long) HistoriaResponse
             +pub(Long, String) PaymentResponse
             +confirm(Long, String) PaymentResponse
             +webpay(Long, String) String
             +retornoWebpay(String, String, String, String) Void
-            +retornoMercadoPago(String, String, String, String, String, String) Void
+            +retornoMercadoPago(Long, String) Void
             +avisoDeMercadoPago(String, String, String) void
             +verificar(Long, String) PaymentResponse
             +cancelar(Long, String) PaymentResponse
@@ -2270,7 +2545,11 @@ classDiagram
         }
         class AdminController {
             <<controller>>
+            +reglas() ReglasResponse
             +estado() EstadoResponse
+            +operacion() OperacionResponse
+            +reintentarAviso(JwtPrincipal, Long) OperacionResponse.Aviso
+            +cargarUf(JwtPrincipal, UfManualRequest) UfResponse
         }
     }
     namespace assembler {
@@ -2289,6 +2568,8 @@ classDiagram
             +publicGet(Long, String) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
             +paraDevolver(JwtPrincipal) List~PaymentResponse~
+            +registrarDevolucion(JwtPrincipal, Long, String) PaymentResponse
+            +devueltos(JwtPrincipal) List~PaymentResponse~
             +historia(JwtPrincipal, Long) HistoriaResponse
             +confirmPublic(Long, String) PaymentResponse
             +verificar(Long, String) PaymentResponse
@@ -2300,7 +2581,7 @@ classDiagram
             +retornoWebpay(String, String, String, String) String
             +webpayPorRevisar(boolean) List~Long~
             +conciliarWebpay(Long) boolean
-            +retornoMercadoPago(String, String, String, String, String) String
+            +retornoMercadoPago(Long, String) String
             +avisoMercadoPago(String, String, String) void
             +webhook(WebhookRequest, String) PaymentResponse
         }
@@ -2339,9 +2620,21 @@ classDiagram
             +configurada() boolean
             +valida(String, String) boolean
         }
+        class ReglasService {
+            <<service>>
+        }
+        class OperacionService {
+            <<service>>
+            +operacion() OperacionResponse
+            +reintentarAviso(Long, String) OperacionResponse.Aviso
+            +cargarUf(LocalDate, BigDecimal, String) UfResponse
+        }
     }
     namespace repository {
         class PaymentRepository {
+            <<repository>>
+        }
+        class AdminLogRepository {
             <<repository>>
         }
         class PaymentEventRepository {
@@ -2376,6 +2669,14 @@ classDiagram
     WebhookController --> PaymentService
     InternalController --> UfService
     InternalController --> UfLoader
+    AdminController --> ReglasService
+    AdminController --> OperacionService
+    OperacionService --> PaymentRepository
+    OperacionService --> PaymentEventRepository
+    OperacionService --> DebtNotificationRepository
+    OperacionService --> UfValueRepository
+    OperacionService --> UfService
+    OperacionService --> AdminLogRepository
     PaymentService --> PaymentRepository
     PaymentService --> PaymentEventRepository
     PaymentService --> DebtNotificationRepository
@@ -2400,7 +2701,8 @@ classDiagram
 | `PaymentController` | `controller` | Los pagos del portal, la página de la pasarela, la ida y vuelta de Webpay y Mercado Pago, y el aviso de Khipu. |
 | `WebhookController` | `controller` | Donde avisa la pasarela simulada, con firma. |
 | `InternalController` | `controller` | Cargar la UF a mano o desde el Banco Central. Con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago y la operación. Solo para el admin. |
+| `OperacionService` | `service` | La operación de los pagos para el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): los totales, la UF de hoy en Chile y los avisos a ms-debt sin entregar; reintentar uno y cargar la UF a mano, anotando quién lo hizo. |
 | `PaymentModelAssembler` | `assembler` | Los enlaces HATEOAS de un pago. |
 | `PaymentService` | `service` | El cobro: abrirlo, confirmarlo con la pasarela, vencerlo y dejar el aviso. |
 | `ConciliacionPasarelas` | `service` | Cada 10 segundos pregunta a las pasarelas por los cobros abiertos, y cada 5 minutos por los vencidos. |
@@ -2413,11 +2715,17 @@ classDiagram
 
 ### Las pasarelas y los otros sistemas
 
-Un cliente por cada sistema de afuera. Cada uno sabe si está configurado de verdad (`real()`); sin credenciales, el cobro se simula.
+Un cliente por cada sistema de afuera. Cada uno sabe si está configurado de verdad (`real()`); sin credenciales, el cobro se simula. `ReglasService` les pregunta eso para la pantalla Reglas del panel.
 
 ```mermaid
 classDiagram
     direction LR
+    namespace service {
+        class ReglasService {
+            <<service>>
+            +reglas() ReglasResponse
+        }
+    }
     namespace client {
         class DebtClient {
             <<client>>
@@ -2473,6 +2781,7 @@ classDiagram
         class WebpayClient {
             <<client>>
             +real() boolean
+            +produccion() boolean
             +plazoDePago() Duration
             +paginaDePago() String
             +createTransaction(String, String, long, String) WebpayCreateResponse
@@ -2572,6 +2881,10 @@ classDiagram
     MercadoPagoClient ..> MercadoPagoClient_Item
     MercadoPagoClient ..> MercadoPagoClient_Payer
     MercadoPagoClient ..> MercadoPagoClient_BackUrls
+    ReglasService --> WebpayClient
+    ReglasService --> KhipuClient
+    ReglasService --> MercadoPagoClient
+    ReglasService --> BancoCentralClient
     DebtClient ..> TiemposDePasarela
     KhipuClient ..> TiemposDePasarela
     WebpayClient ..> TiemposDePasarela
@@ -2580,6 +2893,7 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
+| `ReglasService` | `service` | Las reglas de pago que rigen, para la pantalla Reglas del panel: qué pasarelas cobran de verdad, en cuánto vence un cobro y de dónde sale la UF. De las credenciales dice solo si están. |
 | `DebtClient` | `client` | Le pregunta a ms-debt cuánto se debe y de quién es. |
 | `KhipuClient` | `client` | Khipu, por su API de pagos v3. |
 | `WebpayClient` | `client` | Transbank Webpay Plus. |
@@ -2597,10 +2911,17 @@ classDiagram
             <<repository>>
             +findByStatusAndNextAttemptAtBefore(DebtNotification.Status, Instant) List~DebtNotification~
             +findByPaymentId(Long) Optional~DebtNotification~
+            +findTop200ByStatusInOrderByIdDesc(Collection~DebtNotification.Status~) List~DebtNotification~
+            +countByStatus(DebtNotification.Status) long
         }
         class PaymentEventRepository {
             <<repository>>
             +findByPaymentIdOrderByIdAsc(Long) List~PaymentEvent~
+            +countByTypeAndOccurredAtAfter(PaymentEvent.Type, Instant) long
+        }
+        class AdminLogRepository {
+            <<repository>>
+            +findTop20ByOrderByOccurredAtDesc() List~AdminLog~
         }
         class PaymentRepository {
             <<repository>>
@@ -2613,6 +2934,8 @@ classDiagram
             +findByDebtIdAndStatus(Long, Payment.Status) List~Payment~
             +findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status, Collection~Long~) List~Payment~
             +findByCreditorRutOrderByCreatedAtDesc(String) List~Payment~
+            +countByStatus(Payment.Status) long
+            +countByStatusAndCreatedAtBefore(Payment.Status, Instant) long
         }
         class UfValueRepository {
             <<repository>>
@@ -2700,7 +3023,11 @@ classDiagram
         class UfValue {
             <<entity>>
         }
+        class AdminLog {
+            <<entity>>
+        }
     }
+    AdminLogRepository ..> AdminLog : guarda
     DebtNotificationRepository ..> DebtNotification : guarda
     PaymentEventRepository ..> PaymentEvent : guarda
     PaymentRepository ..> Payment : guarda
@@ -2717,6 +3044,7 @@ classDiagram
 | `PaymentEventRepository` | `repository` |  |
 | `PaymentRepository` | `repository` |  |
 | `UfValueRepository` | `repository` |  |
+| `AdminLogRepository` | `repository` | La bitácora del panel: lo último que se hizo con los pagos. |
 | `SecurityConfig` | `config` | Quién puede llamar a qué. |
 | `JwtAuthFilter` | `security` | Valida el JWT de cada petición. |
 | `JwtService` | `security` | Lee el JWT que firmó ms-auth. |
@@ -2732,7 +3060,7 @@ classDiagram
 | --- | --- | --- |
 | `dto.gateway` | Lo que se habla con Transbank | `WebpayCommitResponse`, `WebpayCreateRequest`, `WebpayCreateResponse` |
 | `dto.request` | Lo que entra | `CheckoutRequest`, `UfManualRequest`, `WebhookRequest` |
-| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `PaymentEventResponse`, `PaymentResponse`, `UfCargaResponse`, `UfResponse` |
+| `dto.response` | Lo que sale | `EstadoResponse`, `HistoriaResponse`, `OperacionResponse`, `PaymentEventResponse`, `PaymentResponse`, `ReglasResponse`, `UfCargaResponse`, `UfResponse` |
 
 ---
 
@@ -2865,7 +3193,7 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `ChatController` | `controller` | `POST /api/ai/chat`: una pregunta del deudor. |
-| `SaludController` | `controller` | `GET /api/health`: si el asistente tiene un LLM configurado. |
+| `SaludController` | `controller` | `GET /api/ai/salud`: si el asistente tiene un LLM configurado. |
 | `AsistenteService` | `service` | Trae las deudas del deudor y responde: con el LLM si hay, con reglas si no. |
 | `LlmService` | `service` | La respuesta con un LLM, por el SDK de OpenAI para Java. |
 | `MotorLocal` | `service` | Las respuestas por reglas, y el ánimo del mensaje. |

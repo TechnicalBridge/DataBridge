@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+  El molde de todos los correos: el nombre arriba, una tarjeta con el contenido
+  y el pie, con los colores del portal (crema y verde; carbon y morado en tema
+  oscuro).
+
+  Esta escrito como se escriben los correos, no como una pagina: tablas, estilos
+  en cada elemento y nada de imagenes. Gmail ignora parte del <style>, Outlook
+  de escritorio dibuja con Word y casi todos bloquean las imagenes. El <style>
+  solo agrega lo que no se puede escribir en linea: el tema oscuro (Apple Mail,
+  Outlook) y el ancho del telefono.
+-->
+<html lang="es" xmlns:th="http://www.thymeleaf.org" th:fragment="carta(titulo, adelanto, contenido, pie)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title th:text="${titulo}">DataBridge</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    body { margin: 0; padding: 0; -webkit-text-size-adjust: 100%; }
+    @media only screen and (max-width: 620px) {
+      .relleno { padding-left: 22px !important; padding-right: 22px !important; }
+      .titulo { font-size: 21px !important; }
+      .codigo { font-size: 30px !important; letter-spacing: 5px !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .fondo { background-color: #141316 !important; }
+      .tarjeta { background-color: #1c1b21 !important; border-color: #2d2a35 !important; }
+      .tinta { color: #eeeaf4 !important; }
+      .tinta-2 { color: #cdc7d9 !important; }
+      .tenue { color: #9d96ab !important; }
+      .marca { color: #a68cf1 !important; }
+      .caja { background-color: #24222b !important; }
+      .codigo { color: #bea9f7 !important; }
+      .aviso { background-color: #24222b !important; border-left-color: #d9a0e8 !important; }
+      .boton { background-color: #a68cf1 !important; }
+      .boton-texto { color: #16131e !important; }
+    }
+    /* Outlook.com en tema oscuro marca el correo con estos atributos. */
+    [data-ogsb] .fondo { background-color: #141316 !important; }
+    [data-ogsb] .tarjeta { background-color: #1c1b21 !important; }
+    [data-ogsb] .caja, [data-ogsb] .aviso { background-color: #24222b !important; }
+    [data-ogsb] .boton { background-color: #a68cf1 !important; }
+    [data-ogsc] .tinta { color: #eeeaf4 !important; }
+    [data-ogsc] .tinta-2 { color: #cdc7d9 !important; }
+    [data-ogsc] .tenue { color: #9d96ab !important; }
+    [data-ogsc] .marca { color: #a68cf1 !important; }
+    [data-ogsc] .codigo { color: #bea9f7 !important; }
+    [data-ogsc] .boton-texto { color: #16131e !important; }
+  </style>
+</head>
+<body class="fondo" style="margin:0;padding:0;background-color:#fbf6ec;">
+  <!--/* Lo que el buzon muestra junto al asunto, antes de abrir el correo. */-->
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;"
+       th:text="${adelanto}">Adelanto</div>
+  <table role="presentation" class="fondo" width="100%" cellpadding="0" cellspacing="0" border="0"
+         bgcolor="#fbf6ec" style="background-color:#fbf6ec;">
+    <tr>
+      <td align="center" style="padding:32px 12px 40px 12px;">
+        <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+          <tr>
+            <td class="relleno" style="padding:0 8px 16px 8px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.2px;">
+              <span class="tinta" style="color:#2e2a24;">Data</span><span class="marca" style="color:#3e7b4f;">Bridge</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="tarjeta" bgcolor="#fffdf8" style="background-color:#fffdf8;border:1px solid #ebe1cf;border-radius:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="relleno" style="padding:32px 32px 30px 32px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                    <h1 class="titulo tinta" style="margin:0 0 18px 0;font-size:23px;line-height:1.3;font-weight:700;color:#2e2a24;"
+                        th:text="${titulo}">Titulo</h1>
+                    <div th:replace="${contenido}"></div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="relleno" style="padding:20px 8px 0 8px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;">
+              <p th:replace="${pie}">Por que te llego</p>
+              <p class="tenue" style="margin:10px 0 0 0;color:#7c7266;">DataBridge</p>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { crearEmpresa, crearPersona, listarEmpresas } from "../api/admin";
 import { TIPO_DE_EMPRESA, dinero, rutLegible } from "../utils/formato";
 import Cargando from "../components/Cargando";
+import ComisionesDelMes from "../components/ComisionesDelMes";
 
 const VACIA = { rut: "", razonSocial: "", nombre: "", tipo: "agencia", personaNombre: "", personaCorreo: "" };
 
@@ -74,6 +75,8 @@ export default function AdminEmpresas() {
         </div>
       </header>
       {error ? <div className="error" role="alert">{error}</div> : null}
+
+      <ComisionesDelMes />
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>

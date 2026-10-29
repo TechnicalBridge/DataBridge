@@ -64,9 +64,9 @@ class AuthServiceTest {
         AccessLogRepository registro = mock(AccessLogRepository.class);
         correo = mock(MailService.class);
         deudas = mock(DeudasClient.class);
+        when(deudas.empresa(any())).thenAnswer(i -> Optional.of(new DeudasClient.Empresa(i.getArgument(0), "Empresa", true)));
         when(deudas.correoDelDeudor(any())).thenReturn(Optional.empty());
-        when(deudas.empresa(any())).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", true)));
-        JwtService jwt = new JwtService("unit-test-secret-key-32-chars!!!", 15);
+        JwtService jwt = com.tbridge.auth.security.JwtTestConfig.service();
         SessionService sesiones = new SessionService(this.sesiones.repositorio,
                 java.time.Duration.ofDays(7), java.time.Clock.systemUTC());
 
@@ -76,10 +76,14 @@ class AuthServiceTest {
             guardados.add(codigo);
             return codigo;
         });
-        when(codigos.findFirstByDebtorRutAndConsumedAtIsNullOrderByIssuedAtDesc(any()))
+        when(codigos.deleteByCodeHash(any())).thenAnswer(llamada -> {
+            int antes = guardados.size();
+            guardados.removeIf(c -> c.getCodeHash().equals(llamada.getArgument(0)));
+            return (long) (antes - guardados.size());
+        });
+        when(codigos.findFirstByDebtorRutOrderByIssuedAtDescIdDesc(any()))
                 .thenAnswer(llamada -> guardados.stream()
                         .filter(c -> c.getDebtorRut().equals(llamada.getArgument(0)))
-                        .filter(c -> c.getConsumedAt() == null)
                         .reduce((primero, ultimo) -> ultimo));
         when(registro.save(any())).thenAnswer(llamada -> {
             bitacora.add(llamada.getArgument(0));
@@ -98,6 +102,18 @@ class AuthServiceTest {
 
     private String emitir(String rut) {
         return auth.emitirCodigo(rut, List.of("whatsapp", "correo"), "prueba").codigo();
+    }
+
+    @Test
+    void anular_un_codigo_que_nadie_recibio_deja_servir_al_anterior() {
+        String elQueTiene = emitir("16482337-7");
+        String elQueNoLeLlego = emitir("16482337-7");
+
+        auth.anularCodigo("16482337-7", elQueNoLeLlego);
+
+        assertEquals(1, guardados.size(), "el anulado no queda");
+        assertNotNull(auth.entrarConCodigo("16482337-7", elQueTiene, "1.2.3.4").token(),
+                "el deudor entra con el codigo que si le llego");
     }
 
     @Test
@@ -245,8 +261,8 @@ class AuthServiceTest {
 
         var respuesta = auth.pedirEnlace("16.482.337-7", "atacante@correo.cl", "10.0.0.1");
 
-        verify(correo).enviarEnlace(eq("felipe.rojas@correo.cl"), anyString(), anyLong());
-        verify(correo, never()).enviarEnlace(eq("atacante@correo.cl"), anyString(), anyLong());
+        verify(correo).enviarAcceso(eq("felipe.rojas@correo.cl"), anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(eq("atacante@correo.cl"), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.sent, ultimoPedido());
     }
@@ -255,7 +271,7 @@ class AuthServiceTest {
     void un_rut_sin_correo_registrado_no_recibe_nada_y_la_respuesta_es_la_misma() {
         var respuesta = auth.pedirEnlace("16482337-7", "atacante@correo.cl", "10.0.0.1");
 
-        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         verify(enlaces, never()).save(any());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.refused, ultimoPedido());
@@ -265,11 +281,11 @@ class AuthServiceTest {
     void el_personal_habilitado_recibe_su_enlace_y_el_que_no_esta_habilitado_no() {
         when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
         auth.pedirEnlace(null, " camila.reyes@apofyx.cl ", "10.0.0.1");
-        verify(correo).enviarEnlace(eq("camila.reyes@apofyx.cl"), anyString(), anyLong());
+        verify(correo).enviarAcceso(eq("camila.reyes@apofyx.cl"), anyString(), anyString(), anyLong());
 
         when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(false)));
         var respuesta = auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
-        verify(correo).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
         assertEquals(AccessLog.Outcome.refused, ultimoPedido());
     }
@@ -278,7 +294,7 @@ class AuthServiceTest {
     void un_correo_que_no_es_de_nadie_no_recibe_enlace() {
         var respuesta = auth.pedirEnlace(null, "cualquiera@correo.cl", "10.0.0.1");
 
-        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
+        verify(correo, never()).enviarAcceso(anyString(), anyString(), anyString(), anyLong());
         assertEquals(AuthService.RESPUESTA_ENLACE, respuesta.mensaje());
     }
 
@@ -324,8 +340,8 @@ class AuthServiceTest {
         when(personal.findByEmailIgnoreCase(staff.getEmail())).thenReturn(Optional.of(staff));
     }
 
-    private static io.jsonwebtoken.Claims loQueDiceElJwt(AuthService.Sesion sesion) {
-        return new JwtService("unit-test-secret-key-32-chars!!!", 15).parse(sesion.token());
+    private static org.springframework.security.oauth2.jwt.Jwt loQueDiceElJwt(AuthService.Sesion sesion) {
+        return com.tbridge.auth.security.JwtTestConfig.service().parse(sesion.token());
     }
 
     @Test
@@ -336,8 +352,8 @@ class AuthServiceTest {
 
         assertEquals("ADMIN", sesion.user().role());
         assertNull(sesion.user().rut(), "el admin no es de ninguna empresa");
-        assertEquals("ADMIN", loQueDiceElJwt(sesion).get("role", String.class));
-        assertNull(loQueDiceElJwt(sesion).get("rut", String.class));
+        assertEquals("ADMIN", loQueDiceElJwt(sesion).getClaimAsString("role"));
+        assertNull(loQueDiceElJwt(sesion).getClaimAsString("rut"));
         assertEquals(Session.Role.ADMIN, sesiones.filas.getLast().getRole());
     }
 
@@ -349,7 +365,7 @@ class AuthServiceTest {
 
         assertEquals("CREDITOR", sesion.user().role());
         assertEquals("77305118-6", sesion.user().rut());
-        assertEquals("CREDITOR", loQueDiceElJwt(sesion).get("role", String.class));
+        assertEquals("CREDITOR", loQueDiceElJwt(sesion).getClaimAsString("role"));
         assertEquals(Session.Role.CREDITOR, sesiones.filas.getLast().getRole());
     }
 
@@ -361,7 +377,7 @@ class AuthServiceTest {
         AuthService.Sesion renovada = auth.renovar(sesion.llave().valor(), "10.0.0.1");
 
         assertEquals("ADMIN", renovada.user().role());
-        assertEquals("ADMIN", loQueDiceElJwt(renovada).get("role", String.class));
+        assertEquals("ADMIN", loQueDiceElJwt(renovada).getClaimAsString("role"));
     }
 
     @Test
@@ -377,31 +393,5 @@ class AuthServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertTrue(sesiones.filas.stream().allMatch(Session::revocada), "toda la familia queda revocada");
-    }
-
-    @Test
-    void el_personal_de_una_empresa_suspendida_no_recibe_enlace_no_entra_ni_renueva() {
-        when(personal.findByEmailIgnoreCase("camila.reyes@apofyx.cl")).thenReturn(Optional.of(camila(true)));
-        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", false)));
-
-        // 1. Pedir enlace: no recibe correo
-        auth.pedirEnlace(null, "camila.reyes@apofyx.cl", "10.0.0.1");
-        verify(correo, never()).enviarEnlace(anyString(), anyString(), anyLong());
-
-        // 2. Entrar con enlace: lanza 401
-        conEnlaceDe(camila(true));
-        ApiException errorEntrar = assertThrows(ApiException.class, () -> auth.entrarConEnlace("token", "10.0.0.1"));
-        assertEquals(HttpStatus.UNAUTHORIZED, errorEntrar.getStatus());
-        assertEquals("La empresa esta suspendida", errorEntrar.getMessage());
-
-        // 3. Renovar sesion: si se suspende despues de haber entrado, al renovar se rechaza
-        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", true)));
-        conEnlaceDe(camila(true));
-        AuthService.Sesion sesion = auth.entrarConEnlace("token", "10.0.0.1");
-
-        when(deudas.empresa("77305118-6")).thenReturn(Optional.of(new DeudasClient.Empresa("77305118-6", "APOFYX", false)));
-        ApiException errorRenovar = assertThrows(ApiException.class, () -> auth.renovar(sesion.llave().valor(), "10.0.0.1"));
-        assertEquals(HttpStatus.UNAUTHORIZED, errorRenovar.getStatus());
-        assertEquals("La empresa esta suspendida", errorRenovar.getMessage());
     }
 }

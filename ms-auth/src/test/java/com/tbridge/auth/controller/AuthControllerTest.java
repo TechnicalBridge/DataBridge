@@ -42,8 +42,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * de renovacion, los enlaces de HATEOAS y la validacion de lo que entra. La
  * logica de acceso esta simulada: se prueba en AuthServiceTest.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, JwtService.class, SesionModelAssembler.class, AuthControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class, SesionModelAssembler.class, AuthControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class AuthControllerTest {
 
@@ -70,6 +71,34 @@ class AuthControllerTest {
     private AuthService.Sesion sesion() {
         return new AuthService.Sesion(jwt.issue(RUT, null, "DEBTOR", null, RUT), UsuarioResponse.deudor(RUT),
                 new SessionService.Llave("llave-de-prueba", Instant.now().plus(7, ChronoUnit.DAYS)));
+    }
+
+    @Test
+    void solicitar_codigo_es_202_y_no_entrega_el_secreto() throws Exception {
+        when(auth.pedirCodigo(eq(RUT), eq(null), any())).thenReturn(new EnlaceResponse(true,
+                "Si tus datos están registrados, recibirás un código de acceso por correo.", 15));
+        mvc.perform(post("/api/auth/codigo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.expiraEnMinutos").value(15))
+                .andExpect(jsonPath("$.codigo").doesNotExist())
+                .andExpect(jsonPath("$.token").doesNotExist());
+    }
+
+    @Test
+    void entrar_con_correo_y_codigo_usa_el_acceso_de_personal() throws Exception {
+        when(auth.entrarConCodigoDePersonal(eq("persona@example.com"), eq("K7M2QX"), any())).thenReturn(sesion());
+        mvc.perform(post("/api/auth/acceso").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"persona@example.com\",\"codigo\":\"K7M2QX\"}"))
+                .andExpect(status().isOk());
+        verify(auth).entrarConCodigoDePersonal(eq("persona@example.com"), eq("K7M2QX"), any());
+    }
+
+    @Test
+    void entrar_no_acepta_rut_y_correo_a_la_vez() throws Exception {
+        mvc.perform(post("/api/auth/acceso").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\",\"correo\":\"persona@example.com\",\"codigo\":\"K7M2QX\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

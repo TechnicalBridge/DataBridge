@@ -54,6 +54,20 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
 
     List<Debt> findByCampaign(Campaign campaign);
 
+    /**
+     * Las deudas en cobranza por las que todavia no se le escribio nada al
+     * deudor: su invitacion fallo, la ley la dejo para despues, o el deudor no
+     * tenia correo y una cartera se lo trajo. Sin las de una direccion con
+     * problemas, que esperan otra.
+     */
+    @Query("""
+            select d from Debt d join fetch d.debtor r join fetch d.creditor
+             where d.status = com.tbridge.debt.model.Debt.Status.open
+               and r.email is not null and r.email <> '' and r.emailRejections < :rechazos
+               and not exists (select 1 from Contact c where c.debt = d)
+             order by d.id""")
+    List<Debt> sinInvitar(@Param("rechazos") int rechazos);
+
     List<Debt> findByLastBatch(Batch lote);
 
     Optional<Debt> findByCreditorAndExternalId(Organization creditor, String externalId);

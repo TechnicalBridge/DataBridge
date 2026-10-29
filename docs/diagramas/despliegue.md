@@ -4,7 +4,7 @@ Vista física del [modelo 4+1](README.md): **dónde corre cada pieza**. Qué con
 cada uno, quién ve a quién y qué queda guardado cuando todo se apaga.
 
 **Cómo leerlo.** El recuadro grande es el equipo y el de adentro, la red interna de Docker. Cada caja es un
-contenedor, con su puerto. El cilindro es donde se guardan los datos. Una flecha es una conexión de red, en el
+contenedor, con su puerto. Los cilindros son donde se guardan los datos. Una flecha es una conexión de red, en el
 sentido de quien la abre.
 
 Sale de `docker-compose.yml` y del `Dockerfile` de cada módulo.
@@ -29,11 +29,15 @@ flowchart LR
             DEBT["ms-debt :8083"]
             PAY["ms-payments :8084"]
             AI["ms-ai :8085"]
-            MY[("mysql :3306<br/>tb_auth · tb_debt · tb_payments")]
+            BA[("db-auth :3306<br/>tb_auth")]
+            BD[("db-debt :3306<br/>tb_debt")]
+            BP[("db-payments :3306<br/>tb_payments")]
             MQ{{"rabbitmq :5672"}}
             MAIL["mailpit<br/>SMTP :1025"]
         end
-        VOL[("volumen<br/>tbridge_db_data")]
+        VA[("volumen<br/>tb_auth_data")]
+        VD[("volumen<br/>tb_debt_data")]
+        VP[("volumen<br/>tb_payments_data")]
     end
 
     PAS{{"Transbank · Khipu<br/>Mercado Pago"}}
@@ -44,8 +48,12 @@ flowchart LR
     SIS -->|"8080 · /api/v1"| POR
     POR -->|"/api"| GW
     GW --> AUTH & DEBT & PAY & AI
-    AUTH & DEBT & PAY -->|"JDBC"| MY
-    MY --- VOL
+    AUTH -->|"JDBC"| BA
+    DEBT -->|"JDBC"| BD
+    PAY -->|"JDBC"| BP
+    BA --- VA
+    BD --- VD
+    BP --- VP
     DEBT -->|"/internal"| AUTH
     AUTH -->|"/internal"| DEBT
     PAY -->|"/internal"| DEBT
@@ -67,9 +75,16 @@ flowchart LR
 | `ms-debt` | `tbridge/ms-debt`, sobre `eclipse-temurin:25-jre` | 8083 | — | 640 MB | La cartera |
 | `ms-payments` | `tbridge/ms-payments`, sobre `eclipse-temurin:25-jre` | 8084 | — | 640 MB | Los cobros |
 | `ms-ai` | `tbridge/ms-ai`, sobre `eclipse-temurin:25-jre` | 8085 | — | 640 MB | El asistente |
-| `mysql` | `mysql:8.4` | 3306 | 3308 (`MYSQL_PORT`) | — | Las tres bases. Se publica solo para revisarlas desde el equipo |
+| `db-auth` | `mysql:8.4` | 3306 | 3308 (`DB_AUTH_PORT`) | — | `tb_auth`, la base de ms-auth. Se publica solo para revisarla desde el equipo |
+| `db-debt` | `mysql:8.4` | 3306 | 3309 (`DB_DEBT_PORT`) | — | `tb_debt`, la base de ms-debt |
+| `db-payments` | `mysql:8.4` | 3306 | 3310 (`DB_PAYMENTS_PORT`) | — | `tb_payments`, la base de ms-payments |
 | `rabbitmq` | `rabbitmq:3.13-management` | 5672 y 15672 | 5672 y 15672 | — | La cola del aviso de pago, y su consola |
 | `mailpit` | `axllent/mailpit` | 1025 y 8025 | 1025 y 8025 | — | El buzón de prueba: recibe los correos y los muestra en una página. Es adonde van mientras el `.env` no traiga un `SMTP_HOST` |
+
+**Una base por servicio, cada una en su MySQL** ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)):
+la misma imagen y la misma configuración, pero cada una con su volumen y sus claves. Si una se cae, se llena o
+se restaura, las otras dos siguen, y con la clave de un servicio no se entra a la base de otro. Arrancan sin
+`performance_schema`, y así cada una usa unos 200 MB.
 
 Los cinco servicios de Java se construyen igual, en dos etapas: se compilan con `maven:3.9-eclipse-temurin-25`
 y la imagen final lleva solo el JRE y el `.jar`. Corren con un usuario sin privilegios (`tbridge`), no como
@@ -82,9 +97,9 @@ Ningún contenedor arranca antes de que esté sano el que necesita. Cada servici
 
 ```mermaid
 flowchart LR
-    MY[("mysql")] --> AUTH["ms-auth"]
-    MY --> DEBT["ms-debt"]
-    MY --> PAY["ms-payments"]
+    BA[("db-auth")] --> AUTH["ms-auth"]
+    BD[("db-debt")] --> DEBT["ms-debt"]
+    BP[("db-payments")] --> PAY["ms-payments"]
     MQ{{"rabbitmq"}} --> DEBT
     MQ --> PAY
     AUTH -.->|"basta con que haya partido"| DEBT
@@ -97,7 +112,8 @@ flowchart LR
 ```
 
 Al arrancar, cada servicio con base **migra su esquema** con Flyway y después compara sus entidades con las
-tablas: si no calzan, no parte. `mysql` crea las tres bases la primera vez, con `db/init/01-bases.sql`.
+tablas: si no calzan, no parte. Cada MySQL crea su base vacía la primera vez (`MYSQL_DATABASE`), y le da
+permisos al usuario de la aplicación.
 
 ## Qué se levanta con cada perfil
 
@@ -105,7 +121,7 @@ tablas: si no calzan, no parte. `mysql` crea las tres bases la primera vez, con 
 
 | Perfil | Qué levanta | Para qué |
 | --- | --- | --- |
-| Sin perfil | `mysql`, `rabbitmq` y `mailpit` | Programar: los servicios corren desde el editor y encuentran la base, la cola y el correo |
+| Sin perfil | `db-auth`, `db-debt`, `db-payments`, `rabbitmq` y `mailpit` | Programar: los servicios corren desde el editor y encuentran la base, la cola y el correo |
 | `app` | Lo anterior, más los cinco servicios y el portal | Usar el sistema completo: `docker compose --profile app up -d --build --wait` |
 | `carga` | `k6` | Las pruebas de carga de `rendimiento/`, contra el sistema ya levantado |
 
@@ -113,7 +129,7 @@ tablas: si no calzan, no parte. `mysql` crea las tres bases la primera vez, con 
 
 | Qué | Dónde | Sobrevive a |
 | --- | --- | --- |
-| Las tres bases de datos | El volumen `tbridge_db_data` | Apagar y volver a levantar. Se pierde solo si se borra el volumen |
+| Cada base de datos | Su volumen: `tb_auth_data`, `tb_debt_data` y `tb_payments_data` | Apagar y volver a levantar. Se pierde solo si se borra su volumen. Cada una se respalda y se restaura por separado |
 | La cola de RabbitMQ | Dentro del contenedor: `rabbitmq` no tiene un volumen | Reiniciarlo, porque la cola es durable. Si el contenedor se borra, se pierde lo que estuviera en la cola sin leer: ms-payments ya lo dio por entregado al publicarlo |
 | Los correos de prueba | Dentro de `mailpit`, en memoria | Nada: son de prueba |
 | Las sesiones | En `tb_auth` | Reiniciar los servicios. El JWT se valida solo con su firma, así que ningún servicio guarda sesiones en memoria |
@@ -129,8 +145,9 @@ falta uno, el servicio no arranca y dice cuál.
 
 | Secreto | Quién lo usa | Para qué |
 | --- | --- | --- |
-| `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` | `mysql`, ms-auth, ms-debt y ms-payments | Entrar a la base |
-| `JWT_SECRET` | ms-auth, ms-debt y ms-payments | ms-auth firma el JWT; los otros dos lo verifican. Tiene que ser el mismo en los tres |
+| `DB_AUTH_ROOT_PASSWORD` y `DB_AUTH_PASSWORD`; lo mismo con `DB_DEBT_` y `DB_PAYMENTS_` | Cada base, y solo el servicio que la usa | Entrar a esa base: con la clave de una no se entra a las otras |
+| `JWT_KEY_DIRECTORY` | solo ms-auth | Pareja PKCS#8/SPKI de solo lectura; privada fuera de los demas servicios |
+| `AUTH_JWKS_URI` | ms-debt y ms-payments | JWKS publico para ES256; ver [rotacion](../seguridad/jwt.md) |
 | `INTERNAL_KEY` | ms-auth, ms-debt y ms-payments | Las llamadas a `/internal` entre servicios |
 | `RABBIT_PASSWORD` | `rabbitmq`, ms-debt y ms-payments | Entrar a la cola |
 | `WEBHOOK_SECRET` | ms-payments | Firmar los enlaces de pago y verificar los avisos de la pasarela simulada |
@@ -155,9 +172,51 @@ que no puede pasar con los datos de la demo, que traen correos inventados.
 | Mercado Pago | ms-payments | HTTPS, con el token de acceso | Lo mismo |
 | Banco Central | ms-payments | HTTPS | La UF del día se puede cargar a mano. Sin UF, un cobro en UF responde `503`; los cobros en pesos siguen |
 | LLM | ms-ai | HTTPS, con el SDK de OpenAI | El asistente responde con reglas |
-| Servidor de correo | ms-auth | SMTP, con STARTTLS o SSL | El envío falla a los 10 segundos (`SMTP_TIMEOUT_MS`) y queda en el registro; el servicio no se cae |
+| Servidor de correo | ms-auth | SMTP, con STARTTLS o SSL | Falla a los 10 segundos (`SMTP_TIMEOUT_MS`). El correo no cuenta como enviado: la empresa ve el motivo y sale solo en la pasada siguiente |
 | Sistema de cada empresa | ms-debt | HTTPS, con cada evento firmado | El evento espera en la bandeja de salida y se reintenta |
 
 Las pasarelas también le hablan a DataBridge: devuelven al deudor al portal, y Khipu y Mercado Pago pueden
 avisar un pago. Para eso DataBridge necesita una dirección pública; en un equipo local no la tiene, y por eso
 ms-payments no depende de esos avisos: les pregunta a las pasarelas cada 10 segundos.
+
+## En un servidor
+
+La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`: el mismo compose de arriba, con
+Caddy delante (el único que publica puertos) y las imágenes que compila GitHub Actions. El diagrama y la guía
+están en [`docs/despliegue`](../despliegue/README.md).
+
+## En Railway
+
+Una alternativa que quedó preparada y se descartó por costo (#173).
+
+Las mismas imágenes, una por servicio, cada una desde su carpeta y con su `railway.json`. La guía, con las
+variables de cada servicio, está en [`docs/railway`](../railway/README.md), y lo que falta decidir, en #173.
+
+```mermaid
+flowchart LR
+    V(("Visitante")) -->|"HTTPS"| PX["Proxy de Railway"]
+    PX -->|"X-Real-IP"| POR["portal<br/>nginx :8080"]
+    subgraph PRIV["Red privada · *.railway.internal"]
+        POR --> GW["gateway :8082"]
+        GW --> AUTH["ms-auth :8081"]
+        GW --> DEBT["ms-debt :8083"]
+        GW --> PAY["ms-payments :8084"]
+        GW --> AI["ms-ai :8085"]
+        AUTH <--> DEBT
+        PAY -->|"aviso de pago, por HTTP"| DEBT
+        AI --> DEBT
+        AUTH & DEBT & PAY --> MY[("MySQL 8.4<br/>con su volumen")]
+    end
+    AUTH -->|"los correos, por HTTPS"| BRE{{"Brevo"}}
+    PAY --> PAS{{"Pasarelas"}}
+```
+
+| Lo distinto de Docker Compose | Por qué |
+| --- | --- |
+| Solo el portal tiene dirección pública | El gateway y los servicios se hablan por la red privada; ninguno se publica |
+| No hay RabbitMQ | El aviso de un pago va de ms-payments a ms-debt por HTTP, con sus reintentos: un servicio menos que pagar |
+| No hay buzón de prueba: los correos salen por la API de Brevo | Railway bloquea el SMTP fuera de su plan Pro, y Brevo va por HTTPS |
+| Las bases las crea cada servicio | Cada servicio se conecta con `createDatabaseIfNotExist` |
+| Cada servicio escucha también en IPv6 (`SERVER_ADDRESS=::`) | La red privada de los ambientes antiguos de Railway es solo IPv6 |
+| nginx le cree al proxy de Railway la IP del visitante | Sin eso, el límite de peticiones contaría a todos como uno solo |
+| La memoria de cada JVM tiene techo (`JAVA_TOOL_OPTIONS`) | En Railway se cobra la que se usa, y no hay un límite de contenedor tan bajo como el del compose |

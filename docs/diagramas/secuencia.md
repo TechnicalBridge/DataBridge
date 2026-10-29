@@ -37,7 +37,9 @@ el primero.
 
 ## 1. El deudor entra con su RUT y su código
 
-Sin cuenta y sin contraseña. El código le llegó antes por correo ([secuencia 4](#4-entregar-una-cartera-por-la-api)).
+Sin cuenta y sin contraseña. El código viene de campaña (24 h) o de **Enviar código**
+(`POST /api/auth/codigo {rut}`, 15 min por omisión). El personal usa el mismo pedido con `{correo}`
+y canjea con `entrarConCodigoDePersonal`: su rol se toma de la base, no del navegador.
 
 ```mermaid
 sequenceDiagram
@@ -59,17 +61,23 @@ sequenceDiagram
         AC->>AS: entrarConCodigo(rut, codigo, ip)
         AS->>B: access_log: intentos fallidos de ese origen<br/>en los últimos 10 minutos
         Note over AS: con 10 o más, responde 429
-        AS->>B: el último código sin usar de ese RUT
+        AS->>B: bloquea el último código de campaña y el último solicitado del RUT
+        Note over AS: elige el más reciente, aunque esté usado:<br/>no revive códigos anteriores
         alt no hay código, venció, se agotó o no calza
             AS->>B: suma el intento y anota en access_log
             AS-->>P: 401 o 429, con el mismo mensaje
             Note over AS: «no hay código» y «no corresponde» responden igual:<br/>así no se puede averiguar qué RUT tienen deuda
         else el código calza
             Note over AS: compara la huella SHA-256(rut:codigo),<br/>en tiempo constante
-            AS->>B: consume el código y anota granted
+            opt es código de campaña
+                AS->>B: consume el código y anota granted
+            end
             AS->>SS: abrir(DEBTOR, rut)
             SS->>B: sessions: familia nueva, con la huella de la llave
             SS-->>AS: la llave de renovación, en claro una sola vez
+            opt es código solicitado
+                AS->>B: consume el pedido y anota granted
+            end
             AS-->>AC: Sesion(JWT de 15 minutos, usuario, llave)
             AC-->>P: 200 {token, user, expiraEnSegundos}<br/>y la cookie tb_renovacion
         end
@@ -87,8 +95,8 @@ abierta, pero no puede llevársela.
 
 ## 2. Entrar con un enlace al correo
 
-Así entran el **usuario de una empresa** y el **admin de DataBridge**, cada uno por su puerta
-(`/databridge/login` y `/admin/login`). Para el **deudor** es el respaldo, cuando no le llegó el código.
+Es el respaldo **¿No te llegó?** de los tres portales. **Enviar código** usa `/api/auth/codigo` y
+el mismo destino registrado, pero su mensaje contiene solo el código, nunca el enlace.
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +109,7 @@ sequenceDiagram
     participant M as MailService
     participant B as tb_auth
 
-    U->>P: escribe su correo, o su RUT si es deudor
+    U->>P: escribe su correo o RUT y pide No te llegó
     P->>AC: POST /api/auth/enlace {correo, rut}
     AC->>AS: pedirEnlace(rut, correo, ip)
     alt viene con RUT: es un deudor
@@ -113,27 +121,31 @@ sequenceDiagram
         AS->>B: staff_users por correo, y que esté habilitado
     end
     alt hay a quién mandarlo
-        AS->>B: magic_links: la huella del enlace, vigente 15 minutos
-        AS-)M: enviarEnlace(correo, enlace), en segundo plano
-        M-)U: correo con /magic?token=…
+        AS->>B: invalida pedidos anteriores de la identidad
+        AS->>B: magic_links: huellas de código y enlace, 15 min y 5 intentos
+        Note over AS,B: confirmar transacción antes de enviar
+        AS-)M: enviarAcceso(correo, codigo, enlace, minutos)
+        M-)U: un único correo con código y /magic?token=…
         AS->>B: access_log: sent
     else no hay
         AS->>B: access_log: refused
     end
     AS-->>P: 202, siempre con el mismo texto
-    Note over AS,P: la respuesta y su demora son iguales salga o no el correo:<br/>no se revela quién es deudor ni quién es personal
+    Note over AS,P: respuesta genérica sin credenciales<br/>el envío es asíncrono, no se garantiza tiempo constante
 
     U->>P: abre el enlace del correo
     P->>AC: POST /api/auth/verify {token}
     AC->>AS: entrarConEnlace(token, ip)
-    AS->>B: magic_links por huella: que exista, sin usar y sin vencer
-    AS->>B: lo consume y anota granted
+    AS->>B: bloquea magic_links por huella: habilitado, sin usar, vigente y con intentos
     alt el enlace era de un deudor
         AS->>AS: sesión DEBTOR con su RUT
     else era de personal
-        AS->>B: staff_users: que siga habilitado, y anota el ingreso
+        AS->>B: staff_users: que siga habilitado y empresa activa si no es admin
         AS->>AS: sesión CREDITOR con el RUT de su empresa,<br/>o ADMIN sin RUT
     end
+    Note over AS,B: si ms-debt no responde: 503, sin sesión ni consumo<br/>el mismo acceso puede reintentarse mientras siga vigente
+    AS->>B: solo si abrió sesión, consume el pedido y su código
+    AS->>B: access_log granted si abrió sesión, refused si no está habilitado
     AS-->>P: JWT y cookie de renovación, como en la secuencia 1
     P-->>U: su portal: /app, /databridge o /admin
 ```
@@ -241,17 +253,30 @@ sequenceDiagram
 
     Note over IV: después de confirmar la transacción, en segundo plano
     IV->>B: la deuda sigue abierta y el deudor tiene correo
+    IV->>IV: HorarioDeContacto: ¿de lunes a sábado, de 8:00 a 20:00, y no es feriado?
     IV->>B: LimiteDeContacto: gestiones de los últimos 7 días
-    opt la ley deja escribirle
+    opt es horario de la ley, la semana deja escribirle, y su dirección no tiene problemas
         IV->>AU: POST /internal/codigos, con la clave interna
         AU->>AU: guarda la huella del código, vigente 24 horas
-        AU-)C: correo con el código: sin monto y sin enlace
-        IV->>B: contacts: la invitación, con el destino tapado
+        AU->>C: correo con el código: sin monto y sin enlace
+        alt el servidor de correo lo acepta
+            AU-->>IV: 200
+            IV->>B: contacts: la invitación, con el destino tapado
+        else no lo acepta
+            AU->>AU: anula el código: nadie lo recibió
+            AU-->>IV: 502, con el motivo y de quién es la culpa
+            IV->>B: debtors: el motivo, y un rechazo más si fue la dirección
+        end
     end
 ```
 
-Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`) hace el mismo recorrido:
-`CargaService` convierte la planilla con `CarteraCsv` y llama al mismo `CarteraIntakeService.recibir`.
+Una invitación que no salió la vuelve a intentar la pasada de contacto ([10](#10-la-campaña-le-escribe-al-deudor)),
+que antes de las campañas invita a toda deuda en cobranza que todavía no recibió ningún correo. Así sale
+también la de una cartera que llegó de noche, un domingo o un feriado: con la primera pasada dentro del
+horario.
+
+Una cartera cargada **por archivo** desde el portal (`POST /api/debts/cartera`), siempre en una campaña, hace el mismo recorrido:
+`CargaService` convierte la planilla, de Excel con `CarteraExcel` o CSV con `CarteraCsv`, y llama al mismo `CarteraIntakeService.recibir`.
 
 ---
 
@@ -277,7 +302,8 @@ sequenceDiagram
     Note over DS: Intereses.deMora: la mora de hoy,<br/>con la tasa que pactó el acreedor
     DS->>RS: simulate(capital, mora, tasa, moneda, n, desde)
     Note over RS: de 3 a 24 cuotas. Con tasa, sistema francés: cuotas iguales,<br/>cada una con su interés. Sin tasa, partes iguales
-    RS-->>DS: RepactPlan: lo repactado, la cuota y el total a pagar
+    Note over RS: calcularCae: la tasa que iguala lo repactado con las cuotas,<br/>por 12 (D.S. 43). Sin tasa, 0,00%
+    RS-->>DS: RepactPlan: lo repactado, la cuota, la CAE y el costo total
     DS-->>P: el plan, con el enlace para aceptarlo
 
     D->>P: acepta
@@ -286,7 +312,7 @@ sequenceDiagram
     Note over DS: no se repacta una deuda pagada,<br/>retirada ni en reclamo
     DS->>RS: simulate(…), otra vez: el plan no viene del navegador
     DS->>B: repactations: el convenio anterior queda reemplazado
-    DS->>B: repactations: el convenio nuevo, con su tasa y lo repactado
+    DS->>B: repactations: el convenio nuevo, con su tasa, lo repactado y la CAE que se informó
     DS->>B: installments: las pendientes pasan a anuladas
     DS->>B: installments: las cuotas del convenio, cada una con su interés
     DS->>B: debts: status = repacted
@@ -570,11 +596,18 @@ sequenceDiagram
                     CS->>LC: permite(deudor, ahora)
                     LC->>B: gestiones al deudor en los últimos 7 días
                     LC-->>CS: sí, si lleva menos de 2 y pasaron 2 días desde la última
-                    opt le toca y la ley lo deja
+                    opt le toca, la ley lo deja y su dirección no tiene problemas
                         CS->>AC: emitirCodigo(rut, correo, acreedor)
                         AC->>AU: POST /internal/codigos, con la clave interna
-                        AU-)C: correo con el código: sin monto y sin enlace
-                        CS->>B: contacts: el toque, con su campaña y su número
+                        AU->>C: correo con el código: sin monto y sin enlace
+                        alt sale
+                            CS->>B: contacts: el toque, con su campaña y su número
+                        else el servidor rechazó la dirección
+                            CS->>B: debtors: el motivo y un rechazo más
+                        else falló el servidor de correo
+                            CS->>B: debtors: el motivo
+                            Note over CS: la pasada se corta: lo que falta,<br/>en la siguiente
+                        end
                     end
                 end
             end
@@ -582,8 +615,14 @@ sequenceDiagram
     end
 ```
 
-Un correo que no pudo salir no se pierde: en la pasada siguiente se vuelve a preguntar, y sale en cuanto la ley
-lo deja. Una deuda repactada, pagada, en reclamo o retirada deja de recibir los correos de la campaña.
+Un correo que no pudo salir no se pierde: no queda como toque, así que en la pasada siguiente se vuelve a
+preguntar, y sale en cuanto la ley lo deja. Si el servidor rechazó tres veces seguidas la dirección del deudor,
+deja de intentarse hasta que una cartera traiga otra. Una deuda repactada, pagada, en reclamo o retirada deja de
+recibir los correos de la campaña.
+
+Antes de las campañas, la misma pasada invita a las deudas en cobranza que todavía no recibieron ningún correo
+(`InvitacionService.invitarPendientes`): las que fallaron, las que la ley dejó para después y las de un deudor
+que recién trajo correo.
 
 El **recordatorio de cuotas** (`RecordatorioService`, todos los días a las 9:00) sigue el mismo camino con otra
 pregunta: las cuotas pendientes que vencen en los próximos 3 días, de deudores que no apagaron el recordatorio.
@@ -690,7 +729,7 @@ El asistente solo lee: no tiene ningún endpoint que cambie una deuda.
 
 ## 13. El admin abre su panel
 
-Entra con su enlace ([secuencia 2](#2-entrar-con-un-enlace-al-correo), por `/admin/login`). La portada le
+Entra con correo y código por `/admin/login`, o con el respaldo ([secuencia 2](#2-entrar-con-un-enlace-al-correo)). La portada le
 pregunta a cada servicio si responde, con su sesión.
 
 ```mermaid
