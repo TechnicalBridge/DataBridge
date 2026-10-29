@@ -1,5 +1,5 @@
 {
-  "_que_es": "El aviso que ms-payments le manda a ms-debt cuando un pago se concreta. Cada servicio tiene su propia clase PagoConfirmado; este archivo es el contrato entre las dos, y una prueba en cada servicio lo compara con su clase.",
+  "_que_es": "El aviso que ms-payments le manda a ms-debt cuando un pago se concreta. Cada servicio tiene su propia clase PagoConfirmado y una copia de este archivo (src/test/resources/contratos, en ms-debt y en ms-payments). Una prueba en cada servicio compara su clase con su copia, y la CI revisa que las dos copias sean iguales: si el aviso cambia, se cambian las dos.",
   "transporte": {
     "exchange": "tbridge.pagos",
     "routing_key": "pago.confirmado",

@@ -15,7 +15,8 @@ import java.util.Map;
  * aceptacion parcial (una deuda mal formada se rechaza sola, con su motivo, y
  * las demas entran) y avisar los campos desconocidos. Un tipo fijo rechazaria
  * el lote entero ante el primer campo con otro tipo, y no podria contar lo que
- * sobra. La definicion completa esta en {@code docs/integracion/cartera-v1.schema.json}.
+ * sobra. Los campos son los de este record, que Swagger muestra en el grupo
+ * integracion; un ejemplo completo esta en las pruebas (src/test/resources/cartera).
  */
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 @Schema(name = "CarteraV1", description = "Una cartera en el formato del contrato de integracion")

@@ -1,0 +1,26 @@
+{
+  "_que_es": "El aviso que ms-payments le manda a ms-debt cuando un pago se concreta. Cada servicio tiene su propia clase PagoConfirmado y una copia de este archivo (src/test/resources/contratos, en ms-debt y en ms-payments). Una prueba en cada servicio compara su clase con su copia, y la CI revisa que las dos copias sean iguales: si el aviso cambia, se cambian las dos.",
+  "transporte": {
+    "exchange": "tbridge.pagos",
+    "routing_key": "pago.confirmado",
+    "cola": "ms-debt.pagos-confirmados"
+  },
+  "ejemplo": {
+    "tipo": "pago.confirmado",
+    "paymentId": 41,
+    "debtId": 3,
+    "installmentId": 7,
+    "debtorRut": "16482337-7",
+    "creditorRut": "76418902-7",
+    "amount": 309400,
+    "currency": "CLP",
+    "amountClp": 309400,
+    "ufValue": 39485.65,
+    "gateway": "khipu",
+    "gatewayTxnId": "kh-ejemplo-0001",
+    "paidAt": "2026-10-06T15:30:00Z",
+    "installmentIds": [7, 8],
+    "interest": 9400,
+    "discount": 9400
+  }
+}

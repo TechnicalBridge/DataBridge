@@ -145,7 +145,6 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | --- | --- | --- |
 | **Namecheap** · un VPS (4 núcleos, 6 GB) y el dominio `technicalbridge.site` | Donde corre la demo hasta diciembre, con HTTPS de Let's Encrypt y despliegue automático desde `main`. La guía está en [`docs/despliegue`](docs/despliegue/README.md) | Todo corre en el equipo, con Docker |
 | **GitHub Container Registry** | Guarda las imágenes que compila GitHub Actions, para que el servidor solo las descargue | Las imágenes se compilan en el equipo |
-| **Railway** | Una alternativa que quedó preparada: cada servicio trae su `railway.json`, y la guía está en [`docs/railway`](docs/railway/README.md). Se descartó por costo (#173) | — |
 | **Transbank** · Webpay Plus, API REST v1.2 | Cobrar con tarjeta, en la página real de Transbank | Funciona igual, contra su ambiente de integración y con tarjetas de prueba. Sin internet, `TRANSBANK_ENVIRONMENT=SIMULADA` |
 | **Khipu** · API de pagos v3 | Cobrar por transferencia; con una cuenta en modo desarrollador, contra un banco ficticio | Simulada, sin `KHIPU_LLAVE` |
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
@@ -171,13 +170,15 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 
 Lo único que hace falta es **Docker Desktop** corriendo, con al menos 4 GB de memoria para
 Docker, e internet la primera vez: se bajan las imágenes y las dependencias de Maven, npm y pip.
-La primera vez, `preparar-env.ps1` crea el `.env` con los secretos: claves al azar para la base,
-RabbitMQ, el JWT y lo interno. **Ningún secreto tiene un valor escrito en el repositorio**, porque
+La primera vez, `generar-claves-jwt.ps1` crea las llaves de las sesiones
+([`docs/seguridad/jwt.md`](docs/seguridad/jwt.md)) y `preparar-env.ps1` crea el `.env` con los secretos: claves
+al azar para las bases, RabbitMQ y lo interno. **Ningún secreto tiene un valor escrito en el repositorio**, porque
 sería público: sin el `.env`, `docker compose` se detiene y dice cuál falta.
 
 ```powershell
 git clone https://github.com/TechnicalBridge/TB_web.git
 cd TB_web
+powershell -ExecutionPolicy Bypass -File .\scripts\generar-claves-jwt.ps1    # una sola vez: las llaves de las sesiones
 powershell -ExecutionPolicy Bypass -File .\preparar-env.ps1    # una sola vez: el .env con claves al azar
 # Para la demo en una base nueva, poner DEMO_DATOS=true en el .env antes de arrancar.
 docker compose --profile app up -d --build --wait
@@ -198,10 +199,8 @@ conexión; después son segundos.
 Para apagar: `docker compose --profile app down`. Con `-v` borra además los datos.
 
 > **Si ya tenías DataBridge corriendo antes de [#238](https://github.com/TechnicalBridge/TB_web/issues/238)**, con un solo MySQL (`tbridge-db`): antes de
-> levantar, `preparar-env.ps1` agrega las claves de las tres bases y `db\separar-bases.ps1` pasa tus
-> datos a cada una, sin tocar el volumen de antes. Las dos se corren como arriba
-> (`powershell -ExecutionPolicy Bypass -File ...`), y después la orden de siempre con `--remove-orphans`.
-> El detalle está en [`db/README.md`](db/README.md).
+> levantar, tus datos se pasan una vez a las tres bases, sin tocar el volumen de antes, como dice
+> [`docs/base-de-datos`](docs/base-de-datos/README.md#si-ya-tenías-datos-de-antes-de-238).
 
 ### Si algo falla en un equipo nuevo
 
@@ -213,7 +212,7 @@ Para apagar: `docker compose --profile app down`. Con `-v` borra además los dat
 | Faltan claves de firma o secretos de infraestructura | Generar pareja con `scripts/generar-claves-jwt.ps1`, configurar `JWT_KEY_DIRECTORY` y ejecutar `preparar-env.ps1`; ver [JWT](docs/seguridad/jwt.md) |
 | Tu `.env` es de antes y tiene los valores de desarrollo que venían en el repositorio | Esos valores son públicos. El script los reconoce y avisa; con `-Renovar` los cambia. Después, `docker compose --profile app up -d` |
 | Una clave se filtró (quedó en una captura, en un registro, en un chat) | `-Cambiar NOMBRE` la cambia aunque ya no sea la de antes. Si es la de una base (`DB_DEBT_PASSWORD`, …), la cambia también dentro de esa base, que tiene que estar arriba, sin perder datos. Después, `docker compose --profile app up -d` |
-| `db-auth` no parte con `port is already allocated` (3308), después de traer [#238](https://github.com/TechnicalBridge/TB_web/issues/238) | Es el MySQL de antes (`tbridge-db`), que sigue corriendo con tus datos. Corre `db\separar-bases.ps1` como dice arriba: lo apaga y pasa los datos. Si las bases nuevas ya alcanzaron a crear sus tablas vacías, se lo pide con `-Forzar` |
+| `db-auth` no parte con `port is already allocated` (3308), después de traer [#238](https://github.com/TechnicalBridge/TB_web/issues/238) | Es el MySQL de antes (`tbridge-db`), que sigue corriendo con tus datos. Pasa tus datos como dice [`docs/base-de-datos`](docs/base-de-datos/README.md#si-ya-tenías-datos-de-antes-de-238): el primer paso lo apaga, sin borrar sus datos |
 | El check *Secretos* falla en tu PR | Encontró una clave en tus commits: dice la regla, el archivo y la línea, nunca el valor. Si es de verdad, **revócala primero en el proveedor** (con el push ya es pública) y después sácala de tus commits. Los pasos, y qué hacer con un falso positivo, en [`docs/seguridad/secretos.md`](docs/seguridad/secretos.md) |
 | `port is already allocated` | Otro programa usa ese puerto. Cámbialo en tu `.env`: `PORTAL_PORT` (8080), `DB_AUTH_PORT` (3308), `DB_DEBT_PORT` (3309), `DB_PAYMENTS_PORT` (3310), `RABBIT_PORT` (5672), `RABBIT_ADMIN_PORT` (15672), `MAILPIT_SMTP_PORT` (1025) o `MAILPIT_PORT` (8025) |
 | `--wait` termina con un contenedor `unhealthy` o `exited` | `docker compose --profile app ps` dice cuál, y `docker compose logs <servicio>` por qué. Lo más común es poca memoria para Docker: en Docker Desktop, *Settings → Resources* |
@@ -321,7 +320,7 @@ los dos se eligen en el `.env`, sin editar el compose ni el código:
 
 | Camino | Cuándo | Qué hace falta |
 | --- | --- | --- |
-| **La API de Brevo** | El de producción, y el único que funciona en Railway sin su plan Pro, que bloquea el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
+| **La API de Brevo** | El de producción: va por HTTPS, así que sale aunque el servidor bloquee el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
 | **Un servidor SMTP** | Para probar en un equipo, o con otro proveedor | Una cuenta de Gmail con contraseña de aplicación, u otro servidor |
 
 Si están los dos, gana Brevo.
@@ -339,8 +338,8 @@ Si están los dos, gana Brevo.
    `api_key`, y empieza con `xkeysib-`.
 4. **Sin bloqueo por IP.** Brevo rechaza con `401` las llamadas desde una IP que no conoce. En
    [*Security → Authorised IPs*](https://app.brevo.com/security/authorised_ips) se desactiva el
-   bloqueo de las IPs desconocidas: en Railway la IP de salida cambia, y no hay una sola que
-   autorizar.
+   bloqueo de las IPs desconocidas: los correos salen del equipo de cada integrante y del servidor,
+   cada uno con su IP, y no hay una sola que autorizar.
 5. **En el `.env`:**
 
 ```
@@ -708,7 +707,7 @@ tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas p
 El trabajo se organizó en un tablero con cinco épicas —autenticación, gestión de deudas,
 pagos, asistente y reportes— y un backlog de tareas que se fueron tomando de a una. El
 seguimiento tarea por tarea hasta el 2 de octubre, con **en qué nos apartamos del plan original y
-por qué**, está en [`docs/plan-kanban.md`](docs/plan-kanban.md). Desde ahí, el trabajo vive en el
+por qué**, está en [`docs/metodologia/plan-kanban.md`](docs/metodologia/plan-kanban.md). Desde ahí, el trabajo vive en el
 tablero, en épicas como el panel de administración (#136) y la entrada por campaña (#193).
 
 De DevOps se tomaron tres prácticas, cada una porque resolvía un problema concreto:
@@ -804,7 +803,7 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 | **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas con cálculo de CAE y costo total; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados con HMAC-SHA256 de vuelta a quien se suscribió |
 | **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt (`GET /internal/debts/{id}`), nunca el navegador. En UF consulta la **API del Banco Central (`si3.bcentral.cl`)**, guarda el valor diario en `uf_values` y fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
 | **ms-ai** | Asistente de solo lectura. Lee las deudas en ms-debt con el JWT de la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM vía el SDK oficial de OpenAI (`LlmService`, configurable con `XAI_API_KEY`, `XAI_BASE_URL` y `XAI_MODEL` para xAI Grok o proveedores compatibles como Groq y Gemini); si no hay llave o el proveedor falla, responde con su motor local de reglas (`MotorLocal`) |
-| **MySQL 8.4** | Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`), una por servicio, con el esquema versionado en Flyway ([`db/README.md`](db/README.md)) |
+| **MySQL 8.4** | Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`), una por servicio, con el esquema versionado en Flyway ([`docs/base-de-datos`](docs/base-de-datos/README.md)) |
 | **RabbitMQ** | Lleva el aviso de pago (`pago.confirmado`) de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
 ### Los roles de acceso
@@ -866,8 +865,9 @@ com/tbridge/<servicio>/
 **Cada servicio por sí solo.** No hay pom padre ni librería compartida: cada uno tiene su
 `pom.xml`, su `Dockerfile`, su workflow y su base, y copia en sus paquetes solo lo que usa
 (`security/`, `exception/`, `util/`). El aviso de pago (`events/PagoConfirmado`) lo tienen
-ms-payments, que lo escribe, y ms-debt, que lo lee, y los dos se prueban contra el mismo contrato:
-[`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json). El gateway y ms-ai no
+ms-payments, que lo escribe, y ms-debt, que lo lee, y los dos se prueban contra el mismo contrato,
+explicado en [`docs/eventos`](docs/eventos/README.md): cada uno guarda una copia en sus pruebas, y la CI revisa
+que sean iguales. El gateway y ms-ai no
 tienen base.
 
 **Swagger, HATEOAS y configuración.** El gateway junta la documentación de todos en
@@ -994,20 +994,20 @@ necesita saber cuánto se debe, se lo **pregunta** a ms-debt. Así cada servicio
 sin romper a los demás, y un error en pagos no puede corromper la cartera.
 
 El esquema lo versiona **Flyway**, y cada servicio arranca con `ddl-auto: validate`, que compara
-las entidades con las tablas y se niega a partir si no calzan. En total son **25 tablas de negocio**
+las entidades con las tablas y se niega a partir si no calzan. En total son **26 tablas de negocio**
 (más las **3 tablas `flyway_schema_history`**, una en cada instancia MySQL), **3 vistas**, **26
-llaves foráneas físicas** (`24` en `tb_debt`, `2` en `tb_payments` y `0` en `tb_auth`) y **68
+llaves foráneas físicas** (`24` en `tb_debt`, `2` en `tb_payments` y `0` en `tb_auth`) y **70
 reglas `CHECK`**, sin ninguna llave foránea entre una base y otra.
 
 | Base | Servicio | Tablas | Migraciones |
 | --- | --- | --- | --- |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | 15 y 2 vistas (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` recordatorios · `V3` secreto de las suscripciones, cifrado · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos al deudor, en su tabla · `V8` el correo que no sale · `V9` la CAE del convenio · `V10` la CAE de los convenios anteriores · `V11` avisos reintentados desde el panel |
 | [`tb_auth`](#tb_auth--quién-entra) | ms-auth | 6 (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles `admin` y `usuario` · `V5` bitácora del panel · `V6` código y enlace del mismo acceso · `V7` cerrar las sesiones de antes de ES256 · `V8` la bitácora de acceso, por fecha |
-| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 4 y 1 vista (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago |
+| [`tb_payments`](#tb_payments--la-plata) | ms-payments | 5 y 1 vista (`+ flyway_schema_history`) | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
 
 Los diagramas salen del esquema que dejan las migraciones. `PK` es la llave primaria, `FK` una
 llave foránea y `UK` un valor que no se repite; en las líneas, `||` es *uno*, `o{` es *cero o
-muchos* y `|o` es *cero o uno*. Las 68 reglas que exige cada base (`CHECK`) están en
+muchos* y `|o` es *cero o uno*. Las 70 reglas que exige cada base (`CHECK`) están en
 [`docs/diagramas/entidad-relacion.md`](docs/diagramas/entidad-relacion.md).
 
 #### El diagrama general: las tres bases
@@ -1414,7 +1414,6 @@ flowchart TB
         FE["frontend<br/>React y Vite"]
         DOCS["docs/integracion<br/>el contrato v1"]
         EVT["docs/eventos<br/>el aviso de pago"]
-        DBD["db<br/>las bases y sus usuarios"]
     end
     FE -. "llama por HTTP" .-> GWY
     GWY -. "enruta" .-> AUTH
@@ -1423,7 +1422,6 @@ flowchart TB
     DOCS -. "lo implementa" .-> DEBT
     EVT -. "lo escribe" .-> PAY
     EVT -. "lo lee" .-> DEBT
-    DBD -. "crea las bases<br/>que migra cada servicio" .-> JAVA
 ```
 
 Dentro de cada servicio, las mismas capas, de afuera hacia adentro (el detalle de cada carpeta está
@@ -1746,7 +1744,7 @@ correo queda fechado a esa hora.
 
 | Requisito | Cómo se cumple | Dónde está |
 | --- | --- | --- |
-| **Medido** | Con 100 personas a la vez, **cero errores** en unas 32.000 peticiones y un p95 de 7 a 12 ms según el día. En estrés, holgado hasta 1.000 peticiones por segundo; **toca techo en unas 1.800**, donde se pone lento pero no falla. Mediciones del 23 y 24 de septiembre, con máquina y detalle en [`rendimiento/`](rendimiento/README.md) | `rendimiento/` |
+| **Medido** | Con 100 personas a la vez, **cero errores** en unas 32.000 peticiones y un p95 de 7 a 12 ms según el día. En estrés, holgado hasta 1.000 peticiones por segundo; **toca techo en unas 1.800**, donde se pone lento pero no falla. Mediciones del 23 y 24 de septiembre, con máquina y detalle en [`docs/rendimiento`](docs/rendimiento/README.md) | `rendimiento/` |
 | **Límite de peticiones** | Dos capas: el gateway deja 10 por minuto en `/api/auth/**` y 120 globales por IP, y `ms-auth` bloquea diez minutos al origen que falla diez códigos | `gateway/RateLimitFilter`, `AuthService` |
 | **Consultas** | Índices para los caminos que se usan: `ix_debt_creditor_status` (la cartera de un acreedor), `ix_debt_debtor` (lo que debe una persona). `uq_payment_gateway` evita cobrar dos veces la misma transacción y además es el índice con que se busca el retorno de Webpay y el aviso de Khipu | `V1__esquema_inicial.sql` |
 | **Memoria** | La JVM lee el límite del contenedor (`MaxRAMPercentage=75`), y cada servicio tiene su tope declarado | `*/Dockerfile` |
@@ -1822,13 +1820,6 @@ La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`, hasta d
 | [`.github/workflows/desplegar.yml`](.github/workflows/desplegar.yml) | Compila las seis imágenes, las publica en GHCR y, por SSH, el servidor las descarga y se actualiza. **Apagado hasta que exista la variable `DESPLIEGUE_HOST`** |
 
 La guía completa está en [`docs/despliegue`](docs/despliegue/README.md).
-
-### En Railway
-
-Las mismas imágenes sirven para desplegar en [Railway](https://railway.com): cada carpeta trae su
-`railway.json`, y la guía con las variables de cada servicio está en
-[`docs/railway`](docs/railway/README.md). Antes hay que decidir el plan y el correo (#173): Railway
-bloquea el SMTP en sus planes Free, Trial y Hobby.
 
 ### Variables de entorno
 
@@ -2012,14 +2003,14 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1128 pruebas**, todas en Java y sin fallos:
+**1154 pruebas**, todas en Java y sin fallos:
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 19 |
 | `ms-auth` | 310 |
-| `ms-debt` | 488 |
-| `ms-payments` | 268 |
+| `ms-debt` | 501 |
+| `ms-payments` | 281 |
 | `ms-ai` | 43 |
 
 Además, `pruebas/secretos.test.cjs` (Node, 25 pruebas) comprueba que las reglas de gitleaks detecten
@@ -2055,9 +2046,9 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De Swagger** | Cada grupo ofrece en *Authorize* solo la llave que usan sus operaciones, sin quitársela a los otros grupos; lo público se llama por la dirección desde la que se abrió Swagger, y lo interno dice que con Docker no se alcanza desde el navegador y cómo llamarlo. ms-ai solo publica rutas que el gateway le manda (`/api/ai/**`) |
 | **De las reglas del panel** | Cada regla dice cuánto vale y de qué variable sale, o que la fija la ley; cómo entran los deudores; el horario apagado para probar, a gritos; y los feriados, los mismos que usan las campañas |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
-| **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo de [`docs/eventos/pago-confirmado.json`](docs/eventos/pago-confirmado.json), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
+| **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](docs/eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
-| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`rendimiento/`](rendimiento/README.md)) |
+| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](docs/rendimiento/README.md)) |
 
 </details>
 
@@ -2100,8 +2091,8 @@ de lo que permite la ley, sin que nadie lleve la cuenta.
 2. **Carga a sus deudores en una campaña.** En *Cargar cartera* elige una campaña o la crea, descarga
    la plantilla de Excel, la llena (una hoja de deudores y otra de deudas, una fila por mes) y la sube.
    Ve qué entraría y qué no, con su motivo; si la planilla tiene problemas, cada uno con su hoja, fila
-   y columna. Recién al confirmar entran. Hay ejemplos listos en
-   [`docs/cartera/ejemplos`](docs/cartera/ejemplos/README.md).
+   y columna. Recién al confirmar entran. Cómo probarla está en
+   [`docs/cartera`](docs/cartera/README.md).
 3. **El deudor recibe su código solo.** Al entrar la deuda, la invitación sale a su correo, y la
    cartera muestra *Invitado el …*. La pantalla no muestra el código: quien lo viera podría entrar
    en su lugar.
@@ -2135,7 +2126,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1128 pruebas Java sin fallos**, y el portal compila (765 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1154 pruebas Java sin fallos**, y el portal compila (766 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2156,8 +2147,8 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1128**, sin fallos ([§11](#11-pruebas)); ms-debt se repitió con #258, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
-| Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, `separar-bases.ps1` pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1154**, sin fallos ([§11](#11-pruebas)); ms-debt y ms-payments se repitieron sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
 | Devolución de un pago duplicado ([#153](https://github.com/TechnicalBridge/TB_web/issues/153)) | Con todo Docker reconstruido desde la rama, en Edge, sobre el pago duplicado real de la base (y dejándolo después como estaba): la empresa toca *Ya lo devolví*, anota una referencia con comillas y el pago pasa a *Un pago devuelto* con su fecha; el libro guarda un JSON válido con la referencia intacta, la empresa y la persona. Marcarlo otra vez por la API responde `200` sin cambiar nada. El deudor lo ve en su historial. A 390 px, en ambos temas, sin desbordes ni errores de consola |
@@ -2183,12 +2174,13 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Roles y panel ([#137](https://github.com/TechnicalBridge/TB_web/issues/137), [#138](https://github.com/TechnicalBridge/TB_web/issues/138)) | `V4` de `tb_auth` probada en una base aparte y aplicada sobre la real. En vivo, 34 de 34 comprobaciones de los roles; en Edge, 18 de 18. El `admin` da de alta empresas y personas desde el panel, y la invitación llega con su enlace de un solo uso |
 | Correos de verdad ([#62](https://github.com/TechnicalBridge/TB_web/issues/62)) | Los cinco correos (código, recordatorio, enlace, invitación y prueba) salieron por la API de Brevo y llegaron a un Gmail del equipo, en HTML y en texto. Un correo que no sale no cuenta como contacto, y la empresa ve el motivo en su cartera |
 | Horario de la ley en todos los correos ([#187](https://github.com/TechnicalBridge/TB_web/issues/187)) | Con los tres sistemas en Docker, un miércoles a las 22:30: cuatro deudas nuevas llegaron por la cadena y quedaron en cobranza sin ningún contacto, con el aviso *se invita en la próxima pasada*. Las invitaciones salieron con la pasada de las 8:00 |
+| Operación en el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)) | Con Docker reconstruido desde la rama y las migraciones `V11` de `tb_debt` y `V6` de `tb_payments` aplicadas, con respaldo previo. Por el gateway, 24 de 24: los 21 avisos fallidos a APOFYX salen por destinatario, con sus intentos y su último error y sin su contenido; con un receptor de prueba en su puerto, uno reintentado se entrega y queda anotado sobre la empresa, y reintentarlo otra vez responde `409`; sin receptor, los 20 restantes vuelven a fallidos tras su intento extra. Los totales de pagos calzan con la base; una UF cargada a mano queda como la de ese día, con quién la cargó, y una negativa responde `400`. Un aviso de pago reintentado llega a ms-debt sin abonar dos veces. Una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: reintentar desde el botón, la pantalla que se actualiza sola, la UF escrita como en Chile, y con ms-payments detenido sus bloques dicen *No responde* mientras los avisos a las empresas se siguen viendo. Al terminar, los avisos quedaron como estaban y sin la UF de prueba |
 | Cambiar `CIFRADO_LLAVE` ([#258](https://github.com/TechnicalBridge/DataBridge/issues/258)) | En este equipo, con respaldo previo del `.env` y de las tres bases y Docker reconstruido entero desde la rama, 18 de 18: `preparar-env.ps1 -Cambiar CIFRADO_LLAVE` dejó la de antes en `CIFRADO_LLAVE_ANTERIOR` sin mostrar ninguna; al arrancar, ms-debt pasó el secreto de la suscripción de APOFYX a la llave nueva, que ya no se abre con la vieja y es el mismo secreto, y un aviso entregado después lleva la firma hecha con él. Con un secreto que no abre con ninguna llave, ms-debt no arrancó, dijo qué suscripción era y la base quedó idéntica; sacado ese, pasó las demás. Ningún registro muestra una llave ni un secreto |
 | Accesos en el panel ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)) | Por el gateway: tres códigos equivocados contra el mismo RUT salen juntos al filtrar por resultado, como `21.***.***-K`; un enlace pedido para un correo sin cuenta sale como rechazado; recorriendo las 9 páginas están las 411 filas de la bitácora, y ninguna trae un RUT completo, un correo, una IP ni su huella; los totales de hoy calzan con la base, y una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: los filtros, las páginas y la tabla entera sin desplazarse de lado |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |
 | La entrega por API apagada ([#191](https://github.com/TechnicalBridge/TB_web/issues/191)) | Apagada, 10 de 10: `/api/v1` y `/api/claves` responden `404`, Swagger muestra el contrato vacío y la carga por campaña sigue. Encendida, 9 de 9: la empresa emite una clave, entra con ella, la revoca y ya no entra. En Edge, 40 de 40: el portal no ofrece claves ni habla de la API |
-| La planilla en Excel ([#201](https://github.com/TechnicalBridge/TB_web/issues/201)) | En vivo, por el portal: la plantilla se descarga con sus tres hojas, las listas, las fechas y los números; la planilla correcta de [`docs/cartera/ejemplos`](docs/cartera/ejemplos/README.md) revisa con 3 deudas que entrarían por $1.420.000 y 25 UF y una al día, y la de errores responde sus 11 problemas con hoja, fila y columna. La de la demo, con las cuatro cuentas del equipo, entraría sin rechazos. En Edge, 12 de 12: descargar, subir, revisar y ver los problemas, en escritorio y teléfono |
+| La planilla en Excel ([#201](https://github.com/TechnicalBridge/TB_web/issues/201)) | En vivo, por el portal: la plantilla se descarga con sus tres hojas, las listas, las fechas y los números; una planilla correcta de ejemplo revisa con 3 deudas que entrarían por $1.420.000 y 25 UF y una al día, y la de errores responde sus 11 problemas con hoja, fila y columna. La de la demo, con las cuatro cuentas del equipo, entraría sin rechazos. En Edge, 12 de 12: descargar, subir, revisar y ver los problemas, en escritorio y teléfono |
 
 </details>
 
