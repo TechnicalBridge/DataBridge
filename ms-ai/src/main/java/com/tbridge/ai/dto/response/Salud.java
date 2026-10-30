@@ -7,9 +7,5 @@ public record Salud(
         boolean ok,
         String service,
         @Schema(description = "Si hay un LLM configurado")
-        boolean llm,
-        String provider,
-        String model,
-        boolean configured,
-        boolean fallbackAvailable) {
+        boolean llm) {
 }
