@@ -2016,15 +2016,40 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1171 pruebas**, todas en Java y sin fallos:
+**1259 pruebas**, todas en Java y sin fallos (suites completas con JDK 25 para #221):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 19 |
+| `gateway` | 20 |
 | `ms-auth` | 315 |
 | `ms-debt` | 513 |
 | `ms-payments` | 281 |
-| `ms-ai` | 43 |
+| `ms-ai` | 130 |
+
+En #221 se ejecutaron las cinco suites Java: ms-ai 130, gateway 20, ms-auth 315,
+ms-debt 513 y ms-payments 281; cero fallos, errores u omisiones, contados desde
+Surefire. El portal también compiló con `npm ci` y `npm run build`. La integración
+HTTP local usa JWT/JWKS efímeros y dependencias ficticias, sin proveedor LLM real.
+El E2E Docker de #221 está pendiente: daemon local no disponible; no se declara PASS.
+
+El asistente valida su sesión ES256 mediante `AUTH_JWKS_URI` antes de consultar
+ms-debt. Solo `ROLE_DEBTOR` puede usar `POST /api/ai/chat`; health y documentación
+conservan acceso público según su configuración. Reenvía el token validado original
+para una segunda verificación independiente en deuda, sin claves privadas ni clave interna.
+El fallback local solo ocurre después de obtener contexto autorizado y válido.
+
+| Resultado del asistente | HTTP |
+| --- | --- |
+| Sesión ausente, inválida o caducada | 401 |
+| Rol no autorizado o rechazo de permisos de deuda | 403 |
+| Identidad no registrada, reconocida por el contrato de deuda | 404 |
+| Colección de deudas vacía legítima | 200 |
+| Protocolo de deuda inválido o ruta upstream desconocida | 502 |
+| Deuda o verificación JWKS temporalmente indisponible | 503 |
+| Proveedor LLM ausente o fallido, con contexto ya autorizado | 200 mediante motor local |
+
+Los errores son `ApiError`, nunca una respuesta financiera vacía. No se registran
+bodies upstream, credenciales ni contexto conversacional en los errores de AI.
 
 Además, `pruebas/secretos.test.cjs` (Node, 25 pruebas) comprueba que las reglas de gitleaks detecten
 cada tipo de clave y dejen pasar los valores públicos ([`docs/seguridad/secretos.md`](docs/seguridad/secretos.md)).
