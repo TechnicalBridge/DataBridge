@@ -1,6 +1,7 @@
 package com.tbridge.ai.service;
 
 import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.tbridge.ai.config.LlmProperties;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,10 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** El LLM, contra un servidor de mentira que habla como la API de xAI. */
 class LlmServiceTest {
 
-    private static final String RESPONSES = """
-            {"id":"resp_1","object":"response","created_at":1789923791,"model":"grok-4.5","status":"completed",
-             "output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed",
-                        "content":[{"type":"output_text","text":"%s","annotations":[]}]}]}""";
     private static final String CHAT = """
             {"id":"chat_1","object":"chat.completion","created":1789923791,"model":"grok-4.5",
              "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"%s"}}]}""";
@@ -58,7 +55,7 @@ class LlmServiceTest {
                 .apiKey("llave-de-prueba")
                 .baseUrl("http://127.0.0.1:" + servidor.getAddress().getPort() + "/v1")
                 .maxRetries(0)
-                .build(), "grok-4.5");
+                .build(), "grok-4.5", "xai");
     }
 
     @AfterEach
@@ -71,15 +68,15 @@ class LlmServiceTest {
 
     @Test
     void sin_llave_no_hay_llm_y_responde_el_motor_local() {
-        LlmService sinLlave = new LlmService(" ", "https://api.x.ai/v1", "grok-4.5");
+        LlmService sinLlave = new LlmService(new LlmProperties("xai", null, null, new LlmProperties.Endpoint(" ", "https://api.x.ai/v1", "grok-4.5"), null));
 
         assertFalse(sinLlave.configurado());
         assertEquals(Optional.empty(), sinLlave.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
     }
 
     @Test
-    void responde_con_la_api_de_responses() {
-        respuestas.put("/v1/responses", new Contestacion(200, RESPONSES.formatted("  Debes $1.040.000 y UF 96,25.  ")));
+    void responde_con_chat_completions() {
+        respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("  Debes $1.040.000 y UF 96,25.  ")));
 
         assertEquals(Optional.of("Debes $1.040.000 y UF 96,25."), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
         assertEquals(1, pedidos.size());
@@ -91,17 +88,16 @@ class LlmServiceTest {
     }
 
     @Test
-    void si_no_tiene_la_api_de_responses_usa_la_de_chat() {
+    void elige_chat_sin_descubrir_capacidades_por_excepcion() {
         respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("Tienes 2 deudas vigentes.")));
 
         assertEquals(Optional.of("Tienes 2 deudas vigentes."), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
-        assertEquals(List.of("/v1/responses", "/v1/chat/completions"),
+        assertEquals(List.of("/v1/chat/completions"),
                 pedidos.stream().map(p -> p.substring(0, p.indexOf(' '))).toList());
     }
 
     @Test
     void si_el_llm_falla_responde_el_motor_local() {
-        respuestas.put("/v1/responses", new Contestacion(500, "{}"));
         respuestas.put("/v1/chat/completions", new Contestacion(500, "{}"));
 
         assertEquals(Optional.empty(), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
@@ -109,7 +105,7 @@ class LlmServiceTest {
 
     @Test
     void una_respuesta_en_blanco_no_cuenta() {
-        respuestas.put("/v1/responses", new Contestacion(200, RESPONSES.formatted("   ")));
+        respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("   ")));
 
         assertEquals(Optional.empty(), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
         assertEquals(1, pedidos.size());
@@ -154,5 +150,39 @@ class LlmServiceTest {
         assertEquals(List.of("m6", "m7", "m8", "m9", "m10", "m11", "m12", "m13", "m14", "m17"),
                 mensajes.subList(1, mensajes.size()).stream().map(LlmService.Mensaje::contenido).toList());
         assertEquals("system", mensajes.getFirst().rol());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={401,403,429,500})
+    void provider_failures_are_safe_for_local(int status) {
+        respuestas.put("/v1/chat/completions", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(LlmService.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        try {
+            assertTrue(llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty());
+            assertFalse(appender.list.isEmpty());
+            for (var event : appender.list) {
+                assertFalse(event.getFormattedMessage().contains("MARKER"));
+                assertTrue(event.getThrowableProxy() == null);
+            }
+        } finally { logger.detachAppender(appender); appender.stop(); }
+    }
+    @Test void provider_timeout_uses_local_result_without_real_provider() throws Exception {
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        var slow = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        slow.setExecutor(executor);
+        slow.createContext("/", exchange -> {
+            try { gate.await(2, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            finally { exchange.close(); }
+        });
+        slow.start();
+        var client = OpenAIOkHttpClient.builder().apiKey("ficticia")
+                .baseUrl("http://127.0.0.1:" + slow.getAddress().getPort())
+                .maxRetries(0).timeout(java.time.Duration.ofMillis(100)).build();
+        var timed = new LlmService(client, "test", "xai");
+        try { assertTrue(timed.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty()); }
+        finally { gate.countDown(); timed.destroy(); slow.stop(0); executor.shutdownNow(); }
     }
 }

@@ -3,25 +3,19 @@ package com.tbridge.ai.service;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.responses.EasyInputMessage;
-import com.openai.models.responses.Response;
-import com.openai.models.responses.ResponseCreateParams;
-import com.openai.models.responses.ResponseInputItem;
-import com.openai.models.responses.ResponseOutputMessage;
-import com.openai.models.responses.ResponseOutputText;
 import com.tbridge.ai.util.Valor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import com.tbridge.ai.config.LlmProperties;
+import com.openai.errors.OpenAIServiceException;
+import com.openai.errors.OpenAIIoException;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * La respuesta con un LLM, si hay uno configurado.
  *
- * <p>Le habla a xAI (Grok) con el SDK oficial de OpenAI, que sirve para
+ * <p>Usa Chat Completions de Groq, Gemini o xAI con el SDK existente, que sirve para
  * cualquier API compatible: basta con su URL. Si no hay llave, o el LLM falla,
  * no hay respuesta y el asistente responde con su motor local de reglas
  * ({@link MotorLocal}). Nunca inventa montos: el contexto son las deudas tal
@@ -44,64 +38,78 @@ public class LlmService implements DisposableBean {
     static final int HISTORIA = 12;
     private static final Set<String> ROLES = Set.of("user", "assistant");
 
-    /** Nulo si no hay llave: entonces responde el motor local. */
     private final OpenAIClient cliente;
     private final String modelo;
+    private final String proveedor;
+
+    public enum Category { NOT_CONFIGURED, AUTH, RATE_LIMIT, TIMEOUT, SERVER_ERROR, PROTOCOL, NETWORK }
 
     @Autowired
-    public LlmService(@Value("${app.llm.api-key:}") String apiKey,
-                      @Value("${app.llm.base-url}") String baseUrl,
-                      @Value("${app.llm.model}") String modelo) {
-        this(apiKey.isBlank() ? null : OpenAIOkHttpClient.builder()
-                .apiKey(apiKey.strip())
-                .baseUrl(baseUrl.strip().replaceAll("/+$", ""))
-                //  El deudor esta mirando el chat: si el LLM no contesta en un
-                //  minuto, contesta el motor local.
-                .timeout(Duration.ofSeconds(60))
-                .build(), modelo);
+    public LlmService(LlmProperties properties) {
+        this(properties.resolve());
     }
 
-    /** Con otro cliente: para probarlo contra un servidor de mentira. */
-    LlmService(OpenAIClient cliente, String modelo) {
+    private LlmService(LlmProperties.Selected config) {
+        this(config.configured() ? OpenAIOkHttpClient.builder()
+                .apiKey(config.apiKey()).baseUrl(config.baseUrl()).timeout(config.timeout())
+                .maxRetries(0).build() : null, config.model(), config.provider());
+        log.info("llm_provider={} llm_model={} llm_configured={}", proveedor, modelo, configurado());
+        if (!proveedor.equals("local") && !configurado()) log.warn("llm_provider={} category=NOT_CONFIGURED", proveedor);
+    }
+
+    /** Injectable fake HTTP client; production construction always uses normalized configuration. */
+    LlmService(OpenAIClient cliente, String modelo, String proveedor) {
         this.cliente = cliente;
         this.modelo = modelo;
+        this.proveedor = proveedor;
     }
 
-    public boolean configurado() {
-        return cliente != null;
-    }
+    public boolean configurado() { return cliente != null; }
+    public String proveedor() { return proveedor; }
+    public String modelo() { return modelo; }
 
-    /** La respuesta del LLM, o vacio si no hay LLM, si falla o si no dice nada. */
     public Optional<String> responder(List<Map<String, Object>> historia, List<Map<String, Object>> deudas,
                                       String animo) {
         if (cliente == null) {
+            if (!proveedor.equals("local")) log.warn("llm_provider={} category=NOT_CONFIGURED", proveedor);
             return Optional.empty();
         }
-        List<Mensaje> mensajes = mensajes(historia, deudas, animo);
         try {
-            try {
-                return conTexto(textoDe(cliente.responses().create(ResponseCreateParams.builder()
-                        .model(modelo)
-                        .inputOfResponse(mensajes.stream().map(LlmService::paraResponses).toList())
-                        .build())));
-            } catch (RuntimeException sinResponses) {
-                //  No todas las APIs compatibles tienen la de Responses: la de
-                //  chat la tienen todas.
-                ChatCompletionCreateParams.Builder chat = ChatCompletionCreateParams.builder().model(modelo);
-                for (Mensaje mensaje : mensajes) {
-                    switch (mensaje.rol()) {
-                        case "system" -> chat.addSystemMessage(mensaje.contenido());
-                        case "assistant" -> chat.addAssistantMessage(mensaje.contenido());
-                        default -> chat.addUserMessage(mensaje.contenido());
-                    }
+            ChatCompletionCreateParams.Builder chat = ChatCompletionCreateParams.builder().model(modelo);
+            for (Mensaje mensaje : mensajes(historia, deudas, animo)) {
+                switch (mensaje.rol()) {
+                    case "system" -> chat.addSystemMessage(mensaje.contenido());
+                    case "assistant" -> chat.addAssistantMessage(mensaje.contenido());
+                    default -> chat.addUserMessage(mensaje.contenido());
                 }
-                return conTexto(cliente.chat().completions().create(chat.build())
-                        .choices().getFirst().message().content().orElse(""));
             }
-        } catch (RuntimeException fallo) {
-            log.warn("El LLM no respondio; contesta el motor local: {}", fallo.getMessage());
+            var completion = cliente.chat().completions().create(chat.build());
+            String text = completion.choices().isEmpty() ? "" : completion.choices().getFirst().message().content().orElse("");
+            Optional<String> result = Optional.of(text.strip()).filter(value -> !value.isEmpty());
+            if (result.isEmpty()) log.warn("llm_provider={} category=PROTOCOL", proveedor);
+            return result;
+        } catch (RuntimeException failure) {
+            log.warn("llm_provider={} category={}", proveedor, category(failure));
             return Optional.empty();
         }
+    }
+
+    static Category category(RuntimeException failure) {
+        if (failure instanceof OpenAIServiceException service) {
+            int status = service.statusCode();
+            if (status == 401 || status == 403) return Category.AUTH;
+            if (status == 429) return Category.RATE_LIMIT;
+            if (status >= 500) return Category.SERVER_ERROR;
+            return Category.PROTOCOL;
+        }
+        if (failure instanceof OpenAIIoException) {
+            for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+                if (cause instanceof java.io.InterruptedIOException || cause instanceof java.net.http.HttpTimeoutException)
+                    return Category.TIMEOUT;
+            }
+            return Category.NETWORK;
+        }
+        return Category.PROTOCOL;
     }
 
     /** Las instrucciones, con las deudas, y lo ultimo de la conversacion. */
@@ -148,28 +156,6 @@ public class LlmService implements DisposableBean {
                             + " | " + MotorLocal.estado(d);
                 })
                 .collect(Collectors.joining("\n"));
-    }
-
-    /** Todo el texto de la respuesta, como el {@code output_text} de los SDK de OpenAI. */
-    static String textoDe(Response respuesta) {
-        return respuesta.output().stream()
-                .flatMap(salida -> salida.message().stream())
-                .map(ResponseOutputMessage::content)
-                .flatMap(List::stream)
-                .flatMap(contenido -> contenido.outputText().stream())
-                .map(ResponseOutputText::text)
-                .collect(Collectors.joining());
-    }
-
-    private static Optional<String> conTexto(String texto) {
-        return Optional.of(Objects.toString(texto, "").strip()).filter(t -> !t.isEmpty());
-    }
-
-    private static ResponseInputItem paraResponses(Mensaje mensaje) {
-        return ResponseInputItem.ofEasyInputMessage(EasyInputMessage.builder()
-                .role(EasyInputMessage.Role.of(mensaje.rol()))
-                .content(mensaje.contenido())
-                .build());
     }
 
     @Override

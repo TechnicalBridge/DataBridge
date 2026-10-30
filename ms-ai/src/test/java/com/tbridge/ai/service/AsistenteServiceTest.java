@@ -30,6 +30,7 @@ class AsistenteServiceTest {
 
     @BeforeEach
     void preparar() {
+        when(llm.proveedor()).thenReturn("xai");
         when(deudas.deudasDelDeudor("Bearer jwt")).thenReturn(MotorLocalTest.DEUDAS);
     }
 
@@ -52,7 +53,7 @@ class AsistenteServiceTest {
         Respuesta respuesta = asistente.responder(new Pregunta("cuánto debo?", List.of()), "Bearer jwt");
 
         assertEquals("Debes dos deudas.", respuesta.reply());
-        assertEquals("spacexai", respuesta.source());
+        assertEquals("xai", respuesta.source());
     }
 
     @Test
@@ -83,5 +84,17 @@ class AsistenteServiceTest {
 
         assertEquals("desconfianza", respuesta.sentimiento().etiqueta());
         verify(llm).responder(any(), any(), eq("desconfianza"));
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(com.tbridge.ai.exception.DeudasException.Categoria.class)
+    void debt_failure_never_generates(com.tbridge.ai.exception.DeudasException.Categoria category) {
+        org.mockito.Mockito.when(deudas.deudasDelDeudor("Bearer jwt"))
+                .thenThrow(new com.tbridge.ai.exception.DeudasException(category));
+        try (var local = org.mockito.Mockito.mockStatic(MotorLocal.class)) {
+            org.junit.jupiter.api.Assertions.assertThrows(com.tbridge.ai.exception.DeudasException.class,
+                    () -> asistente.responder(new Pregunta("saldo", null), "Bearer jwt"));
+            org.mockito.Mockito.verify(llm, org.mockito.Mockito.never()).responder(anyList(), anyList(), anyString());
+            local.verifyNoInteractions();
+        }
     }
 }
