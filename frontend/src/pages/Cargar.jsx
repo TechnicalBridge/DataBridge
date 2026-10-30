@@ -207,7 +207,12 @@ function PasoCampana({
   const acreedores = opciones?.acreedores || [];
   const pausada = disponibles.find((c) => c.idExterno === campana)?.estado === "pausada";
   if (acreedores.length === 0) {
-    return <div className="empty">No hay por cuenta de quién cargar: tu empresa no es acreedora ni tiene un mandato vigente.</div>;
+    return (
+      <div className="empty">
+        No hay por cuenta de quién cargar: tu empresa no es acreedora ni tiene un mandato vigente.{" "}
+        <Link className="link-btn" to="/databridge/campanas">Declara un mandato en Campañas</Link>.
+      </div>
+    );
   }
   return (
     <>

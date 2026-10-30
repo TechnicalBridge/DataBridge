@@ -137,10 +137,13 @@ class MandatoServiceTest {
         patrimonio.setId(2L);
         patrimonio.setRut("76418902-7");
         when(organizations.findByRut("76418902-7")).thenReturn(Optional.of(patrimonio));
+        Mandate vigente = new Mandate();
+        vigente.setValidFrom(LocalDate.of(2026, 9, 1));
         when(mandates.findByAgencyAndCreditorAndStatus(apofyx, patrimonio, Mandate.Status.active))
-                .thenReturn(java.util.List.of(new Mandate()));
+                .thenReturn(java.util.List.of(vigente));
         Campaign existente = new Campaign();
         existente.setId(10L);
+        existente.setCreditor(patrimonio);
         when(campaigns.findByAgencyAndExternalId(apofyx, "APX-CMP-9")).thenReturn(Optional.of(existente));
         return existente;
     }
@@ -455,5 +458,69 @@ class MandatoServiceTest {
                 null, null, new com.fasterxml.jackson.databind.ObjectMapper().readTree("{\"91-120\": 100}")));
 
         assertEquals("{\"91-120\":100}", propia.getMoraDiscount());
+    }
+
+    // ------------------------------------------------------------------
+    //  Una campana nueva necesita un mandato vigente hoy (#234)
+    // ------------------------------------------------------------------
+
+    private Organization patrimonioConMandato(LocalDate desde, LocalDate hasta) {
+        Organization patrimonio = new Organization();
+        patrimonio.setId(2L);
+        patrimonio.setRut("76418902-7");
+        when(organizations.findByRut("76418902-7")).thenReturn(Optional.of(patrimonio));
+        Mandate mandato = new Mandate();
+        mandato.setValidFrom(desde);
+        mandato.setValidTo(hasta);
+        when(mandates.findByAgencyAndCreditorAndStatus(apofyx, patrimonio, Mandate.Status.active))
+                .thenReturn(desde == null ? List.of() : List.of(mandato));
+        return patrimonio;
+    }
+
+    @Test
+    void con_el_mandato_vencido_o_por_empezar_no_se_crea_una_campana_nueva() {
+        LocalDate hoy = LocalDate.now();
+        CampanaRequest nueva = new CampanaRequest("APX-CMP-10", "76418902-7", "Arriendos", null, null, null, null,
+                null, null);
+
+        patrimonioConMandato(LocalDate.of(2026, 1, 1), hoy.minusDays(1));
+        assertEquals("sin_mandato", assertThrows(CarteraInvalida.class,
+                () -> servicio.registrarCampana(apofyx, nueva)).getCodigo(), "vencido");
+
+        patrimonioConMandato(hoy.plusDays(3), null);
+        assertEquals("sin_mandato", assertThrows(CarteraInvalida.class,
+                () -> servicio.registrarCampana(apofyx, nueva)).getCodigo(), "por empezar");
+        verify(campaigns, never()).save(any());
+    }
+
+    @Test
+    void con_el_mandato_terminado_la_agencia_igual_pausa_y_termina_sus_campanas() {
+        Organization patrimonio = patrimonioConMandato(null, null);
+        Campaign suya = new Campaign();
+        suya.setCreditor(patrimonio);
+        when(campaigns.findByAgencyAndExternalId(apofyx, "APX-CMP-9")).thenReturn(Optional.of(suya));
+
+        servicio.registrarCampana(apofyx, conEstado("pausada"));
+        assertEquals(Campaign.Status.paused, suya.getStatus());
+        servicio.registrarCampana(apofyx, conEstado("terminada"));
+        assertEquals(Campaign.Status.finished, suya.getStatus(), "lo ya cargado se sigue cobrando, y la campana es suya");
+    }
+
+    @Test
+    void una_campana_que_ya_existe_no_se_pasa_a_un_acreedor_sin_mandato() {
+        Organization patrimonio = patrimonioConMandato(LocalDate.of(2026, 1, 1), null);
+        Organization andes = new Organization();
+        andes.setId(5L);
+        andes.setRut("76543210-3");
+        when(organizations.findByRut("76543210-3")).thenReturn(Optional.of(andes));
+        Campaign suya = new Campaign();
+        suya.setCreditor(patrimonio);
+        when(campaigns.findByAgencyAndExternalId(apofyx, "APX-CMP-9")).thenReturn(Optional.of(suya));
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class, () -> servicio.registrarCampana(apofyx,
+                new CampanaRequest("APX-CMP-9", "76543210-3", null, null, null, null, null, null, null)));
+
+        assertEquals("sin_mandato", fallo.getCodigo());
+        assertEquals(patrimonio, suya.getCreditor());
     }
 }

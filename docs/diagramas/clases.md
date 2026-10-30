@@ -718,7 +718,12 @@ classDiagram
             -status : Status
             -declaredBy : String
             -createdAt : Instant
+            -renewedAt : Instant
+            -renewedBy : String
+            -endedAt : Instant
+            -endedBy : String
             +vigenteAl(LocalDate) boolean
+            +estadoAl(LocalDate) String
         }
         class Mandate_Status["Mandate.Status"] {
             <<enumeration>>
@@ -1330,6 +1335,13 @@ classDiagram
             +guardar(JwtPrincipal, CampanaRequest) CampanaPortalResponse
             +estado(JwtPrincipal, String, EstadoCampanaRequest) CampanaPortalResponse
         }
+        class MandatoController {
+            <<controller>>
+            +listar(JwtPrincipal) MandatosResponse
+            +declarar(JwtPrincipal, MandatoPortalRequest) MandatoPortalResponse
+            +renovar(JwtPrincipal, Long, RenovarMandatoRequest) MandatoPortalResponse
+            +terminar(JwtPrincipal, Long) MandatoPortalResponse
+        }
         class ClaveController {
             <<controller>>
             +listar(JwtPrincipal) List~ClaveResponse~
@@ -1391,6 +1403,14 @@ classDiagram
             <<service>>
             +registrarMandato(Organization, MandatoRequest) MandatoResponse
             +registrarCampana(Organization, CampanaRequest) CampanaResponse
+            ~acreedorDelMandato(String, String, String) Organization
+        }
+        class MandatoPortalService {
+            <<service>>
+            +listar(Organization) MandatosResponse
+            +declarar(Organization, String, MandatoPortalRequest) MandatoPortalResponse
+            +renovar(Organization, String, Long, RenovarMandatoRequest) MandatoPortalResponse
+            +terminar(Organization, String, Long) MandatoPortalResponse
         }
         class CampanaService {
             <<service>>
@@ -1472,6 +1492,8 @@ classDiagram
     CargaController --> CargaService
     CampanaController --> CampanaService
     CampanaController --> DebtService
+    MandatoController --> MandatoPortalService
+    MandatoController --> DebtService
     ClaveController --> ApiKeyService
     ClaveController --> DebtService
     AnalyticsController --> AnalyticsService
@@ -1497,6 +1519,10 @@ classDiagram
     MandatoService --> MandateRepository
     MandatoService --> CampaignRepository
     MandatoService --> DescuentoService
+    MandatoPortalService --> MandatoService
+    MandatoPortalService --> MandateRepository
+    MandatoPortalService --> OrganizationRepository
+    MandatoPortalService --> DebtRepository
     CampanaService --> CampaignRepository
     CampanaService --> MandatoService
     CampanaService --> CampanaAvanceService
@@ -1517,6 +1543,7 @@ classDiagram
 | `IntegracionController` | `controller` | El contrato de integración v1: carteras, cuenta, mandatos, campañas y suscripciones. |
 | `CargaController` | `controller` | Cargar deudores desde el portal, siempre en una campaña, y revisar la planilla antes sin guardar nada. |
 | `CampanaController` | `controller` | Las campañas desde el portal de empresas. |
+| `MandatoController` | `controller` | Los mandatos desde el portal de la agencia: verlos, declararlos, renovarlos y terminarlos. |
 | `ClaveController` | `controller` | Las claves de API de la empresa: emitir, listar y revocar. |
 | `AnalyticsController` | `controller` | El resumen de la cartera de una empresa. |
 | `CarteraIntakeService` | `service` | Recibe una Cartera v1: la valida, la guarda y responde deuda por deuda. |
@@ -1524,7 +1551,8 @@ classDiagram
 | `CarteraExcel` | `service` | Convierte la planilla de Excel (hojas Deudores y Deudas, una fila por mes) al mismo JSON, y junta cada problema con su hoja, fila y columna. |
 | `PlantillaExcel` | `service` | Arma la plantilla de Excel: Instrucciones, Deudores y Deudas, con listas, fechas y números. |
 | `CargaService` | `service` | La carga desde el portal: siempre en una campaña. La revisión corre la misma ingesta en una transacción que se deshace siempre. |
-| `MandatoService` | `service` | Registra mandatos y campañas. |
+| `MandatoService` | `service` | Registra mandatos y campañas. Una campaña nueva de una agencia necesita un mandato vigente hoy. |
+| `MandatoPortalService` | `service` | Los mandatos que la agencia declara, renueva y termina en su portal, con quién lo hizo. Terminado o vencido, lo ya cargado se sigue cobrando. |
 | `CampanaService` | `service` | Las campañas desde el portal: crear, cambiar y pausar. |
 | `CampanaAvanceService` | `service` | El avance de cada campaña, publicado una vez al día. |
 | `ApiKeyService` | `service` | Emite, revoca y autentica las claves de API. |
