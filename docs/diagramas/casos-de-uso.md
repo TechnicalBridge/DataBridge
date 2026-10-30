@@ -172,7 +172,7 @@ flowchart LR
 | Caso de uso | Pantalla | Endpoint | La regla que importa |
 | --- | --- | --- | --- |
 | Entrar con correo y código | `Login`, `Magic` | `POST /api/auth/codigo`, `/api/auth/acceso`; respaldo: `/api/auth/enlace`, `/api/auth/verify` | Solo personal habilitado. El código solicitado dura 15 min. El respaldo manda código y enlace juntos, de un solo uso compartido. Al entrar se exige empresa activa; al renovar se vuelve a revisar la habilitación del personal |
-| Ver la cartera y el resumen | `DataBridge` | `GET /api/debts`, `GET /api/analytics/summary` | Nunca «todas las deudas»: siempre las de la empresa de la sesión |
+| Ver la cartera y el resumen | `DataBridge` | `GET /api/debts`, `GET /api/analytics/summary` | Nunca «todas las deudas»: siempre las de la empresa de la sesión. Se busca por RUT, nombre o referencia, cada filtro dice cuántas deudas tiene y se ve de a 20; todo en el navegador, sobre la cartera que ya llegó ([#280](https://github.com/TechnicalBridge/DataBridge/issues/280)) |
 | Ver una deuda y su historia | `DataBridge` | `GET /api/debts/{id}` | Si la deuda no es de su cartera, no la ve |
 | Reenviarle el código al deudor | `DataBridge` | `POST /api/debts/{id}/codigo` | Dentro de lo que deja la ley: 2 gestiones por semana y 2 días entre una y otra. Si no se puede, responde `409`. Queda como un contacto de la deuda (`contacts`) |
 | Resolver un reclamo | `DataBridge` | `POST /api/debts/{id}/disputa/resolucion` | Se **reanuda** el cobro o se **retira** la deuda. Las dos salidas se avisan al sistema de la empresa |
