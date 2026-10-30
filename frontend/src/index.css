@@ -333,6 +333,38 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .opciones-entrada { display: grid; gap: 12px; }
 .volver-link { align-self: flex-start; }
 
+/* ---- La cartera de la empresa (#280): la busqueda, cuantas hay en cada filtro y, en pantallas
+   angostas, cada deuda como tarjeta con el nombre de cada dato. */
+.chip-cuenta { margin-left: 6px; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.chip.on .chip-cuenta { opacity: 0.9; }
+.card-cab .buscador { width: min(320px, 100%); }
+
+@media (max-width: 620px) {
+  .stats.stats-cartera > :first-child { grid-column: auto; }
+  .stats.stats-cartera > :last-child { grid-column: 1 / -1; }
+  .tabla-cartera thead { display: none; }
+  .tabla-cartera, .tabla-cartera tbody, .tabla-cartera tr, .tabla-cartera td { display: block; width: 100%; }
+  .tabla-cartera tr {
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+  }
+  .table.tabla-cartera td, .table.tabla-cartera td.num { padding: 8px 0; text-align: left; }
+  .table.tabla-cartera td:last-child { border-bottom: 0; }
+  .tabla-cartera td::before {
+    content: attr(data-campo);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--muted) 70%, var(--ink));
+  }
+  .tabla-cartera td[data-campo="Deudor"] { font-size: 16.5px; font-weight: 600; }
+  .tabla-cartera td[data-campo="Deudor"]::before { content: none; }
+}
+
 /* ---- Portal: marco ------------------------------------------------------------------------- */
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 256px 1fr; }
