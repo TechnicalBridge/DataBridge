@@ -1955,11 +1955,11 @@ no es secreto sí tiene un valor de desarrollo.
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
 | `LLM_PROVIDER` | `local` | Selección determinista: `local`, `groq`, `gemini`, `xai`; un valor desconocido impide arrancar |
-| `GROQ_API_KEY`, `GROQ_MODEL` | vacíos | Clave y modelo de Groq, ambos necesarios para configurarlo |
+| `GROQ_API_KEY`, `GROQ_MODEL` | vacía, `openai/gpt-oss-120b` | Clave y modelo de Groq (`openai/gpt-oss-120b` por omisión) |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Endpoint compatible de Groq |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | vacíos | Clave y modelo de Gemini, ambos necesarios para configurarlo |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | vacía, `gemma-4-26b-a4b-it` | Clave y modelo de Gemini / Gemma 4B (`gemma-4-26b-a4b-it` por omisión) |
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Compatibilidad OpenAI de Gemini |
-| `XAI_API_KEY`, `XAI_MODEL` | vacíos | Clave y modelo de xAI, solo con `LLM_PROVIDER=xai` |
+| `XAI_API_KEY`, `XAI_MODEL` | vacía, `grok-4.5` | Clave y modelo de xAI, solo con `LLM_PROVIDER=xai` |
 | `XAI_BASE_URL` | `https://api.x.ai/v1` | Endpoint de xAI |
 | `LLM_TIMEOUT` | `30s` | Plazo por solicitud, mayor que cero y hasta dos minutos; sin reintentos automáticos |
 | `SWAGGER_ENABLED` | `true` | Apagar la documentación, por ejemplo en producción |
