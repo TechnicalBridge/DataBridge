@@ -84,4 +84,16 @@ class AsistenteServiceTest {
         assertEquals("desconfianza", respuesta.sentimiento().etiqueta());
         verify(llm).responder(any(), any(), eq("desconfianza"));
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(com.tbridge.ai.exception.DeudasException.Categoria.class)
+    void debt_failure_never_generates(com.tbridge.ai.exception.DeudasException.Categoria category) {
+        org.mockito.Mockito.when(deudas.deudasDelDeudor("Bearer jwt"))
+                .thenThrow(new com.tbridge.ai.exception.DeudasException(category));
+        try (var local = org.mockito.Mockito.mockStatic(MotorLocal.class)) {
+            org.junit.jupiter.api.Assertions.assertThrows(com.tbridge.ai.exception.DeudasException.class,
+                    () -> asistente.responder(new Pregunta("saldo", null), "Bearer jwt"));
+            org.mockito.Mockito.verifyNoInteractions(llm);
+            local.verifyNoInteractions();
+        }
+    }
 }

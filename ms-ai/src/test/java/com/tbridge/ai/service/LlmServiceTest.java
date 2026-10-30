@@ -155,4 +155,39 @@ class LlmServiceTest {
                 mensajes.subList(1, mensajes.size()).stream().map(LlmService.Mensaje::contenido).toList());
         assertEquals("system", mensajes.getFirst().rol());
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={401,403,429,500})
+    void provider_failures_are_safe_for_local(int status) {
+        respuestas.put("/v1/responses", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
+        respuestas.put("/v1/chat/completions", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(LlmService.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        try {
+            assertTrue(llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty());
+            assertFalse(appender.list.isEmpty());
+            for (var event : appender.list) {
+                assertFalse(event.getFormattedMessage().contains("MARKER"));
+                assertTrue(event.getThrowableProxy() == null);
+            }
+        } finally { logger.detachAppender(appender); appender.stop(); }
+    }
+    @Test void provider_timeout_uses_local_result_without_real_provider() throws Exception {
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        var slow = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        slow.setExecutor(executor);
+        slow.createContext("/", exchange -> {
+            try { gate.await(2, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            finally { exchange.close(); }
+        });
+        slow.start();
+        var client = OpenAIOkHttpClient.builder().apiKey("ficticia")
+                .baseUrl("http://127.0.0.1:" + slow.getAddress().getPort())
+                .maxRetries(0).timeout(java.time.Duration.ofMillis(100)).build();
+        var timed = new LlmService(client, "test");
+        try { assertTrue(timed.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty()); }
+        finally { gate.countDown(); timed.destroy(); slow.stop(0); executor.shutdownNow(); }
+    }
 }
