@@ -24,7 +24,7 @@
     <java.version>25</java.version>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
-    <openai.version>4.79.0</openai.version>
+    <openai.version>4.91.0</openai.version>
   </properties>
 
   <dependencies>
