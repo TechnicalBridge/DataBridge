@@ -18,7 +18,7 @@ export default function Landing() {
         <div className="brand-row aparece">
           <Logo size={46} />
           <div>
-            <div className="brand-name">Technical Bridge</div>
+            <div className="brand-name">DataBridge</div>
             <div className="brand-sub">Pago de deudas en cobranza</div>
           </div>
         </div>

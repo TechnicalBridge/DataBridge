@@ -1,7 +1,8 @@
 /* =============================================================================
-   Technical Bridge
+   DataBridge
    Tema claro: crema y verde bosque, con terracota de acento.
-   Tema oscuro: negro carbon con morado.
+   Tema oscuro: el mismo verde y la misma terracota, aclarados, sobre un carbon
+   calido: es la misma marca de noche, no otra.
    Los colores viven solo aca, como variables: los componentes no escriben
    ningun color propio, asi los dos temas no se desalinean.
    ============================================================================= */
@@ -40,26 +41,26 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #141316;
-  --paper: #1c1b21;
-  --paper-2: #24222b;
-  --ink: #eeeaf4;
-  --ink-2: #cdc7d9;
-  --muted: #9d96ab;
-  --line: #2d2a35;
-  --line-2: #3b3746;
-  --brand: #a68cf1;
-  --brand-2: #bea9f7;
-  --brand-soft: rgba(166, 140, 241, 0.14);
-  --on-brand: #16131e;
-  --accent: #d9a0e8;
-  --accent-soft: rgba(217, 160, 232, 0.13);
+  --bg: #141311;
+  --paper: #1c1a17;
+  --paper-2: #252320;
+  --ink: #efebe3;
+  --ink-2: #d2cbbf;
+  --muted: #a59d90;
+  --line: #2e2b27;
+  --line-2: #3d3933;
+  --brand: #7dbd8c;
+  --brand-2: #95cda2;
+  --brand-soft: rgba(125, 189, 140, 0.14);
+  --on-brand: #10170f;
+  --accent: #e09a72;
+  --accent-soft: rgba(224, 154, 114, 0.13);
   --warn: #e7bd64;
   --warn-soft: rgba(231, 189, 100, 0.13);
   --danger: #f08a84;
   --danger-soft: rgba(240, 138, 132, 0.13);
-  --ring: rgba(166, 140, 241, 0.35);
-  --tile: #f4f2f7;
+  --ring: rgba(125, 189, 140, 0.6);
+  --tile: #ece7de;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -16px rgba(0, 0, 0, 0.7);
   --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 26px 56px -22px rgba(0, 0, 0, 0.8);
 }

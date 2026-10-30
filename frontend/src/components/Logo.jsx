@@ -5,7 +5,7 @@
 export default function Logo({ size = 44 }) {
   return (
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 48 48" role="img"
-         aria-label="Technical Bridge">
+         aria-label="DataBridge">
       <rect x="1" y="1" width="46" height="46" rx="14" fill="var(--brand)" />
       <path d="M8 31C16 15 32 15 40 31" fill="none" stroke="var(--on-brand)" strokeWidth="2.6"
             strokeLinecap="round" />

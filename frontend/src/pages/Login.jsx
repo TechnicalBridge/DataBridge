@@ -16,7 +16,7 @@ export default function Login({ portal }) {
         <div className="brand-row aparece">
           <Logo size={46} />
           <div>
-            <div className="brand-name">{esDeudor ? "Technical Bridge" : "DataBridge"}</div>
+            <div className="brand-name">DataBridge</div>
             <div className="brand-sub">
               {esDeudor ? "Portal de pago" : esAdmin ? "Panel de administración" : "Portal de empresas"}
             </div>
