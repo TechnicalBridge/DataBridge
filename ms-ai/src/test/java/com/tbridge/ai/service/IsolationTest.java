@@ -36,7 +36,7 @@ class IsolationTest {
     if (provider) {
      String input=new String(x.getRequestBody().readAllBytes(),StandardCharsets.UTF_8); prompts.add(input); status=llmStatus.get();
      String marker=input.contains("Empresa-A")?"Empresa-A":"Empresa-B";
-     body="{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":1789923791,\"model\":\"test\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\""+marker+"\",\"annotations\":[]}]}]}";
+     body="{\"id\":\"chat_1\",\"object\":\"chat.completion\",\"created\":1789923791,\"model\":\"test\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\""+marker+"\"}}]}";
     } else {
      String auth=x.getRequestHeaders().getFirst("Authorization"); forwarded.add(auth); status=debtStatus.get();
      String marker=("Bearer "+A).equals(auth)?"Empresa-A":"Empresa-B";
@@ -48,9 +48,10 @@ class IsolationTest {
   } catch(Exception e) { throw new IllegalStateException(e); }
  }
  @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
+  r.add("app.llm.provider",()->"xai");
   r.add("app.debt-url",()->"http://127.0.0.1:"+debt.getAddress().getPort());
-  r.add("app.llm.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
-  r.add("app.llm.api-key",()->"fake-provider-key"); r.add("app.llm.model",()->"test");
+  r.add("app.llm.xai.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
+  r.add("app.llm.xai.api-key",()->"fake-provider-key"); r.add("app.llm.xai.model",()->"test");
  }
  @BeforeEach void reset() { debtStatus.set(200); llmStatus.set(200); override.set(null); prompts.clear(); forwarded.clear(); }
  ResponseEntity<Map> ask(String token) {

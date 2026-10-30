@@ -69,9 +69,11 @@ class ChatControllerTest {
     @Test
     void la_salud_dice_si_hay_llm() throws Exception {
         when(llm.configurado()).thenReturn(false);
+        when(llm.proveedor()).thenReturn("local");
+        when(llm.modelo()).thenReturn("");
 
         mvc.perform(get("/api/ai/salud"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"ok\":true,\"service\":\"ms-ai\",\"llm\":false}", true));
+                .andExpect(content().json("{\"ok\":true,\"service\":\"ms-ai\",\"llm\":false,\"provider\":\"local\",\"model\":\"\",\"configured\":false,\"fallbackAvailable\":true}", true));
     }
 }
