@@ -45,7 +45,7 @@ public class AsistenteService {
         Optional<String> delLlm = llm.responder(historia, susDeudas, animo.etiqueta());
         return new Respuesta(
                 delLlm.orElseGet(() -> MotorLocal.responder(ultimo, susDeudas)),
-                delLlm.isPresent() ? "spacexai" : "local-nlp",
+                delLlm.isPresent() ? llm.proveedor() : "local-nlp",
                 susDeudas.size(),
                 animo);
     }

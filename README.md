@@ -150,7 +150,7 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Mercado Pago** · Checkout Pro | Cobrar con tarjeta en la página de Mercado Pago | Simulada, sin `MERCADOPAGO_ACCESS_TOKEN` |
 | **Brevo**, o un servidor SMTP | Mandar los correos de verdad | Los correos van al buzón de prueba (Mailpit) |
 | **Banco Central** | La UF de cada día | La UF se carga a mano |
-| **Un LLM** (Grok, de xAI) | Las respuestas del asistente | Responde con sus reglas |
+| **Un LLM** (Groq, Gemini o xAI) | Las respuestas del asistente | Responde con sus reglas |
 
 ### Herramientas
 
@@ -802,7 +802,7 @@ Las rutas del gateway y las llamadas entre servicios, con sus llaves, están en
 | **ms-auth** | Código primero en los tres portales: RUT del deudor o correo del personal. El solicitado dura 15 min; el de campaña, 24 h. El respaldo reúne código y enlace en un correo y comparte su único uso. Emite el JWT firmado con **ES256 (ECDSA P-256)** y expone `/.well-known/jwks.json`, maneja las sesiones y manda los correos por la API de Brevo o SMTP, incluido el recordatorio de cuota |
 | **ms-debt** | Deudas, cargos y cuotas; convenios de 3 a 24 cuotas con cálculo de CAE y costo total; los intereses por mora y del convenio, si el acreedor los pactó; la ejecución de las campañas; reclamos y su resolución; la carga de la cartera en una campaña, con la planilla y su revisión antes de confirmar; resumen para el panel; certificado y comprobantes en PDF; recordatorio de las cuotas por vencer. Con `INTEGRACION_API=true`, además el contrato v1: la cartera por API, las claves de API y los eventos firmados con HMAC-SHA256 de vuelta a quien se suscribió |
 | **ms-payments** | Los cobros. Webpay contra Transbank, Mercado Pago con Checkout Pro y Khipu (si tiene llave) de verdad; sin credenciales, simulados. El monto lo decide ms-debt (`GET /internal/debts/{id}`), nunca el navegador. En UF consulta la **API del Banco Central (`si3.bcentral.cl`)**, guarda el valor diario en `uf_values` y fija los pesos al abrir el cobro. Un cobro abandonado se vence: a los 15 minutos en Webpay, a los 30 en Khipu y en Mercado Pago |
-| **ms-ai** | Asistente de solo lectura. Lee las deudas en ms-debt con el JWT de la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM vía el SDK oficial de OpenAI (`LlmService`, configurable con `XAI_API_KEY`, `XAI_BASE_URL` y `XAI_MODEL` para xAI Grok o proveedores compatibles como Groq y Gemini); si no hay llave o el proveedor falla, responde con su motor local de reglas (`MotorLocal`) |
+| **ms-ai** | Asistente de solo lectura. Lee las deudas en ms-debt con el JWT de la sesión del deudor, sin acceso propio a la base, y detecta frustración o desconfianza para ajustar el tono. Usa un LLM vía el SDK oficial de OpenAI (`LlmService`, seleccionado mediante `LLM_PROVIDER` y las variables propias `GROQ_*`, `GEMINI_*` o `XAI_*`); si no hay llave o el proveedor falla, responde con su motor local de reglas (`MotorLocal`) |
 | **MySQL 8.4** | Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`), una por servicio, con el esquema versionado en Flyway ([`docs/base-de-datos`](docs/base-de-datos/README.md)) |
 | **RabbitMQ** | Lleva el aviso de pago (`pago.confirmado`) de ms-payments a ms-debt. Si está apagado, el mismo aviso va por HTTP; en los dos casos sale de una bandeja con reintentos, así que no se pierde |
 
@@ -955,7 +955,7 @@ flowchart LR
 | ms-payments ↔ Khipu | HTTPS con la llave de la cuenta de cobro (`x-api-key`) | Crear el cobro y preguntar en qué va; el navegador solo va y vuelve |
 | ms-payments ↔ Mercado Pago | HTTPS con el token de acceso (`Bearer`) | Crear la preferencia de Checkout Pro y verificar el pago servidor a servidor |
 | ms-payments → Banco Central | HTTPS contra el Web Service REST (`si3.bcentral.cl`) | Traer el valor oficial de la UF del día, guardarlo en `tb_payments.uf_values` y fijar los pesos al abrir un cobro en UF |
-| ms-ai → Proveedor LLM | HTTPS con el SDK de OpenAI (`XAI_BASE_URL` / `XAI_API_KEY`) | Consultar el modelo configurado (xAI Grok, o APIs compatibles como Groq y Gemini); si no hay llave o falla, responde `MotorLocal` |
+| ms-ai → Proveedor LLM | HTTPS con Chat Completions del SDK existente (`LLM_PROVIDER` y variables del proveedor) | Consultar el modelo configurado (xAI Grok, o APIs compatibles como Groq y Gemini); si no hay llave o falla, responde `MotorLocal` |
 | APOFYX ↔ DataBridge | HTTP con clave de API, y webhooks firmados con `HMAC-SHA256`. **Solo con `INTEGRACION_API=true`** | Son empresas distintas: ninguna entra en la base de la otra |
 | ms-auth → el correo | La API de Brevo (HTTPS) o un servidor SMTP; sin ninguno, Mailpit | El único servicio que escribe correos. ms-debt le pide el código y el recordatorio |
 
@@ -1954,8 +1954,14 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `XAI_API_KEY` | vacía | El LLM del asistente. Sin ella, responde con reglas |
-| `XAI_BASE_URL`, `XAI_MODEL` | `https://api.x.ai/v1`, `grok-4.5` | El proveedor y el modelo del LLM |
+| `LLM_PROVIDER` | `local` | Selección determinista: `local`, `groq`, `gemini`, `xai`; un valor desconocido impide arrancar |
+| `GROQ_API_KEY`, `GROQ_MODEL` | vacíos | Clave y modelo de Groq, ambos necesarios para configurarlo |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Endpoint compatible de Groq |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | vacíos | Clave y modelo de Gemini, ambos necesarios para configurarlo |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Compatibilidad OpenAI de Gemini |
+| `XAI_API_KEY`, `XAI_MODEL` | vacíos | Clave y modelo de xAI, solo con `LLM_PROVIDER=xai` |
+| `XAI_BASE_URL` | `https://api.x.ai/v1` | Endpoint de xAI |
+| `LLM_TIMEOUT` | `30s` | Plazo por solicitud, mayor que cero y hasta dos minutos; sin reintentos automáticos |
 | `SWAGGER_ENABLED` | `true` | Apagar la documentación, por ejemplo en producción |
 
 </details>
@@ -1992,6 +1998,41 @@ se hace a mano en `/opt/databridge/.env`, con una llave nueva de `openssl rand -
 
 ---
 
+### Configurar y comprobar el proveedor del asistente (#228)
+
+El valor por defecto es `LLM_PROVIDER=local`. No se selecciona proveedor porque aparezca
+una clave. Para habilitar Groq, define `LLM_PROVIDER=groq`, `GROQ_API_KEY` por el mecanismo
+local de secretos y `GROQ_MODEL` con un ID vigente de su catálogo. Para Gemini usa
+`LLM_PROVIDER=gemini`, `GEMINI_API_KEY` y `GEMINI_MODEL`; para xAI, `LLM_PROVIDER=xai`
+y `XAI_API_KEY`/`XAI_MODEL`. `.env.example` incluye todas las variables sin claves.
+Los modelos quedan vacíos deliberadamente: no se fija un nombre que pueda retirarse.
+Cambiar de proveedor requiere recrear ms-ai en el entorno que administra el equipo;
+una variable en la terminal no cambia un contenedor que ya está ejecutándose.
+
+Los tres adaptadores usan una solicitud a `/chat/completions`; no prueban `/responses`
+y luego otro endpoint como parte normal de cada mensaje. Se conserva el mismo SDK,
+sin SDK adicionales. Contratos oficiales comprobados:
+[Groq](https://console.groq.com/docs/openai),
+[Gemini](https://ai.google.dev/gemini-api/docs/openai) y
+[xAI](https://docs.x.ai/developers/model-capabilities/legacy/chat-completions).
+
+`GET /api/ai/salud` permite comprobar `provider`, `model`, `configured` y
+`fallbackAvailable`. Conserva `llm` como alias de configuración para consumidores
+anteriores. No llama al proveedor: `configured=true` indica clave y modelo presentes,
+no disponibilidad ni validez de la credencial. Nunca expone la clave ni la base URL.
+Si faltan clave o modelo, el servicio arranca, informa `configured=false` y responde
+con MotorLocal. Un proveedor desconocido o URL inválida es un error de configuración.
+
+La respuesta de `POST /api/ai/chat` identifica quién respondió: `source=groq`,
+`gemini`, `xai` o `local-nlp`. La salud mantiene el proveedor seleccionado aun si una
+respuesta concreta degrada a local. Los logs diferencian `NOT_CONFIGURED`, `AUTH`,
+`RATE_LIMIT`, `TIMEOUT`, `SERVER_ERROR`, `PROTOCOL` y `NETWORK`; solo contienen
+metadatos seguros, sin claves, encabezados, prompts ni cuerpos upstream.
+
+Se preserva #221: autenticación ES256/JWKS y rol DEBTOR antes de consultar deuda;
+solo un contexto de deuda válido permite invocar el proveedor o MotorLocal.
+Esta documentación acompaña #228; no cierra automáticamente el alcance de #229.
+
 ## 11. Pruebas
 
 ```powershell
@@ -2016,7 +2057,7 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1259 pruebas**, todas en Java y sin fallos (suites completas con JDK 25 para #221):
+**1305 pruebas**, todas en Java y sin fallos (suites completas con JDK 25 para #228):
 
 | Módulo | Pruebas |
 | --- | --- |
@@ -2024,7 +2065,16 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-auth` | 315 |
 | `ms-debt` | 513 |
 | `ms-payments` | 281 |
-| `ms-ai` | 130 |
+| `ms-ai` | 176 |
+
+En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
+omisiones). Los 46 casos añadidos cubren configuración y contratos HTTP de Groq,
+Gemini y xAI con servidores simulados. El portal compiló con `npm ci` y
+`npm run build`. En un proyecto Docker aislado se verificaron Groq y Gemini
+ficticios por portal/nginx → gateway → ms-ai, source externo, fallback local,
+rechazos 401/403 y separación A/B. El chat del portal mostró la respuesta del
+stub; no se consumió un proveedor real ni se modificó el stack del usuario.
+Esta verificación usa deuda/JWKS simulados; no certifica el E2E con ms-debt real.
 
 En #221 se ejecutaron las cinco suites Java: ms-ai 130, gateway 20, ms-auth 315,
 ms-debt 513 y ms-payments 281; cero fallos, errores u omisiones, contados desde
@@ -2074,7 +2124,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De los intereses** | La mora de cada cargo atrasado desde el día siguiente a su vencimiento, con lo pagado imputado a lo más antiguo; la cuota del convenio que crece solo sobre su capital; el redondeo en pesos y en UF; el convenio en sistema francés, con la última cuota que absorbe el redondeo; que sin tasa todo quede como antes; que el cobro fije el capital y el interés y el aviso los lleve separados; la tasa que no es un número o que supera el tope |
 | **De las campañas** | Que cada recordatorio salga el día que dice la cadencia y no antes; los intentos, las fechas y el estado de la campaña; que pare con el pago, el convenio, el reclamo o el retiro; el horario, el domingo y el feriado; los feriados calculados contra los publicados (2023, 2026 y 2027 completos, y cada regla contra un año real: el 2 de enero, el 17 y el 20 de septiembre, los que se corren al lunes, el 31 de octubre y el solsticio al minuto); el límite de dos por semana con dos días entre uno y otro, y el horario de la ley, que frenan también la invitación, el recordatorio de cuota y el reenvío del código; el estado que manda APOFYX; el acreedor que cobra sin agencia: registra, pausa y termina su campaña sin mandato, no puede registrar la de otro, sus carteras (JSON y planilla) la nombran en el lote, y el avance le llega a él; desde el portal, solo una empresa ve y cambia sus campañas, sin un id DataBridge le pone uno, cambiar el estado no pisa el nombre ni el inicio, y se rechazan la cadencia que no crece o trae ceros, los intentos fuera de 1 a 10, el fin antes del inicio y un id de más de 64 caracteres |
 | **Del descuento por pronto pago** | El tramo por los días del cargo impago más antiguo (30, 31, 62, 100 y 150 días); el % de la campaña recortado al máximo vigente del mandato, que baja si el acreedor lo baja; sin máximo, con el mandato vencido, con la campaña pausada o fuera de sus fechas, nada; el acreedor sin agencia se autoriza hasta 100. El mandato guarda su máximo y lo cambia al reenviarse; la campaña rechaza un tramo que no existe o un valor fuera de 0 a 100 (`descuento_invalido`) y uno sobre el máximo (`descuento_sobre_tope`), y `{}` le quita el descuento. Al cobrar: el ejemplo del contrato ($900.000 + $18.800 − $9.400 = $909.400), sin descuento en un pago de parte de la deuda ni en convenio, la oferta que ve el deudor con su fecha, el descuento fijo en ms-payments desde que se abre el cobro, y el aviso que lo lleva hasta el acreedor, también cuando se condona toda la mora |
-| **Del asistente** | Las reglas: los montos en pesos y en UF sin sumarlos entre sí, el ánimo (la desconfianza pesa más que la cortesía) y el tono de cada respuesta. Lo que dice de la plata, igual que el portal: el total de hoy con la mora, la tasa que pactó el acreedor (también en las cuotas), que sin tasa no hay interés, y el descuento por pronto pago con su fecha. El LLM contra un servidor falso con la forma de la API de xAI: responde con la API de Responses, usa la de chat si no la hay, y si falla o contesta en blanco responde con las reglas; viajan los últimos doce mensajes. Las deudas se piden con la sesión del deudor, y si ms-debt dice que no o no responde, el asistente sigue sin deudas. Arranca solo y publica su salud y su Swagger |
+| **Del asistente** | Las reglas: los montos en pesos y en UF sin sumarlos entre sí, el ánimo (la desconfianza pesa más que la cortesía) y el tono de cada respuesta. Lo que dice de la plata, igual que el portal: el total de hoy con la mora, la tasa que pactó el acreedor (también en las cuotas), que sin tasa no hay interés, y el descuento por pronto pago con su fecha. Groq, Gemini y xAI se prueban con servidores HTTP ficticios: una sola llamada a Chat Completions, source correcto, health sin secretos y categorías de error sanitizadas. Si el proveedor falla o contesta en blanco, responde con las reglas solo después de obtener contexto autorizado; viajan los últimos doce mensajes. Los errores de sesión o deuda conservan 401/403/404/502/503 y nunca se convierten en éxito vacío. Arranca solo y publica su salud y su Swagger |
 | **De los roles** | El `admin` de DataBridge entra con su propio rol y sin empresa, y el usuario de una empresa sigue entrando como antes; una llave de empresa no renueva como `admin`. El primer `admin` sale de `ADMIN_CORREO` una sola vez, y a una persona de una empresa no se le da ese rol. En los tres servicios, el panel responde al `admin`, `403` a una empresa y a un deudor, y `401` sin sesión, también en una ruta que todavía no existe; y el `admin` recibe `403` en las deudas y en los pagos. En el gateway, cada tramo del panel llega a su servicio y `/internal` sigue sin puerta |
 | **Del alta de empresas y personas** | Los totales de una empresa cuentan lo suyo como acreedora y lo que entregó como agencia, sin mezclar pesos con UF y sin leer una deuda. Una empresa nueva pide un RUT válido y que no exista. Una persona creada bajo una empresa queda como `usuario`, aunque el cuerpo pida otro rol, y un correo de una empresa no puede pasar a `admin`. Sin la empresa en ms-debt, o si ms-debt no responde, no se crea a nadie. Quitar el acceso cierra las sesiones de esa persona y anula sus enlaces sin abrir, y un `admin` no se lo puede quitar a sí mismo. Cada alta y cada cambio quedan anotados con quién los hizo |
 | **Del correo** | Brevo contra un servidor falso: lo que pide su API, con la clave en su cabecera y nunca en un error. De quién es la culpa de un correo que no sale: la dirección (rechazada o mal escrita) o el servicio (una clave mala, el cupo, una IP bloqueada, un servidor que no responde, un remitente mal configurado). El modo de prueba: lo que se desvía, el alias de la cuenta del equipo, y que lo que no deja salir no es un fallo. Cada correo en texto y en HTML; el del deudor trae el código y el acreedor pero ningún enlace, ni el monto; el nombre del acreedor no mete HTML; el adelanto del buzón no trae el código. El correo de prueba dice adónde llegó o por qué no |
