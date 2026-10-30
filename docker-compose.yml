@@ -336,6 +336,7 @@ services:
       ms-debt: { condition: service_healthy }
     environment:
       DEBT_URI: http://ms-debt:8083
+      AUTH_JWKS_URI: http://ms-auth:8081/.well-known/jwks.json
       #  Sin llave contesta con reglas, que es el camino por omision.
       XAI_API_KEY:  ${XAI_API_KEY:-}
       XAI_BASE_URL: ${XAI_BASE_URL:-https://api.x.ai/v1}

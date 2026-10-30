@@ -99,7 +99,7 @@ public class LlmService implements DisposableBean {
                         .choices().getFirst().message().content().orElse(""));
             }
         } catch (RuntimeException fallo) {
-            log.warn("El LLM no respondio; contesta el motor local: {}", fallo.getMessage());
+            log.warn("dependency=llm category=provider_failure");
             return Optional.empty();
         }
     }
