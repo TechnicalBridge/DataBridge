@@ -2304,3 +2304,6 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 Este repositorio es una de tres piezas:
 [**Patrimonio Inmuebles**](https://github.com/TechnicalBridge/patrimonioinmuebles) →
 [**APOFYX**](https://github.com/TechnicalBridge/APOFYX) → **DataBridge**.
+# Firewalls lógicos por dominio
+
+Las políticas de cuentas, integraciones de deuda y pagos, sus límites, variables, pruebas y rollback se documentan en [docs/firewalls-dominios.md](docs/firewalls-dominios.md).

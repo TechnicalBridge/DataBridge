@@ -67,6 +67,18 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService auth;
+    @MockitoBean
+    private com.tbridge.auth.service.IdentifierLimit identifierLimit;
+
+    @Test
+    void cuotaDeIdentificadorRechazaAntesDeConsultarLaCuenta() throws Exception {
+        org.mockito.Mockito.doThrow(new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,"Demasiadas solicitudes"))
+                .when(identifierLimit).check("delivery", RUT, null);
+        mvc.perform(post("/api/auth/codigo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\"}"))
+                .andExpect(status().isTooManyRequests());
+        org.mockito.Mockito.verifyNoInteractions(auth);
+    }
 
     private AuthService.Sesion sesion() {
         return new AuthService.Sesion(jwt.issue(RUT, null, "DEBTOR", null, RUT), UsuarioResponse.deudor(RUT),

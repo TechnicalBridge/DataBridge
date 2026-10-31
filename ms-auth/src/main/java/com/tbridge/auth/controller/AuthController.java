@@ -62,13 +62,16 @@ public class AuthController {
     private final JwtService jwt;
     private final SesionModelAssembler enlaces;
     private final boolean cookieSegura;
+    private final com.tbridge.auth.service.IdentifierLimit identifierLimit;
 
     public AuthController(AuthService auth, JwtService jwt, SesionModelAssembler enlaces,
-                          @Value("${app.cookie-secure:false}") boolean cookieSegura) {
+                          @Value("${app.cookie-secure:false}") boolean cookieSegura,
+                          com.tbridge.auth.service.IdentifierLimit identifierLimit) {
         this.auth = auth;
         this.jwt = jwt;
         this.enlaces = enlaces;
         this.cookieSegura = cookieSegura;
+        this.identifierLimit = identifierLimit;
     }
 
     @PostMapping("/api/auth/acceso")
@@ -90,6 +93,7 @@ public class AuthController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<EntityModel<SesionResponse>> acceso(@Valid @RequestBody AccesoRequest pedido,
                                                               HttpServletRequest peticion) {
+        identifierLimit.check("access", pedido.rut(), pedido.correo());
         return responder(pedido.correo() == null || pedido.correo().isBlank()
                 ? auth.entrarConCodigo(pedido.rut(), pedido.codigo(), origen(peticion))
                 : auth.entrarConCodigoDePersonal(pedido.correo(), pedido.codigo(), origen(peticion)));
@@ -101,6 +105,7 @@ public class AuthController {
                     + "si existe la identidad. El codigo sirve una vez y dura 15 minutos.")
     @ApiResponse(responseCode = "202", description = "Solicitud recibida, sin revelar el destinatario")
     public ResponseEntity<EnlaceResponse> codigo(@Valid @RequestBody EnlaceRequest pedido, HttpServletRequest peticion) {
+        identifierLimit.check("delivery", pedido.rut(), pedido.correo());
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(auth.pedirCodigo(pedido.rut(), pedido.correo(), origen(peticion)));
     }
@@ -115,6 +120,7 @@ public class AuthController {
     @ApiResponse(responseCode = "400", description = "Correo o RUT no validos",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<EnlaceResponse> enlace(@Valid @RequestBody EnlaceRequest pedido, HttpServletRequest peticion) {
+        identifierLimit.check("delivery", pedido.rut(), pedido.correo());
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(auth.pedirEnlace(pedido.rut(), pedido.correo(), origen(peticion)));
     }

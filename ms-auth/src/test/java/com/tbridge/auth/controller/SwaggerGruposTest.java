@@ -41,6 +41,7 @@ class SwaggerGruposTest {
 
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
+    @MockitoBean private com.tbridge.auth.service.IdentifierLimit identifierLimit;
     @MockitoBean private MailService correo;
 
     @Test
