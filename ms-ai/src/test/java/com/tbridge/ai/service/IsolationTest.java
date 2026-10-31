@@ -36,7 +36,7 @@ class IsolationTest {
     if (provider) {
      String input=new String(x.getRequestBody().readAllBytes(),StandardCharsets.UTF_8); prompts.add(input); status=llmStatus.get();
      String marker=input.contains("Empresa-A")?"Empresa-A":"Empresa-B";
-     body="{\"id\":\"resp_1\",\"object\":\"response\",\"created_at\":1789923791,\"model\":\"test\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\""+marker+"\",\"annotations\":[]}]}]}";
+     body="{\"id\":\"chat_1\",\"object\":\"chat.completion\",\"created\":1789923791,\"model\":\"test\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\""+marker+"\"}}]}";
     } else {
      String auth=x.getRequestHeaders().getFirst("Authorization"); forwarded.add(auth); status=debtStatus.get();
      String marker=("Bearer "+A).equals(auth)?"Empresa-A":"Empresa-B";
