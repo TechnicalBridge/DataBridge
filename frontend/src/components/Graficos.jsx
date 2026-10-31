@@ -16,8 +16,8 @@ const PALETA = {
     barra: "#3e7b4f", texto: "#7c7266", grilla: "#ebe1cf", fondo: "#fffdf8", borde: "#dccfb8", tinta: "#2e2a24",
   },
   dark: {
-    activas: "#d9a0e8", enConvenio: "#e7bd64", pagadas: "#a68cf1", retiradas: "#4a4557",
-    barra: "#a68cf1", texto: "#9d96ab", grilla: "#2d2a35", fondo: "#1c1b21", borde: "#3b3746", tinta: "#eeeaf4",
+    activas: "#e09a72", enConvenio: "#e7bd64", pagadas: "#7dbd8c", retiradas: "#57524a",
+    barra: "#7dbd8c", texto: "#a59d90", grilla: "#2e2b27", fondo: "#1c1a17", borde: "#3d3933", tinta: "#efebe3",
   },
 };
 

@@ -28,7 +28,7 @@ import AdminOperacion from "./pages/AdminOperacion";
 //  El portal de empresas trae los graficos (recharts), que pesan mas que todo
 //  el resto junto. Se descarga solo al entrar ahi: el deudor nunca lo baja.
 const DataBridge = lazy(() => import("./pages/DataBridge"));
-const cargando = <div className="main">Cargando Technical Bridge…</div>;
+const cargando = <div className="main">Cargando DataBridge…</div>;
 
 function Guard({ children, role, entrada = "/" }) {
   const { user, ready, homeFor } = useAuth();

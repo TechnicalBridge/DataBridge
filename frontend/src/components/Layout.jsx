@@ -40,7 +40,7 @@ const ADMIN = [
 ];
 
 const PORTALES = {
-  debtor: { links: DEUDOR, marca: "Technical Bridge", sub: "Portal de pago" },
+  debtor: { links: DEUDOR, marca: "DataBridge", sub: "Portal de pago" },
   creditor: { links: EMPRESA, marca: "DataBridge", sub: "Portal de empresas" },
   admin: { links: ADMIN, marca: "DataBridge", sub: "Panel de administración" },
 };

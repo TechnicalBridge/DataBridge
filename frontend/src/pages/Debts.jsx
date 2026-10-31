@@ -71,7 +71,7 @@ export default function Debts() {
         <div className="card al-dia aparece" style={{ "--i": 4 }}>
           <CheckAnimado size={64} />
           <h3>Estás al día</h3>
-          <p>No hay deudas a tu nombre en Technical Bridge.</p>
+          <p>No hay deudas a tu nombre en DataBridge.</p>
         </div>
       ) : (
         <section className="deudas">
