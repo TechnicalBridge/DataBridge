@@ -120,6 +120,14 @@ export const TIPO_DE_EMPRESA = {
   ambos: "Acreedor y agencia",
 };
 
+/** El estado de un mandato (#234), con su etiqueta. Solo con uno vigente se carga cartera y se crean campañas. */
+export const ESTADO_DEL_MANDATO = {
+  vigente: ["Vigente", "badge-ok"],
+  por_empezar: ["Por empezar", "badge-wait"],
+  vencido: ["Vencido", "badge-warn"],
+  terminado: ["Terminado", "badge-muted"],
+};
+
 export const ESTADO_DEUDA = {
   open: "Pendiente",
   repacted: "En convenio",

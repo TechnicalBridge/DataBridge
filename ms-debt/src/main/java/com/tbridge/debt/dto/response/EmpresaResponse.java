@@ -46,7 +46,9 @@ public record EmpresaResponse(
             @Schema(description = "El nombre de la otra empresa", example = "Patrimonio Inmuebles") String nombre,
             LocalDate desde,
             @Schema(nullable = true) LocalDate hasta,
-            @Schema(example = "true") boolean vigente
+            @Schema(example = "true") boolean vigente,
+            @Schema(allowableValues = {"vigente", "por_empezar", "vencido", "terminado"}, example = "vigente")
+            String estado
     ) {
     }
 }
