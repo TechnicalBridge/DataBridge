@@ -48,9 +48,10 @@ class IsolationTest {
   } catch(Exception e) { throw new IllegalStateException(e); }
  }
  @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
+  r.add("app.llm.provider",()->"xai");
   r.add("app.debt-url",()->"http://127.0.0.1:"+debt.getAddress().getPort());
-  r.add("app.llm.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
-  r.add("app.llm.api-key",()->"fake-provider-key"); r.add("app.llm.model",()->"test");
+  r.add("app.llm.xai.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
+  r.add("app.llm.xai.api-key",()->"fake-provider-key"); r.add("app.llm.xai.model",()->"test");
  }
  @BeforeEach void reset() { debtStatus.set(200); llmStatus.set(200); override.set(null); prompts.clear(); forwarded.clear(); }
  ResponseEntity<Map> ask(String token) {

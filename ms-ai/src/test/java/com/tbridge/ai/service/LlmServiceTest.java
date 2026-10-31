@@ -154,7 +154,6 @@ class LlmServiceTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(ints={401,403,429,500})
     void provider_failures_are_safe_for_local(int status) {
-        respuestas.put("/v1/responses", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
         respuestas.put("/v1/chat/completions", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
         var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(LlmService.class);
         var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
@@ -182,7 +181,7 @@ class LlmServiceTest {
         var client = OpenAIOkHttpClient.builder().apiKey("ficticia")
                 .baseUrl("http://127.0.0.1:" + slow.getAddress().getPort())
                 .maxRetries(0).timeout(java.time.Duration.ofMillis(100)).build();
-        var timed = new LlmService(client, "test");
+        var timed = new LlmService(client, "test", "xai");
         try { assertTrue(timed.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty()); }
         finally { gate.countDown(); timed.destroy(); slow.stop(0); executor.shutdownNow(); }
     }
