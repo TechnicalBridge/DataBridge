@@ -23,7 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Las dos rutas del asistente, con la forma de JSON que lee el portal. */
 @WebMvcTest({ChatController.class, SaludController.class})
+@org.springframework.context.annotation.Import({com.tbridge.ai.config.SecurityConfig.class, com.tbridge.ai.security.JwtTestConfig.class})
 class ChatControllerTest {
+    private final String bearer = "Bearer " + com.tbridge.ai.security.JwtTestTokens.token();
 
     @Autowired
     private MockMvc mvc;
@@ -44,10 +46,10 @@ class ChatControllerTest {
 
     @Test
     void con_sesion_responde_con_la_forma_que_lee_el_portal() throws Exception {
-        when(asistente.responder(any(), eq("Bearer jwt"))).thenReturn(
+        when(asistente.responder(any(), eq(bearer))).thenReturn(
                 new Respuesta("Hola, soy el asistente.", "local-nlp", 2, new Animo("neutral", 0)));
 
-        mvc.perform(post("/api/ai/chat").header("Authorization", "Bearer jwt")
+        mvc.perform(post("/api/ai/chat").header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"hola\",\"messages\":[{\"role\":\"assistant\",\"content\":\"...\"}]}"))
                 .andExpect(status().isOk())
@@ -58,7 +60,7 @@ class ChatControllerTest {
 
     @Test
     void un_json_mal_escrito_es_400_con_el_error_que_lee_el_portal() throws Exception {
-        mvc.perform(post("/api/ai/chat").header("Authorization", "Bearer jwt")
+        mvc.perform(post("/api/ai/chat").header("Authorization", bearer)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"message\":"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
@@ -67,9 +69,11 @@ class ChatControllerTest {
     @Test
     void la_salud_dice_si_hay_llm() throws Exception {
         when(llm.configurado()).thenReturn(false);
+        when(llm.proveedor()).thenReturn("local");
+        when(llm.modelo()).thenReturn("");
 
         mvc.perform(get("/api/ai/salud"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("{\"ok\":true,\"service\":\"ms-ai\",\"llm\":false}", true));
+                .andExpect(content().json("{\"ok\":true,\"service\":\"ms-ai\",\"llm\":false,\"provider\":\"local\",\"model\":\"\",\"configured\":false,\"fallbackAvailable\":true}", true));
     }
 }

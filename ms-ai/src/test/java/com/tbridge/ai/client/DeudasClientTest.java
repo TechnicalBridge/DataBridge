@@ -1,84 +1,35 @@
 package com.tbridge.ai.client;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.client.MockRestServiceServer;
+import com.tbridge.ai.exception.DeudasException;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.*;
+import org.springframework.test.web.client.*;
 import org.springframework.web.client.RestClient;
-
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
-
-/** Como lee el asistente la respuesta de ms-debt, y que pasa cuando ms-debt no responde. */
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
+import static com.tbridge.ai.exception.DeudasException.Categoria.*;
 class DeudasClientTest {
-
-    private static final MediaType HAL = MediaType.parseMediaType("application/hal+json");
-
-    private MockRestServiceServer servidor;
-    private DeudasClient cliente;
-
-    @BeforeEach
-    void preparar() {
-        RestClient.Builder builder = RestClient.builder();
-        servidor = MockRestServiceServer.bindTo(builder).build();
-        cliente = new DeudasClient(builder, "http://ms-debt:8083/");
-    }
-
-    @Test
-    void las_deudas_vienen_en_embedded() {
-        Map<String, Object> respuesta = Map.of("_embedded", Map.of("debts", List.of(Map.of("id", 3, "saldo", 96.25))),
-                "_links", Map.of());
-        assertEquals(List.of(Map.of("id", 3, "saldo", 96.25)), DeudasClient.deudasDe(respuesta));
-    }
-
-    @Test
-    void sin_deudas_no_viene_embedded_y_es_una_lista_vacia() {
-        assertEquals(List.of(), DeudasClient.deudasDe(
-                Map.of("_links", Map.of("self", Map.of("href", "http://localhost:8080/api/debts")))));
-        assertEquals(List.of(), DeudasClient.deudasDe(null));
-    }
-
-    @Test
-    void las_pide_con_la_sesion_del_deudor() {
-        servidor.expect(requestTo("http://ms-debt:8083/api/debts"))
-                .andExpect(header("Authorization", "Bearer jwt-del-deudor"))
-                .andRespond(withSuccess("""
-                        {"_embedded":{"debts":[{"id":3,"acreedor":"Patrimonio Inmuebles","saldo":96.25,"moneda":"UF"}]}}""",
-                        HAL));
-
-        List<Map<String, Object>> deudas = cliente.deudasDelDeudor("Bearer jwt-del-deudor");
-
-        assertEquals(1, deudas.size());
-        assertEquals("Patrimonio Inmuebles", deudas.getFirst().get("acreedor"));
-        assertEquals(96.25, deudas.getFirst().get("saldo"));
-        servidor.verify();
-    }
-
-    @Test
-    void si_ms_debt_dice_que_no_el_asistente_sigue_sin_deudas() {
-        servidor.expect(requestTo("http://ms-debt:8083/api/debts")).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-
-        assertEquals(List.of(), cliente.deudasDelDeudor("Bearer vencido"));
-    }
-
-    @Test
-    void si_ms_debt_falla_el_asistente_sigue_sin_deudas() {
-        servidor.expect(requestTo("http://ms-debt:8083/api/debts")).andRespond(withServerError());
-
-        assertEquals(List.of(), cliente.deudasDelDeudor("Bearer jwt-del-deudor"));
-    }
-
-    @Test
-    void sin_sesion_no_pregunta() {
-        assertEquals(List.of(), cliente.deudasDelDeudor(null));
-        servidor.verify();
-    }
+ MockRestServiceServer server; DeudasClient client;
+ static final String DEBT = "{\"acreedor\":\"Empresa ficticia\",\"concepto\":\"Servicio\",\"estado\":\"open\",\"moneda\":\"CLP\",\"montoOriginal\":10,\"saldo\":10,\"totalHoy\":10,\"interesMora\":0}";
+ @BeforeEach void setup() { var b=RestClient.builder(); server=MockRestServiceServer.bindTo(b).build(); client=new DeudasClient(b,"http://debt/"); }
+ void reply(int status,String body) { server.expect(requestTo("http://debt/api/debts")).andExpect(header("Authorization","Bearer ficticio")).andRespond(withStatus(HttpStatusCode.valueOf(status)).body(body).contentType(MediaType.APPLICATION_JSON)); }
+ void fails(DeudasException.Categoria category) { assertEquals(category,assertThrows(DeudasException.class,()->client.deudasDelDeudor("Bearer ficticio")).categoria()); server.verify(); }
+ @Test void forwards_and_projects_only_context() { reply(200,"{\"_embedded\":{\"debts\":["+DEBT+"]}}"); assertEquals(1,client.deudasDelDeudor("Bearer ficticio").size()); server.verify(); }
+ @Test void empty_hal() { reply(200,"{\"_links\":{\"self\":{\"href\":\"/api/debts\"}}}"); assertEquals(List.of(),client.deudasDelDeudor("Bearer ficticio")); }
+ @Test void explicit_empty() { reply(200,"{\"_embedded\":{\"debts\":[]}}"); assertEquals(List.of(),client.deudasDelDeudor("Bearer ficticio")); }
+ @Test void unauthenticated() { reply(401,"TOKEN-MARKER-SECRET"); fails(NO_AUTENTICADO); }
+ @Test void forbidden() { reply(403,"RUT-MARKER"); fails(NO_AUTORIZADO); }
+ @Test void missing_debtor() { reply(404,"{\"error\":\"No hay deudas a tu nombre\"}"); fails(DEUDOR_NO_REGISTRADO); }
+ @ParameterizedTest @ValueSource(strings={"", "<html/>", "{}", "{\"error\":\"No existe esa ruta\"}", "{\"error\":\"No hay deudas a tu nombre extra\"}"})
+ void unknown_404(String body) { reply(404,body); fails(PROTOCOLO); }
+ @ParameterizedTest @ValueSource(ints={500,503}) void unavailable(int status) { reply(status,"PROMPT-MARKER"); fails(NO_DISPONIBLE); }
+ @ParameterizedTest @ValueSource(ints={204,302,400,429}) void wrong_status(int status) { reply(status,""); fails(PROTOCOLO); }
+ @ParameterizedTest @ValueSource(strings={"", "null", "{", "{}", "{\"_embedded\":0}", "{\"_embedded\":{\"debts\":{}}}", "{\"_embedded\":{\"debts\":[0]}}", "{\"_embedded\":{\"debts\":[{}]}}"})
+ void invalid_protocol(String body) { reply(200,body); fails(PROTOCOLO); }
+ @Test void invalid_consumed_field() { reply(200,"{\"_embedded\":{\"debts\":["+DEBT.replace("\"saldo\":10","\"saldo\":\"bad\"")+"]}}"); fails(PROTOCOLO); }
+ @Test void connection_or_timeout() { server.expect(requestTo("http://debt/api/debts")).andRespond(withException(new java.net.SocketTimeoutException("TOKEN-MARKER-SECRET"))); fails(NO_DISPONIBLE); }
+ @Test void no_credentials_no_request() { assertThrows(DeudasException.class,()->client.deudasDelDeudor(null)); server.verify(); }
 }
