@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { resumenDeCartera } from "../api/analitica";
+import { comisionDelMes, resumenDeCartera } from "../api/analitica";
 import { enviarCodigo as pedirCodigo, listarDeudas, listarEnRiesgo, resolverDisputa } from "../api/deudas";
 import { dinero, ESTADO_DEUDA, fecha, MOTIVOS_DISPUTA, porcentaje, rutLegible, totalDeLaDeuda } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import BarraEstado, { etapaDe } from "../components/BarraEstado";
 import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
+import { mesDeHoy } from "../components/ComisionDelMes";
 
 /**
  * El portal de la empresa que cobra con DataBridge.
@@ -16,6 +17,8 @@ import { IconoAlerta, IconoDescargar } from "../components/Iconos";
  */
 export default function DataBridge() {
   const [resumen, setResumen] = useState(null);
+  const [comision, setComision] = useState(null);
+  const [errorComision, setErrorComision] = useState("");
   const [deudas, setDeudas] = useState([]);
   const [filtro, setFiltro] = useState("todas");
   const [avisos, setAvisos] = useState({});
@@ -34,6 +37,14 @@ export default function DataBridge() {
 
   useEffect(() => {
     refrescar().catch((err) => setError(err.message));
+  }, []);
+
+  useEffect(() => {
+    let vigente = true;
+    comisionDelMes(mesDeHoy())
+      .then((datos) => vigente && setComision(datos))
+      .catch(() => vigente && setErrorComision("No se pudo cargar la comisión del mes."));
+    return () => { vigente = false; };
   }, []);
 
   async function enviarCodigo(deuda) {
@@ -117,6 +128,9 @@ export default function DataBridge() {
             ))}
           </b>
           <small>{(resumen?.porMoneda || []).map((m) => `${m.tasaRecuperacion}% en ${m.moneda}`).join(", ")}</small>
+          <small>
+            Lo que pagas a DataBridge: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
+          </small>
         </div>
       </section>
 
