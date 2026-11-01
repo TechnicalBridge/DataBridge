@@ -194,7 +194,7 @@ export default function Repact() {
         </div>
 
         <div className="card aparece" style={{ "--i": 3 }}>
-          <h3>Calendario</h3>
+          <h2>Calendario</h2>
           {plan ? (
             <ol className="calendario" key={meses}>
               {plan.cuotas.map((c, i) => (
