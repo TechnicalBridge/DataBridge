@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <!--
-  El molde de todos los correos: el nombre arriba, una tarjeta con el contenido
-  y el pie, con los colores del portal (crema y verde; carbon y morado en tema
+  El molde de todos los correos: el logo arriba, una tarjeta con el contenido
+  y el pie, con los colores del portal (crema y verde; carbon y verde en tema
   oscuro).
 
-  Esta escrito como se escriben los correos, no como una pagina: tablas, estilos
-  en cada elemento y nada de imagenes. Gmail ignora parte del <style>, Outlook
-  de escritorio dibuja con Word y casi todos bloquean las imagenes. El <style>
-  solo agrega lo que no se puede escribir en linea: el tema oscuro (Apple Mail,
-  Outlook) y el ancho del telefono.
+  Esta escrito como se escriben los correos, no como una pagina: tablas y
+  estilos en cada elemento. Gmail ignora parte del <style>, Outlook de
+  escritorio dibuja con Word y casi todos bloquean las imagenes. Por eso la
+  unica imagen es el simbolo, que se carga del portal (la variable logo, #274), y el
+  nombre va escrito al lado: si el cliente bloquea la imagen, la marca se lee
+  igual. El <style> solo agrega lo que no se puede escribir en linea: el tema
+  oscuro (Apple Mail, Outlook) y el ancho del telefono.
 -->
 <html lang="es" xmlns:th="http://www.thymeleaf.org" th:fragment="carta(titulo, adelanto, contenido, pie)">
 <head>
@@ -26,30 +28,30 @@
       .titulo { font-size: 21px !important; }
       .codigo { font-size: 30px !important; letter-spacing: 5px !important; }
     }
+    /* Los mismos colores del tema oscuro del portal (index.css): verde sobre carbon (#274). */
     @media (prefers-color-scheme: dark) {
-      .fondo { background-color: #141316 !important; }
-      .tarjeta { background-color: #1c1b21 !important; border-color: #2d2a35 !important; }
-      .tinta { color: #eeeaf4 !important; }
-      .tinta-2 { color: #cdc7d9 !important; }
-      .tenue { color: #9d96ab !important; }
-      .marca { color: #a68cf1 !important; }
-      .caja { background-color: #24222b !important; }
-      .codigo { color: #bea9f7 !important; }
-      .aviso { background-color: #24222b !important; border-left-color: #d9a0e8 !important; }
-      .boton { background-color: #a68cf1 !important; }
-      .boton-texto { color: #16131e !important; }
+      .fondo { background-color: #141311 !important; }
+      .tarjeta { background-color: #1c1a17 !important; border-color: #2e2b27 !important; }
+      .tinta { color: #efebe3 !important; }
+      .tinta-2 { color: #d2cbbf !important; }
+      .tenue { color: #a59d90 !important; }
+      .caja { background-color: #2a3127 !important; }
+      .codigo { color: #95cda2 !important; }
+      .aviso { background-color: #252320 !important; border-left-color: #e09a72 !important; }
+      .boton { background-color: #7dbd8c !important; }
+      .boton-texto { color: #10170f !important; }
     }
     /* Outlook.com en tema oscuro marca el correo con estos atributos. */
-    [data-ogsb] .fondo { background-color: #141316 !important; }
-    [data-ogsb] .tarjeta { background-color: #1c1b21 !important; }
-    [data-ogsb] .caja, [data-ogsb] .aviso { background-color: #24222b !important; }
-    [data-ogsb] .boton { background-color: #a68cf1 !important; }
-    [data-ogsc] .tinta { color: #eeeaf4 !important; }
-    [data-ogsc] .tinta-2 { color: #cdc7d9 !important; }
-    [data-ogsc] .tenue { color: #9d96ab !important; }
-    [data-ogsc] .marca { color: #a68cf1 !important; }
-    [data-ogsc] .codigo { color: #bea9f7 !important; }
-    [data-ogsc] .boton-texto { color: #16131e !important; }
+    [data-ogsb] .fondo { background-color: #141311 !important; }
+    [data-ogsb] .tarjeta { background-color: #1c1a17 !important; }
+    [data-ogsb] .caja { background-color: #2a3127 !important; }
+    [data-ogsb] .aviso { background-color: #252320 !important; }
+    [data-ogsb] .boton { background-color: #7dbd8c !important; }
+    [data-ogsc] .tinta { color: #efebe3 !important; }
+    [data-ogsc] .tinta-2 { color: #d2cbbf !important; }
+    [data-ogsc] .tenue { color: #a59d90 !important; }
+    [data-ogsc] .codigo { color: #95cda2 !important; }
+    [data-ogsc] .boton-texto { color: #10170f !important; }
   </style>
 </head>
 <body class="fondo" style="margin:0;padding:0;background-color:#fbf6ec;">
@@ -63,8 +65,17 @@
         <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
           <tr>
-            <td class="relleno" style="padding:0 8px 16px 8px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.2px;">
-              <span class="tinta" style="color:#2e2a24;">Data</span><span class="marca" style="color:#3e7b4f;">Bridge</span>
+            <td class="relleno" style="padding:0 8px 16px 8px;">
+              <!--/* El simbolo y el nombre, como en el portal. El nombre es texto: se lee aunque se bloquee la imagen. */-->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td th:if="${logo != null}" style="padding:0 10px 0 0;vertical-align:middle;">
+                    <img th:src="${logo}" src="logo.png" width="32" height="32" alt=""
+                         style="display:block;width:32px;height:32px;border:0;outline:none;text-decoration:none;">
+                  </td>
+                  <td class="tinta" style="vertical-align:middle;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-0.2px;color:#2e2a24;">DataBridge</td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>

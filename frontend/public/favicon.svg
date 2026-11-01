@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <!-- El puente colgante de DataBridge, como en Logo.jsx: con los colores del tema claro, y del oscuro si el sistema lo usa. -->
+  <!-- El puente colgante de DataBridge, como en Logo.jsx, con trazos mas gruesos para que se lea a 16 y 32 px (#274).
+       Con los colores del tema claro, y del oscuro si el sistema lo usa. -->
   <style>
     .marca { fill: #3E7B4F; } .trazo { stroke: #FFFDF8; } .sol { fill: #C8764B; }
     @media (prefers-color-scheme: dark) { .marca { fill: #7DBD8C; } .trazo { stroke: #10170F; } .sol { fill: #E09A72; } }
   </style>
   <rect class="marca" width="48" height="48" rx="12"/>
-  <path class="trazo" d="M15.5 12V37M32.5 12V37" stroke-width="3.6" stroke-linecap="round"/>
-  <path class="trazo" d="M15.5 13.5Q24 29 32.5 13.5M15.5 13.5Q11 24 6 29.5M32.5 13.5Q37 24 42 29.5" fill="none" stroke-width="2.4" stroke-linecap="round"/>
-  <path class="trazo" d="M6 30H42" stroke-width="3.6" stroke-linecap="round"/>
-  <circle class="sol" cx="24" cy="12" r="3.2"/>
+  <path class="trazo" d="M15.5 13V37M32.5 13V37" stroke-width="5" stroke-linecap="round"/>
+  <path class="trazo" d="M15.5 14.5Q24 29 32.5 14.5M15.5 14.5Q11 24 6 29.5M32.5 14.5Q37 24 42 29.5" fill="none" stroke-width="3.4" stroke-linecap="round"/>
+  <path class="trazo" d="M6 30H42" stroke-width="5" stroke-linecap="round"/>
+  <circle class="sol" cx="24" cy="11.5" r="4"/>
 </svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96" role="img" aria-label="DataBridge">
+  <!-- La marca de DataBridge (#274). El nombre va en trazos de Source Sans 3 Bold (SIL Open Font License 1.1). -->
+  <title>DataBridge</title>
+  <mask id="recorte" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+    <rect width="48" height="48" fill="#fff"/>
+    <path d="M15.5 12V37M32.5 12V37" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+    <path d="M15.5 13.5Q24 29 32.5 13.5M15.5 13.5Q11 24 6 29.5M32.5 13.5Q37 24 42 29.5" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M6 30H42" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="24" cy="12" r="3.2" fill="#000"/>
+  </mask>
+  <rect width="48" height="48" rx="12" fill="#2E2A24" mask="url(#recorte)"/>
+</svg>
