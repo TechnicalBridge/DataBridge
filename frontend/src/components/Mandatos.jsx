@@ -203,7 +203,10 @@ export default function Mandatos({ onCambio }) {
                     <b>{m.acreedor}</b>
                     <span>RUT {rutLegible(m.acreedorRut)}</span>
                   </div>
-                  <span className={`badge ${clase}`}>{estado}</span>
+                  <span className="mandato-insignias">
+                    {m.acreedorSuspendido ? <span className="badge badge-warn">Acreedor suspendido</span> : null}
+                    <span className={`badge ${clase}`}>{estado}</span>
+                  </span>
                 </div>
                 <div className="totales campana-cifras">
                   <span>Desde el {fecha(m.desde)}</span>
@@ -218,6 +221,9 @@ export default function Mandatos({ onCambio }) {
                   {m.terminadoEl ? ` Lo terminó ${m.terminadoPor} el ${fecha(m.terminadoEl)}.` : ""}
                   {m.estado === "terminado" || m.estado === "vencido"
                     ? " Lo que se cargó con él se sigue cobrando hasta pagarse." : ""}
+                  {m.acreedorSuspendido && activo
+                    ? ` ${m.acreedor} está suspendida en DataBridge: mientras lo esté, no se le carga cartera ni se`
+                      + " renueva el mandato, y lo ya cargado queda en pausa." : ""}
                 </p>
                 {renovando === m.id ? (
                   <div className="campos-2" style={{ marginTop: 10, alignItems: "end" }}>
@@ -235,10 +241,12 @@ export default function Mandatos({ onCambio }) {
                   </div>
                 ) : activo ? (
                   <div className="fila-acciones">
-                    <button type="button" className="btn btn-ghost btn-sm" disabled={ocupado}
-                            onClick={() => { setRenovando(m.id); setHasta(m.hasta || ""); setHecho(""); }}>
-                      Renovar
-                    </button>
+                    {m.acreedorSuspendido ? null : (
+                      <button type="button" className="btn btn-ghost btn-sm" disabled={ocupado}
+                              onClick={() => { setRenovando(m.id); setHasta(m.hasta || ""); setHecho(""); }}>
+                        Renovar
+                      </button>
+                    )}
                     <button type="button" className="btn btn-peligro btn-sm" disabled={ocupado} onClick={() => terminar(m)}>
                       Terminar
                     </button>

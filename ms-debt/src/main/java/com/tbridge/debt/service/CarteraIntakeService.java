@@ -162,6 +162,7 @@ public class CarteraIntakeService {
         }
 
         Organization acreedor = resolverAcreedor(lote, emisor);
+        exigirAcreedorActivo(acreedor, emisor);
         Mandate mandato = resolverMandato(emisor, acreedor, corte);
         Campaign campana = resolverCampana(lote, emisor, acreedor);
 
@@ -229,6 +230,22 @@ public class CarteraIntakeService {
         }
         return organizations.findByRut(rut).orElseThrow(() -> new CarteraInvalida(
                 "acreedor_desconocido", "El acreedor " + rut + " no esta registrado", 404));
+    }
+
+    /**
+     * A un acreedor suspendido no se le carga cartera (#296, decidido en #293):
+     * lo suyo esta congelado (#152), y una deuda nueva naceria congelada, sin
+     * invitacion ni campana. Vale tambien cuando la empresa carga lo suyo, y en
+     * la revision, que pasa por aqui igual.
+     */
+    private static void exigirAcreedorActivo(Organization acreedor, Organization emisor) {
+        if (!acreedor.suspendida()) {
+            return;
+        }
+        throw new CarteraInvalida("acreedor_suspendido", acreedor.getId().equals(emisor.getId())
+                ? "Tu empresa está suspendida en DataBridge: mientras lo esté, no se carga cartera"
+                : acreedor.getTradeName() + " está suspendida en DataBridge: mientras lo esté, no se le carga "
+                        + "cartera. Lo que ya está cargado queda en pausa", 409);
     }
 
     /**

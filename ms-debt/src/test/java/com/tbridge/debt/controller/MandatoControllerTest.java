@@ -69,7 +69,7 @@ class MandatoControllerTest {
 
     private static MandatoPortalResponse mandato(String estado) {
         return new MandatoPortalResponse(4L, "76418902-7", "Patrimonio Inmuebles", LocalDate.of(2026, 10, 1), null,
-                120, null, estado, CAMILA, Instant.parse("2026-10-29T12:00:00Z"), null, null, null, null, 12);
+                120, null, estado, CAMILA, Instant.parse("2026-10-29T12:00:00Z"), null, null, null, null, 12, false);
     }
 
     @Test

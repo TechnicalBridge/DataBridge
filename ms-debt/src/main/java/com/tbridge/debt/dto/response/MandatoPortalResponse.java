@@ -28,7 +28,10 @@ public record MandatoPortalResponse(
         @Schema(nullable = true) String terminadoPor,
         @Schema(nullable = true) Instant terminadoEl,
         @Schema(description = "Las deudas que cargó con él y siguen en gestión: se cobran aunque termine",
-                example = "12") long deudasEnGestion
+                example = "12") long deudasEnGestion,
+        @Schema(description = "El acreedor está suspendido en DataBridge: mientras lo esté no se le carga cartera "
+                + "ni se renueva el mandato, y lo ya cargado queda en pausa (#296)", example = "false")
+        boolean acreedorSuspendido
 ) {
 
     public static MandatoPortalResponse de(Mandate mandato, LocalDate hoy, long deudasEnGestion) {
@@ -36,6 +39,6 @@ public record MandatoPortalResponse(
                 mandato.getCreditor().getTradeName(), mandato.getValidFrom(), mandato.getValidTo(),
                 mandato.getMaxOverdueDays(), mandato.getMaxMoraDiscount(), mandato.estadoAl(hoy),
                 mandato.getDeclaredBy(), mandato.getCreatedAt(), mandato.getRenewedBy(), mandato.getRenewedAt(),
-                mandato.getEndedBy(), mandato.getEndedAt(), deudasEnGestion);
+                mandato.getEndedBy(), mandato.getEndedAt(), deudasEnGestion, mandato.getCreditor().suspendida());
     }
 }
