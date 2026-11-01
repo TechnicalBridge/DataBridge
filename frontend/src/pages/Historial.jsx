@@ -107,7 +107,7 @@ export default function Historial() {
 
       {devueltos.length ? (
         <div className="card aparece" style={{ "--i": 5, marginTop: 18 }}>
-          <h3>{devueltos.length === 1 ? "Un pago que se te devolvió" : "Pagos que se te devolvieron"}</h3>
+          <h2>{devueltos.length === 1 ? "Un pago que se te devolvió" : "Pagos que se te devolvieron"}</h2>
           <div className="lista">
             {devueltos.map((p, i) => {
               const dia = new Date(p.devueltoEn || p.createdAt);

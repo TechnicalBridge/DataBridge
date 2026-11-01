@@ -168,14 +168,14 @@ export default function AdminEmpresa() {
       <div className="grid-2">
         <div>
           <div className="card bloque aparece" style={{ "--i": 4 }}>
-            <h3>Quiénes entran por esta empresa</h3>
+            <h2>Quiénes entran por esta empresa</h2>
             <TablaPersonas personas={personas} tuCorreo={user?.correo} alCambiar={cambiarAcceso}
                            vacio="Nadie tiene acceso todavía. Dale acceso a su primera persona." />
           </div>
 
           {empresa ? (
             <div className="card bloque aparece" style={{ "--i": 5 }}>
-              <h3>Mandatos</h3>
+              <h2>Mandatos</h2>
               {empresa.mandatos.length === 0 ? (
                 <div className="empty">
                   Sin mandatos. {empresa.tipo === "agencia"
@@ -206,13 +206,13 @@ export default function AdminEmpresa() {
           ) : null}
 
           <div className="card aparece" style={{ "--i": 6 }}>
-            <h3>Lo que se hizo desde el panel</h3>
+            <h2>Lo que se hizo desde el panel</h2>
             <Historial acciones={acciones} />
           </div>
         </div>
 
         <div className="card aparece" style={{ "--i": 4 }}>
-          <h3>Darle acceso a una persona</h3>
+          <h2>Darle acceso a una persona</h2>
           {empresa?.activa === false ? (
             <p className="hint" style={{ marginTop: 10 }}>
               Mientras esté suspendida no se le pueden agregar personas.

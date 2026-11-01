@@ -65,7 +65,7 @@ export default function EnRiesgo() {
       {convenios.length === 0 ? (
         <div className="card al-dia aparece" style={{ "--i": 1 }}>
           <CheckAnimado size={64} />
-          <h3>Ningún convenio atrasado</h3>
+          <h2>Ningún convenio atrasado</h2>
           <p>Todos los deudores en convenio van al día con sus cuotas.</p>
         </div>
       ) : (

@@ -70,7 +70,7 @@ export default function Debts() {
       {deudas.length === 0 ? (
         <div className="card al-dia aparece" style={{ "--i": 4 }}>
           <CheckAnimado size={64} />
-          <h3>Estás al día</h3>
+          <h2>Estás al día</h2>
           <p>No hay deudas a tu nombre en DataBridge.</p>
         </div>
       ) : (
@@ -95,7 +95,7 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
       <div className="deuda-cab">
         <div>
           <span className="eyebrow">{d.acreedor}</span>
-          <h3>{d.concepto}</h3>
+          <h2>{d.concepto}</h2>
           <span className="sub">Ref. {d.externalId}</span>
           {d.estado === "repacted" && d.cuotasVencidas > 0 ? (
             <span className="tag tag-vencida" style={{ marginTop: 8 }}>

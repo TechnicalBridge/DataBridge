@@ -80,7 +80,7 @@ export default function AdminEmpresas() {
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Empresas registradas</h3>
+          <h2>Empresas registradas</h2>
           {empresas.length === 0 ? (
             <div className="empty">Todavía no hay empresas. Da de alta la primera.</div>
           ) : (
@@ -117,7 +117,7 @@ export default function AdminEmpresas() {
         </div>
 
         <div className="card aparece" style={{ "--i": 2 }}>
-          <h3>Dar de alta una empresa</h3>
+          <h2>Dar de alta una empresa</h2>
           <form onSubmit={darDeAlta}>
             {errorDelAlta ? <div className="error" role="alert">{errorDelAlta}</div> : null}
             <div className="field">

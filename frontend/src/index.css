@@ -14,7 +14,7 @@
   --paper-2: #f6efe2;
   --ink: #2e2a24;
   --ink-2: #4b453c;
-  --muted: #7c7266;
+  --muted: #6f665b;
   --line: #ebe1cf;
   --line-2: #dccfb8;
   --brand: #3e7b4f;
@@ -171,7 +171,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .btn-sm { padding: 8px 13px; font-size: 14.5px; border-radius: 9px; }
 .btn-primary { background: var(--brand); color: var(--on-brand); }
 .btn-primary:hover:not(:disabled) { background: var(--brand-2); }
-.btn-soft { background: var(--brand-soft); color: var(--brand); }
+.btn-soft { background: var(--brand-soft); color: var(--brand-2); }
 .btn-soft:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 20%, transparent); }
 .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
 .btn-ghost:hover:not(:disabled) { background: var(--paper-2); }
@@ -269,7 +269,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   color: var(--ink-2);
   border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent);
 }
-.notice a { color: var(--brand); font-weight: 600; }
+.notice a { color: var(--brand-2); font-weight: 600; }
 .aviso {
   display: flex;
   align-items: flex-start;
@@ -316,7 +316,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   display: grid;
   place-items: center;
   background: var(--brand-soft);
-  color: var(--brand);
+  color: var(--brand-2);
   font-size: 14px;
 }
 .auth-panel { display: flex; align-items: center; justify-content: center; padding: 32px; }
@@ -372,7 +372,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .portada-ejemplo { margin: 0; padding: 28px; border-radius: 28px; background: var(--brand-soft); }
 .portada-ejemplo .card { padding: 22px 24px; box-shadow: var(--shadow-lg); }
 .portada-ejemplo-acreedor { display: block; font-size: 15px; color: var(--muted); }
-.portada-ejemplo-titulo { margin: 2px 0 0; font-size: 20px; }
+.card .portada-ejemplo-titulo { margin: 2px 0 0; font-size: 20px; }
 .portada-ejemplo figcaption { margin-top: 14px; font-size: 14px; color: var(--ink-2); }
 
 .portada-seccion { padding-block: 76px; border-top: 1px solid var(--line); }
@@ -561,7 +561,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 .nav-link:hover { background: var(--paper-2); }
-.nav-link.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.nav-link.active { background: var(--brand-soft); color: var(--brand-2); font-weight: 600; }
 .nav-link .cuenta {
   margin-left: auto;
   min-width: 22px;
@@ -608,9 +608,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s ease;
 }
 .card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.card h3 { margin: 0 0 14px; font-size: 19px; }
+.card h2 { margin: 0 0 14px; font-size: 19px; }
 .card-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-.card-cab h3 { margin: 0; }
+.card-cab h2 { margin: 0; }
 .grid-3, .grid-2 { display: grid; gap: 16px; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-2 { grid-template-columns: 1.15fr 0.85fr; align-items: start; }
@@ -644,7 +644,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   font-weight: 600;
   white-space: nowrap;
 }
-.badge-ok { background: var(--brand-soft); color: var(--brand); }
+.badge-ok { background: var(--brand-soft); color: var(--brand-2); }
 .badge-wait { background: var(--accent-soft); color: var(--accent); }
 .badge-warn { background: var(--warn-soft); color: var(--warn); }
 .badge-peligro { background: var(--danger-soft); color: var(--danger); }
@@ -725,7 +725,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .paso.actual .paso-punto {
   background: linear-gradient(var(--brand-soft), var(--brand-soft)), var(--paper);
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-2);
   animation: latido 2.4s infinite 1s;
 }
 .paso.omitido .paso-punto { border-style: dashed; }
@@ -769,7 +769,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .deudas { display: grid; gap: 16px; }
 .deuda { padding: 22px 24px; }
 .deuda-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 22px; }
-.deuda-cab h3 { margin: 2px 0 2px; font-size: 22px; }
+.deuda-cab h2 { margin: 2px 0 2px; font-size: 22px; }
 .deuda-monto { text-align: right; }
 .deuda-monto span { display: block; color: var(--muted); font-size: 14px; }
 .deuda-monto b { display: block; font-size: 30px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
@@ -819,13 +819,14 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .disputa .deuda-acciones { margin-top: 0; padding-top: 0; border-top: 0; }
 .al-dia { text-align: center; padding: 44px 20px; }
 .al-dia .check-animado { margin: 0 auto 12px; }
-.al-dia h3 { font-size: 22px; margin: 0 0 6px; }
+.al-dia h2 { font-size: 22px; margin: 0 0 6px; }
 .al-dia p { color: var(--muted); margin: 0; }
 
 /* ---- Listas: historial, vencimientos, pagos recibidos --------------------------------------- */
 
 .lista { display: flex; flex-direction: column; }
-.lista-grupo { margin: 18px 0 8px; font-size: 15px; font-weight: 600; color: var(--muted); }
+/* Era un h4 y ahora es un h3 (#301): conserva el interlineado del texto, no el de los titulos. */
+.lista-grupo { margin: 18px 0 8px; font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--muted); }
 .lista-grupo:first-child { margin-top: 0; }
 .fila {
   display: grid;
@@ -903,7 +904,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   border: 2px solid var(--line-2); background: var(--paper); font-size: 13px;
 }
 .asistente li.actual { color: var(--ink); }
-.asistente li.actual::before { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.asistente li.actual::before { border-color: var(--brand); color: var(--brand-2); background: var(--brand-soft); }
 .asistente li.hecho { color: var(--ink-2); }
 .asistente li.hecho::before { content: "\2713"; border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
 .opciones-campana { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
@@ -963,7 +964,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   background: var(--brand-soft);
   border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
 }
-.oferta b { color: var(--brand); }
+.oferta b { color: var(--brand-2); }
 .oferta span { color: var(--ink-2); font-size: 14.5px; }
 .fila-descuento td { color: var(--brand); font-weight: 600; }
 
@@ -1175,7 +1176,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   display: grid;
   place-items: center;
   background: var(--brand-soft);
-  color: var(--brand);
+  color: var(--brand-2);
   font-weight: 700;
 }
 .guia b { display: block; margin-bottom: 2px; }
@@ -1333,7 +1334,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     font-weight: 600;
     text-align: center;
   }
-  .mobile-bar a.active { color: var(--brand); background: var(--brand-soft); }
+  .mobile-bar a.active { color: var(--brand-2); background: var(--brand-soft); }
 }
 
 @media (max-width: 620px) {
