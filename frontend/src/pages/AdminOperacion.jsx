@@ -24,6 +24,29 @@ const conCortes = (tipo) => tipo.split(".").flatMap((parte, i) => (i ? [".", <wb
 
 const ufLegible = (valor) => Number(valor).toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Con mas de estos avisos, el detalle va plegado y arriba queda el resumen por motivo (#299). */
+const AVISOS_A_LA_VISTA = 5;
+
+/**
+ * Por que no llego un aviso, en palabras. El despachador guarda el mensaje de
+ * la excepcion, o su nombre si no trae mensaje ("ConnectException"), o
+ * "HTTP 503: ..." si la empresa respondio con un error.
+ */
+function motivoEnPalabras(error) {
+  if (!error) return "Sin detalle del error";
+  const http = /^HTTP (\d{3})/.exec(error);
+  if (http) {
+    const codigo = Number(http[1]);
+    if (codigo >= 500) return `Su dirección respondió con un error (HTTP ${codigo})`;
+    if (codigo >= 400) return `Su dirección lo rechazó (HTTP ${codigo})`;
+    return `Su dirección respondió HTTP ${codigo}`;
+  }
+  if (/connect|refused|unresolved|unknownhost|no route|unreachable/i.test(error)) return "Su dirección no respondió";
+  if (/timed? ?out/i.test(error)) return "Su dirección tardó demasiado en responder";
+  if (/ssl|certificate|pkix|handshake/i.test(error)) return "Falló la conexión segura con su dirección";
+  return "Otro error";
+}
+
 /**
  * La operacion de DataBridge (#139): si cada servicio responde, los avisos que
  * no se entregaron (con el boton para reintentarlos), los pagos que hay que
@@ -149,7 +172,7 @@ export default function AdminOperacion() {
                   ) : null}
                 </div>
               </div>
-              <TablaAvisos
+              <AvisosAgrupados
                 avisos={d.avisos}
                 primeraColumna={(a) => <><code>{conCortes(a.tipo)}</code><span className="sub">{fechaHora(a.ocurrio)}</span></>}
                 titulo="Qué y cuándo"
@@ -166,7 +189,7 @@ export default function AdminOperacion() {
           : pagos.avisos.lista.length === 0 ? (
             <div className="empty">ms-debt recibió todos los avisos de pago.</div>
           ) : (
-            <TablaAvisos
+            <AvisosAgrupados
               avisos={pagos.avisos.lista}
               primeraColumna={(a) => <>Pago {a.pago}</>}
               titulo="Pago"
@@ -230,6 +253,43 @@ export default function AdminOperacion() {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * Los avisos de un destino. Pocos, a la vista. Muchos, primero cuantos fallaron
+ * por cada motivo, en palabras, y el detalle plegado: veinte filas con el mismo
+ * error no dicen mas que una linea (#299). El error tal cual va junto al motivo,
+ * para quien tenga que arreglarlo.
+ */
+function AvisosAgrupados(props) {
+  const { avisos } = props;
+  if (avisos.length <= AVISOS_A_LA_VISTA) return <TablaAvisos {...props} />;
+  const motivos = new Map();
+  for (const a of avisos.filter((x) => x.estado === "failed")) {
+    const motivo = motivoEnPalabras(a.ultimoError);
+    const grupo = motivos.get(motivo) || { cuantos: 0, errores: new Set() };
+    grupo.cuantos += 1;
+    if (a.ultimoError) grupo.errores.add(a.ultimoError);
+    motivos.set(motivo, grupo);
+  }
+  return (
+    <>
+      {motivos.size ? (
+        <ul className="motivos-de-avisos">
+          {[...motivos].map(([motivo, { cuantos, errores }]) => (
+            <li key={motivo}>
+              <b>{cuantos === 1 ? "1 aviso no llegó" : `${cuantos} avisos no llegaron`}:</b> {motivo.charAt(0).toLowerCase() + motivo.slice(1)}.
+              {errores.size ? <span className="error-de-aviso">{[...errores].slice(0, 2).join(" · ")}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <details className="detalle-avisos">
+        <summary>Ver los {avisos.length} avisos</summary>
+        <TablaAvisos {...props} />
+      </details>
+    </>
   );
 }
 

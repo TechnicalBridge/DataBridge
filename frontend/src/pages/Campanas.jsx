@@ -89,6 +89,10 @@ export default function Campanas() {
 
   if (campanas === null) return <Cargando tarjetas={2} />;
 
+  //  Arriba las que siguen escribiendo (en curso o pausadas); las terminadas van plegadas al final (#299).
+  const vivas = campanas.filter((c) => c.estado !== "terminada");
+  const terminadas = campanas.filter((c) => c.estado === "terminada");
+
   return (
     <div>
       <header className="topbar aparece">
@@ -109,9 +113,11 @@ export default function Campanas() {
           <h3>Tus campañas</h3>
           {campanas.length === 0 ? (
             <div className="empty">Todavía no hay campañas. Crea una y cárgale sus deudores.</div>
+          ) : vivas.length === 0 ? (
+            <div className="empty">No hay campañas en curso. Crea una y cárgale sus deudores.</div>
           ) : (
             <div className="campanas">
-              {campanas.map((c) => {
+              {vivas.map((c) => {
                 const [estado, clase] = ESTADO[c.estado] || [c.estado, "badge-muted"];
                 const ocupada = cambiando === c.idExterno;
                 return (
@@ -174,6 +180,30 @@ export default function Campanas() {
               })}
             </div>
           )}
+          {terminadas.length ? (
+            //  Ya no le escriben a nadie: plegadas, para que las en curso queden a la vista (#299).
+            <details className="terminadas">
+              <summary>
+                Terminadas <span className="chip-cuenta">{terminadas.length}</span>
+              </summary>
+              <ul className="lista-terminadas">
+                {terminadas.map((c) => (
+                  <li key={c.idExterno}>
+                    <div className="fila-que">
+                      <b>{c.nombre}</b>
+                      <span>
+                        {c.propia ? "Cartera propia" : c.acreedor} · {fecha(c.inicio)} – {c.fin ? fecha(c.fin) : "sin fin"}
+                      </span>
+                    </div>
+                    <span className="terminada-cifras">
+                      <b className="num">{c.deudas}</b> {c.deudas === 1 ? "deuda" : "deudas"} ·{" "}
+                      <b className="num">{c.saldadas}</b> {c.saldadas === 1 ? "pagada" : "pagadas"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
 
         <div className="card aparece" id="form-campana" style={{ "--i": 2 }}>

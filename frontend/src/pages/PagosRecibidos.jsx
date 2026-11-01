@@ -1,10 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { descargarComprobante, listarDevueltos, listarPagos, listarParaDevolver, registrarDevolucion } from "../api/pagos";
-import { dinero, fechaHora, porMoneda, queSePago, rutLegible } from "../utils/formato";
+import { dinero, fechaHora, paraBuscar, porMoneda, queSePago, rutLegible } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import Cargando from "../components/Cargando";
 import LogoPasarela, { PASARELAS, nombreDePasarela } from "../components/LogoPasarela";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
+import Paginas, { dePagina } from "../components/Paginas";
+
+/** De a cuantos pagos se ven, como la cartera (#299). */
+const POR_PAGINA = 20;
+
+const MEDIOS = ["todas", ...Object.keys(PASARELAS)];
 
 /** Los pagos que entraron a la cartera de la empresa, con filtro y planilla. */
 export default function PagosRecibidos() {
@@ -18,6 +24,7 @@ export default function PagosRecibidos() {
   const [errorDevolucion, setErrorDevolucion] = useState("");
   const [pasarela, setPasarela] = useState("todas");
   const [buscar, setBuscar] = useState("");
+  const [pagina, setPagina] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -31,12 +38,19 @@ export default function PagosRecibidos() {
     listarDevueltos().then(setDevueltos).catch(() => setDevueltos([]));
   }, []);
 
+  //  Como en la cartera: la busqueda va primero, los filtros cuentan sobre lo buscado y la pagina sobre lo filtrado.
+  const buscados = useMemo(() => {
+    const texto = paraBuscar(buscar);
+    if (!pagos || !texto) return pagos || [];
+    return pagos.filter((p) => [p.deudor, p.deudorRut, p.externalId].some((v) => paraBuscar(v).includes(texto)));
+  }, [pagos, buscar]);
+  const cuantos = useMemo(() => Object.fromEntries(MEDIOS.map((m) => [m,
+    m === "todas" ? buscados.length : buscados.filter((p) => p.pasarela === m).length])), [buscados]);
+
   if (pagos === null) return <Cargando tarjetas={1} />;
 
-  const texto = buscar.trim().toLowerCase().replace(/\./g, "");
-  const visibles = pagos.filter((p) =>
-    (pasarela === "todas" || p.pasarela === pasarela)
-    && (!texto || [p.deudor, p.deudorRut, p.externalId].some((v) => String(v).toLowerCase().includes(texto))));
+  const visibles = buscados.filter((p) => pasarela === "todas" || p.pasarela === pasarela);
+  const { enPagina, filas: deEstaPagina } = dePagina(visibles, pagina, POR_PAGINA);
 
   function anotar(id) {
     setDevolviendo(id);
@@ -201,14 +215,16 @@ export default function PagosRecibidos() {
       <div className="card aparece" style={{ "--i": 4 }}>
         <div className="card-cab">
           <div className="filters">
-            {["todas", ...Object.keys(PASARELAS)].map((id) => (
-              <button key={id} type="button" className={`chip${pasarela === id ? " on" : ""}`} onClick={() => setPasarela(id)}>
+            {MEDIOS.map((id) => (
+              <button key={id} type="button" className={`chip${pasarela === id ? " on" : ""}`} aria-pressed={pasarela === id}
+                      onClick={() => { setPasarela(id); setPagina(0); }}>
                 {id === "todas" ? "Todas" : nombreDePasarela(id)}
+                <span className="chip-cuenta">{cuantos[id]}</span>
               </button>
             ))}
           </div>
-          <input className="buscador" value={buscar} onChange={(e) => setBuscar(e.target.value)}
-                 placeholder="Buscar por deudor, RUT o referencia" aria-label="Buscar" />
+          <input className="buscador" type="search" value={buscar} placeholder="Buscar por deudor, RUT o referencia"
+                 aria-label="Buscar en los pagos" onChange={(e) => { setBuscar(e.target.value); setPagina(0); }} />
         </div>
         {visibles.length === 0 ? (
           <div className="empty">{pagos.length ? "Ningún pago calza con el filtro." : "Todavía no entra ningún pago."}</div>
@@ -226,7 +242,7 @@ export default function PagosRecibidos() {
                 </tr>
               </thead>
               <tbody>
-                {visibles.map((p) => (
+                {deEstaPagina.map((p) => (
                   <tr key={p.id}>
                     <td>{fechaHora(p.pagadoEn)}</td>
                     <td>{p.deudor}<span className="sub">{rutLegible(p.deudorRut)}</span></td>
@@ -251,6 +267,8 @@ export default function PagosRecibidos() {
             </table>
           </div>
         )}
+        <Paginas total={visibles.length} porPagina={POR_PAGINA} pagina={enPagina} alCambiar={setPagina}
+                 etiqueta="Páginas de los pagos" />
       </div>
     </div>
   );
