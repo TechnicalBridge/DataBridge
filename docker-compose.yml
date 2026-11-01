@@ -184,6 +184,9 @@ services:
       #  El primer admin de DataBridge: entra al panel de administracion con un
       #  enlace a este correo. Sin el no hay admin, y nadie entra al panel.
       ADMIN_CORREO:      ${ADMIN_CORREO:-}
+      AUTH_IDENTIFIER_LIMIT_CAPACITY: ${AUTH_IDENTIFIER_LIMIT_CAPACITY:-10}
+      AUTH_IDENTIFIER_LIMIT_WINDOW_SECONDS: ${AUTH_IDENTIFIER_LIMIT_WINDOW_SECONDS:-60}
+      AUTH_IDENTIFIER_LIMIT_MAX_BLOCK_SECONDS: ${AUTH_IDENTIFIER_LIMIT_MAX_BLOCK_SECONDS:-900}
       DEMO_DATOS:        ${DEMO_DATOS:-false}
       MAIL_FROM:         ${MAIL_FROM:-noreply@technicalbridge.local}
       MAIL_FROM_NAME:    ${MAIL_FROM_NAME:-DataBridge}
@@ -377,6 +380,7 @@ services:
       #  subirlo durante la prueba de capacidad: todo el trafico de k6 sale de
       #  una sola IP, y con el cupo de fabrica la prueba mediria el limitador
       #  en vez del sistema. Ver docs/rendimiento.
+      DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
       #  Quien puede hacerle peticiones con credenciales desde otro origen. El
@@ -443,6 +447,7 @@ services:
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
       #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
       #  contra el numero real y no contra uno escrito a mano.
+      DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
     volumes:
