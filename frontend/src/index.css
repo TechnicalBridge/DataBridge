@@ -1291,10 +1291,14 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
-  /* Abajo va la barra y encima el boton del asistente: lo ultimo de la pagina tiene que poder subir mas alla de los dos. */
-  .main { padding: 18px 16px 170px; }
+  /* Abajo va la barra: lo ultimo de la pagina tiene que poder subir mas alla de ella. */
+  .main { padding: 18px 16px 104px; }
   .topbar { flex-wrap: wrap; align-items: flex-start; }
-  .chat-dock { right: 16px; bottom: 88px; }
+  /* El asistente se abre desde el encabezado (#303): sin burbuja, que tapaba los botones para pagar, y el
+     panel justo bajo el encabezado, sin llegar a la barra. */
+  .chat-fab { display: none; }
+  .chat-dock { top: 67px; right: 12px; bottom: auto; left: 12px; align-items: stretch; }
+  .chat-panel { width: auto; max-height: calc(100dvh - 67px - 84px); transform-origin: top right; }
   .movil-cabecera {
     display: flex;
     align-items: center;

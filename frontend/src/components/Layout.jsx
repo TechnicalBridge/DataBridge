@@ -4,7 +4,7 @@ import { listarEnRiesgo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
 import Logo from "./Logo";
-import Chatbot from "./Chatbot";
+import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
   IconoAlerta, IconoAyuda, IconoCalendario, IconoCandado, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo,
@@ -118,6 +118,7 @@ export default function Layout({ variant }) {
         <header className="movil-cabecera">
           <Logo size={32} />
           <span className="brand-name">{marca}</span>
+          {variant === "debtor" ? <BotonAsistente /> : null}
           <TemaToggle />
           <button type="button" className="btn btn-ghost" onClick={logout} aria-label="Cerrar sesión">
             <IconoSalir />
