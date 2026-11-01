@@ -232,7 +232,7 @@ public class EmpresaService {
 
     private static EmpresaResponse.Mandato mandato(String papel, Organization otra, Mandate mandato, LocalDate hoy) {
         return new EmpresaResponse.Mandato(papel, otra.getRut(), otra.getTradeName(),
-                mandato.getValidFrom(), mandato.getValidTo(), mandato.vigenteAl(hoy));
+                mandato.getValidFrom(), mandato.getValidTo(), mandato.vigenteAl(hoy), mandato.estadoAl(hoy));
     }
 
     private static String tipo(Organization empresa) {

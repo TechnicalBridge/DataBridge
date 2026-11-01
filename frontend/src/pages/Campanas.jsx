@@ -7,6 +7,7 @@ import Cargando from "../components/Cargando";
 import ComisionDelMes, { mesEnPalabras } from "../components/ComisionDelMes";
 import { dinero } from "../utils/formato";
 import FormCampana, { TRAMOS } from "../components/FormCampana";
+import Mandatos from "../components/Mandatos";
 
 const ESTADO = {
   en_curso: ["En curso", "badge-ok"],
@@ -32,16 +33,21 @@ export default function Campanas() {
   const [comision, setComision] = useState(null);
 
   const cargar = () => listarCampanas().then(setCampanas);
+  const cargarAcreedores = () => opcionesDeCarga().then((o) => setAcreedores(o.acreedores || []));
 
   useEffect(() => {
     cargar().catch((err) => {
       setError(err.message);
       setCampanas([]);
     });
-    opcionesDeCarga()
-      .then((o) => setAcreedores(o.acreedores || []))
-      .catch((err) => setError(err.message));
+    cargarAcreedores().catch((err) => setError(err.message));
   }, []);
+
+  //  Un mandato nuevo, renovado o terminado cambia a quién se le pueden crear campañas (#234).
+  async function cambioUnMandato() {
+    await cargarAcreedores();
+    if (!editando) setVuelta((v) => v + 1);
+  }
 
   function nueva() {
     setEditando(null);
@@ -95,6 +101,8 @@ export default function Campanas() {
       {hecho ? <div className="notice">{hecho}</div> : null}
 
       <ComisionDelMes onDatos={setComision} />
+
+      <Mandatos onCambio={cambioUnMandato} />
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>

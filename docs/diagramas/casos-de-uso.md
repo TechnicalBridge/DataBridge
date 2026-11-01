@@ -155,12 +155,14 @@ flowchart LR
         E7(["Seguir los convenios en riesgo"])
         E8(["Cargar deudores<br/>en una campaña"])
         E9(["Crear, pausar y terminar campañas"])
+        E13(["Declarar, renovar y terminar<br/>un mandato (agencia)"])
         E12(["Consultar la comisión mensual<br/>y lo recuperado por campaña"])
         E11(["Exportar la cartera a un archivo"])
     end
     COR{{"Servidor de correo"}}
 
-    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12
+    USU --> E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 & E9 & E11 & E12 & E13
+    E9 -. "«include»<br/>si es una agencia" .-> E13
     E3 -. "«include»" .-> E2
     E4 -. "«extend»<br/>si la deuda sigue en cobranza" .-> E3
     E5 -. "«extend»<br/>si está en reclamo" .-> E3
@@ -180,7 +182,8 @@ flowchart LR
 | Registrar que ya devolvió un pago duplicado | `PagosRecibidos` | `POST /api/payments/{id}/devolucion` | Con la referencia que dio la pasarela (obligatoria, hasta 100 caracteres). El pago queda `refunded` y su libro guarda quién lo registró. Solo los de su cartera (`403`); registrarlo de nuevo no cambia nada |
 | Seguir los convenios en riesgo | `EnRiesgo` | `GET /api/debts/en-riesgo` | Los convenios con cuotas vencidas |
 | Cargar deudores en una campaña | `Cargar`, `Campanas` | `GET /api/debts/cartera/opciones`, `GET /api/debts/cartera/plantilla`, `POST /api/debts/cartera/revision`, `POST /api/debts/cartera` | Siempre en una campaña, que se elige o se crea en el primer paso. Antes de confirmar, la revisión dice qué entraría, qué se rechazaría y por qué, sin guardar nada. Es la única entrada de deudores mientras la entrega por API esté apagada |
-| Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato |
+| Crear, pausar y terminar campañas | `Campanas` | `GET` y `POST /api/debts/campanas`, `POST /api/debts/campanas/{idExterno}/estado` | El descuento que ofrece no puede pasar del tope que el acreedor autorizó en el mandato. Una campaña nueva de una agencia necesita un mandato vigente hoy; una que ya tenía se puede pausar o terminar aunque su mandato haya terminado |
+| Declarar, renovar y terminar un mandato | `Campanas` (sección *Mandatos*, solo para una agencia) | `GET` y `POST /api/debts/mandatos`, `POST /api/debts/mandatos/{id}/renovar`, `POST /api/debts/mandatos/{id}/terminar` | Con la API apagada, es por donde nace un mandato ([#234](https://github.com/TechnicalBridge/DataBridge/issues/234)). La agencia responde por lo que declara, y queda qué persona lo declaró, renovó o terminó. Un acreedor que DataBridge no conoce se registra con su razón social. Un solo mandato a la vez con cada acreedor. Terminado o vencido, lo ya cargado se sigue cobrando: solo deja de poder cargarse cartera y crearse campañas. Una empresa que cobra lo suyo no ve nada de esto |
 | Exportar la cartera | `DataBridge` | — | Se arma en el navegador con lo que ya está en pantalla |
 | Consultar su comisión mensual | `Campanas` | `GET /api/analytics/comision?mes=2026-10` | Solo la empresa de la sesión. El porcentaje sale del recuperado de todas sus campañas en el mes de Chile; la comisión se aplica sobre el total |
 
@@ -361,7 +364,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **98 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **102 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -411,6 +414,10 @@ Cada caso de uso de arriba termina en uno o más de estos **98 endpoints**. La l
 | `GET /api/debts/campanas` | Las campañas de la empresa | Usuario de una empresa | JWT | Sí | `CampanaController.listar` |
 | `POST /api/debts/campanas` | Crear o cambiar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.guardar` |
 | `POST /api/debts/campanas/{idExterno}/estado` | Pausar, reanudar o terminar una campaña | Usuario de una empresa | JWT | Sí | `CampanaController.estado` |
+| `GET /api/debts/mandatos` | Los mandatos de la empresa, si es una agencia | Usuario de una empresa | JWT | Sí | `MandatoController.listar` |
+| `POST /api/debts/mandatos` | La agencia declara un mandato | Usuario de una agencia | JWT | Sí | `MandatoController.declarar` |
+| `POST /api/debts/mandatos/{id}/renovar` | Cambiarle la fecha de término a un mandato | Usuario de una agencia | JWT | Sí | `MandatoController.renovar` |
+| `POST /api/debts/mandatos/{id}/terminar` | Terminar un mandato | Usuario de una agencia | JWT | Sí | `MandatoController.terminar` |
 | `GET /api/debts/cartera/opciones` | Por cuenta de quién puedo cargar | Usuario de una empresa | JWT | Sí | `CargaController.opciones` |
 | `GET /api/debts/cartera/plantilla` | Descargar la plantilla de la cartera en Excel | Usuario de una empresa | JWT | Sí | `CargaController.plantilla` |
 | `POST /api/debts/cartera` | Cargar una cartera, en Excel o en CSV, en una campaña | Usuario de una empresa | JWT | Sí | `CargaController.subir` |

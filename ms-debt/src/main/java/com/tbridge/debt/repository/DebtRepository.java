@@ -4,15 +4,20 @@ import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Batch;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debtor;
+import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface DebtRepository extends JpaRepository<Debt, Long> {
+
+    /** Las deudas de un mandato que siguen en gestion: las que se cobran aunque el mandato termine (#234). */
+    long countByMandateAndStatusIn(Mandate mandate, Collection<Debt.Status> estados);
 
     /**
      * La cartera que opera una organizacion en DataBridge: la suya como

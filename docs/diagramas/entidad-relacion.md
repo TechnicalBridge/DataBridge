@@ -7,7 +7,7 @@ DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su p
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
 | [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
 
 ![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
@@ -332,6 +332,10 @@ erDiagram
         varchar(10) status "active o ended"
         varchar(160) declared_by "opcional · quién lo declaró"
         datetime created_at
+        datetime renewed_at "opcional · la última vez que se le cambió el término"
+        varchar(160) renewed_by "opcional · quién"
+        datetime ended_at "opcional · solo si está terminado"
+        varchar(160) ended_by "opcional · quién lo terminó"
     }
     organizations {
         bigint id PK
@@ -391,7 +395,7 @@ erDiagram
 | `debtors` | Quien debe. Una fila por RUT, aunque le deba a varios acreedores. |
 | `debts` | Lo que un deudor le debe a un acreedor. |
 | `installments` | Las cuotas por pagar. Una deuda sin convenio tiene una sola; al repactar, las pendientes se anulan y se emiten las del convenio. |
-| `mandates` | Una agencia cobra por cuenta de un acreedor: desde cuándo, hasta cuántos días de mora y con qué tope de descuento. |
+| `mandates` | Una agencia cobra por cuenta de un acreedor: desde cuándo, hasta cuántos días de mora y con qué tope de descuento. La agencia lo declara, lo renueva y lo termina en su portal, y queda quién lo hizo. |
 | `organizations` | Las empresas: los acreedores y las agencias de cobranza. |
 | `outbox` | La bandeja de salida: cada evento por entregar a cada suscriptor, con sus reintentos. |
 | `repactations` | Cada convenio que el deudor aceptó. Uno nuevo no pisa al anterior: lo marca como reemplazado. |
@@ -403,7 +407,7 @@ erDiagram
 | `v_debt_balance` | Por deuda: el saldo (cuotas pendientes), lo pagado y el próximo vencimiento. |
 
 <details>
-<summary>Las 42 reglas que exige la base (<code>CHECK</code>)</summary>
+<summary>Las 43 reglas que exige la base (<code>CHECK</code>)</summary>
 
 Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba directo en ella, no puede dejar un dato que rompa estas reglas.
 
@@ -442,6 +446,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `mandates` | `ck_mandate_mora_discount` | `((max_mora_discount is null) or ((max_mora_discount >= 0) and (max_mora_discount <= 100)))` |
 | `mandates` | `ck_mandate_partes` | `(agency_id <> creditor_id)` |
 | `mandates` | `ck_mandate_status` | `(status in ('active','ended'))` |
+| `mandates` | `ck_mandate_terminado` | `((ended_at is null) or (status = 'ended'))` |
 | `organizations` | `ck_organization_kind` | `(kind in ('creditor','agency','both'))` |
 | `organizations` | `ck_organization_rut` | `regexp_like(rut,'^[0-9]{7,8}-[0-9K]$')` |
 | `organizations` | `ck_organization_status` | `(status in ('active','suspended'))` |

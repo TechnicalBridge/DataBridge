@@ -115,13 +115,17 @@ public class MandatoService {
             throw new CarteraInvalida("id_invalido", "El id_externo de la campana tiene hasta 64 caracteres");
         }
         boolean esElAcreedor = quien.getId().equals(acreedor.getId());
-        if (!esElAcreedor
-                && mandates.findByAgencyAndCreditorAndStatus(quien, acreedor, Mandate.Status.active).isEmpty()) {
+        Optional<Campaign> guardada = campaigns.findByAgencyAndExternalId(quien, idExterno);
+        boolean nueva = guardada.isEmpty();
+        //  Una campana nueva necesita un mandato vigente hoy. Una que ya existe, del
+        //  mismo acreedor, se puede cambiar, pausar o terminar aunque su mandato haya
+        //  terminado o vencido: lo ya cargado se sigue cobrando (#234).
+        boolean yaEraSuya = !nueva && guardada.get().getCreditor() != null
+                && guardada.get().getCreditor().getId().equals(acreedor.getId());
+        if (!esElAcreedor && !yaEraSuya && !mandatoVigente(quien, acreedor)) {
             throw new CarteraInvalida("sin_mandato", "No hay mandato vigente sobre ese acreedor", 403);
         }
 
-        Optional<Campaign> guardada = campaigns.findByAgencyAndExternalId(quien, idExterno);
-        boolean nueva = guardada.isEmpty();
         Campaign campana = guardada.orElseGet(Campaign::new);
         campana.setAgency(quien);
         campana.setCreditor(acreedor);
@@ -182,6 +186,12 @@ public class MandatoService {
         return CampanaResponse.from(campana);
     }
 
+    private boolean mandatoVigente(Organization agencia, Organization acreedor) {
+        LocalDate hoy = LocalDate.now();
+        return mandates.findByAgencyAndCreditorAndStatus(agencia, acreedor, Mandate.Status.active).stream()
+                .anyMatch(m -> m.vigenteAl(hoy));
+    }
+
     /** Dias enteros, mayores que cero y crecientes: el dia de cada toque, contado desde la entrada. */
     private static void validarCadencia(JsonNode cadencia) {
         int anterior = 0;
@@ -206,13 +216,21 @@ public class MandatoService {
      * agencia no los puede cambiar.
      */
     private Organization buscarORegistrarAcreedor(MandatoRequest pedido) {
-        String rut = rutDelAcreedor(pedido.acreedorRut());
+        return acreedorDelMandato(rutDelAcreedor(pedido.acreedorRut()), pedido.razonSocial(), pedido.nombreFantasia());
+    }
+
+    /**
+     * El acreedor de un mandato, con su RUT ya normalizado y valido. Si
+     * DataBridge no lo conoce, lo registra con esos nombres. Tambien lo usa el
+     * mandato que se declara en el portal (#234).
+     */
+    Organization acreedorDelMandato(String rut, String razonSocial, String nombre) {
         return organizations.findByRut(rut).orElseGet(() -> {
-            String razonSocial = texto(pedido.razonSocial(), rut, 160);
+            String legal = texto(razonSocial, rut, 160);
             Organization nueva = new Organization();
             nueva.setRut(rut);
-            nueva.setLegalName(razonSocial);
-            nueva.setTradeName(texto(pedido.nombreFantasia(), razonSocial, 120));
+            nueva.setLegalName(legal);
+            nueva.setTradeName(texto(nombre, legal, 120));
             nueva.setKind(Organization.Kind.creditor);
             return organizations.save(nueva);
         });

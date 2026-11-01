@@ -15,6 +15,10 @@ import java.time.Instant;
  * <p>`maxOverdueDays` lo fija la agencia, no DataBridge: los 120 dias son la
  * regla de APOFYX —pasados esos, devuelve el caso al acreedor— y otra agencia
  * podria usar otra.
+ *
+ * <p>Con la API apagada, la agencia lo declara, lo renueva y lo termina en su
+ * portal (#234), y queda quien lo hizo. Terminado o vencido, lo ya cargado se
+ * sigue cobrando: solo deja de poder cargarse cartera y crearse campanas.
  */
 @Entity
 @Table(name = "mandates")
@@ -57,13 +61,39 @@ public class Mandate {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    /** La ultima vez que la agencia le cambio la fecha de termino, y quien. */
+    @Column(name = "renewed_at")
+    private Instant renewedAt;
+
+    @Column(name = "renewed_by", length = 160)
+    private String renewedBy;
+
+    /** Cuando la agencia lo termino, y quien. Solo en uno terminado. */
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    @Column(name = "ended_by", length = 160)
+    private String endedBy;
+
     public boolean vigenteAl(LocalDate dia) {
         return status == Status.active
                 && !dia.isBefore(validFrom)
                 && (validTo == null || !dia.isAfter(validTo));
     }
 
+    /** Como esta ese dia: vigente, por_empezar, vencido o terminado. */
+    public String estadoAl(LocalDate dia) {
+        if (status == Status.ended) {
+            return "terminado";
+        }
+        if (dia.isBefore(validFrom)) {
+            return "por_empezar";
+        }
+        return validTo != null && dia.isAfter(validTo) ? "vencido" : "vigente";
+    }
+
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Organization getAgency() { return agency; }
     public void setAgency(Organization agency) { this.agency = agency; }
     public Organization getCreditor() { return creditor; }
@@ -78,7 +108,16 @@ public class Mandate {
     public void setMaxMoraDiscount(BigDecimal maxMoraDiscount) { this.maxMoraDiscount = maxMoraDiscount; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+    public String getDeclaredBy() { return declaredBy; }
     public void setDeclaredBy(String declaredBy) { this.declaredBy = declaredBy; }
+    public Instant getRenewedAt() { return renewedAt; }
+    public void setRenewedAt(Instant renewedAt) { this.renewedAt = renewedAt; }
+    public String getRenewedBy() { return renewedBy; }
+    public void setRenewedBy(String renewedBy) { this.renewedBy = renewedBy; }
+    public Instant getEndedAt() { return endedAt; }
+    public void setEndedAt(Instant endedAt) { this.endedAt = endedAt; }
+    public String getEndedBy() { return endedBy; }
+    public void setEndedBy(String endedBy) { this.endedBy = endedBy; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

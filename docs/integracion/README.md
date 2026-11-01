@@ -502,6 +502,13 @@ POST /api/v1/mandatos
   "descuento_maximo_mora": 100 }
 ```
 
+**Sin la API** (apagada por omisión, [#191](https://github.com/TechnicalBridge/DataBridge/issues/191)), la
+agencia declara el mismo mandato en su portal, en *Campañas* (`POST /api/debts/mandatos`,
+[#234](https://github.com/TechnicalBridge/DataBridge/issues/234)), y ahí mismo lo renueva o lo termina. El
+portal es más estricto que el contrato: pide la razón social de un acreedor nuevo, rechaza una fecha
+que no entiende en vez de usar la de por omisión, y no deja tener dos mandatos a la vez con el mismo
+acreedor.
+
 **Un acreedor nuevo se registra con su mandato.** Si DataBridge no conoce ese RUT, lo registra con
 `razon_social` y `nombre_fantasia`, los mismos nombres de `lote.acreedor`. `nombre_fantasia` es el
 que ve el deudor. Así una empresa nueva de la agencia llega a DataBridge sin que nadie la cargue a

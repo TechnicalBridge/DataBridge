@@ -4,7 +4,7 @@ import {
   crearPersona, devolverAcceso, historialDeEmpresa, listarPersonal, obtenerEmpresa, quitarAcceso,
   reactivarEmpresa, suspenderEmpresa,
 } from "../api/admin";
-import { TIPO_DE_EMPRESA, dinero, fecha, rutLegible } from "../utils/formato";
+import { ESTADO_DEL_MANDATO, TIPO_DE_EMPRESA, dinero, fecha, rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
 import Cargando from "../components/Cargando";
 import { FormPersona, Historial, TablaPersonas } from "../components/AdminPersonas";
@@ -179,7 +179,7 @@ export default function AdminEmpresa() {
               {empresa.mandatos.length === 0 ? (
                 <div className="empty">
                   Sin mandatos. {empresa.tipo === "agencia"
-                    ? "Los registra su sistema cuando presenta a un acreedor."
+                    ? "La agencia los declara en su portal, en Campañas."
                     : "Cobra lo suyo, sin una agencia de por medio."}
                 </div>
               ) : (
@@ -193,9 +193,10 @@ export default function AdminEmpresa() {
                         </span>
                       </div>
                       <div className="fila-monto">
-                        {m.vigente
-                          ? <span className="badge badge-ok">Vigente</span>
-                          : <span className="badge badge-muted">Terminado</span>}
+                        {(() => {
+                          const [texto, clase] = ESTADO_DEL_MANDATO[m.estado] || ["Terminado", "badge-muted"];
+                          return <span className={`badge ${clase}`}>{texto}</span>;
+                        })()}
                       </div>
                     </div>
                   ))}

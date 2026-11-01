@@ -167,7 +167,7 @@ class EmpresaServiceTest {
     }
 
     @Test
-    void un_mandato_terminado_se_muestra_como_no_vigente() {
+    void un_mandato_vencido_o_terminado_se_muestra_como_no_vigente_y_dice_cual() {
         Mandate mandato = new Mandate();
         mandato.setAgency(apofyx);
         mandato.setCreditor(patrimonio);
@@ -176,6 +176,11 @@ class EmpresaServiceTest {
         when(mandates.todosConSusEmpresas()).thenReturn(List.of(mandato));
 
         assertFalse(de(apofyx.getRut()).mandatos().getFirst().vigente());
+        assertEquals("vencido", de(apofyx.getRut()).mandatos().getFirst().estado());
+
+        mandato.setValidTo(null);
+        mandato.setStatus(Mandate.Status.ended);
+        assertEquals("terminado", de(apofyx.getRut()).mandatos().getFirst().estado(), "lo termino la agencia (#234)");
     }
 
     @Test

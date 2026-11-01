@@ -76,7 +76,7 @@ class AdminControllerTest {
                 Instant.parse("2026-09-01T12:00:00Z"), 12, 9,
                 List.of(new EmpresaResponse.Monto("CLP", new BigDecimal("4250000"))),
                 List.of(new EmpresaResponse.Mandato("cobra_para", "76418902-7", "Patrimonio Inmuebles",
-                        LocalDate.of(2026, 1, 1), null, true)));
+                        LocalDate.of(2026, 1, 1), null, true, "vigente")));
     }
 
     @Test
