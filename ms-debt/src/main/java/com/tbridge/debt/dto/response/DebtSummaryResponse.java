@@ -70,7 +70,14 @@ public record DebtSummaryResponse(
         boolean sinCorreoValido,
         @Schema(description = "Si el ultimo correo al deudor no salio: por que, cuando, y si su direccion ya tiene "
                 + "problemas. Vacio si el ultimo salio", nullable = true)
-        CorreoFallido correoFallido
+        CorreoFallido correoFallido,
+        @Schema(description = "La CAE del convenio vigente, guardada al aceptarlo (D.S. 43 de 2012): el costo del "
+                + "credito en un ano, con todo incluido, en %. Vacio si la deuda no esta en convenio", nullable = true,
+                example = "18.00")
+        BigDecimal cae,
+        @Schema(description = "La empresa que la cobra esta suspendida: por ahora no se paga ni se repacta, y no se "
+                + "le escribe al deudor. Vuelve sola cuando la reactivan", example = "false")
+        boolean enPausa
 ) {
 
     /** El ultimo correo al deudor no salio. */
@@ -134,6 +141,12 @@ public record DebtSummaryResponse(
     /** Con la mora de hoy y el descuento por pronto pago, si la deuda lo tiene. */
     public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
                                            Disputa disputa, BigDecimal interesMora, Oferta oferta) {
+        return from(deuda, cuotas, codigoEnviado, disputa, interesMora, oferta, null);
+    }
+
+    /** Y la CAE del convenio vigente, que se informa solo si la deuda esta en convenio. */
+    public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
+                                           Disputa disputa, BigDecimal interesMora, Oferta oferta, BigDecimal cae) {
         BigDecimal saldo = suma(cuotas, Installment.Status.pending);
         BigDecimal mora = interesMora == null ? BigDecimal.ZERO : interesMora;
         //  Lo pagado es lo que se pago por DataBridge. No sale de restar el saldo
@@ -179,6 +192,9 @@ public record DebtSummaryResponse(
                 oferta == null ? null : oferta.monto(),
                 oferta == null ? null : oferta.hasta(),
                 deuda.getDebtor().getEmail() == null,
-                CorreoFallido.de(deuda.getDebtor()));
+                CorreoFallido.de(deuda.getDebtor()),
+                //  Solo en convenio: una deuda reabierta o retirada no informa la CAE de un convenio que ya no corre.
+                conConvenio ? cae : null,
+                deuda.congelada());
     }
 }

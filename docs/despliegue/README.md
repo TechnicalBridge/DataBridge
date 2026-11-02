@@ -1,7 +1,7 @@
 # DataBridge en un servidor
 
 Cómo dejar DataBridge en línea en **`https://technicalbridge.site`**, en un VPS de Namecheap, siempre encendido y
-hasta diciembre de 2026. La decisión, y por qué no Railway, están en
+hasta diciembre de 2026. La decisión está en
 [#173](https://github.com/TechnicalBridge/TB_web/issues/173); la tarea, en
 [#172](https://github.com/TechnicalBridge/TB_web/issues/172).
 
@@ -17,7 +17,9 @@ flowchart LR
         CADDY["Caddy<br/>80 y 443, Let's Encrypt"] --> PORTAL["portal<br/>nginx"]
         PORTAL -->|"/api"| GW["gateway"]
         GW --> AUTH["ms-auth"] & DEBT["ms-debt"] & PAY["ms-payments"] & AI["ms-ai"]
-        AUTH & DEBT & PAY --> DB[("MySQL 8.4")]
+        AUTH --> BA[("MySQL<br/>tb_auth")]
+        DEBT --> BD[("MySQL<br/>tb_debt")]
+        PAY --> BP[("MySQL<br/>tb_payments")]
         PAY -.-> MQ{{"RabbitMQ"}} -.-> DEBT
     end
     GHA(["GitHub Actions"]) -->|"compila las imágenes"| GHCR[("GHCR")]
@@ -29,7 +31,7 @@ flowchart LR
 
 - **Es el mismo `docker compose` de local**, más [`docker-compose.prod.yml`](../../docker-compose.prod.yml):
   - Caddy va delante y es lo único que publica puertos;
-  - MySQL, RabbitMQ y el portal quedan cerrados;
+  - las tres bases (una por servicio, cada una en su MySQL), RabbitMQ y el portal quedan cerrados;
   - el buzón de prueba no se levanta.
 - **El servidor no compila nada.** GitHub Actions ([`desplegar.yml`](../../.github/workflows/desplegar.yml)) compila
   las seis imágenes y las publica en GHCR. El servidor solo las descarga: con 6 GB no le sobra memoria para Maven.
@@ -100,12 +102,18 @@ curl -fsSL https://raw.githubusercontent.com/TechnicalBridge/TB_web/main/deploy/
 - las actualizaciones de seguridad automáticas y 2 GB de swap;
 - el usuario `databridge`, que despliega;
 - el repositorio en `/opt/databridge`;
-- un respaldo de la base cada madrugada ([`respaldar.sh`](../../deploy/respaldar.sh), los últimos 7 días en
-  `/var/backups/databridge`);
+- un respaldo de cada base cada madrugada ([`respaldar.sh`](../../deploy/respaldar.sh), un archivo por base y
+  los últimos 7 días en `/var/backups/databridge`);
 - un `.env` con **claves nuevas al azar** y los valores de producción: `PUBLIC_URL`, `COOKIE_SECURE`,
   `CORS_ORIGINS`, `KHIPU_URL_AVISOS`, y para la demo `DEMO_DATOS`, `CONTACTO_SIN_HORARIO` y `CONTACTO_SIN_LIMITE`.
 
 Se puede volver a correr: no pisa lo que ya existe.
+
+Con `DEMO_DATOS=true` y una base de negocio vacía, el primer arranque instala la demo independiente:
+Servicios Horizonte cobra directamente, con dos campañas y seis deudas ficticias. Su persona entra
+con `camila.reyes@example.com`. Los correos van a Mailpit o, con un proveedor real, al desvío de prueba
+obligatorio. Las bases existentes, incluida la demo anterior, no se convierten ni se completan;
+no se debe borrar su volumen para intentar activar esta siembra.
 
 ## 5. El correo, las pasarelas y el DNS
 
@@ -120,6 +128,12 @@ Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORR
 
 Con los datos de la demo, **`CORREO_SOLO_A` y `CORREO_DESVIAR_A` no son opcionales**: los deudores de ejemplo
 tienen correos inventados.
+
+En el servidor no hay Mailpit (`docker-compose.prod.yml` deja `CORREO_BUZON_DE_PRUEBA` vacío). Por eso lo que va a
+un dominio reservado, como el código de `camila.reyes@example.com`, llega al buzón de `CORREO_DESVIAR_A`, con el
+destinatario original en el asunto. Ese desvío gasta el cupo de Brevo, y tiene un tope de
+`CORREO_DESVIO_MAXIMO_POR_DIA` correos por día (100, por omisión): sobra para entrar a la demo, pero no para cargar
+una planilla grande de prueba en el servidor (#236).
 
 **El DNS**, en Namecheap → *Domain List* → `technicalbridge.site` → **Advanced DNS**:
 
@@ -162,6 +176,24 @@ cada push a `main` se despliega solo.
   ```
 
 - Un deudor entra con su código, paga con Webpay (tarjeta de prueba) y la empresa ve el pago.
+- En los tres portales, **Enviar código** manda solo código; **¿No te llegó?** manda código y
+  enlace en un único mensaje. El acceso solicitado dura `MAGIC_TTL_MINUTES` (15 por omisión), y
+  usar una opción invalida ambas. Las invitaciones iniciales del personal conservan su enlace.
+  Probar solo con destinatarios autorizados y el modo de prueba activo.
+- Si comprobar la empresa responde `503` porque ms-debt no está disponible, no debe abrirse sesión
+  ni consumirse el código o enlace correcto. Al recuperarse el servicio, se puede reintentar el
+  mismo acceso mientras siga vigente. Los intentos incorrectos sí siguen contando.
+- Antes de desplegar este cambio de acceso, respaldar `tb_auth`: Flyway aplica V6 sobre
+  `magic_links` sin borrar registros. Para revertir la aplicación, volver al código anterior
+  conservando los archivos de migración hasta V6; no borrar columnas ni modificar su historial.
+  Antes de arrancar la versión anterior, invalidar solo los pedidos nuevos aún pendientes, tras
+  el respaldo y con autorización de quien opera la base:
+
+  ```sql
+  UPDATE tb_auth.magic_links
+  SET consumed_at = UTC_TIMESTAMP(6)
+  WHERE code_hash IS NOT NULL AND consumed_at IS NULL;
+  ```
 - En *Reglas*, el horario y el límite de la ley salen **apagados para probar**.
 
 ## 8. En diciembre: apagarlo

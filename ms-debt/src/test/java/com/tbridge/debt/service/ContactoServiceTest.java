@@ -316,4 +316,15 @@ class ContactoServiceTest {
         verify(auth).emitirCodigo(pedido.capture());
         assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
     }
+
+    @Test
+    void a_los_deudores_de_una_empresa_suspendida_no_se_les_escribe_y_al_reactivarla_si() {
+        deuda.getCreditor().setStatus(Organization.Status.suspended);
+
+        assertEquals(0, el(6, 10).enviados(), "suspendida, el dia 1 no sale nada");
+        assertTrue(historia.isEmpty());
+
+        deuda.getCreditor().setStatus(Organization.Status.active);
+        assertEquals(1, el(6, 11).enviados(), "reactivada, sale el toque que esperaba");
+    }
 }

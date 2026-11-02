@@ -83,6 +83,17 @@ export default function Pay() {
     );
   }
 
+  //  La empresa que la cobra esta suspendida (#152). Un pago que ya estaba en curso se sigue mostrando.
+  if (deuda.enPausa && !pago) {
+    return (
+      <div className="card" style={{ maxWidth: 560 }}>
+        <h2>Por ahora esta deuda no se puede pagar</h2>
+        <p className="hint">La cobranza de esta deuda está en pausa. Mientras tanto no se cobra ni te llegan correos; cuando se reanude, vas a poder pagarla aquí.</p>
+        <Link className="btn btn-ghost btn-sm" to="/app"><IconoVolver size={16} /> Volver a mis deudas</Link>
+      </div>
+    );
+  }
+
   const moneda = deuda.moneda;
   const vigentes = (deuda.cuotas || []).filter((c) => c.estado !== "anulada").sort(porVencimiento);
   const pendientes = vigentes.filter((c) => c.estado === "pending");
@@ -158,7 +169,10 @@ export default function Pay() {
         <div>
           <span className="eyebrow">{deuda.acreedor}</span>
           <h1>Pagar</h1>
-          <p>{deuda.concepto}, ref. {deuda.externalId}</p>
+          <p>
+            {deuda.concepto}, ref. {deuda.externalId}
+            {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
+          </p>
         </div>
         <Link className="btn btn-ghost btn-sm" to="/app">
           <IconoVolver size={16} />
@@ -197,7 +211,7 @@ export default function Pay() {
               {enConvenio ? (
                 <>
                   <div className="card-cab">
-                    <h3>Elige las cuotas</h3>
+                    <h2>Elige las cuotas</h2>
                     <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
                   </div>
                   <p className="hint" style={{ margin: "0 0 14px" }}>
@@ -249,7 +263,7 @@ export default function Pay() {
                 </>
               ) : (
                 <>
-                  <h3>Lo que debes</h3>
+                  <h2>Lo que debes</h2>
                   <table className="table">
                     <thead>
                       <tr><th>Concepto</th><th>Venció</th><th className="num">Monto</th></tr>
@@ -293,7 +307,7 @@ export default function Pay() {
             </div>
 
             <div className="card pegado aparece" style={{ "--i": 3 }}>
-              <h3>Resumen</h3>
+              <h2>Resumen</h2>
               <div className="total-pagar">
                 <div>
                   <span>Total a pagar</span>

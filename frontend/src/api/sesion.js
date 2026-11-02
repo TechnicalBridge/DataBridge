@@ -1,10 +1,13 @@
 import { pedir } from "./client";
 
-/** Entrar con RUT y el codigo de acceso. */
-export const entrarConCodigo = (rut, codigo) =>
-  pedir("/auth/acceso", { method: "POST", body: { rut, codigo } });
+/** Entrar con codigo y RUT del deudor o correo del personal. */
+export const entrarConCodigo = (identificador, codigo, esDeudor = true) =>
+  pedir("/auth/acceso", { method: "POST", body: { [esDeudor ? "rut" : "correo"]: identificador, codigo } });
 
-/** El enlace de respaldo al correo. El personal de las empresas entra asi. */
+export const pedirCodigo = (correo, rut) =>
+  pedir("/auth/codigo", { method: "POST", body: { correo, rut: rut || null } });
+
+/** Codigo nuevo y enlace de respaldo, juntos en el mismo correo. */
 export const pedirEnlace = (correo, rut) =>
   pedir("/auth/enlace", { method: "POST", body: { correo, rut: rut || null } });
 

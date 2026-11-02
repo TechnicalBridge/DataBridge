@@ -42,6 +42,12 @@ jobs:
           cache: maven
           cache-dependency-path: ${{ inputs.modulo }}/pom.xml
 
+      #  ms-debt y ms-payments guardan cada uno una copia del contrato del aviso
+      #  de pago, y cada uno se prueba contra la suya: las dos tienen que ser iguales.
+      - name: El contrato del aviso de pago, igual en los dos servicios
+        if: inputs.modulo == 'ms-debt' || inputs.modulo == 'ms-payments'
+        run: cmp ms-debt/src/test/resources/contratos/pago-confirmado.json ms-payments/src/test/resources/contratos/pago-confirmado.json
+
       #  mvn y no ./mvnw: el wrapper esta en git sin el bit de ejecucion (se
       #  commitea desde Windows), y en Linux daria "Permission denied". El
       #  runner de GitHub ya trae Maven.

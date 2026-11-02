@@ -327,7 +327,9 @@ flowchart LR
             AdminInicio
             AdminEmpresas
             AdminEmpresa
+            AdminOperacion
             AdminEquipo
+            AdminAccesos
             AdminReglas
         end
     end
@@ -368,7 +370,7 @@ flowchart LR
     Cargar --> deudas
     Cargar & Campanas --> FormCampana --> campanas
     Campanas --> campanas & deudas
-    AdminInicio & AdminEmpresas & AdminReglas --> admin
+    AdminInicio & AdminEmpresas & AdminReglas & AdminAccesos & AdminOperacion --> admin
     AdminEmpresa & AdminEquipo --> admin
     AdminEmpresa & AdminEquipo --> AdminPersonas
     Layout --> deudas
@@ -380,7 +382,7 @@ flowchart LR
 
 | Carpeta | Qué hay | Qué archivos |
 | --- | --- | --- |
-| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 21 pantallas |
+| `pages/` | Una pantalla por archivo. `App.jsx` decide cuál se ve según la ruta y el rol de la sesión | 23 pantallas |
 | `components/` | Lo que usan varias pantallas | `Layout` (el menú de cada portal), `Chatbot` (el asistente, solo para el deudor), `FormCampana` (crear o cambiar una campaña, en Campañas y en Cargar cartera), `AdminPersonas` (las personas y la historia, en el panel), `Graficos`, `BarraEstado`, `Cargando`, `Iconos`, `Logo`, `LogoPasarela`, `TemaToggle` |
 | `api/` | Las llamadas al servidor | Un módulo por tema, y `client.js` |
 | `store/` | El estado que comparten las pantallas, con Zustand | `authStore` (la sesión) y `temaStore` (claro u oscuro) |
@@ -390,14 +392,14 @@ Qué módulo de `api/` habla con qué servicio:
 
 | Módulo | Rutas que llama | Servicio |
 | --- | --- | --- |
-| `sesion.js` | `/api/auth/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
+| `sesion.js` | `/api/auth/codigo`, `/acceso`, `/enlace`, `/verify`, `/logout` y `/api/me` | ms-auth |
 | `client.js` | `/api/auth/refresh`, cuando el JWT vence | ms-auth |
 | `deudas.js` | `/api/debts/**` | ms-debt |
 | `analitica.js` | `/api/analytics/summary` | ms-debt |
 | `campanas.js` | `/api/debts/campanas/**` | ms-debt |
 | `pagos.js` | `/api/payments/**`, y `/api/debts/pagos/**` para el historial y el comprobante | ms-payments y ms-debt |
 | `asistente.js` | `/api/ai/chat` | ms-ai |
-| `admin.js` | `/api/admin/<servicio>/estado`, `/api/admin/debt/empresas/**` y `/api/admin/auth/**` | ms-auth, ms-debt y ms-payments |
+| `admin.js` | `/api/admin/auth/**`, `/api/admin/debt/**` y `/api/admin/payments/**`: el estado y las reglas de cada servicio, las empresas y sus comisiones, la gente, los accesos y la operación | ms-auth, ms-debt y ms-payments |
 
 La pantalla del portal de empresas trae los gráficos (recharts), que pesan más que todo lo demás junto: se
 descarga solo al entrar ahí, y el deudor nunca la baja.
@@ -422,17 +424,15 @@ flowchart TB
             AI["ms-ai"]
         end
         FE["frontend<br/>React y Vite"]
-        CON["docs/integracion<br/>el contrato v1 y su esquema JSON"]
-        EVT["docs/eventos<br/>pago-confirmado.json"]
-        DBI["db/init<br/>crea las tres bases"]
-        DC["docker-compose.yml<br/>levanta todo"]
+        CON["docs/integracion<br/>el contrato v1"]
+        EVT["docs/eventos<br/>el aviso de pago"]
+        DC["docker-compose.yml<br/>levanta todo, con una<br/>base por servicio"]
         CI[".github/workflows<br/>un workflow por módulo"]
         K6["rendimiento<br/>las pruebas de carga"]
     end
     CON -. "lo implementa" .-> DEBT
     EVT -. "lo escribe" .-> PAY
     EVT -. "lo lee" .-> DEBT
-    DBI -. "deja las bases que migra cada servicio" .-> JAVA
     DC -. "construye y conecta" .-> JAVA
     DC -. "construye" .-> FE
     CI -. "prueba cada uno por separado" .-> JAVA
@@ -445,8 +445,8 @@ Lo único que dos servicios comparten es **lo publicado**, y los dos se prueban 
 | Qué | Dónde | Quién lo cumple |
 | --- | --- | --- |
 | El contrato de integración v1 | [`docs/integracion`](../integracion/README.md) | ms-debt lo implementa; el sistema de cada empresa lo usa |
-| El aviso de pago | `docs/eventos/pago-confirmado.json` | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
-| El JWT | `JWT_SECRET`, el mismo en los tres | ms-auth lo firma; ms-debt y ms-payments lo verifican |
+| El aviso de pago | [`docs/eventos`](../eventos/README.md), con una copia del JSON en las pruebas de cada uno, que la CI compara | ms-payments lo escribe y ms-debt lo lee. Cada uno tiene su propia clase `PagoConfirmado` |
+| El JWT | ES256/P-256: privada solo en auth, publicas en JWKS | auth firma con kid estable; debt/payments verifican con Resource Server |
 | La clave interna | `INTERNAL_KEY`, la misma en los tres | Quien llama a `/internal` de otro |
 
 Lo que antes habría ido en una librería común lo tiene cada servicio en sus paquetes, y solo lo que usa:

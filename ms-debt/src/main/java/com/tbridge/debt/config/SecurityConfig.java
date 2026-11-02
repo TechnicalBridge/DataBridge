@@ -1,74 +1,54 @@
 package com.tbridge.debt.config;
 
-import com.tbridge.debt.security.JwtAuthFilter;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.MediaType;
+import com.tbridge.debt.security.*;
+import org.springframework.context.annotation.*;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.nio.charset.StandardCharsets;
-
-/**
- * Quien puede llamar a que.
- *
- * <p>Tres puertas con tres llaves: el portal con el JWT de la sesion, el
- * contrato de integracion (/api/v1) con una clave de API que valida el propio
- * servicio, y lo interno con la clave que comparten los servicios. Sin CORS:
- * el navegador llega por el gateway, que es el que decide los origenes.
- */
 @Configuration
 public class SecurityConfig {
-
-    private final JwtAuthFilter jwtAuthFilter;
-
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
+    private HttpSecurity base(HttpSecurity http) throws Exception {
+        // API REST stateless: JWT/API key y clave interna en headers, sin autenticacion por cookie.
+        // Solo estas familias omiten CSRF; sus controles de autenticacion/autorizacion siguen vigentes.
+        // Reevaluar si se incorpora autenticacion basada en cookie.
+        return http.csrf(csrf -> csrf.ignoringRequestMatchers(
+                        "/internal/**", "/api/v1/**", "/api/debts/**", "/api/claves/**", "/api/admin/debt/**"))
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req,res,e) -> JwtAuthenticationFailureHandler.write(res,401,"No autorizado"))
+                        .accessDeniedHandler((req,res,e) -> JwtAuthenticationFailureHandler.write(res,403,"No tienes permiso para esto")));
     }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        //  Sin CSRF, a proposito: la sesion viaja en el header Authorization, que
-        //  el navegador no agrega solo cuando otro sitio dispara una peticion.
-        http.csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health/**").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/internal/**").permitAll()
-                        //  La clave de API la valida el controlador: el emisor sale de ella.
-                        //  Con la entrega por API apagada (INTEGRACION_API), no hay
-                        //  controlador y responde 404.
-                        .requestMatchers("/api/v1/**").permitAll()
-                        //  El panel de administracion es solo del admin de DataBridge.
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        //  Y todo lo demas, solo del deudor y de las empresas: el admin
-                        //  no entra a un portal ajeno. Antes bastaba con tener sesion, y
-                        //  quien no era empresa se trataba como deudor.
-                        .anyRequest().hasAnyRole("DEBTOR", "CREDITOR")
-                )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((req, res, e) -> {
-                            res.setStatus(401);
-                            res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            res.getWriter().write("{\"error\":\"No autorizado\"}");
-                        })
-                        //  Con sesion, pero de otro rol: un deudor o una empresa en el
-                        //  panel de administracion, o el admin en un portal ajeno.
-                        .accessDeniedHandler((req, res, e) -> {
-                            res.setStatus(403);
-                            res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            res.getWriter().write("{\"error\":\"No tienes permiso para esto\"}");
-                        })
-                )
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+    @Bean @Order(1)
+    public SecurityFilterChain sinSesionFilterChain(HttpSecurity http) throws Exception {
+        // El controlador conserva API key o X-Internal-Key; no son sesiones.
+        return base(http).securityMatcher("/internal/**", "/api/v1/**")
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()).build();
+    }
+
+    @Bean @Order(2)
+    public SecurityFilterChain portalFilterChain(HttpSecurity http, JwtDecoder decoder) throws Exception {
+        base(http).authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .anyRequest().hasAnyRole("DEBTOR","CREDITOR"));
+        http.oauth2ResourceServer(rs -> {
+            rs.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(new JwtPrincipalConverter()));
+            rs.authenticationEntryPoint((req,res,e) -> JwtAuthenticationFailureHandler.write(res,401,"No autorizado"));
+            rs.withObjectPostProcessor(new ObjectPostProcessor<BearerTokenAuthenticationFilter>() {
+                @Override public <O extends BearerTokenAuthenticationFilter> O postProcess(O filter) {
+                    filter.setAuthenticationFailureHandler(new JwtAuthenticationFailureHandler());
+                    return filter;
+                }
+            });
+        });
         return http.build();
     }
 }

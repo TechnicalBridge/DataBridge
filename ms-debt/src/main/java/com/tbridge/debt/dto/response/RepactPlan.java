@@ -24,6 +24,10 @@ public record RepactPlan(
         @Schema(description = "Lo que se repacta: el capital mas la mora", example = "115.50") BigDecimal aRepactar,
         @Schema(description = "La tasa mensual del acreedor, en porcentaje. Vacia si la deuda no genera intereses",
                 nullable = true, example = "1.5") BigDecimal tasaInteresMensual,
-        @Schema(description = "Lo que suman los intereses del convenio", example = "0") BigDecimal interesConvenio
+        @Schema(description = "Lo que suman los intereses del convenio", example = "0") BigDecimal interesConvenio,
+        @Schema(description = "La Carga Anual Equivalente (CAE) del convenio (Ley 20.555 y D.S. 43 de 2012), en % y "
+                + "con dos decimales. 0.00 si es sin interes", example = "0.00") BigDecimal cae,
+        @Schema(description = "El costo total del convenio: la suma de todas las cuotas", example = "115.50")
+        BigDecimal costoTotal
 ) {
 }

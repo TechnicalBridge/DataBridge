@@ -32,10 +32,10 @@ class ClienteRealTest {
     }
 
     @Test
-    void el_portal_que_llega_por_la_red_privada_de_railway_es_de_confianza() throws IOException {
+    void el_portal_que_llega_por_una_red_privada_es_de_confianza() throws IOException {
         ClienteReal porOmision = comoViene();
 
-        //  Asi escribe Java una direccion privada de IPv6, la que tiene el portal en Railway.
+        //  Asi escribe Java una direccion privada de IPv6, por si la red de Docker solo da IPv6.
         assertEquals("203.0.113.7", porOmision.resolver("fd12:3456:789a:1:0:0:0:1", "203.0.113.7"));
         assertEquals("203.0.113.7", porOmision.resolver("10.20.30.40", "203.0.113.7"));
         assertEquals("203.0.113.7", porOmision.resolver("172.21.0.10", "203.0.113.7"));

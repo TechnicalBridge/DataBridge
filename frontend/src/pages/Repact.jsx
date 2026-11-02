@@ -74,6 +74,17 @@ export default function Repact() {
 
   if (!deuda) return error ? <div className="error">{error}</div> : <Cargando tarjetas={1} />;
 
+  //  La empresa que la cobra esta suspendida (#152): tampoco se repacta.
+  if (deuda.enPausa) {
+    return (
+      <div className="card" style={{ maxWidth: 560 }}>
+        <h2>Por ahora esta deuda no se puede repactar</h2>
+        <p className="hint">La cobranza de esta deuda está en pausa. Mientras tanto no se cobra ni te llegan correos; cuando se reanude, vas a poder pagarla aquí.</p>
+        <Link className="btn btn-ghost btn-sm" to="/app"><IconoVolver size={16} /> Volver a mis deudas</Link>
+      </div>
+    );
+  }
+
   const moneda = deuda.moneda;
   const plan = planes[meses];
   const esperando = !plan && pedido !== meses;
@@ -105,11 +116,14 @@ export default function Repact() {
               <span className="eyebrow">Plazo</span>
               <b key={meses}>{meses}<small>meses</small></b>
             </div>
-            {deuda.tasaInteresMensual ? (
-              <span className="badge badge-muted">{porcentaje(deuda.tasaInteresMensual)} mensual</span>
-            ) : (
-              <span className="badge badge-ok">Sin interés</span>
-            )}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <span className="badge badge-muted">CAE {porcentaje(plan?.cae, 2)}</span>
+              {deuda.tasaInteresMensual ? (
+                <span className="badge badge-muted">{porcentaje(deuda.tasaInteresMensual)} mensual</span>
+              ) : (
+                <span className="badge badge-ok">Sin interés</span>
+              )}
+            </div>
           </div>
 
           <div className="plazo">
@@ -145,22 +159,31 @@ export default function Repact() {
               <b key={`u${meses}${!!plan}`}>{plan ? dinero(plan.lastAmount, moneda) : "—"}</b>
             </div>
             <div className="cifra">
-              <span>Total</span>
-              <b key={`t${meses}${!!plan}`}>{plan ? dinero(plan.total, moneda) : "—"}</b>
+              <span>Costo total</span>
+              <b key={`t${meses}${!!plan}`}>{plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}</b>
             </div>
           </div>
-          {plan?.tasaInteresMensual ? (
+          {deuda.tasaInteresMensual && !plan ? (
+            <p className="hint">
+              Las cuotas llevan el {porcentaje(deuda.tasaInteresMensual)} de interés mensual que pactaste con{" "}
+              {deuda.acreedor}. Al calcular la cuota ves el costo total y la CAE (el costo del convenio en un año, con
+              todo incluido).
+            </p>
+          ) : deuda.tasaInteresMensual ? (
             <p className="hint">
               Se repacta lo que debes hoy: {dinero(plan.capital, moneda)}
               {Number(plan.interesMora) > 0 ? ` más ${dinero(plan.interesMora, moneda)} de intereses por mora` : ""},{" "}
               {dinero(plan.aRepactar, moneda)}. Las cuotas llevan el {porcentaje(plan.tasaInteresMensual)} de interés
-              mensual que pactaste con {deuda.acreedor}: en total pagas {dinero(plan.total, moneda)}, y{" "}
-              {dinero(plan.interesConvenio, moneda)} son intereses del convenio. La última cuota absorbe el redondeo.
+              mensual que pactaste con {deuda.acreedor}: en total pagas {dinero(plan.costoTotal ?? plan.total, moneda)}, y{" "}
+              {dinero(plan.interesConvenio, moneda)} son intereses del convenio. CAE {porcentaje(plan.cae, 2)} (el costo
+              del convenio en un año, con todo incluido). La última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           ) : (
             <p className="hint">
-              El total es lo que debes hoy: no se cobran intereses. La última cuota absorbe el redondeo.
+              El costo total es lo que debes hoy: {plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}, no se
+              cobran intereses. CAE {porcentaje(plan?.cae, 2)} (el costo del convenio en un año, con todo incluido). La
+              última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           )}
@@ -171,7 +194,7 @@ export default function Repact() {
         </div>
 
         <div className="card aparece" style={{ "--i": 3 }}>
-          <h3>Calendario</h3>
+          <h2>Calendario</h2>
           {plan ? (
             <ol className="calendario" key={meses}>
               {plan.cuotas.map((c, i) => (

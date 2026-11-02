@@ -68,18 +68,18 @@ export default function AdminEquipo() {
       <div className="grid-2">
         <div>
           <div className="card bloque aparece" style={{ "--i": 1 }}>
-            <h3>Admins</h3>
+            <h2>Admins</h2>
             <TablaPersonas personas={admins} tuCorreo={user?.correo} alCambiar={cambiarAcceso}
                            vacio="No hay ningún admin." />
           </div>
           <div className="card aparece" style={{ "--i": 3 }}>
-            <h3>Lo que se hizo desde el panel</h3>
+            <h2>Lo que se hizo desde el panel</h2>
             <Historial acciones={acciones} />
           </div>
         </div>
 
         <div className="card aparece" style={{ "--i": 2 }}>
-          <h3>Dar de alta a otro admin</h3>
+          <h2>Dar de alta a otro admin</h2>
           <FormPersona prefijo="a" boton="Dar de alta" alGuardar={agregar} ejemplo="nombre@databridge.cl" />
           <p className="hint">
             Va a poder dar de alta empresas y personas, igual que tú. Le llega un enlace a su correo, y entra sin

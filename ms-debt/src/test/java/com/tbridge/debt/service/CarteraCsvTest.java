@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CarteraCsvTest {
 
-    private static final Path EJEMPLOS = Path.of("..", "docs", "integracion", "ejemplos");
+    private static final Path EJEMPLOS = Path.of("src", "test", "resources", "cartera");
     private static final CarteraCsv.Lote LOTE =
             new CarteraCsv.Lote("PAT-2026-09-18-01", "2026-09-18", "76418902-7", null, null);
 

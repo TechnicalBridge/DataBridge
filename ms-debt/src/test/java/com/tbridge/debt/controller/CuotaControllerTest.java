@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.ConvenioEnRiesgoResponse;
 import com.tbridge.debt.dto.response.CuotaPorVencerResponse;
@@ -35,8 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Los vencimientos, los convenios en riesgo y los datos del deudor, por HTTP. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({CuotaController.class, MisDatosController.class})
-@Import({SecurityConfig.class, JwtService.class, CuotaControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CuotaControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class CuotaControllerTest {
 
@@ -51,7 +52,7 @@ class CuotaControllerTest {
     private static final String PUBLICA = "http://localhost:8080";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private CuotaService cuotas;
     @MockitoBean private MisDatosService datos;
 

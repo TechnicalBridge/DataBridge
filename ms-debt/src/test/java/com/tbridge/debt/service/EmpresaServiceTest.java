@@ -167,7 +167,7 @@ class EmpresaServiceTest {
     }
 
     @Test
-    void un_mandato_terminado_se_muestra_como_no_vigente() {
+    void un_mandato_vencido_o_terminado_se_muestra_como_no_vigente_y_dice_cual() {
         Mandate mandato = new Mandate();
         mandato.setAgency(apofyx);
         mandato.setCreditor(patrimonio);
@@ -176,6 +176,11 @@ class EmpresaServiceTest {
         when(mandates.todosConSusEmpresas()).thenReturn(List.of(mandato));
 
         assertFalse(de(apofyx.getRut()).mandatos().getFirst().vigente());
+        assertEquals("vencido", de(apofyx.getRut()).mandatos().getFirst().estado());
+
+        mandato.setValidTo(null);
+        mandato.setStatus(Mandate.Status.ended);
+        assertEquals("terminado", de(apofyx.getRut()).mandatos().getFirst().estado(), "lo termino la agencia (#234)");
     }
 
     @Test
@@ -285,5 +290,18 @@ class EmpresaServiceTest {
         assertEquals("APOFYX", servicio.buscar("77.305.118-6").orElseThrow().nombre());
         assertTrue(servicio.buscar("77305118-6").orElseThrow().activa());
         assertTrue(servicio.buscar("11111111-1").isEmpty());
+    }
+
+    @Test
+    void suspender_y_reactivar_una_empresa() {
+        EmpresaResponse suspendida = servicio.suspender(apofyx.getRut(), ADMIN);
+        assertFalse(suspendida.activa());
+        assertEquals(Organization.Status.suspended, apofyx.getStatus());
+        verify(organizations).save(apofyx);
+        verify(bitacora).save(any(AdminLog.class));
+
+        EmpresaResponse reactivada = servicio.reactivar(apofyx.getRut(), ADMIN);
+        assertTrue(reactivada.activa());
+        assertEquals(Organization.Status.active, apofyx.getStatus());
     }
 }

@@ -105,6 +105,12 @@ export default function FormCampana({ acreedores, editando = null, onGuardada, o
   return (
     <form onSubmit={guardar}>
       {error ? <div className="error">{error}</div> : null}
+      {acreedores.length === 0 && !editando ? (
+        <div className="aviso-revision">
+          <b>Primero, un mandato</b>
+          <span>Para crear una campaña necesitas un mandato vigente: decláralo en Campañas, en Mandatos.</span>
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor={id("nombre")}>Nombre</label>
         <input id={id("nombre")} value={form.nombre} maxLength={120} onChange={campo("nombre")}

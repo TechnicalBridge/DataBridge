@@ -92,6 +92,17 @@ class ReglasServiceTest {
     }
 
     @Test
+    void el_modelo_de_negocio_muestra_sus_cuatro_tramos() {
+        var negocio = reglas.grupos().stream().filter(g -> g.nombre().equals("Modelo de negocio")).findFirst().orElseThrow();
+        assertEquals(4, negocio.reglas().size());
+        assertEquals("Si se recupera más de $0 y hasta $1.000.000", negocio.reglas().get(0).que());
+        assertEquals("6 % de lo recuperado en el mes", negocio.reglas().get(0).valor());
+        assertEquals("Si se recupera más de $10.000.000", negocio.reglas().get(3).que());
+        assertEquals("15 % de lo recuperado en el mes", negocio.reglas().get(3).valor());
+        assertNull(negocio.reglas().get(0).variable(), "es el modelo del equipo: no sale de una variable");
+    }
+
+    @Test
     void los_feriados_son_los_mismos_que_usan_las_campanas_y_dicen_cual_se_decreto() {
         Regla de2026 = regla("Feriados de 2026");
         Regla de2027 = regla("Feriados de 2027");

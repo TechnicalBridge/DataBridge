@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { crearEmpresa, crearPersona, listarEmpresas } from "../api/admin";
 import { TIPO_DE_EMPRESA, dinero, rutLegible } from "../utils/formato";
 import Cargando from "../components/Cargando";
+import ComisionesDelMes from "../components/ComisionesDelMes";
 
 const VACIA = { rut: "", razonSocial: "", nombre: "", tipo: "agencia", personaNombre: "", personaCorreo: "" };
 
@@ -75,9 +76,11 @@ export default function AdminEmpresas() {
       </header>
       {error ? <div className="error" role="alert">{error}</div> : null}
 
+      <ComisionesDelMes />
+
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Empresas registradas</h3>
+          <h2>Empresas registradas</h2>
           {empresas.length === 0 ? (
             <div className="empty">Todavía no hay empresas. Da de alta la primera.</div>
           ) : (
@@ -91,6 +94,7 @@ export default function AdminEmpresas() {
                     <tr key={e.rut}>
                       <td>
                         <Link to={`/admin/empresas/${e.rut}`}>{e.nombre}</Link>
+                        {!e.activa ? <span className="badge badge-muted" style={{ marginLeft: 6 }}>Suspendida</span> : null}
                         <span className="sub sin-corte">{rutLegible(e.rut)}</span>
                       </td>
                       <td>{TIPO_DE_EMPRESA[e.tipo] || e.tipo}</td>
@@ -113,7 +117,7 @@ export default function AdminEmpresas() {
         </div>
 
         <div className="card aparece" style={{ "--i": 2 }}>
-          <h3>Dar de alta una empresa</h3>
+          <h2>Dar de alta una empresa</h2>
           <form onSubmit={darDeAlta}>
             {errorDelAlta ? <div className="error" role="alert">{errorDelAlta}</div> : null}
             <div className="field">

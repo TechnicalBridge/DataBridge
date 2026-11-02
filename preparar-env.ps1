@@ -11,17 +11,22 @@
 #    .\preparar-env.ps1 -Renovar
 #        Ademas cambia los secretos que todavia tengan uno de los valores de
 #        desarrollo que antes venian escritos en el repositorio (los reconoce
-#        por su huella SHA-256, sin guardarlos aqui). Las claves de MySQL se
-#        cambian tambien dentro de la base, si esta arriba, sin perder datos.
+#        por su huella SHA-256, sin guardarlos aqui).
 #
 #    .\preparar-env.ps1 -Renovar -TambienCifrado
-#        Lo mismo, y tambien CIFRADO_LLAVE. Cuidado: con ella se cifran los
-#        secretos de las suscripciones guardadas; despues de cambiarla, cada
-#        sistema conectado (APOFYX, Patrimonio) tiene que volver a conectarse.
+#        Lo mismo, y tambien CIFRADO_LLAVE, como se explica abajo.
 #
-#    .\preparar-env.ps1 -Cambiar JWT_SECRET[,OTRO]
+#    .\preparar-env.ps1 -Cambiar INTERNAL_KEY[,OTRO]
 #        Cambia esos secretos aunque ya tengan un valor propio: para cuando uno
-#        se filtro (quedo en una captura, en un registro, en un chat).
+#        se filtro (quedo en una captura, en un registro, en un chat). Las
+#        claves de una base (DB_DEBT_PASSWORD, ...) se cambian tambien dentro de
+#        esa base, que tiene que estar arriba, sin perder datos.
+#
+#  CIFRADO_LLAVE cifra los secretos de las suscripciones guardadas. Al
+#  cambiarla, la de antes queda en CIFRADO_LLAVE_ANTERIOR: al reiniciar,
+#  ms-debt vuelve a cifrar con la nueva cada secreto, en una transaccion, y
+#  ningun sistema conectado tiene que volver a conectarse. Despues se saca
+#  CIFRADO_LLAVE_ANTERIOR del .env (#258).
 #
 #  Nunca muestra un valor. Despues: docker compose --profile app up -d.
 # =============================================================================
@@ -29,8 +34,9 @@ param(
     [switch]$Renovar,
     [switch]$TambienCifrado,
     [string[]]$Cambiar = @(),
-    #  El contenedor de MySQL de DataBridge. Solo cambia en una prueba.
-    [string]$Contenedor = 'tbridge-db'
+    #  Como empiezan los contenedores de las tres bases (tbridge-db-auth, ...).
+    #  Solo cambia en una prueba.
+    [string]$Contenedores = 'tbridge-db'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,15 +44,26 @@ $archivo = Join-Path $PSScriptRoot '.env'
 $ejemplo = Join-Path $PSScriptRoot '.env.example'
 $sinBom = New-Object System.Text.UTF8Encoding($false)
 
-#  Los secretos, y la huella SHA-256 del valor publico que tenia cada uno.
+#  Los secretos, y la huella SHA-256 del valor publico que tenia cada uno. Las
+#  claves de las tres bases (#238) nunca tuvieron uno: van sin huella.
 $secretos = [ordered]@{
-    MYSQL_ROOT_PASSWORD = '5012f5182061c46e57859cf617128c6f70eddfba4db27772bdede5a039fa7085'
-    MYSQL_PASSWORD      = '068a635d2c022dfafb6c163b832327ab9bd8b944c3f44af23bf97cbc6591be1c'
+    DB_AUTH_ROOT_PASSWORD     = ''
+    DB_AUTH_PASSWORD          = ''
+    DB_DEBT_ROOT_PASSWORD     = ''
+    DB_DEBT_PASSWORD          = ''
+    DB_PAYMENTS_ROOT_PASSWORD = ''
+    DB_PAYMENTS_PASSWORD      = ''
     RABBIT_PASSWORD     = '84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec'
-    JWT_SECRET          = '686101b1c40874b07191bc92a9965f89fa570088218f88e30abbe768737f347f'
     INTERNAL_KEY        = 'cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621'
     CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'
     WEBHOOK_SECRET      = 'ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5'
+}
+
+#  De que base es cada clave, y en que contenedor vive: DB_DEBT_PASSWORD es de
+#  DB_DEBT, que vive en tbridge-db-debt.
+function Base-De([string]$nombre) { return ($nombre -replace '_(ROOT_)?PASSWORD$', '') }
+function Contenedor-De([string]$base) {
+    return "$Contenedores-" + ($base -replace '^DB_', '').ToLower()
 }
 
 function Nueva-Clave {
@@ -83,7 +100,7 @@ function Poner([System.Collections.Generic.List[string]]$lineas, [string]$nombre
 #  Cambia la clave de un usuario dentro del MySQL que esta corriendo. La clave
 #  vieja y la nueva viajan por el entorno y por la entrada estandar, nunca en
 #  la linea de comandos, donde cualquier proceso del equipo las podria leer.
-function Cambiar-En-MySQL([string]$rootActual, [string]$sql) {
+function Cambiar-En-MySQL([string]$Contenedor, [string]$rootActual, [string]$sql) {
     $env:MYSQL_PWD = $rootActual
     $antes = $ErrorActionPreference
     #  En PowerShell 5.1 lo que un programa escribe en stderr corta el script
@@ -105,18 +122,18 @@ if (-not (Test-Path $archivo)) {
 $lineas = New-Object System.Collections.Generic.List[string]
 foreach ($linea in [System.IO.File]::ReadAllLines($archivo, $sinBom)) { $lineas.Add($linea) }
 
-$baseArriba = $false
-if ($Renovar -or $Cambiar.Count -gt 0) {
+function Esta-Arriba([string]$Contenedor) {
     $ErrorActionPreference = 'Continue'
     $estado = docker inspect -f '{{.State.Running}}' $Contenedor 2>$null
-    $baseArriba = ($LASTEXITCODE -eq 0 -and $estado -eq 'true')
+    $arriba = ($LASTEXITCODE -eq 0 -and $estado -eq 'true')
     $ErrorActionPreference = 'Stop'
+    return $arriba
 }
 
-$rootActual = Valor $lineas 'MYSQL_ROOT_PASSWORD'
 $usuarioBase = Valor $lineas 'MYSQL_USER'
 if (-not $usuarioBase) { $usuarioBase = 'tbridge' }
 
+$cambioElCifrado = $false
 foreach ($nombre in $secretos.Keys) {
     $actual = Valor $lineas $nombre
     if (-not $actual) {
@@ -134,32 +151,69 @@ foreach ($nombre in $secretos.Keys) {
         continue
     }
     if ($nombre -eq 'CIFRADO_LLAVE' -and -not $TambienCifrado -and -not $forzado) {
-        Write-Host "CIFRADO_LLAVE: tiene el valor publico de antes. No la cambio sin -TambienCifrado (los sistemas conectados tendrian que volver a conectarse)." -ForegroundColor Yellow
+        Write-Host "CIFRADO_LLAVE: tiene el valor publico de antes. No la cambio sin -TambienCifrado." -ForegroundColor Yellow
         continue
     }
-    $nueva = Nueva-Clave
-    if ($nombre -like 'MYSQL_*') {
-        if (-not $baseArriba) {
-            Write-Host "$nombre`: la base no esta arriba; levantala (docker compose up -d) y vuelve a correr con -Renovar." -ForegroundColor Yellow
+    if ($nombre -eq 'CIFRADO_LLAVE') {
+        #  La de antes queda en CIFRADO_LLAVE_ANTERIOR, para que ms-debt lea con
+        #  ella los secretos guardados y los vuelva a cifrar con la nueva.
+        if (Valor $lineas 'CIFRADO_LLAVE_ANTERIOR') {
+            Write-Host "CIFRADO_LLAVE: hay un cambio sin terminar (CIFRADO_LLAVE_ANTERIOR tiene valor). Levanta ms-debt para que termine, saca CIFRADO_LLAVE_ANTERIOR del .env y vuelve a correrlo." -ForegroundColor Yellow
             continue
         }
-        if ($nombre -eq 'MYSQL_ROOT_PASSWORD') {
+        Poner $lineas 'CIFRADO_LLAVE_ANTERIOR' $actual
+        $cambioElCifrado = $true
+    }
+    $nueva = Nueva-Clave
+    if ($nombre -like 'DB_*') {
+        $base = Base-De $nombre
+        $contenedor = Contenedor-De $base
+        if (-not (Esta-Arriba $contenedor)) {
+            Write-Host "$nombre`: $contenedor no esta arriba; levantalo (docker compose up -d) y vuelve a correrlo." -ForegroundColor Yellow
+            continue
+        }
+        if ($nombre -like '*_ROOT_PASSWORD') {
             $sql = "ALTER USER IF EXISTS 'root'@'%' IDENTIFIED BY '$nueva'; ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED BY '$nueva';"
         } else {
             $sql = "ALTER USER IF EXISTS '$usuarioBase'@'%' IDENTIFIED BY '$nueva';"
         }
-        if (-not (Cambiar-En-MySQL $rootActual $sql)) {
+        #  La de root se lee recien aqui: si se cambio en esta misma vuelta, ya es la nueva.
+        if (-not (Cambiar-En-MySQL $contenedor (Valor $lineas "${base}_ROOT_PASSWORD") $sql)) {
             Write-Host "$nombre`: MySQL no acepto el cambio; el .env queda como estaba." -ForegroundColor Red
             continue
         }
-        if ($nombre -eq 'MYSQL_ROOT_PASSWORD') { $rootActual = $nueva }
     }
     Poner $lineas $nombre $nueva
     Write-Host "$nombre`: renovado." -ForegroundColor Green
 }
 
+if (-not (Valor $lineas 'AUTH_JWKS_URI')) {
+    Poner $lineas 'AUTH_JWKS_URI' 'http://127.0.0.1:8081/.well-known/jwks.json'
+}
+# La firma usa un directorio, no un secreto compartido. Nunca pisa sus archivos.
+$directorioJwt = Valor $lineas 'JWT_KEY_DIRECTORY'
+if (-not $directorioJwt) {
+    $candidatoJwt = Join-Path $PSScriptRoot '.secrets/jwt'
+    if ((Test-Path -LiteralPath (Join-Path $candidatoJwt 'private.pem')) -and
+        (Test-Path -LiteralPath (Join-Path $candidatoJwt 'public.pem'))) {
+        $directorioJwt = (Resolve-Path -LiteralPath $candidatoJwt).Path
+        Poner $lineas 'JWT_KEY_DIRECTORY' $directorioJwt.Replace('\', '/')
+    }
+}
+if (-not $directorioJwt -or
+    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'private.pem')) -or
+    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'public.pem'))) {
+    Write-Warning 'Falta la pareja JWT. Ejecuta scripts/generar-claves-jwt.ps1 y configura JWT_KEY_DIRECTORY; ver docs/seguridad/jwt.md.'
+}
 [System.IO.File]::WriteAllLines($archivo, $lineas, $sinBom)
 Write-Host ""
 Write-Host "Listo. Para que los servicios tomen los valores: docker compose --profile app up -d"
+if ($cambioElCifrado) {
+    Write-Host ""
+    Write-Host "CIFRADO_LLAVE cambio, y la de antes quedo en CIFRADO_LLAVE_ANTERIOR. Al levantar ms-debt, vuelve a" -ForegroundColor Green
+    Write-Host "cifrar con la nueva los secretos de las suscripciones. Cuando su registro diga que ya se puede," -ForegroundColor Green
+    Write-Host "saca CIFRADO_LLAVE_ANTERIOR del .env y levantalo otra vez:" -ForegroundColor Green
+    Write-Host "   docker compose --profile app logs ms-debt | Select-String CIFRADO_LLAVE_ANTERIOR"
+}
 
 exit 0

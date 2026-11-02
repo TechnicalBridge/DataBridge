@@ -1,0 +1,10 @@
+#!/bin/sh
+# Antes de cada commit, gitleaks revisa lo que se va a commitear (#232).
+# Se activa una vez por clon:  git config core.hooksPath .githooks
+# Sin gitleaks o sin Node avisa y deja pasar: la CI revisa cada PR igual.
+# Ver docs/seguridad/secretos.md.
+if ! command -v node >/dev/null 2>&1 || { [ -z "$GITLEAKS" ] && ! command -v gitleaks >/dev/null 2>&1; }; then
+  echo "pre-commit: sin gitleaks (o sin Node) no se buscan claves en este commit; la CI lo hara en el PR." >&2
+  exit 0
+fi
+exec node scripts/verificar-secretos.cjs --staged

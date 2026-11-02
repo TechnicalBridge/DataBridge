@@ -27,6 +27,10 @@ import java.util.List;
  *                 despues de que el deudor acepto su convenio. Null si ninguna
  * @param interes  cuanto del pago fue mora, en la moneda de la deuda. Null si la deuda no genera intereses
  * @param descuento la mora que se condono por pronto pago. Null sin descuento
+ * @param empresaRut quien cargo la deuda al aplicar el pago; null en eventos antiguos
+ * @param empresaNombre el nombre de esa empresa en ese momento
+ * @param campanaId la campana en ese momento; null si no tenia
+ * @param campanaNombre el nombre de esa campana
  */
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record DetallePago(
@@ -38,8 +42,18 @@ public record DetallePago(
         Integer de,
         Integer fuera,
         BigDecimal interes,
-        BigDecimal descuento
+        BigDecimal descuento,
+        String empresaRut,
+        String empresaNombre,
+        String campanaId,
+        String campanaNombre
 ) {
+
+    /** Compatible con los detalles sin atribucion historica de comisiones. */
+    public DetallePago(Long pagoId, Long montoClp, BigDecimal valorUf, String pasarela, List<Integer> cuotas,
+                       Integer de, Integer fuera, BigDecimal interes, BigDecimal descuento) {
+        this(pagoId, montoClp, valorUf, pasarela, cuotas, de, fuera, interes, descuento, null, null, null, null);
+    }
 
     /** Un pago sin descuento. */
     public DetallePago(Long pagoId, Long montoClp, BigDecimal valorUf, String pasarela, List<Integer> cuotas,

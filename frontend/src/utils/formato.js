@@ -14,8 +14,29 @@ export function dinero(valor, moneda = "CLP") {
   return moneda === "UF" ? `UF ${UF.format(n)}` : PESOS.format(n);
 }
 
-/** 1.5 -> "1,5%": la tasa mensual que pacto el acreedor. */
-export const porcentaje = (valor) => `${Number(valor).toLocaleString("es-CL", { maximumFractionDigits: 2 })}%`;
+/**
+ * 1.5 -> "1,5%": la tasa mensual que pacto el acreedor. Con los decimales
+ * fijos, como la CAE: (18, 2) -> "18,00%". Un valor que no vino es "—", nunca 0.
+ */
+/**
+ * Un monto corto para el eje de un grafico (#280): $3.000 M, $500 mil, $800. En UF, el numero con su coma.
+ * El monto exacto va en el detalle, con dinero().
+ */
+export function montoCorto(valor, moneda = "CLP") {
+  const v = Number(valor) || 0;
+  if (moneda === "UF") return `UF ${v.toLocaleString("es-CL", { maximumFractionDigits: 1 })}`;
+  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toLocaleString("es-CL", { maximumFractionDigits: 1 })} M`;
+  if (Math.abs(v) >= 1e3) return `$${Math.round(v / 1e3).toLocaleString("es-CL")} mil`;
+  return `$${Math.round(v).toLocaleString("es-CL")}`;
+}
+
+export function porcentaje(valor, decimales) {
+  if (valor == null || valor === "") return "—";
+  const cifras = decimales == null
+    ? { maximumFractionDigits: 2 }
+    : { minimumFractionDigits: decimales, maximumFractionDigits: decimales };
+  return `${Number(valor).toLocaleString("es-CL", cifras)}%`;
+}
 
 /** 16482337-7 -> 16.482.337-7, como se escribe en Chile. */
 export function rutLegible(rut) {
@@ -109,6 +130,14 @@ export const TIPO_DE_EMPRESA = {
   agencia: "Agencia de cobranza",
   acreedor: "Acreedor",
   ambos: "Acreedor y agencia",
+};
+
+/** El estado de un mandato (#234), con su etiqueta. Solo con uno vigente se carga cartera y se crean campañas. */
+export const ESTADO_DEL_MANDATO = {
+  vigente: ["Vigente", "badge-ok"],
+  por_empezar: ["Por empezar", "badge-wait"],
+  vencido: ["Vencido", "badge-warn"],
+  terminado: ["Terminado", "badge-muted"],
 };
 
 export const ESTADO_DEUDA = {

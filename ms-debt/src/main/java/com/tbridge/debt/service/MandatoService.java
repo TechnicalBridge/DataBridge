@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 
 /**
  * Contrato 2: el mandato y la campana.
@@ -114,13 +115,18 @@ public class MandatoService {
             throw new CarteraInvalida("id_invalido", "El id_externo de la campana tiene hasta 64 caracteres");
         }
         boolean esElAcreedor = quien.getId().equals(acreedor.getId());
-        if (!esElAcreedor
-                && mandates.findByAgencyAndCreditorAndStatus(quien, acreedor, Mandate.Status.active).isEmpty()) {
+        Optional<Campaign> guardada = campaigns.findByAgencyAndExternalId(quien, idExterno);
+        boolean nueva = guardada.isEmpty();
+        //  Una campana nueva necesita un mandato vigente hoy. Una que ya existe, del
+        //  mismo acreedor, se puede cambiar, pausar o terminar aunque su mandato haya
+        //  terminado o vencido: lo ya cargado se sigue cobrando (#234).
+        boolean yaEraSuya = !nueva && guardada.get().getCreditor() != null
+                && guardada.get().getCreditor().getId().equals(acreedor.getId());
+        if (!esElAcreedor && !yaEraSuya && !mandatoVigente(quien, acreedor)) {
             throw new CarteraInvalida("sin_mandato", "No hay mandato vigente sobre ese acreedor", 403);
         }
 
-        Campaign campana = campaigns.findByAgencyAndExternalId(quien, idExterno).orElseGet(Campaign::new);
-        boolean nueva = campana.getId() == null;
+        Campaign campana = guardada.orElseGet(Campaign::new);
         campana.setAgency(quien);
         campana.setCreditor(acreedor);
         campana.setExternalId(idExterno);
@@ -163,16 +169,27 @@ public class MandatoService {
                     descuentos.tope(quien, acreedor, LocalDate.now())));
         }
         if (pedido.estado() != null && !pedido.estado().isBlank()) {
-            campana.setStatus(switch (pedido.estado().trim()) {
+            Campaign.Status nuevo = switch (pedido.estado().trim()) {
                 case "en_curso" -> Campaign.Status.running;
                 case "pausada" -> Campaign.Status.paused;
                 case "terminada" -> Campaign.Status.finished;
                 default -> throw new CarteraInvalida("estado_invalido",
                         "El estado de la campana va como en_curso, pausada o terminada");
-            });
+            };
+            if (!nueva && campana.getStatus() == Campaign.Status.finished && nuevo != Campaign.Status.finished) {
+                throw new CarteraInvalida("campana_terminada",
+                        "Una campana terminada no se puede volver a poner en curso ni pausar", 409);
+            }
+            campana.setStatus(nuevo);
         }
         campaigns.save(campana);
         return CampanaResponse.from(campana);
+    }
+
+    private boolean mandatoVigente(Organization agencia, Organization acreedor) {
+        LocalDate hoy = LocalDate.now();
+        return mandates.findByAgencyAndCreditorAndStatus(agencia, acreedor, Mandate.Status.active).stream()
+                .anyMatch(m -> m.vigenteAl(hoy));
     }
 
     /** Dias enteros, mayores que cero y crecientes: el dia de cada toque, contado desde la entrada. */
@@ -199,13 +216,21 @@ public class MandatoService {
      * agencia no los puede cambiar.
      */
     private Organization buscarORegistrarAcreedor(MandatoRequest pedido) {
-        String rut = rutDelAcreedor(pedido.acreedorRut());
+        return acreedorDelMandato(rutDelAcreedor(pedido.acreedorRut()), pedido.razonSocial(), pedido.nombreFantasia());
+    }
+
+    /**
+     * El acreedor de un mandato, con su RUT ya normalizado y valido. Si
+     * DataBridge no lo conoce, lo registra con esos nombres. Tambien lo usa el
+     * mandato que se declara en el portal (#234).
+     */
+    Organization acreedorDelMandato(String rut, String razonSocial, String nombre) {
         return organizations.findByRut(rut).orElseGet(() -> {
-            String razonSocial = texto(pedido.razonSocial(), rut, 160);
+            String legal = texto(razonSocial, rut, 160);
             Organization nueva = new Organization();
             nueva.setRut(rut);
-            nueva.setLegalName(razonSocial);
-            nueva.setTradeName(texto(pedido.nombreFantasia(), razonSocial, 120));
+            nueva.setLegalName(legal);
+            nueva.setTradeName(texto(nombre, legal, 120));
             nueva.setKind(Organization.Kind.creditor);
             return organizations.save(nueva);
         });

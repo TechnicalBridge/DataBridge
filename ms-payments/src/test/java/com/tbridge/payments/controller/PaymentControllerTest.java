@@ -1,7 +1,7 @@
 package com.tbridge.payments.controller;
 
 import com.tbridge.payments.exception.ApiException;
-import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.assembler.PaymentModelAssembler;
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.PaymentResponse;
@@ -39,8 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({PaymentController.class, WebhookController.class})
-@Import({SecurityConfig.class, JwtService.class, PaymentModelAssembler.class, PaymentControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class, PaymentModelAssembler.class, PaymentControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class PaymentControllerTest {
 
@@ -55,7 +56,7 @@ class PaymentControllerTest {
     private static final String RUT = "16482337-7";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private PaymentService payments;
 
     private String deudor() {
@@ -65,7 +66,7 @@ class PaymentControllerTest {
     private static PaymentResponse pago() {
         return new PaymentResponse(41L, 3L, null, new BigDecimal("410000"), Payment.Currency.CLP, 410000L, null,
                 Payment.Gateway.khipu, Payment.Status.created, null, Instant.parse("2026-09-24T12:00:00Z"), null, false,
-                null, null, Instant.parse("2026-09-24T12:30:00Z"));
+                null, null, Instant.parse("2026-09-24T12:30:00Z"), null, null);
     }
 
     @Test
@@ -92,13 +93,62 @@ class PaymentControllerTest {
         when(payments.paraDevolver(any())).thenReturn(List.of(new PaymentResponse(58L, 3L, null,
                 new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
                 Payment.Status.duplicated, null, Instant.parse("2026-10-06T06:53:00Z"), null, false,
-                "yiddism7h8oc", RUT, null)));
+                "yiddism7h8oc", RUT, null, null, null)));
 
-        mvc.perform(get("/api/payments/para-devolver").header("Authorization", empresa))
+        mvc.perform(get("/api/payments/para-devolver").header("Authorization", empresa)
+                        .header("X-Forwarded-Host", "localhost:8080"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$._embedded.payments[0].status").value("duplicated"))
                 .andExpect(jsonPath("$._embedded.payments[0].referenciaPasarela").value("yiddism7h8oc"))
-                .andExpect(jsonPath("$._embedded.payments[0].deudorRut").value(RUT));
+                .andExpect(jsonPath("$._embedded.payments[0].deudorRut").value(RUT))
+                //  Solo aqui, en la lista de la empresa, se ofrece registrar la devolucion.
+                .andExpect(jsonPath("$._embedded.payments[0]._links.registrar-devolucion.href")
+                        .value("http://localhost:8080/api/payments/58/devolucion"));
+    }
+
+    @Test
+    void la_empresa_registra_la_devolucion_con_su_referencia() throws Exception {
+        String empresa = "Bearer " + jwt.issue("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        when(payments.registrarDevolucion(any(), eq(58L), eq("DEV-99214"))).thenReturn(new PaymentResponse(58L, 3L,
+                null, new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
+                Payment.Status.refunded, null, Instant.parse("2026-10-06T06:53:00Z"), null, false, "yiddism7h8oc",
+                RUT, null, Instant.parse("2026-10-22T15:04:00Z"), "DEV-99214"));
+
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"referencia\":\"DEV-99214\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("refunded"))
+                .andExpect(jsonPath("$.devueltoEn").value("2026-10-22T15:04:00Z"))
+                .andExpect(jsonPath("$.referenciaDevolucion").value("DEV-99214"));
+    }
+
+    @Test
+    void sin_referencia_o_con_una_muy_larga_la_devolucion_es_400() throws Exception {
+        String empresa = "Bearer " + jwt.issue("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"referencia\":\"  \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Falta la referencia")));
+        mvc.perform(post("/api/payments/58/devolucion").header("Authorization", empresa)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"referencia\":\"" + "x".repeat(101) + "\"}"))
+                .andExpect(status().isBadRequest());
+        verify(payments, never()).registrarDevolucion(any(), any(), any());
+    }
+
+    @Test
+    void el_deudor_ve_los_pagos_que_se_le_devolvieron() throws Exception {
+        when(payments.devueltos(any())).thenReturn(List.of(new PaymentResponse(58L, 3L, null,
+                new BigDecimal("900000"), Payment.Currency.CLP, 900000L, null, Payment.Gateway.khipu,
+                Payment.Status.refunded, null, Instant.parse("2026-10-06T06:53:00Z"), null, false, "yiddism7h8oc",
+                RUT, null, Instant.parse("2026-10-22T15:04:00Z"), "DEV-99214")));
+
+        mvc.perform(get("/api/payments/devueltos").header("Authorization", deudor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.payments[0].status").value("refunded"))
+                .andExpect(jsonPath("$._embedded.payments[0].referenciaDevolucion").value("DEV-99214"))
+                //  El deudor no ve la accion de la empresa.
+                .andExpect(jsonPath("$._embedded.payments[0]._links.registrar-devolucion").doesNotExist());
     }
 
     @Test
@@ -264,16 +314,31 @@ class PaymentControllerTest {
 
     @Test
     void la_vuelta_de_mercadopago_redirige_al_resultado() throws Exception {
-        when(payments.retornoMercadoPago("12345", "approved", null, "41", "pref_1"))
+        when(payments.retornoMercadoPago(41L, "firma-del-cobro"))
                 .thenReturn("http://localhost:8080/pasarela/41?sig=x");
 
         mvc.perform(get("/api/payments/public/mercadopago/retorno")
+                        .param("pago", "41")
+                        .param("sig", "firma-del-cobro")
                         .param("payment_id", "12345")
                         .param("status", "approved")
                         .param("external_reference", "41")
                         .param("preference_id", "pref_1"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "http://localhost:8080/pasarela/41?sig=x"));
+    }
+
+    @Test
+    void el_estado_de_la_url_no_identifica_ni_autoriza_un_cobro() throws Exception {
+        when(payments.retornoMercadoPago(null, null)).thenReturn("http://localhost:8080/app");
+
+        mvc.perform(get("/api/payments/public/mercadopago/retorno")
+                        .param("status", "approved").param("external_reference", "41")
+                        .param("payment_id", "999").param("preference_id", "pref_1"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "http://localhost:8080/app"));
+
+        verify(payments).retornoMercadoPago(null, null);
     }
 
     @Test

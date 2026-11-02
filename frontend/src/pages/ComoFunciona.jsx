@@ -52,8 +52,8 @@ function ParaDeudores() {
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
           <Pasos pasos={[
-            ["Te llega un código", "La empresa a la que le debes, o la agencia que cobra por ella, te manda un código de seis caracteres por correo. Nunca un enlace."],
-            ["Entras con tu RUT y el código", "Escribes tú la dirección del portal. El código sirve una vez y dura 24 horas; si se te vence, pides otro."],
+            ["Te llega un código", "DataBridge te envía un código de seis caracteres al correo registrado. También puedes solicitarlo desde el portal."],
+            ["Entras con tu RUT y el código", "El código sirve una vez. Los avisos de campaña duran 24 horas; los códigos pedidos desde el portal, 15 minutos."],
             ["Ves lo que debes", "Cada deuda con su monto, a quién se la debes y los meses que incluye."],
             ["Pagas como te acomode", "Todo de una vez, o en un convenio de 3 a 24 cuotas. En convenio puedes pagar una cuota o varias juntas, siempre desde la que vence primero."],
             ["Queda conciliado", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. Cada pago tiene su comprobante y, al terminar, descargas el certificado de deuda pagada."],
@@ -62,7 +62,7 @@ function ParaDeudores() {
 
         <div>
           <div className="card aparece" style={{ "--i": 2, marginBottom: 16 }}>
-            <h3>Tu deuda avanza por tres estados</h3>
+            <h2>Tu deuda avanza por tres estados</h2>
             <BarraEstado deuda={EJEMPLO} />
             <p className="hint">
               Pendiente mientras no hagas nada; en convenio si eliges pagar en cuotas, y la barra avanza con
@@ -70,10 +70,11 @@ function ParaDeudores() {
             </p>
           </div>
           <div className="card aparece" style={{ "--i": 3 }}>
-            <h3>Preguntas frecuentes</h3>
+            <h2>Preguntas frecuentes</h2>
             <Preguntas preguntas={[
-              ["¿Por qué no me mandan un enlace para entrar?", "Porque un enlace en un correo es justo lo que usan las estafas para llevarte a una página falsa. Como nosotros nunca mandamos uno, cualquier mensaje con enlace que diga venir de aquí es falso."],
+              ["¿Qué hago si no me llegó el código?", "Entra al portal y usa ¿No te llegó? Recibirás un código nuevo y un enlace en el mismo correo. Al usar uno, el otro deja de servir. No compartas ninguno."],
               ["¿Cobran intereses?", "Depende de lo que pactaste con la empresa. Si tu contrato tiene una tasa de interés, una deuda atrasada crece por cada día de atraso y el convenio lleva interés; el portal te muestra cuánto es capital y cuánto interés antes de pagar. Si no tiene tasa, no se cobra nada extra: el total del convenio es lo que debes hoy."],
+              ["¿Qué es la CAE?", "Es la Carga Anual Equivalente: el indicador que exige la ley (SERNAC Financiero) para comparar créditos y convenios. Representa el costo del convenio en un año, con todo incluido (tasa de interés y gastos). Si tu convenio es sin interés, la CAE es 0,00%."],
               ["¿Puedo pagar varias cuotas a la vez?", "Sí, siempre desde la que vence primero. Así nunca queda una cuota antigua impaga mientras pagas una nueva."],
               ["Mi deuda está en UF: ¿cuánto pago en pesos?", "Pagas en pesos, al valor de la UF del día en que pagas. El comprobante dice qué UF se usó."],
               ["¿Hay descuento si pago todo?", "A veces. Si la empresa tiene una campaña con descuento, al pagar toda la deuda de una vez te descontamos parte de los intereses por mora: más mientras más antigua es la deuda. Lo ves en Mis deudas y en el detalle antes de pagar. No aplica si pagas en cuotas, y el capital nunca se descuenta."],
@@ -123,7 +124,7 @@ function ParaEmpresas() {
 
         <div>
           <div className="card aparece" style={{ "--i": 2, marginBottom: 16 }}>
-            <h3>Para empezar</h3>
+            <h2>Para empezar</h2>
             <p style={{ margin: 0 }}>
               Todo deudor entra en una campaña. Al cargar la eliges, o la creas ahí mismo, y subes la planilla; la
               plantilla se descarga en el mismo paso.
@@ -134,7 +135,7 @@ function ParaEmpresas() {
             </div>
           </div>
           <div className="card aparece" style={{ "--i": 3, marginBottom: 16 }}>
-            <h3>Campañas</h3>
+            <h2>Campañas</h2>
             <p style={{ margin: 0 }}>
               En <Link className="link-btn" to="/databridge/campanas">Campañas</Link> decides cuántas veces se le escribe
               al deudor y qué días, contados desde que su deuda entra (por ejemplo 1, 4, 11). DataBridge envía cada
@@ -147,7 +148,7 @@ function ParaEmpresas() {
             </p>
           </div>
           <div className="card aparece" style={{ "--i": 4 }}>
-            <h3>Preguntas frecuentes</h3>
+            <h2>Preguntas frecuentes</h2>
             <Preguntas preguntas={[
               ["¿Por qué se rechazó una deuda?", `La revisión te lo dice antes de confirmar, y cada rechazo viene con su motivo. Los más comunes: bajo_umbral_mora (menos de ${minimo} días de mora), cargo_no_vencido (un cargo todavía no vence a la fecha de corte), rut_invalido y sin_canal_contacto (el deudor no trae correo ni teléfono). Un correo mal escrito no rechaza la deuda: entra sin correo, con el aviso correo_invalido, y en la cartera dice Sin correo válido.`],
               ["¿Qué es un convenio en riesgo?", "Un convenio con cuotas vencidas sin pagar. Aparecen en Convenios en riesgo, del más atrasado al menos, para que contactes al deudor antes de que el convenio se caiga."],

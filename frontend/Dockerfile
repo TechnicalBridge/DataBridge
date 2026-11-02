@@ -26,7 +26,7 @@ COPY --from=construccion /obra/dist /usr/share/nginx/html
 
 #  La configuracion es una plantilla que la imagen completa al arrancar (ver
 #  nginx.conf.template). Estos son sus valores por omision, los de Docker
-#  Compose; en Railway se cambian con variables del servicio.
+#  Compose; en el servidor, docker-compose.prod.yml cambia PROXY_DE_ENTRADA.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 ENV GATEWAY_HOST=gateway \
     GATEWAY_PORT=8082 \

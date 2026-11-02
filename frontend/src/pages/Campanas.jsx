@@ -4,7 +4,10 @@ import { cambiarEstadoCampana, listarCampanas } from "../api/campanas";
 import { opcionesDeCarga } from "../api/deudas";
 import { fecha } from "../utils/formato";
 import Cargando from "../components/Cargando";
+import ComisionDelMes, { mesEnPalabras } from "../components/ComisionDelMes";
+import { dinero } from "../utils/formato";
 import FormCampana, { TRAMOS } from "../components/FormCampana";
+import Mandatos from "../components/Mandatos";
 
 const ESTADO = {
   en_curso: ["En curso", "badge-ok"],
@@ -26,18 +29,25 @@ export default function Campanas() {
   const [cambiando, setCambiando] = useState("");
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState("");
+  //  Lo que recuperó cada campaña en el mes que muestra el modelo de negocio.
+  const [comision, setComision] = useState(null);
 
   const cargar = () => listarCampanas().then(setCampanas);
+  const cargarAcreedores = () => opcionesDeCarga().then((o) => setAcreedores(o.acreedores || []));
 
   useEffect(() => {
     cargar().catch((err) => {
       setError(err.message);
       setCampanas([]);
     });
-    opcionesDeCarga()
-      .then((o) => setAcreedores(o.acreedores || []))
-      .catch((err) => setError(err.message));
+    cargarAcreedores().catch((err) => setError(err.message));
   }, []);
+
+  //  Un mandato nuevo, renovado o terminado cambia a quién se le pueden crear campañas (#234).
+  async function cambioUnMandato() {
+    await cargarAcreedores();
+    if (!editando) setVuelta((v) => v + 1);
+  }
 
   function nueva() {
     setEditando(null);
@@ -90,9 +100,13 @@ export default function Campanas() {
       {error ? <div className="error">{error}</div> : null}
       {hecho ? <div className="notice">{hecho}</div> : null}
 
+      <ComisionDelMes onDatos={setComision} />
+
+      <Mandatos onCambio={cambioUnMandato} />
+
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Tus campañas</h3>
+          <h2>Tus campañas</h2>
           {campanas.length === 0 ? (
             <div className="empty">Todavía no hay campañas. Crea una y cárgale sus deudores.</div>
           ) : (
@@ -122,6 +136,12 @@ export default function Campanas() {
                       <span><b className="num">{c.deudas}</b> {c.deudas === 1 ? "deuda" : "deudas"}</span>
                       <span><b className="num">{c.contactos}</b> {c.contactos === 1 ? "contacto enviado" : "contactos enviados"}</span>
                       <span><b className="num">{c.saldadas}</b> {c.saldadas === 1 ? "pagada" : "pagadas"}</span>
+                      {comision ? (
+                        <span>
+                          <b className="num">{dinero(comision.porCampana.find((p) => p.idExterno === c.idExterno)?.recuperado || 0)}</b>{" "}
+                          recuperado en {mesEnPalabras(comision.mes).split(" de ")[0]}
+                        </span>
+                      ) : null}
                     </div>
                     {c.estado !== "terminada" ? (
                       <div className="fila-acciones">
@@ -157,7 +177,7 @@ export default function Campanas() {
         </div>
 
         <div className="card aparece" id="form-campana" style={{ "--i": 2 }}>
-          <h3>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h3>
+          <h2>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h2>
           <FormCampana key={vuelta} acreedores={acreedores} editando={editando} onGuardada={guardada}
                        onCancelar={editando ? nueva : null} />
           <p className="hint">

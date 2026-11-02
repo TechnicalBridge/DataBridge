@@ -45,6 +45,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     /** Los pagos de una deuda en un estado: los abiertos, o los ya pagados. */
     List<Payment> findByDebtIdAndStatus(Long debtId, Payment.Status status);
 
+    /** Cuantos pagos hay en un estado: los totales de la pantalla Operacion (#139). */
+    long countByStatus(Payment.Status status);
+
+    /** Cuantos siguen en un estado desde antes de un instante: los abiertos que llevan rato. */
+    long countByStatusAndCreatedAtBefore(Payment.Status status, Instant antes);
+
     /** Los pagos en un estado de varias deudas: los duplicados de una cartera. */
     List<Payment> findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status status, Collection<Long> debtIds);
 

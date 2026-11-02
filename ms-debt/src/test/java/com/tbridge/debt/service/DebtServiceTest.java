@@ -20,6 +20,7 @@ import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Installment;
+import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.model.Repactation;
 import com.tbridge.debt.repository.ContactRepository;
@@ -46,13 +47,17 @@ import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -270,6 +275,33 @@ class DebtServiceTest {
         assertEquals(pagadoEn, aplicado.getOccurredAt());
     }
 
+    @Test
+    void la_comision_conserva_la_empresa_y_campana_del_pago_aunque_recarguen_la_deuda() throws Exception {
+        Campaign campana = new Campaign();
+        campana.setExternalId("CMP-ORIGINAL");
+        campana.setName("Campaña original");
+        deuda.setCampaign(campana);
+        servicio.onPagoConfirmado(aviso());
+        DebtEvent aplicado = historia.stream()
+                .filter(e -> e.getType() == DebtEvent.Type.payment_applied).findFirst().orElseThrow();
+        DetallePago detalle = json.readValue(aplicado.getDetail(), DetallePago.class);
+        assertEquals(apofyx.getRut(), detalle.empresaRut());
+        assertEquals(apofyx.getTradeName(), detalle.empresaNombre());
+        assertEquals("CMP-ORIGINAL", detalle.campanaId());
+
+        Batch otroLote = new Batch();
+        otroLote.setSender(patrimonio);
+        deuda.setLastBatch(otroLote);
+        deuda.setCampaign(null);
+        when(events.entre(any(), any(), any())).thenReturn(List.of(aplicado));
+        ComisionService comisiones = new ComisionService(events, servicio, json);
+        var original = comisiones.deLaEmpresa(empresa(apofyx.getRut()), YearMonth.of(2026, 9));
+        assertEquals(410_000, original.recuperado());
+        assertEquals("CMP-ORIGINAL", original.porCampana().getFirst().idExterno());
+        assertEquals(0, comisiones.deLaEmpresa(empresa(patrimonio.getRut()), YearMonth.of(2026, 9)).recuperado());
+        assertEquals(apofyx.getRut(), comisiones.deTodas(YearMonth.of(2026, 9)).empresas().getFirst().rut());
+    }
+
     /** Un mes que el acreedor informo despues del convenio: una cuota aparte, la que vence primero. */
     private void conUnMesAparte() {
         Installment aparte = new Installment();
@@ -435,6 +467,18 @@ class DebtServiceTest {
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.listFor(new JwtPrincipal("1", "x@y.cl", "CREDITOR", "X", null)));
         assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+    }
+
+    @Test
+    void una_empresa_suspendida_no_ve_su_cartera() {
+        Organization suspendida = organizacion(10L, "76999888-7", "Suspendida");
+        suspendida.setStatus(Organization.Status.suspended);
+        when(organizations.findByRut("76999888-7")).thenReturn(Optional.of(suspendida));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.listFor(empresa("76999888-7")));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        assertEquals("La empresa está suspendida", error.getMessage());
     }
 
     @Test
@@ -699,10 +743,119 @@ class DebtServiceTest {
         assertEquals(3, delPlan.size());
         assertEquals(plan.cuotas().getFirst().interest(), delPlan.getFirst().getInterestAmount(),
                 "cada cuota guarda su interes, para que la mora corra solo sobre el capital");
+        //  Al 1% mensual en sistema frances, la CAE es 12,00%: el redondeo de las cuotas no la mueve.
+        assertEquals(new BigDecimal("12.00"), plan.cae());
+        ArgumentCaptor<Repactation> convenio = ArgumentCaptor.forClass(Repactation.class);
+        verify(repactations).save(convenio.capture());
+        assertEquals(new BigDecimal("12.00"), convenio.getValue().getCae(), "el convenio guarda la CAE que se informo");
+
         ArgumentCaptor<Object> datos = ArgumentCaptor.forClass(Object.class);
         verify(eventos).publicar(eq(deuda), eq(EventosService.REPACTACION_ACEPTADA), datos.capture(), any());
         RepactacionAceptadaDatos aceptada = (RepactacionAceptadaDatos) datos.getValue();
         assertEquals(new BigDecimal("1"), aceptada.tasaInteresMensual());
         assertEquals(414100L, aceptada.aRepactar());
+        assertEquals(new BigDecimal("12.00"), aceptada.cae(), "el aviso repactacion.aceptada lleva la CAE");
+    }
+
+    // ------------------------------------------------------------------
+    //  La CAE del convenio (#46)
+    // ------------------------------------------------------------------
+
+    private Repactation convenioVigente(String cae, String aceptado) {
+        Repactation convenio = new Repactation();
+        convenio.setDebt(deuda);
+        convenio.setCae(new BigDecimal(cae));
+        convenio.setAcceptedAt(Instant.parse(aceptado));
+        return convenio;
+    }
+
+    @Test
+    void el_detalle_de_un_convenio_trae_su_cae_y_si_hubiera_dos_vigentes_la_del_ultimo() {
+        enConvenioDeTres();
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda))).thenReturn(List.of(
+                convenioVigente("18.00", "2026-10-02T15:00:00Z"),
+                convenioVigente("15.00", "2026-09-10T12:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(new BigDecimal("18.00"), detalle.resumen().cae());
+    }
+
+    @Test
+    void una_deuda_que_ya_no_esta_en_convenio_no_informa_la_cae_del_convenio_viejo() {
+        //  El acreedor la volvio a cargar: queda abierta, con el convenio anterior sin reemplazar.
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        DebtDetailResponse detalle = servicio.getFor(deudor("18905214-6"), 3L);
+
+        assertEquals(false, detalle.resumen().conConvenio());
+        assertNull(detalle.resumen().cae());
+    }
+
+    @Test
+    void las_listas_traen_la_cae_en_una_sola_consulta() {
+        enConvenioDeTres();
+        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda));
+        when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
+                .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
+
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(deudor("18905214-6")).getFirst().cae());
+        assertEquals(new BigDecimal("18.00"), servicio.listFor(empresa("77305118-6")).getFirst().cae());
+        verify(repactations, org.mockito.Mockito.times(2)).findByDebtInAndSupersededAtIsNull(List.of(deuda));
+        verify(repactations, never()).findByDebtAndSupersededAtIsNull(any());
+    }
+
+    // ------------------------------------------------------------------
+    //  Una empresa suspendida (#152): lo suyo queda congelado
+    // ------------------------------------------------------------------
+
+    @Test
+    void con_el_acreedor_suspendido_la_deuda_no_se_cobra_ni_se_repacta() {
+        patrimonio.setStatus(Organization.Status.suspended);
+
+        ApiException cobrar = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+        ApiException repactar = assertThrows(ApiException.class,
+                () -> servicio.applyRepact(deudor("18905214-6"), 3L, 3));
+
+        assertEquals(HttpStatus.CONFLICT, cobrar.getStatus());
+        assertEquals("La empresa que cobra esta deuda está suspendida: por ahora no se puede pagar",
+                cobrar.getMessage());
+        assertEquals(HttpStatus.CONFLICT, repactar.getStatus());
+        verify(installments, never()).save(any());
+        assertTrue(DebtSummaryResponse.from(deuda, cuotas, null).enPausa(), "el portal del deudor lo sabe");
+    }
+
+    @Test
+    void reactivada_la_empresa_la_deuda_se_cobra_como_antes() {
+        patrimonio.setStatus(Organization.Status.suspended);
+        assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+
+        patrimonio.setStatus(Organization.Status.active);
+
+        assertEquals(new BigDecimal("410000"), servicio.snapshotInterno(3L, null).amount());
+        assertFalse(DebtSummaryResponse.from(deuda, cuotas, null).enPausa());
+    }
+
+    @Test
+    void con_la_agencia_de_su_campana_o_de_su_mandato_suspendida_tambien_se_congela() {
+        Campaign campana = new Campaign();
+        campana.setAgency(apofyx);
+        campana.setCreditor(patrimonio);
+        deuda.setCampaign(campana);
+        apofyx.setStatus(Organization.Status.suspended);
+        assertTrue(deuda.congelada(), "por la agencia de su campana");
+
+        deuda.setCampaign(null);
+        Mandate mandato = new Mandate();
+        mandato.setAgency(apofyx);
+        deuda.setMandate(mandato);
+        assertTrue(deuda.congelada(), "por la agencia de su mandato");
+        assertEquals(HttpStatus.CONFLICT,
+                assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null)).getStatus());
+
+        apofyx.setStatus(Organization.Status.active);
+        assertFalse(deuda.congelada());
     }
 }

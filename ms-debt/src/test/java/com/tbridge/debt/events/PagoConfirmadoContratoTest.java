@@ -17,14 +17,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * El aviso de pago, contra el contrato que ms-debt comparte con ms-payments
- * (docs/eventos/pago-confirmado.json). ms-debt lo lee: escucha en la cola que
+ * (src/test/resources/contratos/pago-confirmado.json, con una copia igual en ms-payments). ms-debt lo lee: escucha en la cola que
  * dice el contrato y entiende cada campo del ejemplo. La misma prueba, del
  * lado que lo escribe, vive en ms-payments.
  */
 class PagoConfirmadoContratoTest {
 
     private static JsonNode contrato() throws IOException {
-        return new ObjectMapper().readTree(Path.of("..", "docs", "eventos", "pago-confirmado.json").toFile());
+        return new ObjectMapper().readTree(Path.of("src", "test", "resources", "contratos", "pago-confirmado.json").toFile());
     }
 
     @Test

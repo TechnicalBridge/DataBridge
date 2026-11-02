@@ -2,45 +2,32 @@ package com.tbridge.ai.service;
 
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.errors.RateLimitException;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.responses.EasyInputMessage;
-import com.openai.models.responses.Response;
-import com.openai.models.responses.ResponseCreateParams;
-import com.openai.models.responses.ResponseInputItem;
-import com.openai.models.responses.ResponseOutputMessage;
-import com.openai.models.responses.ResponseOutputText;
-import com.tbridge.ai.config.LlmProperties;
-import com.tbridge.ai.dto.response.Salud;
 import com.tbridge.ai.util.Valor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.tbridge.ai.config.LlmProperties;
+import com.openai.errors.OpenAIServiceException;
+import com.openai.errors.OpenAIIoException;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * La respuesta con un LLM, si hay alguno configurado.
+ * La respuesta con un LLM, si hay uno configurado.
  *
- * <p>Es una cascada: varios proveedores compatibles con la API de OpenAI (el
- * SDK oficial sirve para todos), probados en el orden de la configuracion. Si
- * uno falla, o agota su cuota (HTTP 429), se salta al siguiente; al que fallo
- * se le deja en enfriamiento un rato para no reintentarlo en cada mensaje. Si
- * todos fallan, no hay respuesta y el asistente responde con su motor local de
- * reglas ({@link MotorLocal}). Nunca inventa montos: el contexto son las deudas
- * tal como las entrega ms-debt.
+ * <p>Usa Chat Completions de Groq, Gemini o xAI con el SDK existente, que sirve para
+ * cualquier API compatible: basta con su URL. Si no hay llave, o el LLM falla,
+ * no hay respuesta y el asistente responde con su motor local de reglas
+ * ({@link MotorLocal}). Nunca inventa montos: el contexto son las deudas tal
+ * como las entrega ms-debt.
  */
 @Service
 public class LlmService implements DisposableBean {
@@ -50,137 +37,79 @@ public class LlmService implements DisposableBean {
     /** Cuantos mensajes de la conversacion viajan al LLM, contando desde el ultimo. */
     static final int HISTORIA = 12;
     private static final Set<String> ROLES = Set.of("user", "assistant");
-    /** El SDK exige una llave no vacia; para quien no la pide, como Ollama. */
-    private static final String SIN_LLAVE = "sin-llave";
 
-    /** Los nombres de la cascada, en orden, tengan o no llave. */
-    private final List<String> nombres;
-    /** Solo los usables, en orden de la cascada. */
-    private final Map<String, Cliente> clientes;
-    private final Duration enfriamiento;
-    /** Proveedor -> instante hasta el que se le salta. */
-    private final Map<String, Instant> enfriados = new ConcurrentHashMap<>();
+    private final OpenAIClient cliente;
+    private final String modelo;
+    private final String proveedor;
+
+    public enum Category { NOT_CONFIGURED, AUTH, RATE_LIMIT, TIMEOUT, SERVER_ERROR, PROTOCOL, NETWORK }
 
     @Autowired
-    public LlmService(LlmProperties props) {
-        this.enfriamiento = Duration.ofMinutes(props.enfriamientoMinutos());
-        Map<String, Cliente> armados = new LinkedHashMap<>();
-        List<String> orden = new ArrayList<>();
-        for (String nombre : props.orden()) {
-            LlmProperties.Proveedor cfg = props.proveedores().get(nombre);
-            if (cfg == null || cfg.baseUrl() == null || cfg.baseUrl().isBlank()) {
-                continue;
-            }
-            orden.add(nombre);
-            String llave = cfg.apiKey() == null ? "" : cfg.apiKey().strip();
-            if (cfg.conLlave() && llave.isBlank()) {
-                log.info("El proveedor {} no tiene llave; queda sin configurar.", nombre);
-                continue;
-            }
-            armados.put(nombre, new Cliente(nombre, cliente(llave, cfg.baseUrl(), cfg.timeout()), cfg.model()));
-        }
-        this.nombres = List.copyOf(orden);
-        this.clientes = armados;
+    public LlmService(LlmProperties properties) {
+        this(properties.resolve());
     }
 
-    /** La cascada ya armada, para probarla contra un servidor de mentira. */
-    LlmService(List<Cliente> clientes, Duration enfriamiento) {
-        Map<String, Cliente> armados = new LinkedHashMap<>();
-        for (Cliente cliente : clientes) {
-            armados.put(cliente.nombre(), cliente);
-        }
-        this.nombres = List.copyOf(armados.keySet());
-        this.clientes = armados;
-        this.enfriamiento = enfriamiento;
+    private LlmService(LlmProperties.Selected config) {
+        this(config.configured() ? OpenAIOkHttpClient.builder()
+                .apiKey(config.apiKey()).baseUrl(config.baseUrl()).timeout(config.timeout())
+                .maxRetries(0).build() : null, config.model(), config.provider());
+        log.info("llm_provider={} llm_model={} llm_configured={}", proveedor, modelo, configurado());
+        if (!proveedor.equals("local") && !configurado()) log.warn("llm_provider={} category=NOT_CONFIGURED", proveedor);
     }
 
-    private static OpenAIClient cliente(String llave, String baseUrl, int segundos) {
-        return OpenAIOkHttpClient.builder()
-                .apiKey(llave.isBlank() ? SIN_LLAVE : llave)
-                .baseUrl(baseUrl.strip().replaceAll("/+$", ""))
-                //  El deudor esta mirando el chat: si el proveedor no contesta a
-                //  tiempo, se pasa al siguiente.
-                .timeout(Duration.ofSeconds(segundos))
-                .build();
+    /** Injectable fake HTTP client; production construction always uses normalized configuration. */
+    LlmService(OpenAIClient cliente, String modelo, String proveedor) {
+        this.cliente = cliente;
+        this.modelo = modelo;
+        this.proveedor = proveedor;
     }
 
-    public boolean configurado() {
-        return !clientes.isEmpty();
-    }
+    public boolean configurado() { return cliente != null; }
+    public String proveedor() { return proveedor; }
+    public String modelo() { return modelo; }
 
-    /** El estado de la cascada, para la salud: quien hay y quien esta en enfriamiento. */
-    public List<Salud.EstadoProveedor> estado() {
-        Instant ahora = Instant.now();
-        return nombres.stream().map(nombre -> {
-            Instant hasta = enfriados.get(nombre);
-            long restante = hasta == null ? 0 : Math.max(0, Duration.between(ahora, hasta).toSeconds());
-            return new Salud.EstadoProveedor(nombre, clientes.containsKey(nombre), restante > 0, restante);
-        }).toList();
-    }
-
-    /** La respuesta y quien la dio, o vacio si no hay LLM o si todos fallan. */
-    public Optional<Contestacion> responder(List<Map<String, Object>> historia, List<Map<String, Object>> deudas,
-                                            String animo) {
-        if (clientes.isEmpty()) {
+    public Optional<String> responder(List<Map<String, Object>> historia, List<Map<String, Object>> deudas,
+                                      String animo) {
+        if (cliente == null) {
+            if (!proveedor.equals("local")) log.warn("llm_provider={} category=NOT_CONFIGURED", proveedor);
             return Optional.empty();
         }
-        List<Mensaje> mensajes = mensajes(historia, deudas, animo);
-        Instant ahora = Instant.now();
-        for (Cliente c : clientes.values()) {
-            Instant hasta = enfriados.get(c.nombre());
-            if (hasta != null && ahora.isBefore(hasta)) {
-                log.debug("El proveedor {} esta en enfriamiento; se salta.", c.nombre());
-                continue;
-            }
-            try {
-                Optional<String> texto = consultar(c, mensajes);
-                if (texto.isPresent()) {
-                    enfriados.remove(c.nombre());
-                    return Optional.of(new Contestacion(texto.get(), c.nombre()));
-                }
-                log.debug("El proveedor {} no dijo nada; sigue el siguiente.", c.nombre());
-            } catch (RateLimitException agotado) {
-                enfriar(c.nombre(), "agoto su cuota");
-            } catch (RuntimeException fallo) {
-                enfriar(c.nombre(), "no respondio (" + fallo.getMessage() + ")");
-            }
-        }
-        return Optional.empty();
-    }
-
-    private void enfriar(String nombre, String motivo) {
-        if (enfriamiento.isZero()) {
-            log.warn("El proveedor {} {}; sigue el siguiente.", nombre, motivo);
-            return;
-        }
-        enfriados.put(nombre, Instant.now().plus(enfriamiento));
-        log.warn("El proveedor {} {}; en enfriamiento {} minutos.", nombre, motivo, enfriamiento.toMinutes());
-    }
-
-    private Optional<String> consultar(Cliente c, List<Mensaje> mensajes) {
         try {
-            return conTexto(textoDe(c.cliente().responses().create(ResponseCreateParams.builder()
-                    .model(c.modelo())
-                    .inputOfResponse(mensajes.stream().map(LlmService::paraResponses).toList())
-                    .build())));
-        } catch (RateLimitException agotado) {
-            //  La cuota es del proveedor entero, no de la API de Responses: a la
-            //  de chat le iria igual de mal. Se propaga para enfriarlo ya.
-            throw agotado;
-        } catch (RuntimeException sinResponses) {
-            //  No todas las APIs compatibles tienen la de Responses: la de
-            //  chat la tienen todas.
-            ChatCompletionCreateParams.Builder chat = ChatCompletionCreateParams.builder().model(c.modelo());
-            for (Mensaje mensaje : mensajes) {
+            ChatCompletionCreateParams.Builder chat = ChatCompletionCreateParams.builder().model(modelo);
+            for (Mensaje mensaje : mensajes(historia, deudas, animo)) {
                 switch (mensaje.rol()) {
                     case "system" -> chat.addSystemMessage(mensaje.contenido());
                     case "assistant" -> chat.addAssistantMessage(mensaje.contenido());
                     default -> chat.addUserMessage(mensaje.contenido());
                 }
             }
-            return conTexto(c.cliente().chat().completions().create(chat.build())
-                    .choices().getFirst().message().content().orElse(""));
+            var completion = cliente.chat().completions().create(chat.build());
+            String text = completion.choices().isEmpty() ? "" : completion.choices().getFirst().message().content().orElse("");
+            Optional<String> result = Optional.of(text.strip()).filter(value -> !value.isEmpty());
+            if (result.isEmpty()) log.warn("llm_provider={} category=PROTOCOL", proveedor);
+            return result;
+        } catch (RuntimeException failure) {
+            log.warn("llm_provider={} category={}", proveedor, category(failure));
+            return Optional.empty();
         }
+    }
+
+    static Category category(RuntimeException failure) {
+        if (failure instanceof OpenAIServiceException service) {
+            int status = service.statusCode();
+            if (status == 401 || status == 403) return Category.AUTH;
+            if (status == 429) return Category.RATE_LIMIT;
+            if (status >= 500) return Category.SERVER_ERROR;
+            return Category.PROTOCOL;
+        }
+        if (failure instanceof OpenAIIoException) {
+            for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+                if (cause instanceof java.io.InterruptedIOException || cause instanceof java.net.http.HttpTimeoutException)
+                    return Category.TIMEOUT;
+            }
+            return Category.NETWORK;
+        }
+        return Category.PROTOCOL;
     }
 
     /** Las instrucciones, con las deudas, y lo ultimo de la conversacion. */
@@ -229,39 +158,11 @@ public class LlmService implements DisposableBean {
                 .collect(Collectors.joining("\n"));
     }
 
-    /** Todo el texto de la respuesta, como el {@code output_text} de los SDK de OpenAI. */
-    static String textoDe(Response respuesta) {
-        return respuesta.output().stream()
-                .flatMap(salida -> salida.message().stream())
-                .map(ResponseOutputMessage::content)
-                .flatMap(List::stream)
-                .flatMap(contenido -> contenido.outputText().stream())
-                .map(ResponseOutputText::text)
-                .collect(Collectors.joining());
-    }
-
-    private static Optional<String> conTexto(String texto) {
-        return Optional.of(Objects.toString(texto, "").strip()).filter(t -> !t.isEmpty());
-    }
-
-    private static ResponseInputItem paraResponses(Mensaje mensaje) {
-        return ResponseInputItem.ofEasyInputMessage(EasyInputMessage.builder()
-                .role(EasyInputMessage.Role.of(mensaje.rol()))
-                .content(mensaje.contenido())
-                .build());
-    }
-
     @Override
     public void destroy() {
-        clientes.values().forEach(c -> c.cliente().close());
-    }
-
-    /** Un proveedor de la cascada, ya con su cliente armado. */
-    record Cliente(String nombre, OpenAIClient cliente, String modelo) {
-    }
-
-    /** El texto que respondio un proveedor, y cual fue. */
-    public record Contestacion(String texto, String proveedor) {
+        if (cliente != null) {
+            cliente.close();
+        }
     }
 
     /** Un mensaje de la conversacion que viaja al LLM. */

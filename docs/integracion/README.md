@@ -127,9 +127,9 @@ sistemas es una comparación directa.
 
 ## 6. Contrato ① — Cartera v1
 
-Esquema validable: [`cartera-v1.schema.json`](cartera-v1.schema.json) (JSON Schema draft-07).
-Ejemplo completo, tal como Patrimonio se lo entrega a APOFYX:
-[`ejemplos/cartera-v1.patrimonio.json`](ejemplos/cartera-v1.patrimonio.json).
+La forma exacta de cada campo la muestra Swagger, en el grupo *integracion* (`CarteraV1`). Un ejemplo completo,
+tal como Patrimonio se lo entrega a APOFYX, está en las pruebas de ms-debt:
+[`cartera-v1.patrimonio.json`](../../ms-debt/src/test/resources/cartera/cartera-v1.patrimonio.json).
 
 ### 6.1 Transporte
 
@@ -391,7 +391,8 @@ Se acepta cualquier dirección válida, de cualquier proveedor: con `+`
 ### 6.6 Variante CSV
 
 Para el emisor sin integración (modo archivo, §9): el mismo contrato en una planilla.
-Plantilla: [`ejemplos/cartera-v1.plantilla.csv`](ejemplos/cartera-v1.plantilla.csv).
+Plantilla: [`cartera-v1.plantilla.csv`](../../ms-debt/src/test/resources/cartera/cartera-v1.plantilla.csv), en las
+pruebas de ms-debt, que comprueban que es la misma cartera que el ejemplo JSON.
 
 ```
 POST /api/v1/carteras   (multipart/form-data)
@@ -458,8 +459,7 @@ su contenido.
   ```
 
   Lo de negocio (el dígito del RUT, la mora mínima, la tasa) lo sigue decidiendo la ingesta, deuda por deuda,
-  como en el CSV. Ejemplos llenos, uno correcto y uno con errores a propósito, en
-  [`docs/cartera/ejemplos`](../cartera/ejemplos/README.md).
+  como en el CSV. Cómo probarla, en [`docs/cartera`](../cartera/README.md).
 
 No es otra ingesta: el archivo, en Excel o en CSV, se convierte a Cartera v1 y entra por el mismo camino.
 
@@ -501,6 +501,13 @@ POST /api/v1/mandatos
   "nombre_fantasia": "Patrimonio Inmuebles", "vigente_desde": "2026-09-01", "mora_maxima_dias": 120,
   "descuento_maximo_mora": 100 }
 ```
+
+**Sin la API** (apagada por omisión, [#191](https://github.com/TechnicalBridge/DataBridge/issues/191)), la
+agencia declara el mismo mandato en su portal, en *Campañas* (`POST /api/debts/mandatos`,
+[#234](https://github.com/TechnicalBridge/DataBridge/issues/234)), y ahí mismo lo renueva o lo termina. El
+portal es más estricto que el contrato: pide la razón social de un acreedor nuevo, rechaza una fecha
+que no entiende en vez de usar la de por omisión, y no deja tener dos mandatos a la vez con el mismo
+acreedor.
 
 **Un acreedor nuevo se registra con su mandato.** Si DataBridge no conoce ese RUT, lo registra con
 `razon_social` y `nombre_fantasia`, los mismos nombres de `lote.acreedor`. `nombre_fantasia` es el
@@ -554,7 +561,7 @@ POST /api/v1/campanas
 | `intentos` | Cuántos toques recibe cada deuda como máximo |
 | `inicio`, `fin` | Fuera de esas fechas la campaña no contacta |
 | `canales` | Hoy DataBridge contacta solo por `correo`. Una campaña sin `correo` no contacta: WhatsApp todavía no está conectado |
-| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
+| `estado` | `en_curso`, `pausada` o `terminada`. Solo una campaña en curso contacta. Sin `estado` no cambia; una nueva parte en curso. Una campaña terminada no se puede volver a poner en curso ni pausar (`409`, `campana_terminada`). APOFYX lo vuelve a mandar cuando su personal pausa o termina la campaña |
 | `descuento_mora_por_tramo` | El % de los intereses de mora que la campaña condona según el tramo de la deuda (§7.1). Los tramos son `1-30`, `31-90` y `91-120`; un tramo que no viene es 0. Ninguno puede pasar el máximo del mandato (`descuento_sobre_tope`). Sin el campo no cambia; una campaña nueva parte sin descuento. `{}` lo quita |
 
 Cada toque es el mismo correo de la invitación: un código para entrar al portal, sin el monto ni un
@@ -673,7 +680,7 @@ ahora en sentido contrario.
 | --- | --- | --- |
 | `lote.procesado` | Termina la ingesta de un lote | `periodo`, `fecha_corte`, `recibidas`, `aceptadas`, `rechazadas`, `tramos: [{tramo, deudas, promedio_clp}]` |
 | `campana.avance` | Una vez al día por campaña | `campana_id_externo`, `fecha_corte`, `deudas`, `enviados`, `ingresos_portal`, `repactaciones`, `pagos`, `saldadas`, `disputas`, `retiradas`, `recuperado_clp`, `recuperado_uf` |
-| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
+| `repactacion.aceptada` | El deudor acepta un plan | `deuda_id_externo`, `cuotas`, `monto_cuota`, `moneda`, `primera_cuota`, `cae`; con tasa, además `tasa_interes_mensual`, `a_repactar` (el capital más la mora de ese día) y `total_a_pagar` |
 | `pago.confirmado` | La pasarela confirma un pago | `deuda_id_externo`, `pago_id`, `monto`, `moneda`, `monto_clp`, `valor_uf`, `medio`, `pagado_en`; si el pago trae mora, además `capital` e `interes` (`monto` es la suma); con descuento por pronto pago, además `descuento` |
 | `deuda.saldada` | El saldo llega a cero | `deuda_id_externo`, `saldada_en` |
 | `deuda.disputada` | El deudor dice que la deuda no es suya o no corresponde | `deuda_id_externo`, `motivo` |
@@ -718,6 +725,14 @@ cobra de verdad contra Transbank (ambiente de integración por omisión), Khipu 
 tiene la llave de una cuenta de cobro, y Mercado Pago cuando tiene el access token de una cuenta. Un pago de Webpay se confirma solo
 cuando Transbank lo autoriza y el monto y la orden calzan; uno de Khipu, cuando Khipu dice que la
 transferencia está conciliada, con el monto y la transacción del cobro.
+
+En Mercado Pago, retorno, aviso y consulta periódica concilian la preferencia que ms-payments
+guardó al abrir el cobro. Solo abonan si el pago consultado a la pasarela pertenece a esa
+preferencia y coinciden su identificador, referencia, monto en pesos y moneda CLP. El retorno
+lleva `pago` y `sig`, generados por ms-payments; no usa los estados recibidos del navegador para
+confirmar ni rechazar. Sin firma regresa a `/app`, sin revelar el enlace del pago. Los cobros
+anteriores siguen conciliándose en segundo plano. Si la pasarela no responde, no se abona;
+el aviso devuelve error para permitir su reintento. Un intento rechazado no cierra la preferencia.
 
 **En UF, `pago.confirmado` trae el valor de la UF usado.** La UF cambia todos los días; el acreedor
 tiene que poder reconstruir por qué un pago de `UF 38,5` fueron esos pesos.

@@ -71,6 +71,15 @@ public class DebtNotification {
         this.lastError = null;
     }
 
+    /**
+     * Lo vuelve a poner en cola para ahora, desde el panel (#139). Conserva los
+     * intentos: si vuelve a fallar despues del sexto, queda otra vez como fallido.
+     */
+    public void reintentar() {
+        this.status = Status.pending;
+        this.nextAttemptAt = Instant.now();
+    }
+
     /** Programa el proximo intento, o se rinde despues del ultimo. */
     public void fallo(String motivo) {
         this.attempts = (short) (this.attempts + 1);

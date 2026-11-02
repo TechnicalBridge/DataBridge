@@ -40,8 +40,8 @@ public class OpenApiConfig {
                 .components(new Components()
                         .addSecuritySchemes(JWT, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")
-                                .description("El `token` de la sesion del deudor. ms-ai no lo valida: lo "
-                                        + "reenvia a ms-debt, que decide que deudas puede ver.")));
+                                .description("El `token` de la sesion del deudor. ms-ai valida ES256 mediante JWKS y lo "
+                                        + "reenvia a ms-debt, que vuelve a validar y acota las deudas.")));
     }
 
     @Bean

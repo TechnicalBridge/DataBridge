@@ -4,15 +4,20 @@ import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Batch;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debtor;
+import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface DebtRepository extends JpaRepository<Debt, Long> {
+
+    /** Las deudas de un mandato que siguen en gestion: las que se cobran aunque el mandato termine (#234). */
+    long countByMandateAndStatusIn(Mandate mandate, Collection<Debt.Status> estados);
 
     /**
      * La cartera que opera una organizacion en DataBridge: la suya como
@@ -58,13 +63,16 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
      * Las deudas en cobranza por las que todavia no se le escribio nada al
      * deudor: su invitacion fallo, la ley la dejo para despues, o el deudor no
      * tenia correo y una cartera se lo trajo. Sin las de una direccion con
-     * problemas, que esperan otra.
+     * problemas, que esperan otra, ni las de una empresa suspendida (#152).
      */
     @Query("""
             select d from Debt d join fetch d.debtor r join fetch d.creditor
              where d.status = com.tbridge.debt.model.Debt.Status.open
                and r.email is not null and r.email <> '' and r.emailRejections < :rechazos
                and not exists (select 1 from Contact c where c.debt = d)
+               and d.creditor.status = com.tbridge.debt.model.Organization.Status.active
+               and not exists (select 1 from Campaign k where k = d.campaign and k.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
+               and not exists (select 1 from Mandate m where m = d.mandate and m.agency.status = com.tbridge.debt.model.Organization.Status.suspended)
              order by d.id""")
     List<Debt> sinInvitar(@Param("rechazos") int rechazos);
 

@@ -3,7 +3,7 @@ package com.tbridge.payments.controller;
 import com.tbridge.payments.assembler.PaymentModelAssembler;
 import com.tbridge.payments.config.OpenApiConfig;
 import com.tbridge.payments.config.SecurityConfig;
-import com.tbridge.payments.security.JwtService;
+import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.service.PaymentService;
 import com.tbridge.payments.service.UfLoader;
 import com.tbridge.payments.service.UfService;
@@ -32,8 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * la llave que usa, y lo interno dice que con Docker no se alcanza desde el
  * navegador y como llamarlo.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({InternalController.class, PaymentController.class})
-@Import({SecurityConfig.class, JwtService.class, PaymentModelAssembler.class, OpenApiConfig.class})
+@Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class, PaymentModelAssembler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")

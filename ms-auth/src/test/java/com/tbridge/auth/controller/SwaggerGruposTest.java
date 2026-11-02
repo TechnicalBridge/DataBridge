@@ -31,8 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * la llave que usa, y lo interno dice que con Docker no se alcanza desde el
  * navegador y como llamarlo.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest({InternalController.class, AuthController.class})
-@Import({SecurityConfig.class, JwtService.class, SesionModelAssembler.class, OpenApiConfig.class})
+@Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class, SesionModelAssembler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")
@@ -40,6 +41,7 @@ class SwaggerGruposTest {
 
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService auth;
+    @MockitoBean private com.tbridge.auth.service.IdentifierLimit identifierLimit;
     @MockitoBean private MailService correo;
 
     @Test

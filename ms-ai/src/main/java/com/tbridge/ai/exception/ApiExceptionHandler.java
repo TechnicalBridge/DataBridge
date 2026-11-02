@@ -22,6 +22,11 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    @ExceptionHandler(DeudasException.class)
+    public ResponseEntity<ApiError> deuda(DeudasException ex) {
+        return responder(HttpStatusCode.valueOf(ex.status()), ex.getMessage());
+    }
+
     /** Los que lanza el propio asistente, con su texto. */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiError> conMotivo(ResponseStatusException ex) {
@@ -48,7 +53,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> inesperado(Exception ex) {
-        log.error("Error no controlado", ex);
+        log.error("category=unexpected_error");
         return responder(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno");
     }
 

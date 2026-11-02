@@ -52,6 +52,11 @@ public class Organization {
         return kind == Kind.agency || kind == Kind.both;
     }
 
+    /** Suspendida por el admin de DataBridge: no entra, no entrega cartera y lo suyo queda congelado (#152). */
+    public boolean suspendida() {
+        return status == Status.suspended;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getRut() { return rut; }

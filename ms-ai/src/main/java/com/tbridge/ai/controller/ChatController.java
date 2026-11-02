@@ -12,11 +12,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -43,12 +41,15 @@ public class ChatController {
     @ApiResponse(responseCode = "200", description = "La respuesta del asistente")
     @ApiResponse(responseCode = "401", description = "Sin sesion",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Rol o permisos no autorizados")
+    @ApiResponse(responseCode = "404", description = "Deudor no registrado")
+    @ApiResponse(responseCode = "502", description = "Protocolo de deuda invalido")
+    @ApiResponse(responseCode = "503", description = "Dependencia temporalmente no disponible")
     public Respuesta chat(@RequestBody Pregunta pregunta,
                           @Parameter(hidden = true)
-                          @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        if (authorization == null || authorization.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autorizado");
-        }
-        return asistente.responder(pregunta, authorization);
+                          @org.springframework.security.core.annotation.AuthenticationPrincipal com.tbridge.ai.security.JwtPrincipal principal,
+                          org.springframework.security.core.Authentication authentication) {
+        if (!principal.isDebtor()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para esto");
+        return asistente.responder(pregunta, "Bearer " + authentication.getCredentials());
     }
 }

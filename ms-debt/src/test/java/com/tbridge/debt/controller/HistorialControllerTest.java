@@ -1,6 +1,6 @@
 package com.tbridge.debt.controller;
 
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.PagoResponse;
 import com.tbridge.debt.model.Debt;
@@ -32,8 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** El historial por HTTP: la lista en _embedded.pagos, y el comprobante en PDF. */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(HistorialController.class)
-@Import({SecurityConfig.class, JwtService.class, HistorialControllerTest.Proxy.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, HistorialControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class HistorialControllerTest {
 
@@ -48,7 +49,7 @@ class HistorialControllerTest {
     private static final String PUBLICA = "http://localhost:8080";
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private HistorialService historial;
     @MockitoBean private ComprobanteService comprobantes;
 

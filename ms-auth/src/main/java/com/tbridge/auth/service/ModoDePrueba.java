@@ -76,6 +76,18 @@ public final class ModoDePrueba {
         return Optional.of(new Destino(desvio, "[para " + destinatario + "] " + asunto, true));
     }
 
+    /**
+     * El desvio de {@code destinatario}, sin mirar la lista: para una direccion
+     * que nunca debe salir directo, como la de un dominio reservado. Vacio si
+     * no hay a donde desviarla.
+     */
+    public Optional<Destino> desviar(String destinatario, String asunto) {
+        if (desvio == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new Destino(desvio, "[para " + destinatario + "] " + asunto, true));
+    }
+
     private boolean permitido(String destinatario) {
         String direccion = destinatario == null ? "" : destinatario.strip().toLowerCase(Locale.ROOT);
         String sinAlias = sinAlias(direccion);

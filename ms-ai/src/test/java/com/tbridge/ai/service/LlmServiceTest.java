@@ -1,10 +1,8 @@
 package com.tbridge.ai.service;
 
-import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.sun.net.httpserver.HttpServer;
 import com.tbridge.ai.config.LlmProperties;
-import com.tbridge.ai.dto.response.Salud;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,16 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** La cascada de LLMs, contra un servidor de mentira que habla como la API de OpenAI. */
+/** El LLM, contra un servidor de mentira que habla como la API de xAI. */
 class LlmServiceTest {
 
-    private static final String MODELO = "openai/gpt-oss-120b";
-    private static final String RESPONSES = """
-            {"id":"resp_1","object":"response","created_at":1789923791,"model":"%s","status":"completed",
-             "output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed",
-                        "content":[{"type":"output_text","text":"%s","annotations":[]}]}]}""";
     private static final String CHAT = """
-            {"id":"chat_1","object":"chat.completion","created":1789923791,"model":"%s",
+            {"id":"chat_1","object":"chat.completion","created":1789923791,"model":"grok-4.5",
              "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"%s"}}]}""";
 
     private HttpServer servidor;
@@ -48,9 +40,7 @@ class LlmServiceTest {
     @BeforeEach
     void levantar() throws IOException {
         servidor = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        //  Un solo contexto: se enruta por la ruta pedida, que empieza con el
-        //  nombre del proveedor (…/groq/v1/responses, …/gemini/v1/…).
-        servidor.createContext("/", intercambio -> {
+        servidor.createContext("/v1/", intercambio -> {
             String ruta = intercambio.getRequestURI().getPath();
             pedidos.add(ruta + " " + new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             Contestacion respuesta = respuestas.getOrDefault(ruta, new Contestacion(404, "{\"error\":{\"message\":\"no\"}}"));
@@ -61,141 +51,64 @@ class LlmServiceTest {
             intercambio.close();
         });
         servidor.start();
+        llm = new LlmService(OpenAIOkHttpClient.builder()
+                .apiKey("llave-de-prueba")
+                .baseUrl("http://127.0.0.1:" + servidor.getAddress().getPort() + "/v1")
+                .maxRetries(0)
+                .build(), "grok-4.5", "xai");
     }
 
     @AfterEach
     void bajar() {
-        if (llm != null) {
-            llm.destroy();
-        }
+        llm.destroy();
         servidor.stop(0);
-    }
-
-    private LlmService.Cliente cliente(String nombre, String modelo) {
-        OpenAIClient c = OpenAIOkHttpClient.builder()
-                .apiKey("llave-de-prueba")
-                .baseUrl("http://127.0.0.1:" + servidor.getAddress().getPort() + "/" + nombre + "/v1")
-                .maxRetries(0)
-                .build();
-        return new LlmService.Cliente(nombre, c, modelo);
-    }
-
-    private LlmService cascada(Duration enfriamiento, LlmService.Cliente... clientes) {
-        llm = new LlmService(List.of(clientes), enfriamiento);
-        return llm;
-    }
-
-    private static String texto(LlmService llm) {
-        return llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").map(LlmService.Contestacion::texto).orElse("");
     }
 
     private static final List<Map<String, Object>> HISTORIA = List.of(Map.of("role", "user", "content", "¿Cuánto debo?"));
 
     @Test
-    void sin_proveedores_no_hay_llm_y_responde_el_motor_local() {
-        llm = new LlmService(List.of(), Duration.ofMinutes(60));
+    void sin_llave_no_hay_llm_y_responde_el_motor_local() {
+        LlmService sinLlave = new LlmService(new LlmProperties("xai", null, null, new LlmProperties.Endpoint(" ", "https://api.x.ai/v1", "grok-4.5"), null));
 
-        assertFalse(llm.configurado());
-        assertEquals(Optional.empty(), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
+        assertFalse(sinLlave.configurado());
+        assertEquals(Optional.empty(), sinLlave.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
     }
 
     @Test
-    void sin_llave_los_proveedores_se_omiten_salvo_los_que_no_la_piden() {
-        LlmProperties props = new LlmProperties(List.of("groq", "ollama"), 60, Map.of(
-                "groq", new LlmProperties.Proveedor(" ", "https://ejemplo.invalid/v1", MODELO, 30, null),
-                "ollama", new LlmProperties.Proveedor(null, "https://ejemplo.invalid/v1", MODELO, 30, false)));
-        llm = new LlmService(props);
+    void responde_con_chat_completions() {
+        respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("  Debes $1.040.000 y UF 96,25.  ")));
 
-        assertTrue(llm.configurado());
-        assertEquals(List.of("groq", "ollama"), llm.estado().stream().map(Salud.EstadoProveedor::nombre).toList());
-        assertFalse(llm.estado().get(0).configurado());
-        assertTrue(llm.estado().get(1).configurado());
-    }
-
-    @Test
-    void responde_con_la_api_de_responses() {
-        respuestas.put("/groq/v1/responses",
-                new Contestacion(200, RESPONSES.formatted(MODELO, "  Debes $1.040.000 y UF 96,25.  ")));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO));
-
-        LlmService.Contestacion respuesta = llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").orElseThrow();
-
-        assertEquals("Debes $1.040.000 y UF 96,25.", respuesta.texto());
-        assertEquals("groq", respuesta.proveedor());
+        assertEquals(Optional.of("Debes $1.040.000 y UF 96,25."), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
         assertEquals(1, pedidos.size());
         String pedido = pedidos.getFirst();
-        assertTrue(pedido.contains("\"model\":\"" + MODELO + "\""), pedido);
+        assertTrue(pedido.contains("\"model\":\"grok-4.5\""), pedido);
         assertTrue(pedido.contains("\"role\":\"system\""), pedido);
         assertTrue(pedido.contains("\"role\":\"user\""), pedido);
         assertTrue(pedido.contains("¿Cuánto debo?"), pedido);
     }
 
     @Test
-    void si_no_tiene_la_api_de_responses_usa_la_de_chat() {
-        respuestas.put("/groq/v1/chat/completions", new Contestacion(200, CHAT.formatted(MODELO, "Tienes 2 deudas vigentes.")));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO));
+    void elige_chat_sin_descubrir_capacidades_por_excepcion() {
+        respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("Tienes 2 deudas vigentes.")));
 
-        assertEquals("Tienes 2 deudas vigentes.", texto(llm));
-        assertEquals(List.of("/groq/v1/responses", "/groq/v1/chat/completions"),
+        assertEquals(Optional.of("Tienes 2 deudas vigentes."), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
+        assertEquals(List.of("/v1/chat/completions"),
                 pedidos.stream().map(p -> p.substring(0, p.indexOf(' '))).toList());
     }
 
     @Test
     void si_el_llm_falla_responde_el_motor_local() {
-        respuestas.put("/groq/v1/responses", new Contestacion(500, "{}"));
-        respuestas.put("/groq/v1/chat/completions", new Contestacion(500, "{}"));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO));
+        respuestas.put("/v1/chat/completions", new Contestacion(500, "{}"));
 
         assertEquals(Optional.empty(), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
     }
 
     @Test
     void una_respuesta_en_blanco_no_cuenta() {
-        respuestas.put("/groq/v1/responses", new Contestacion(200, RESPONSES.formatted(MODELO, "   ")));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO));
+        respuestas.put("/v1/chat/completions", new Contestacion(200, CHAT.formatted("   ")));
 
         assertEquals(Optional.empty(), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
         assertEquals(1, pedidos.size());
-    }
-
-    @Test
-    void si_el_primero_falla_pasa_al_siguiente() {
-        respuestas.put("/groq/v1/responses", new Contestacion(500, "{}"));
-        respuestas.put("/groq/v1/chat/completions", new Contestacion(500, "{}"));
-        respuestas.put("/gemini/v1/responses", new Contestacion(200, RESPONSES.formatted(MODELO, "Dos deudas.")));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO), cliente("gemini", MODELO));
-
-        LlmService.Contestacion respuesta = llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").orElseThrow();
-
-        assertEquals("Dos deudas.", respuesta.texto());
-        assertEquals("gemini", respuesta.proveedor());
-    }
-
-    @Test
-    void el_que_agota_su_cuota_queda_en_enfriamiento_y_se_salta() {
-        respuestas.put("/groq/v1/responses", new Contestacion(429, "{}"));
-        respuestas.put("/gemini/v1/responses", new Contestacion(200, RESPONSES.formatted(MODELO, "Dos deudas.")));
-        cascada(Duration.ofMinutes(60), cliente("groq", MODELO), cliente("gemini", MODELO));
-
-        assertEquals("gemini", llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").orElseThrow().proveedor());
-        //  La segunda vez, groq ya no se intenta: va directo a gemini.
-        assertEquals("gemini", llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").orElseThrow().proveedor());
-
-        assertEquals(List.of("/groq/v1/responses", "/gemini/v1/responses", "/gemini/v1/responses"),
-                pedidos.stream().map(p -> p.substring(0, p.indexOf(' '))).toList());
-        assertTrue(llm.estado().stream().filter(e -> e.nombre().equals("groq")).findFirst().orElseThrow().enEnfriamiento());
-    }
-
-    @Test
-    void con_enfriamiento_en_cero_reintenta_siempre() {
-        respuestas.put("/groq/v1/responses", new Contestacion(500, "{}"));
-        respuestas.put("/groq/v1/chat/completions", new Contestacion(500, "{}"));
-        cascada(Duration.ZERO, cliente("groq", MODELO));
-
-        llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral");
-        llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral");
-
-        assertEquals(4, pedidos.size());
     }
 
     @Test
@@ -237,5 +150,39 @@ class LlmServiceTest {
         assertEquals(List.of("m6", "m7", "m8", "m9", "m10", "m11", "m12", "m13", "m14", "m17"),
                 mensajes.subList(1, mensajes.size()).stream().map(LlmService.Mensaje::contenido).toList());
         assertEquals("system", mensajes.getFirst().rol());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={401,403,429,500})
+    void provider_failures_are_safe_for_local(int status) {
+        respuestas.put("/v1/chat/completions", new Contestacion(status, "{\"error\":{\"message\":\"PROMPT-MARKER TOKEN-MARKER-SECRET RUT-MARKER\"}}"));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(LlmService.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        try {
+            assertTrue(llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty());
+            assertFalse(appender.list.isEmpty());
+            for (var event : appender.list) {
+                assertFalse(event.getFormattedMessage().contains("MARKER"));
+                assertTrue(event.getThrowableProxy() == null);
+            }
+        } finally { logger.detachAppender(appender); appender.stop(); }
+    }
+    @Test void provider_timeout_uses_local_result_without_real_provider() throws Exception {
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        var slow = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        slow.setExecutor(executor);
+        slow.createContext("/", exchange -> {
+            try { gate.await(2, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            finally { exchange.close(); }
+        });
+        slow.start();
+        var client = OpenAIOkHttpClient.builder().apiKey("ficticia")
+                .baseUrl("http://127.0.0.1:" + slow.getAddress().getPort())
+                .maxRetries(0).timeout(java.time.Duration.ofMillis(100)).build();
+        var timed = new LlmService(client, "test", "xai");
+        try { assertTrue(timed.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty()); }
+        finally { gate.countDown(); timed.destroy(); slow.stop(0); executor.shutdownNow(); }
     }
 }

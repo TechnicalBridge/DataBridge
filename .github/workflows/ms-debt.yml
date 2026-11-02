@@ -9,7 +9,7 @@ name: ms-debt
 on:
   push:
     branches: [main]
-    paths: ['ms-debt/**', 'docs/eventos/**', 'docs/integracion/**', '.github/workflows/ms-debt.yml', '.github/workflows/java.yml']
+    paths: ['ms-debt/**', 'ms-payments/src/test/resources/contratos/**', '.github/workflows/ms-debt.yml', '.github/workflows/java.yml']
   #  En un PR corre siempre: main exige el check "CI de ms-debt", y un check que
   #  no corre dejaria el PR esperando para siempre. Si su carpeta no cambio, se
   #  salta las pruebas y el check pasa en segundos.
@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          RUTAS: '^(ms-debt/|docs/eventos/|docs/integracion/|\.github/workflows/ms-debt\.yml$|\.github/workflows/java\.yml$)'
+          RUTAS: '^(ms-debt/|ms-payments/src/test/resources/contratos/|\.github/workflows/ms-debt\.yml$|\.github/workflows/java\.yml$)'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "toca=true" >> "$GITHUB_OUTPUT"

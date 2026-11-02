@@ -3,7 +3,7 @@ package com.tbridge.debt.controller;
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.exception.CarteraInvalidaHandler;
-import com.tbridge.debt.security.JwtService;
+import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.ApiKeyService;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.configuration.SpringDocConfiguration;
@@ -35,15 +35,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * existen: los deudores entran por campana. Responden 404 como cualquier ruta
  * que no hay, sin decir que estan apagadas, y ni siquiera se mira la clave.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 @WebMvcTest(controllers = {IntegracionController.class, ClaveController.class})
-@Import({SecurityConfig.class, JwtService.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
+@Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, CarteraInvalidaHandler.class, OpenApiConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @ActiveProfiles("test")
 class EntregaPorApiApagadaTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private JwtService jwt;
+    @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ApiKeyService claves;
 
     private String empresa() {

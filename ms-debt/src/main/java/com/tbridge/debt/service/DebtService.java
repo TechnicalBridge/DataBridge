@@ -136,9 +136,13 @@ public class DebtService {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "El token no dice de que empresa eres: no se puede mostrar una cartera");
         }
-        return organizations.findByRut(user.rut())
+        Organization org = organizations.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "Esa empresa no esta registrada en DataBridge"));
+        if (org.getStatus() == Organization.Status.suspended) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "La empresa está suspendida");
+        }
+        return org;
     }
 
     /**
@@ -191,15 +195,17 @@ public class DebtService {
                     : contactos.ultimoPorDeuda(cartera).stream()
                             .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
             Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(cartera);
+            Map<Long, BigDecimal> caes = caes(cartera);
             return cartera.stream()
-                    .map(d -> resumen(d, enviado.get(d.getId()), disputas.get(d.getId())))
+                    .map(d -> resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())))
                     .toList();
         }
         List<Debt> filas = debts.findByDebtorOrderByUpdatedAtDesc(deudorDe(user));
         filas.forEach(this::anotarIngreso);
         Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(filas);
+        Map<Long, BigDecimal> caes = caes(filas);
         return filas.stream()
-                .map(d -> resumen(d, null, disputas.get(d.getId())))
+                .map(d -> resumen(d, null, disputas.get(d.getId()), caes.get(d.getId())))
                 .toList();
     }
 
@@ -249,6 +255,29 @@ public class DebtService {
                 .filter(c -> c.getStatus() == Installment.Status.pending)
                 .map(Installment::capital)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * La CAE del convenio vigente de cada deuda, en una sola consulta. Si por
+     * algo quedaran dos vigentes, vale el que se acepto despues. El resumen la
+     * muestra solo si la deuda esta en convenio.
+     */
+    private Map<Long, BigDecimal> caes(List<Debt> deudas) {
+        if (deudas.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Repactation> vigente = new HashMap<>();
+        for (Repactation convenio : repactations.findByDebtInAndSupersededAtIsNull(deudas)) {
+            vigente.merge(convenio.getDebt().getId(), convenio,
+                    (a, b) -> b.getAcceptedAt().isAfter(a.getAcceptedAt()) ? b : a);
+        }
+        Map<Long, BigDecimal> caes = new HashMap<>();
+        vigente.forEach((deuda, convenio) -> {
+            if (convenio.getCae() != null) {
+                caes.put(deuda, convenio.getCae());
+            }
+        });
+        return caes;
     }
 
     /** La disputa abierta de cada deuda que esta en disputa: la ultima que abrio el deudor. */
@@ -381,6 +410,10 @@ public class DebtService {
         if (deuda.getStatus() == Debt.Status.disputed) {
             throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se repacta mientras tanto");
         }
+        if (deuda.congelada()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "La empresa que cobra esta deuda está suspendida: por ahora no se repacta");
+        }
 
         RepactPlan plan = plan(deuda, months);
         boolean conInteres = plan.tasaInteresMensual() != null;
@@ -395,6 +428,7 @@ public class DebtService {
         nueva.setMonthlyAmount(plan.monthlyAmount());
         nueva.setInterestRate(plan.tasaInteresMensual());
         nueva.setPrincipal(plan.aRepactar());
+        nueva.setCae(plan.cae());
         nueva.setCurrency(deuda.getCurrency());
         repactations.save(nueva);
 
@@ -424,7 +458,8 @@ public class DebtService {
                 deuda.getCurrency().name(), plan.cuotas().getFirst().dueDate().toString(),
                 plan.tasaInteresMensual(),
                 conInteres ? EventosService.monto(plan.aRepactar(), deuda.getCurrency()) : null,
-                conInteres ? EventosService.monto(plan.total(), deuda.getCurrency()) : null), Instant.now());
+                conInteres ? EventosService.monto(plan.total(), deuda.getCurrency()) : null,
+                plan.cae()), Instant.now());
 
         return detalle(deuda);
     }
@@ -468,6 +503,11 @@ public class DebtService {
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
             throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
+        }
+        //  Mientras la empresa que la cobra esta suspendida, tampoco (#152).
+        if (deuda.congelada()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "La empresa que cobra esta deuda está suspendida: por ahora no se puede pagar");
         }
         List<Installment> pendientes = installments.findByDebtAndStatus(deuda, Installment.Status.pending).stream()
                 .sorted(EN_ORDEN).toList();
@@ -671,7 +711,10 @@ public class DebtService {
                 aviso.gateway() == null ? null : aviso.gateway().toLowerCase(Locale.ROOT), lugares, de,
                 fuera == 0 ? null : (int) fuera,
                 aviso.interest() == null || aviso.interest().signum() == 0 ? null : aviso.interest(),
-                aviso.discount() == null || aviso.discount().signum() == 0 ? null : aviso.discount());
+                aviso.discount() == null || aviso.discount().signum() == 0 ? null : aviso.discount(),
+                deuda.getLastBatch().getSender().getRut(), deuda.getLastBatch().getSender().getTradeName(),
+                deuda.getCampaign() == null ? null : deuda.getCampaign().getExternalId(),
+                deuda.getCampaign() == null ? null : deuda.getCampaign().getName());
         try {
             return json.writeValueAsString(detalle);
         } catch (JsonProcessingException e) {
@@ -691,11 +734,12 @@ public class DebtService {
     // ------------------------------------------------------------------
 
     /** Con una sola consulta de cuotas: el saldo, la mora y el avance salen de la misma lista. */
-    private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa) {
+    private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa,
+                                        BigDecimal cae) {
         List<Installment> cuotas = installments.findByDebtOrderByNumberAsc(deuda);
         BigDecimal moraTotal = Intereses.total(mora(deuda, cuotas));
         return DebtSummaryResponse.from(deuda, cuotas, codigoEnviado, disputa, moraTotal,
-                oferta(deuda, cuotas, moraTotal));
+                oferta(deuda, cuotas, moraTotal), cae);
     }
 
     private DebtDetailResponse detalle(Debt deuda) {
@@ -703,7 +747,8 @@ public class DebtService {
         Map<Long, BigDecimal> mora = mora(deuda, cuotas);
         return new DebtDetailResponse(
                 DebtSummaryResponse.from(deuda, cuotas, null, disputas(List.of(deuda)).get(deuda.getId()),
-                        Intereses.total(mora), oferta(deuda, cuotas, Intereses.total(mora))),
+                        Intereses.total(mora), oferta(deuda, cuotas, Intereses.total(mora)),
+                        caes(List.of(deuda)).get(deuda.getId())),
                 charges.findByDebtOrderByDueDateAsc(deuda).stream().map(DebtDetailResponse.Cargo::from).toList(),
                 cuotas.stream().map(c -> DebtDetailResponse.Cuota.from(c, mora.get(c.getId()))).toList(),
                 historia(deuda));

@@ -37,8 +37,8 @@ import java.util.regex.Pattern;
 /**
  * Los correos por la API de Brevo (HTTPS), en vez de SMTP.
  *
- * <p>Es lo que funciona en Railway, que bloquea el SMTP de salida salvo en su
- * plan Pro. Para el resto del servicio es un {@link JavaMailSender} mas: el
+ * <p>Va por HTTPS, asi que sale aunque el proveedor del servidor bloquee el
+ * SMTP de salida. Para el resto del servicio es un {@link JavaMailSender} mas: el
  * modo de prueba, el correo de prueba y el manejo de lo que no sale siguen
  * igual, porque viven en {@code MailService}, encima de esto. De cada correo
  * toma el remitente, los destinatarios, el asunto y sus versiones en texto y

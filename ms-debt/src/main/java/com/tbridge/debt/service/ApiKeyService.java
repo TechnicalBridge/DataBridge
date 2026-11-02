@@ -100,9 +100,14 @@ public class ApiKeyService {
             throw noAutorizado();
         }
         return claves.findByKeyHashAndRevokedAtIsNull(Hash.sha256(clave)).map(registro -> {
+            Organization org = registro.getOrganization();
+            if (org.getStatus() == Organization.Status.suspended) {
+                throw new CarteraInvalida("empresa_suspendida",
+                        "La empresa está suspendida: sus claves de API no pueden operar", 403);
+            }
             registro.setLastUsedAt(Instant.now());
             claves.save(registro);
-            return registro.getOrganization();
+            return org;
         }).orElseThrow(ApiKeyService::noAutorizado);
     }
 
