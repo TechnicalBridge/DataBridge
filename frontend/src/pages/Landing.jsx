@@ -30,7 +30,7 @@ const PARA_EMPRESAS = [
   "Cargas a tus deudores en una campaña, desde un Excel, y antes de guardar ves cuáles entran y cuáles no, con su motivo.",
   "Entran solo deudas en mora: las que llevan 30 días o más desde su cargo impago más antiguo.",
   "DataBridge le escribe al deudor según tu campaña y dentro de lo que permite la ley: hasta dos correos por semana, de lunes a sábado entre 8:00 y 20:00, nunca en feriados (art. 37 de la Ley 19.496).",
-  "Ves en qué va cada deuda y cada pago conciliado, y lo descargas en una planilla.",
+  "Ves en qué va cada deuda y cada pago confirmado, y lo descargas en una planilla.",
 ];
 
 const PREGUNTAS = [

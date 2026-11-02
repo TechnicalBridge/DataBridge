@@ -59,7 +59,7 @@ export default function Debts() {
         <div className="card stat aparece" style={{ "--i": 2 }}>
           <span>En convenio de pago</span>
           <b>{enConvenio}</b>
-          <small>{vigentes.length - enConvenio} sin convenio</small>
+          <small>de {vigentes.length} {vigentes.length === 1 ? "deuda" : "deudas"}</small>
         </div>
         <div className="card stat aparece" style={{ "--i": 3 }}>
           <span>Pagadas</span>

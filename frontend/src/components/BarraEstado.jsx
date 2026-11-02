@@ -1,13 +1,13 @@
 import { IconoCheck } from "./Iconos";
 
-const TITULOS = ["Pendiente", "En convenio", "Pago conciliado"];
+const TITULOS = ["Por pagar", "En convenio", "Pagada"];
 
 /**
- * En que va una deuda, de principio a fin: pendiente, en convenio, pago
- * conciliado.
+ * En que va una deuda, de principio a fin: por pagar, en convenio, pagada.
  *
- * "Conciliado" y no solo "pagado": la pasarela confirmo el pago, se imputo a
- * la deuda y el acreedor ya fue avisado. En convenio la barra avanza con cada
+ * Pagada recien cuando la pasarela confirmo el pago, se imputo a la deuda y el
+ * acreedor ya fue avisado. Antes decia "conciliado", que solo entiende quien
+ * trabaja en cobranza (#305). En convenio la barra avanza con cada
  * cuota pagada, no solo al cambiar de etapa.
  */
 export function etapaDe(d) {
@@ -17,15 +17,15 @@ export function etapaDe(d) {
 
   switch (d.estado) {
     case "open":
-      return { avance: 0, pasos: ["actual", "", ""], subs: ["Por regularizar", "Si lo eliges", ""],
-               texto: "Pendiente" };
+      return { avance: 0, pasos: ["actual", "", ""], subs: ["", "Si lo eliges", ""],
+               texto: "Por pagar" };
     case "repacted":
       return { avance: enConvenio, pasos: ["hecho", "actual", ""], subs: ["", `${pagadas} de ${totales} cuotas`, ""],
                texto: `En convenio, ${pagadas} de ${totales}` };
     case "paid":
       return { avance: 1, pasos: ["hecho", d.conConvenio ? "hecho" : "omitido", "hecho"],
                subs: ["", d.conConvenio ? `${totales} cuotas pagadas` : "Pago al contado", "Acreedor avisado"],
-               texto: "Pago conciliado" };
+               texto: "Pagada" };
     case "withdrawn":
       return { avance: d.conConvenio ? enConvenio : 0, pasos: ["hecho", d.conConvenio ? "hecho" : "", ""],
                subs: ["", "", "No se cobrará"], texto: "Retirada por el acreedor", detenida: true };

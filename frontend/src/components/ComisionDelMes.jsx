@@ -21,8 +21,8 @@ function tramo(t) {
 }
 
 /**
- * El modelo de negocio, visto por la empresa (#200): lo que recuperó en el mes (G), su tramo (p), lo que le
- * paga a DataBridge (P = G · p) y lo que le queda (G − P). onDatos recibe la respuesta, para que Campañas
+ * El modelo de negocio, visto por la empresa (#200): lo que recupero en el mes, su porcentaje, lo que le paga
+ * a DataBridge y lo que le queda, con la cuenta escrita en vez de la formula (#305). onDatos recibe la respuesta, para que Campañas
  * muestre lo que recuperó cada una.
  */
 export default function ComisionDelMes({ onDatos }) {
@@ -65,11 +65,17 @@ export default function ComisionDelMes({ onDatos }) {
       {datos ? (
         <>
           <div className="cifras-revision" aria-live="polite">
-            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>recuperado en {mesEnPalabras(datos.mes)} · G</span></div>
-            <div className="cifra"><b>{datos.recuperado ? porcentaje(datos.porcentaje) : "—"}</b><span>tu tramo · p(G)</span></div>
-            <div className="cifra"><b>{dinero(datos.comision)}</b><span>para DataBridge · P = G · p</span></div>
-            <div className="cifra entran"><b>{dinero(datos.paraLaEmpresa)}</b><span>para tu empresa · G − P</span></div>
+            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>Recuperado en {mesEnPalabras(datos.mes)}</span></div>
+            <div className="cifra"><b>{datos.recuperado ? porcentaje(datos.porcentaje) : "—"}</b><span>Tu porcentaje</span></div>
+            <div className="cifra"><b>{dinero(datos.comision)}</b><span>Lo que pagas a DataBridge</span></div>
+            <div className="cifra entran"><b>{dinero(datos.paraLaEmpresa)}</b><span>Lo que queda para tu empresa</span></div>
           </div>
+          {/* La cuenta con los montos del mes, en vez de la formula (#305). */}
+          {datos.recuperado ? (
+            <p className="hint cuenta-comision">
+              {porcentaje(datos.porcentaje)} de {dinero(datos.recuperado)} = {dinero(datos.comision)}
+            </p>
+          ) : null}
           <div className="tabla-scroll">
             <table className="table tramos">
               <caption className="hint">Los tramos del modelo, sobre todo lo recuperado en el mes</caption>
