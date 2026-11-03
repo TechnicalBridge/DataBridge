@@ -21,11 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** El LLM, contra un servidor de mentira que habla como la API de xAI. */
+/** El LLM, contra un servidor de mentira que habla como la API de Groq. */
 class LlmServiceTest {
 
     private static final String CHAT = """
-            {"id":"chat_1","object":"chat.completion","created":1789923791,"model":"grok-4.5",
+            {"id":"chat_1","object":"chat.completion","created":1789923791,"model":"test-model",
              "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"%s"}}]}""";
 
     private HttpServer servidor;
@@ -55,7 +55,7 @@ class LlmServiceTest {
                 .apiKey("llave-de-prueba")
                 .baseUrl("http://127.0.0.1:" + servidor.getAddress().getPort() + "/v1")
                 .maxRetries(0)
-                .build(), "grok-4.5", "xai");
+                .build(), "test-model", "groq");
     }
 
     @AfterEach
@@ -68,7 +68,7 @@ class LlmServiceTest {
 
     @Test
     void sin_llave_no_hay_llm_y_responde_el_motor_local() {
-        LlmService sinLlave = new LlmService(new LlmProperties("xai", null, null, new LlmProperties.Endpoint(" ", "https://api.x.ai/v1", "grok-4.5"), null));
+        LlmService sinLlave = new LlmService(new LlmProperties("groq", new LlmProperties.Endpoint(" ", "https://api.groq.com/openai/v1", "test-model"), null, null));
 
         assertFalse(sinLlave.configurado());
         assertEquals(Optional.empty(), sinLlave.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
@@ -81,7 +81,7 @@ class LlmServiceTest {
         assertEquals(Optional.of("Debes $1.040.000 y UF 96,25."), llm.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral"));
         assertEquals(1, pedidos.size());
         String pedido = pedidos.getFirst();
-        assertTrue(pedido.contains("\"model\":\"grok-4.5\""), pedido);
+        assertTrue(pedido.contains("\"model\":\"test-model\""), pedido);
         assertTrue(pedido.contains("\"role\":\"system\""), pedido);
         assertTrue(pedido.contains("\"role\":\"user\""), pedido);
         assertTrue(pedido.contains("¿Cuánto debo?"), pedido);
@@ -181,7 +181,7 @@ class LlmServiceTest {
         var client = OpenAIOkHttpClient.builder().apiKey("ficticia")
                 .baseUrl("http://127.0.0.1:" + slow.getAddress().getPort())
                 .maxRetries(0).timeout(java.time.Duration.ofMillis(100)).build();
-        var timed = new LlmService(client, "test", "xai");
+        var timed = new LlmService(client, "test", "groq");
         try { assertTrue(timed.responder(HISTORIA, MotorLocalTest.DEUDAS, "neutral").isEmpty()); }
         finally { gate.countDown(); timed.destroy(); slow.stop(0); executor.shutdownNow(); }
     }

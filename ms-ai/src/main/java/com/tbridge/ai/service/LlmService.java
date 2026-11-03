@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * La respuesta con un LLM, si hay uno configurado.
  *
- * <p>Usa Chat Completions de Groq, Gemini o xAI con el SDK existente, que sirve para
+ * <p>Usa Chat Completions de Groq o Gemini con el SDK existente, que sirve para
  * cualquier API compatible: basta con su URL. Si no hay llave, o el LLM falla,
  * no hay respuesta y el asistente responde con su motor local de reglas
  * ({@link MotorLocal}). Nunca inventa montos: el contexto son las deudas tal

@@ -154,7 +154,7 @@ falta uno, el servicio no arranca y dice cuál.
 | `CIFRADO_LLAVE` | ms-debt | Cifrar el secreto de cada suscripción |
 
 Las credenciales de las pasarelas (`TRANSBANK_*`, `KHIPU_*`, `MERCADOPAGO_*`), del Banco Central (`BCENTRAL_*`),
-del LLM (`XAI_*`) y del servidor de correo (`SMTP_*`) son opcionales: sin ellas, cada pasarela se simula, la UF
+del LLM (`GROQ_*`, `GEMINI_*`) y del servidor de correo (`SMTP_*`) son opcionales: sin ellas, cada pasarela se simula, la UF
 se carga a mano, el asistente responde con reglas y los correos van al buzón de prueba.
 
 **El correo, con un servidor real.** Con `SMTP_HOST` en el `.env`, ms-auth deja de usar `mailpit` y le entrega
