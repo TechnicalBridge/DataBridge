@@ -92,7 +92,7 @@ export default function Layout({ variant }) {
         <div className="sidebar-foot">
           <TemaToggle conTexto />
           <div className="user-chip">
-            <span className="avatar">{conCuenta ? iniciales(user?.nombre) : "TB"}</span>
+            <span className="avatar">{conCuenta ? iniciales(user?.nombre) : <IconoUsuario size={18} />}</span>
             <div>
               {conCuenta ? (
                 <>

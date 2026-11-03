@@ -39,6 +39,9 @@ Una barra le muestra en qué va cada deuda: **pendiente → en convenio → pago
 dudas, le pregunta a un asistente que lee su deuda con su propia sesión. Cuando termina de pagar,
 descarga su certificado de deuda cero.
 
+Al entrar, lo primero que ve es lo que le toca pagar: cuánto, a quién y el botón para hacerlo. Si no hay
+nada que pagar, lo dice y explica por qué.
+
 Adentro tiene además:
 
 - sus **próximos vencimientos**, que puede pasar al calendario del teléfono;

@@ -157,7 +157,7 @@ export default function DataBridge() {
               <span key={m.moneda}>{dinero(m.recuperado, m.moneda)}</span>
             ))}
           </b>
-          <small>{(resumen?.porMoneda || []).map((m) => `${m.tasaRecuperacion}% en ${m.moneda}`).join(", ")}</small>
+          <small>{(resumen?.porMoneda || []).map((m) => `${porcentaje(m.tasaRecuperacion)} en ${m.moneda === "UF" ? "UF" : "pesos"}`).join(", ")}</small>
           <small>
             Lo que pagas a DataBridge: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
           </small>
