@@ -270,48 +270,120 @@ public class PaymentService {
      */
     private void antesDeAbrirOtro(Long debtId) {
         for (Payment otro : payments.findByDebtIdAndStatus(debtId, Payment.Status.created)) {
-            boolean enVerificacion;
-            if (cobraKhipu(otro)) {
-                enVerificacion = conciliar(otro);
-                if (!enVerificacion && otro.getStatus() == Payment.Status.created) {
-                    //  Si Khipu no deja anularlo, alguien lo esta pagando: se pregunta de nuevo.
-                    khipu.anular(otro.getGatewayTxnId());
-                    enVerificacion = conciliar(otro);
-                }
-            } else if (cobraMercadoPago(otro)) {
-                enVerificacion = conciliarMercadoPago(otro);
-                if (!enVerificacion && otro.getStatus() == Payment.Status.created) {
-                    mercadopago.vencerPreferencia(otro.getGatewayTxnId());
-                    enVerificacion = conciliarMercadoPago(otro);
-                }
-            } else if (cobraWebpay(otro)) {
-                //  Puede que el deudor ya haya pagado en la ventana anterior (la
-                //  que quedo detras): se le pregunta a Transbank y, si pago, se
-                //  registra y noPagadasYa frena el cobro nuevo. Si no pago, ese
-                //  cobro se vence: si igual pagara ahi, no se confirmaria y
-                //  Transbank lo reversa, en vez de cobrarle dos veces.
-                try {
-                    segunTransbank(otro, true);
-                } catch (ApiException transbankNoResponde) {
-                    //  Sin respuesta no se sabe: se deja, y si pagara los dos, el
-                    //  segundo queda duplicado (confirmar).
-                    continue;
-                }
-                if (otro.getStatus() == Payment.Status.created) {
-                    vencer(otro);
-                }
-                continue;
-            } else {
+            if (!cobraDeVerdad(otro)) {
                 continue;
             }
-            if (enVerificacion) {
-                throw new ApiException(HttpStatus.CONFLICT, "Tienes un pago en verificación en " + nombre(otro)
-                        + ": espera a que se confirme antes de pagar de nuevo.");
+            boolean verificando;
+            try {
+                verificando = anularEnLaPasarela(otro);
+            } catch (ApiException noResponde) {
+                if (cobraWebpay(otro)) {
+                    //  Sin respuesta de Transbank no se sabe: se deja, y si pagara
+                    //  los dos, el segundo queda duplicado (confirmar).
+                    continue;
+                }
+                throw noResponde;
+            }
+            if (verificando) {
+                throw enVerificacion(otro);
             }
             if (otro.getStatus() == Payment.Status.created) {
                 vencer(otro);
             }
         }
+    }
+
+    /**
+     * Le pregunta a la pasarela por un cobro abierto y, si no se pago, lo anula
+     * alla para que no se pueda pagar despues. Si ya se pago, queda registrado.
+     * Si sigue abierto al volver, lo cierra quien llamo.
+     *
+     * @return si la pasarela lo esta verificando: el deudor ya pago y falta que
+     *         lo confirme. Webpay no tiene esa etapa.
+     * @throws ApiException si la pasarela no responde.
+     */
+    private boolean anularEnLaPasarela(Payment pago) {
+        if (cobraKhipu(pago)) {
+            boolean verificando = conciliar(pago);
+            if (!verificando && pago.getStatus() == Payment.Status.created) {
+                //  Si Khipu no deja anularlo, alguien lo esta pagando: se pregunta de nuevo.
+                khipu.anular(pago.getGatewayTxnId());
+                verificando = conciliar(pago);
+            }
+            return verificando;
+        }
+        if (cobraMercadoPago(pago)) {
+            boolean verificando = conciliarMercadoPago(pago);
+            if (!verificando && pago.getStatus() == Payment.Status.created) {
+                mercadopago.vencerPreferencia(pago.getGatewayTxnId());
+                verificando = conciliarMercadoPago(pago);
+            }
+            return verificando;
+        }
+        if (cobraWebpay(pago)) {
+            //  Puede que el deudor ya haya pagado en la ventana anterior (la que
+            //  quedo detras): se le pregunta a Transbank y, si pago, se registra.
+            //  Si no pago, quien llamo lo vence: si igual pagara ahi, no se
+            //  confirmaria y Transbank lo reversa, en vez de cobrarle dos veces.
+            segunTransbank(pago, true);
+        }
+        return false;
+    }
+
+    private static ApiException enVerificacion(Payment pago) {
+        return new ApiException(HttpStatus.CONFLICT, "Tienes un pago en verificación en " + nombre(pago)
+                + ": espera a que se confirme antes de pagar de nuevo.");
+    }
+
+    /**
+     * El deudor cancela un cobro abierto, por ejemplo porque cerro la ventana de
+     * la pasarela (#307). Solo el dueno del pago, y nunca a ciegas: primero se le
+     * pregunta a la pasarela.
+     *
+     * <ul>
+     *   <li>Si ya se pago, queda pagado: no se libera nada y el portal lo muestra.</li>
+     *   <li>Si la pasarela lo esta verificando, responde {@code 409}: el deudor ya
+     *       pago, y soltar el cobro lo dejaria pagar de nuevo.</li>
+     *   <li>Si la pasarela no responde, {@code 503}: sin saber en que quedo, no se
+     *       cierra.</li>
+     *   <li>Si no se pago, se anula alla y queda vencido, con el evento en el libro.
+     *       Vencido y no fallido: si igual alcanzo a pagarse, la revision de los
+     *       vencidos lo registra y esa plata no se pierde.</li>
+     * </ul>
+     *
+     * <p>Lo primero es bloquear la fila, asi dos clics, o la consulta periodica de
+     * Webpay, esperan y encuentran el pago ya cerrado. Un pago ya cerrado se
+     * devuelve tal cual.
+     */
+    @Transactional
+    public PaymentResponse cancelarIntento(JwtPrincipal user, Long id) {
+        if (user == null || user.isCreditor()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo el deudor cancela su pago");
+        }
+        Payment pago = payments.paraCerrar(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
+        if (!mismo(user.rut(), pago.getDebtorRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Ese pago no es tuyo");
+        }
+        if (pago.getStatus() != Payment.Status.created) {
+            return respuesta(pago);
+        }
+        boolean verificando;
+        try {
+            verificando = anularEnLaPasarela(pago);
+        } catch (ApiException noResponde) {
+            log.warn("No se pudo cancelar el pago {}: {} no respondio ({})", pago.getId(), nombre(pago),
+                    noResponde.getMessage());
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, nombre(pago)
+                    + " no responde y no sabemos si el pago se hizo: inténtalo de nuevo en unos segundos.");
+        }
+        if (verificando) {
+            throw enVerificacion(pago);
+        }
+        if (pago.getStatus() == Payment.Status.created) {
+            vencer(pago, PaymentEvent.Source.portal);
+        }
+        return respuesta(pago);
     }
 
     /**
@@ -585,6 +657,7 @@ public class PaymentService {
             throw new ApiException(HttpStatus.CONFLICT,
                     "Este pago lo confirma " + nombre(pago) + ", al terminar de pagar alla");
         }
+        noSiYaSeCerro(pago);
         return confirmar(pago, PaymentEvent.Source.portal, null, null, null);
     }
 
@@ -748,9 +821,13 @@ public class PaymentService {
     }
 
     private void vencer(Payment pago) {
+        vencer(pago, PaymentEvent.Source.webhook);
+    }
+
+    private void vencer(Payment pago, PaymentEvent.Source origen) {
         pago.setStatus(Payment.Status.expired);
         payments.save(pago);
-        eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.expired, PaymentEvent.Source.webhook));
+        eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.expired, origen));
     }
 
     /**
@@ -1225,7 +1302,19 @@ public class PaymentService {
         if (cobraDeVerdad(pago)) {
             throw new ApiException(HttpStatus.CONFLICT, "Este pago lo confirma " + nombre(pago));
         }
+        noSiYaSeCerro(pago);
         return confirmar(pago, PaymentEvent.Source.webhook, aviso.txnId(), true, null);
+    }
+
+    /**
+     * La pasarela simulada no le pregunta a nadie: sin esto, su pagina, que quedo
+     * abierta en otra ventana, confirmaria un cobro que el deudor ya cancelo.
+     */
+    private static void noSiYaSeCerro(Payment pago) {
+        if (pago.getStatus() == Payment.Status.expired || pago.getStatus() == Payment.Status.failed) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Este pago ya se canceló o venció: vuelve al portal para abrir uno nuevo");
+        }
     }
 
     /** El monto en pesos, con el valor de la UF del dia en Chile si la deuda es en UF. */

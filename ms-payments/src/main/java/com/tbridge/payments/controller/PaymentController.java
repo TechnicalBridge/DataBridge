@@ -146,6 +146,27 @@ public class PaymentController {
         return enlaces.toModel(payments.get(user, id));
     }
 
+    @PostMapping("/{id}/cancelar")
+    @Operation(summary = "Cancelar un cobro abierto",
+            description = "El deudor cancela su intento de pago, por ejemplo porque cerro la ventana de la pasarela. "
+                    + "Primero se le pregunta a la pasarela: si ya se pago, el pago queda pagado y se devuelve asi; "
+                    + "si no, se anula alla y queda vencido, y el deudor puede abrir otro. Cancelar dos veces no "
+                    + "cambia nada.")
+    @SecurityRequirement(name = OpenApiConfig.JWT)
+    @ApiResponse(responseCode = "200", description = "En que quedo el pago: `expired`, `failed`, `paid` o `duplicated`")
+    @ApiResponse(responseCode = "403", description = "No es el deudor de ese pago",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No existe",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "La pasarela lo esta verificando: el deudor ya pago",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = "La pasarela no responde: el cobro sigue abierto",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public EntityModel<PaymentResponse> cancelar(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
+                                                 @PathVariable Long id) {
+        return enlaces.toModel(payments.cancelarIntento(user, id));
+    }
+
     @GetMapping("/{id}/historia")
     @Operation(summary = "El libro de un pago", description = "Cada paso, del primero al ultimo. Nada se sobreescribe.")
     @SecurityRequirement(name = OpenApiConfig.JWT)

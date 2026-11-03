@@ -2556,6 +2556,7 @@ classDiagram
             +checkout(JwtPrincipal, CheckoutRequest) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
             +paraDevolver(JwtPrincipal) List~PaymentResponse~
+            +cancelar(JwtPrincipal, Long) PaymentResponse
             +registrarDevolucion(JwtPrincipal, Long, DevolucionRequest) PaymentResponse
             +devueltos(JwtPrincipal) List~PaymentResponse~
             +one(JwtPrincipal, Long) PaymentResponse
@@ -2600,6 +2601,7 @@ classDiagram
         class PaymentService {
             <<service>>
             +checkout(JwtPrincipal, CheckoutRequest) PaymentResponse
+            +cancelarIntento(JwtPrincipal, Long) PaymentResponse
             +get(JwtPrincipal, Long) PaymentResponse
             +publicGet(Long, String) PaymentResponse
             +list(JwtPrincipal) List~PaymentResponse~
