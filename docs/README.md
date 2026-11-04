@@ -12,7 +12,7 @@ es la entrada: qué hace DataBridge, cómo se levanta y su arquitectura. Desde a
 | [`seguridad`](seguridad/jwt.md) | [Las llaves de las sesiones](seguridad/jwt.md), cómo se generan y cómo se cambian; y [que ninguna clave llegue al repositorio](seguridad/secretos.md) | Quien opera o programa |
 | [`despliegue`](despliegue/README.md) | DataBridge en el servidor de la demo, paso a paso | Quien despliega |
 | [`cartera`](cartera/README.md) | Cómo probar la carga de la cartera, y la demo que viene incluida | Quien prueba |
-| [`rendimiento`](rendimiento/README.md) | Las pruebas de carga con k6 y lo que encontraron. Los scripts están en [`rendimiento/`](../rendimiento/) | Quien opera |
+| [`rendimiento`](rendimiento/README.md) | Las pruebas de carga con k6 y lo que encontraron. Los scripts están en [`performance-tests/`](../performance-tests/) | Quien opera |
 | [`metodologia`](metodologia/plan-kanban.md) | El seguimiento del plan de trabajo Kanban, y en qué se apartó el proyecto | El equipo y quien evalúa |
 
 ## Cómo se escribe aquí

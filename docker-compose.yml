@@ -184,6 +184,9 @@ services:
       #  El primer admin de DataBridge: entra al panel de administracion con un
       #  enlace a este correo. Sin el no hay admin, y nadie entra al panel.
       ADMIN_CORREO:      ${ADMIN_CORREO:-}
+      AUTH_IDENTIFIER_LIMIT_CAPACITY: ${AUTH_IDENTIFIER_LIMIT_CAPACITY:-10}
+      AUTH_IDENTIFIER_LIMIT_WINDOW_SECONDS: ${AUTH_IDENTIFIER_LIMIT_WINDOW_SECONDS:-60}
+      AUTH_IDENTIFIER_LIMIT_MAX_BLOCK_SECONDS: ${AUTH_IDENTIFIER_LIMIT_MAX_BLOCK_SECONDS:-900}
       DEMO_DATOS:        ${DEMO_DATOS:-false}
       MAIL_FROM:         ${MAIL_FROM:-noreply@technicalbridge.local}
       MAIL_FROM_NAME:    ${MAIL_FROM_NAME:-DataBridge}
@@ -345,9 +348,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemma-4-26b-a4b-it}
-      XAI_API_KEY: ${XAI_API_KEY:-}
-      XAI_BASE_URL: ${XAI_BASE_URL:-https://api.x.ai/v1}
-      XAI_MODEL: ${XAI_MODEL:-grok-4.5}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8085/actuator/health || exit 1"]
@@ -377,6 +377,7 @@ services:
       #  subirlo durante la prueba de capacidad: todo el trafico de k6 sale de
       #  una sola IP, y con el cupo de fabrica la prueba mediria el limitador
       #  en vez del sistema. Ver docs/rendimiento.
+      DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
       #  Quien puede hacerle peticiones con credenciales desde otro origen. El
@@ -443,6 +444,7 @@ services:
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
       #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
       #  contra el numero real y no contra uno escrito a mano.
+      DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
     volumes:

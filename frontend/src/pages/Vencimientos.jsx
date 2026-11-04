@@ -76,7 +76,7 @@ export default function Vencimientos() {
       {cuotas.length === 0 ? (
         <div className="card al-dia aparece" style={{ "--i": 1 }}>
           <CheckAnimado size={64} />
-          <h3>Nada por pagar</h3>
+          <h2>Nada por pagar</h2>
           <p>Cuando tengas cuotas, aparecen aquí por fecha.</p>
         </div>
       ) : (

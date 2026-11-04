@@ -211,7 +211,7 @@ export default function Pay() {
               {enConvenio ? (
                 <>
                   <div className="card-cab">
-                    <h3>Elige las cuotas</h3>
+                    <h2>Elige las cuotas</h2>
                     <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
                   </div>
                   <p className="hint" style={{ margin: "0 0 14px" }}>
@@ -263,7 +263,7 @@ export default function Pay() {
                 </>
               ) : (
                 <>
-                  <h3>Lo que debes</h3>
+                  <h2>Lo que debes</h2>
                   <table className="table">
                     <thead>
                       <tr><th>Concepto</th><th>Venció</th><th className="num">Monto</th></tr>
@@ -307,7 +307,7 @@ export default function Pay() {
             </div>
 
             <div className="card pegado aparece" style={{ "--i": 3 }}>
-              <h3>Resumen</h3>
+              <h2>Resumen</h2>
               <div className="total-pagar">
                 <div>
                   <span>Total a pagar</span>
