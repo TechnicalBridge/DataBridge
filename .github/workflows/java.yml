@@ -61,10 +61,10 @@ jobs:
       - name: Pruebas
         run: mvn -B -f "$MODULO/pom.xml" test
 
-      #  En otra carpeta de reportes, para no pisar el resumen de las de siempre.
+      #  El perfil escribe en otra carpeta de reportes: no pisa el resumen de las de siempre.
       - name: Pruebas de integracion y seguridad
         if: inputs.con-docker
-        run: mvn -B -f "$MODULO/pom.xml" test -Pcon-docker -Dsurefire.reportsDirectory=target/surefire-con-docker
+        run: mvn -B -f "$MODULO/pom.xml" test -Pcon-docker
 
       - name: Resumen de las pruebas
         if: always()

@@ -28,6 +28,7 @@
     <!-- mvnw test corre lo de siempre, sin Docker. Los otros tipos, con su perfil, mas abajo. -->
     <pruebas.grupos></pruebas.grupos>
     <pruebas.excluidos>integracion,seguridad,rendimiento</pruebas.excluidos>
+    <pruebas.reportes>${project.build.directory}/surefire-reports</pruebas.reportes>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
   </properties>
@@ -133,6 +134,7 @@
         <configuration>
           <groups>${pruebas.grupos}</groups>
           <excludedGroups>${pruebas.excluidos}</excludedGroups>
+          <reportsDirectory>${pruebas.reportes}</reportsDirectory>
         </configuration>
       </plugin>
     </plugins>
@@ -145,6 +147,7 @@
       <properties>
         <pruebas.grupos>integracion</pruebas.grupos>
         <pruebas.excluidos></pruebas.excluidos>
+        <pruebas.reportes>${project.build.directory}/surefire-integracion</pruebas.reportes>
       </properties>
     </profile>
     <profile>
@@ -152,6 +155,7 @@
       <properties>
         <pruebas.grupos>seguridad</pruebas.grupos>
         <pruebas.excluidos></pruebas.excluidos>
+        <pruebas.reportes>${project.build.directory}/surefire-seguridad</pruebas.reportes>
       </properties>
     </profile>
     <profile>
@@ -159,6 +163,7 @@
       <properties>
         <pruebas.grupos>rendimiento</pruebas.grupos>
         <pruebas.excluidos></pruebas.excluidos>
+        <pruebas.reportes>${project.build.directory}/surefire-rendimiento</pruebas.reportes>
       </properties>
     </profile>
     <!-- Lo que corre la CI ademas de lo de siempre. Rendimiento no: depende de la maquina. -->
@@ -167,6 +172,7 @@
       <properties>
         <pruebas.grupos>integracion,seguridad</pruebas.grupos>
         <pruebas.excluidos></pruebas.excluidos>
+        <pruebas.reportes>${project.build.directory}/surefire-con-docker</pruebas.reportes>
       </properties>
     </profile>
   </profiles>
