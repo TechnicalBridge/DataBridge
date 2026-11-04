@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(JwtTestConfig.class)
+@org.springframework.test.context.ActiveProfiles("test")
 class IsolationTest {
  static final String A=token("A"), B=token("B");
  static final AtomicInteger debtStatus=new AtomicInteger(200), llmStatus=new AtomicInteger(200);

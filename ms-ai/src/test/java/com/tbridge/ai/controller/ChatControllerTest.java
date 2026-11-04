@@ -24,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Las dos rutas del asistente, con la forma de JSON que lee el portal. */
 @WebMvcTest({ChatController.class, SaludController.class})
 @org.springframework.context.annotation.Import({com.tbridge.ai.config.SecurityConfig.class, com.tbridge.ai.security.JwtTestConfig.class})
+@org.springframework.test.context.ActiveProfiles("test")
 class ChatControllerTest {
     private final String bearer = "Bearer " + com.tbridge.ai.security.JwtTestTokens.token();
 
