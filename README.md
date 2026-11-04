@@ -694,6 +694,10 @@ tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas p
   al tablero. Para el producto: historia de usuario (con su criterio de aceptación), épica, error e
   investigación. Para el equipo: tarea técnica, decisión, versión mayor de una dependencia y, en este
   repositorio, la retrospectiva.
+  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban y Martín
+  ([`repartir-por-turnos.yml`](.github/workflows/repartir-por-turnos.yml)), salvo las decisiones, las
+  retrospectivas y las épicas. Si no corresponde, se reasigna a mano. Tener un issue asignado no es
+  tenerlo en curso: el límite de dos tarjetas es para *In progress*.
 - **Ramas (trunk-based).** Todo entra a `main` por PRs chicos y bien descritos. Cada rama vive uno o
   dos días, sale de `main` y se llama `tipo/número-qué`, por ejemplo `feat/45-descuento-contrato`. Un
   issue grande se entrega en varios PRs: los intermedios dicen *Parte de #45* y el último *Closes #45*.

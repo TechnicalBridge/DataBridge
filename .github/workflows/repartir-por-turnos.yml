@@ -1,0 +1,71 @@
+name: Repartir por turnos
+
+#  Un issue nuevo sin responsable se le asigna a quien sigue en la lista (#323).
+#  El turno no se guarda: sale del issue mas reciente con un solo responsable de
+#  este equipo, asi que una asignacion a mano tambien cuenta. No mira de que trata
+#  el issue ni cuanto tiene cada persona: si no corresponde, se reasigna a mano.
+#  Las decisiones, las retrospectivas y las epicas no se reparten.
+#  Es aparte de auto-assign-project.yml, que solo lo agrega al tablero.
+
+on:
+  issues:
+    types: [opened]
+  #  Para repartir un issue que ya estaba abierto.
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Numero del issue
+        required: true
+        type: number
+
+permissions:
+  issues: write
+
+jobs:
+  repartir:
+    name: Asignar a quien sigue en el turno
+    runs-on: ubuntu-latest
+    steps:
+      - name: Elegir y asignar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          #  Por el entorno, y sin tocar el titulo desde el shell: lo escribe cualquiera.
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          set -euo pipefail
+
+          #  El orden de los turnos: para sumar o sacar a alguien, se cambia esta lista.
+          equipo=(pedcamp es-main77 martinkuruzg-hue)
+
+          [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "No es un numero de issue."; exit 1; }
+
+          datos=$(gh api "repos/$GH_REPO/issues/$ISSUE")
+          if jq -e '.assignees | length > 0' <<<"$datos" >/dev/null; then
+            echo "Ya tiene responsable."
+            exit 0
+          fi
+          if jq -e '.title | test("^(decisi[oó]n|retro|[eé]pica)\\s*[:(]"; "i")' <<<"$datos" >/dev/null; then
+            echo "No es una tarea para repartir."
+            exit 0
+          fi
+
+          #  Los responsables de los issues recientes, del mas nuevo al mas viejo.
+          recientes=$(gh api "repos/$GH_REPO/issues?state=all&sort=created&direction=desc&per_page=100" |
+            jq -r --argjson n "$ISSUE" \
+              '.[] | select(.pull_request == null and .number != $n and (.assignees | length) == 1) | .assignees[0].login')
+
+          siguiente=${equipo[0]}
+          while read -r login; do
+            for i in "${!equipo[@]}"; do
+              if [ "${equipo[$i]}" = "$login" ]; then
+                siguiente=${equipo[$(( (i + 1) % ${#equipo[@]} ))]}
+                break 2
+              fi
+            done
+          done <<<"$recientes"
+
+          #  GitHub responde bien aunque no pueda asignarlo: hay que mirar la respuesta.
+          gh api -X POST "repos/$GH_REPO/issues/$ISSUE/assignees" -f "assignees[]=$siguiente" |
+            jq -e --arg login "$siguiente" '[.assignees[].login] | index($login) != null' >/dev/null
+          echo "Asignado a $siguiente."
