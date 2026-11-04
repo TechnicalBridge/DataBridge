@@ -348,9 +348,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemma-4-26b-a4b-it}
-      XAI_API_KEY: ${XAI_API_KEY:-}
-      XAI_BASE_URL: ${XAI_BASE_URL:-https://api.x.ai/v1}
-      XAI_MODEL: ${XAI_MODEL:-grok-4.5}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8085/actuator/health || exit 1"]

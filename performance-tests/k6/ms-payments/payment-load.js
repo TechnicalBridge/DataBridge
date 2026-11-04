@@ -15,23 +15,16 @@
 //  medición. Quedan abiertos y simulados en la base; al final se imprime cómo
 //  borrarlos.
 //
-//      docker compose --profile carga run --rm k6 run /rendimiento/pagos.js
+//      docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-payments/payment-load.js
 // =============================================================================
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
+import { PORTAL, RUT_DEUDOR, json, opciones, sesionDeudor } from '../config/options.js';
 
-const PORTAL = __ENV.PORTAL_URI || 'http://portal:8080';
-const AUTH = __ENV.AUTH_URI || 'http://ms-auth:8081';
-//  La clave interna llega del .env por el compose: no se escribe aqui.
-const CLAVE_INTERNA = __ENV.INTERNAL_KEY;
-if (!CLAVE_INTERNA) throw new Error('Falta INTERNAL_KEY: corre la prueba con el compose, que la toma del .env');
-const RUT_DEUDOR = __ENV.RUT_DEUDOR || '16482337-7';
 const PASARELAS = ['webpay', 'khipu', 'mercadopago'];
-//  El ultimo escalon: 20 por omision. Con -e MAX_VUS=100 se busca el techo.
-const MAX = Number(__ENV.MAX_VUS || 20);
 
-//  Lo mismo que en capacidad.js: si el limitador responde, se mide el
+//  Lo mismo que en debt-load.js: si el limitador responde, se mide el
 //  limitador y no el sistema. Se detiene en vez de dar un número falso.
 const limitador = new Counter('limitador_intervino');
 const t = {
@@ -39,44 +32,7 @@ const t = {
   consultar: new Trend('ruta_consultar_cobro', true),
 };
 
-export const options = {
-  scenarios: {
-    pagar: {
-      executor: 'ramping-vus',
-      startVUs: 1,
-      stages: [
-        { duration: '15s', target: Math.max(1, Math.round(MAX / 4)) },
-        { duration: '30s', target: Math.max(1, Math.round(MAX / 4)) },
-        { duration: '15s', target: Math.max(1, Math.round(MAX / 2)) },
-        { duration: '30s', target: Math.max(1, Math.round(MAX / 2)) },
-        { duration: '15s', target: MAX },
-        { duration: '30s', target: MAX },
-        { duration: '10s', target: 0 },
-      ],
-      gracefulRampDown: '10s',
-    },
-  },
-  thresholds: {
-    http_req_failed: ['rate<0.01'],
-    ruta_abrir_cobro: ['p(95)<1500'],
-    ruta_consultar_cobro: ['p(95)<500'],
-    limitador_intervino: [{ threshold: 'count<1', abortOnFail: true }],
-  },
-};
-
-const json = (extra = {}) => ({ headers: { 'Content-Type': 'application/json' }, ...extra });
-
-function sesionDeudor() {
-  const emision = http.post(`${AUTH}/internal/codigos`, JSON.stringify({
-    rut: RUT_DEUDOR, canales: ['correo'], correo: 'carga@prueba.local',
-    acreedor: 'Prueba de carga', paraQue: 'medicion',
-  }), { headers: { 'Content-Type': 'application/json', 'X-Internal-Key': CLAVE_INTERNA } });
-  if (emision.status !== 200) fail(`no se pudo emitir el código: ${emision.status} ${emision.body}`);
-  const entrada = http.post(`${PORTAL}/api/auth/acceso`,
-    JSON.stringify({ rut: RUT_DEUDOR, codigo: emision.json('codigo') }), json());
-  if (entrada.status !== 200) fail(`el deudor no pudo entrar: ${entrada.status} ${entrada.body}`);
-  return entrada.json('token');
-}
+export const options = opciones.paymentLoad;
 
 function abrir(token, deuda, pasarela) {
   return http.post(`${PORTAL}/api/payments/checkout`,

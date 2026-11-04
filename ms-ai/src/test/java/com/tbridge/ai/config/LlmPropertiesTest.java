@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LlmPropertiesTest {
     final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(LlmConfig.class)
             .withBean(LlmService.class);
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void provider_key_and_model_are_bound(String provider) {
         runner.withPropertyValues("app.llm.provider="+provider,
                 "app.llm."+provider+".api-key=SECRET-MARKER-DO-NOT-LEAK",
@@ -21,12 +21,12 @@ class LlmPropertiesTest {
                 assertFalse(context.getBean(LlmProperties.class).resolve().toString().contains("SECRET-MARKER"));
             });
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void missing_key_starts_with_fallback(String provider) {
         runner.withPropertyValues("app.llm.provider="+provider, "app.llm."+provider+".base-url=http://127.0.0.1:1/v1", "app.llm."+provider+".model=test-model")
             .run(context -> {assertNull(context.getStartupFailure());assertFalse(context.getBean(LlmService.class).configurado());assertEquals(provider,context.getBean(LlmService.class).proveedor());});
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void missing_model_is_not_configured(String provider) {
         runner.withPropertyValues("app.llm.provider="+provider,"app.llm."+provider+".api-key=ficticia","app.llm."+provider+".base-url=http://127.0.0.1:1/v1")
             .run(context -> {assertNull(context.getStartupFailure());assertFalse(context.getBean(LlmService.class).configurado());});
@@ -38,8 +38,13 @@ class LlmPropertiesTest {
     @Test void unknown_provider_fails_fast() {
         runner.withPropertyValues("app.llm.provider=typo").run(context->assertNotNull(context.getStartupFailure()));
     }
+    @Test void removed_xai_provider_fails_fast_with_clear_message() {
+        var rejected=assertThrows(IllegalArgumentException.class,()->new LlmProperties("xai",null,null,null).resolve());
+        assertEquals("LLM_PROVIDER debe ser local, groq o gemini",rejected.getMessage());
+        runner.withPropertyValues("app.llm.provider=xai").run(context->assertNotNull(context.getStartupFailure()));
+    }
     @Test void unsafe_metadata_and_url_fail_with_generic_messages() {
-        assertThrows(IllegalArgumentException.class,()->new LlmProperties("groq",new LlmProperties.Endpoint("secret","https://host/v1?key=secret","model"),null,null,null).resolve());
-        assertThrows(IllegalArgumentException.class,()->new LlmProperties("groq",new LlmProperties.Endpoint("secret","https://host/v1","model\nunsafe"),null,null,null).resolve());
+        assertThrows(IllegalArgumentException.class,()->new LlmProperties("groq",new LlmProperties.Endpoint("secret","https://host/v1?key=secret","model"),null,null).resolve());
+        assertThrows(IllegalArgumentException.class,()->new LlmProperties("groq",new LlmProperties.Endpoint("secret","https://host/v1","model\nunsafe"),null,null).resolve());
     }
 }

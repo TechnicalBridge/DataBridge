@@ -62,7 +62,7 @@ class ProviderHttpTest {
     }
     LlmService service(String provider, Duration timeout) {
         var endpoint = new LlmProperties.Endpoint(SECRET, "http://127.0.0.1:" + server.getAddress().getPort() + "/compatible/v1/", "test-model");
-        return new LlmService(new LlmProperties(provider, endpoint, endpoint, endpoint, timeout));
+        return new LlmService(new LlmProperties(provider, endpoint, endpoint, timeout));
     }
     void safeLogs() {
         for (var event : logs.list) {
@@ -74,7 +74,7 @@ class ProviderHttpTest {
     }
     @AfterEach void stop() { release.countDown(); server.stop(0); executor.shutdownNow(); safeLogs(); logger.detachAppender(logs); logs.stop(); }
 
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void selected_provider_uses_single_chat_request_and_correct_source(String provider) throws Exception {
         var llm = service(provider, Duration.ofSeconds(2));
         try {
@@ -95,10 +95,10 @@ class ProviderHttpTest {
             assertFalse(health.contains(SECRET)); assertFalse(health.contains("apiKey")); assertEquals(1, calls.get());
         } finally { llm.destroy(); }
     }
-    @ParameterizedTest @ValueSource(strings={"local", "groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"local", "groq", "gemini"})
     void missing_key_uses_local_without_external_request(String provider) {
         var endpoint = new LlmProperties.Endpoint("", "http://127.0.0.1:" + server.getAddress().getPort() + "/v1", "test-model");
-        var llm = new LlmService(new LlmProperties(provider, endpoint, endpoint, endpoint, Duration.ofSeconds(2)));
+        var llm = new LlmService(new LlmProperties(provider, endpoint, endpoint, Duration.ofSeconds(2)));
         try {
             var debt = mock(DeudasClient.class); when(debt.deudasDelDeudor("Bearer ficticio")).thenReturn(MotorLocalTest.DEUDAS);
             var answer = new AsistenteService(debt, llm).responder(new Pregunta("cuanto debo", null), "Bearer ficticio");
@@ -107,7 +107,7 @@ class ProviderHttpTest {
         } finally { llm.destroy(); }
     }
     static Stream<Arguments> failures() {
-        return Stream.of("groq", "gemini", "xai").flatMap(provider -> Stream.of(
+        return Stream.of("groq", "gemini").flatMap(provider -> Stream.of(
             Arguments.of(provider, 401, "AUTH"), Arguments.of(provider, 403, "AUTH"),
             Arguments.of(provider, 429, "RATE_LIMIT"), Arguments.of(provider, 500, "SERVER_ERROR"),
             Arguments.of(provider, 200, "PROTOCOL")));
@@ -123,14 +123,14 @@ class ProviderHttpTest {
             assertTrue(logs.list.stream().anyMatch(e -> e.getFormattedMessage().contains("category=" + category)));
         } finally { llm.destroy(); }
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void blank_response_is_protocol_and_falls_back(String provider) {
         body.set(chat("  ")); var llm = service(provider, Duration.ofSeconds(2));
         try { assertTrue(llm.responder(List.of(), MotorLocalTest.DEUDAS, "neutral").isEmpty());
             assertTrue(logs.list.stream().anyMatch(e -> e.getFormattedMessage().contains("category=PROTOCOL")));
         } finally { llm.destroy(); }
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void timeout_has_own_category_and_no_retry(String provider) {
         slow = true; var llm = service(provider, Duration.ofMillis(150));
         try { assertTrue(llm.responder(List.of(Map.of("role","user","content",PROMPT)), MotorLocalTest.DEUDAS, "neutral").isEmpty());
@@ -139,14 +139,14 @@ class ProviderHttpTest {
             assertTrue(calls.get() <= 1);
         } finally { release.countDown(); llm.destroy(); }
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void invalid_json_is_protocol(String provider) {
         body.set("{"); var llm = service(provider, Duration.ofSeconds(2));
         try { assertTrue(llm.responder(List.of(), MotorLocalTest.DEUDAS, "neutral").isEmpty());
             assertTrue(logs.list.stream().anyMatch(e -> e.getFormattedMessage().contains("category=PROTOCOL")));
         } finally { llm.destroy(); }
     }
-    @ParameterizedTest @ValueSource(strings={"groq", "gemini", "xai"})
+    @ParameterizedTest @ValueSource(strings={"groq", "gemini"})
     void network_failure_is_distinct(String provider) {
         var llm = service(provider, Duration.ofSeconds(2)); server.stop(0);
         try { assertTrue(llm.responder(List.of(), MotorLocalTest.DEUDAS, "neutral").isEmpty());

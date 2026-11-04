@@ -123,7 +123,7 @@ de LLM configurada, el asistente la usa para responder, informado por el mismo a
 se construyó. Después se pasó a Spring Boot (#128), porque no usaba nada propio de Python: el ánimo
 se detecta con un léxico, las respuestas sin LLM son reglas, y el LLM se llama por HTTP. Así los
 cinco servicios del backend se compilan, se prueban, se empaquetan y se mantienen al día de la
-misma forma. El LLM se llama con el SDK oficial de OpenAI para Java, apuntando a xAI (Grok). Antes
+misma forma. El LLM se llama con el SDK oficial de OpenAI para Java, apuntando a Groq o Gemini. Antes
 de borrar la versión en Python se compararon las dos con las mismas preguntas: responden lo mismo.
 
 ## Más allá del plan

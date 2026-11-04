@@ -67,6 +67,10 @@ const casos = [
   ['la clave de una de las tres bases', () => 'DB_DEBT_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
   ['una clave de root de una base', () => 'DB_AUTH_ROOT_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
   ['una clave de un .env viejo', () => 'MYSQL_PASSWORD=' + azar(48), 'databridge-variable-con-valor'],
+  ['la llave de Groq', () => 'GROQ_API_KEY=gsk_' + azar(40), 'databridge-variable-con-valor'],
+  ['la llave de Gemini', () => 'GEMINI_API_KEY=' + azar(30), 'databridge-variable-con-valor'],
+  ['un valor por omision para la llave del LLM', () => 'GROQ_API_KEY: ${GROQ_API_KEY:-' + azar(32) + '}',
+    'databridge-secreto-por-omision'],
   ['una clave en YAML', () => 'services:\n  ms-debt:\n    environment:\n      INTERNAL_KEY: ' + azar(32) + '\n',
     'databridge-variable-con-valor'],
   ['una huella que no es de las publicas', () => 'CIFRADO_LLAVE=' + hex(32), 'databridge-variable-con-valor'],
@@ -86,7 +90,7 @@ const casos = [
     () => "$secretos = [ordered]@{\n    RABBIT_PASSWORD     = '84983c60f7daadc1cb8698621f802c0d9f9a3c3c295c810748fb048115c186ec'\n"
       + "    CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'\n}\n", null],
   ['las variables vacias de .env.example',
-    () => 'MYSQL_USER=tbridge\nDB_AUTH_ROOT_PASSWORD=\nDB_AUTH_PASSWORD=\nCIFRADO_LLAVE=\nCIFRADO_LLAVE_ANTERIOR=\nBCENTRAL_PASS=\n', null],
+    () => 'MYSQL_USER=tbridge\nDB_AUTH_ROOT_PASSWORD=\nDB_AUTH_PASSWORD=\nCIFRADO_LLAVE=\nCIFRADO_LLAVE_ANTERIOR=\nBCENTRAL_PASS=\nGROQ_API_KEY=\nGEMINI_API_KEY=\n', null],
   ['la Public Key de Mercado Pago', () => 'MERCADOPAGO_PUBLIC_KEY=APP_USR-' + crypto.randomUUID(), null],
   ['una referencia obligatoria del compose',
     () => '      MYSQL_PASSWORD: ${DB_DEBT_PASSWORD:?Falta DB_DEBT_PASSWORD en el .env (crealo con preparar-env.ps1)}\n'

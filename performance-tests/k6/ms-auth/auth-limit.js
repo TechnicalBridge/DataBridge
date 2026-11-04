@@ -1,10 +1,11 @@
 // =============================================================================
 //  Las dos capas que frenan a quien prueba codigos de acceso.
 // =============================================================================
-//  capacidad.js y estres.js miden el sistema con el limite subido a proposito.
-//  Este mide los frenos mismos, con los valores de fabrica. Es a la vez una
-//  prueba de rendimiento y una de seguridad: lo que impide que alguien pruebe
-//  codigos de acceso a mil por minuto es exactamente esto.
+//  debt-load.js, debt-stress.js, gateway-load.js y payment-load.js miden el
+//  sistema con el limite subido a proposito. Este mide los frenos mismos, con
+//  los valores de fabrica. Es a la
+//  vez una prueba de rendimiento y una de seguridad: lo que impide que alguien
+//  pruebe codigos de acceso a mil por minuto es exactamente esto.
 //
 //  Son dos capas, y cada una responde 429 con su propio mensaje:
 //
@@ -19,29 +20,17 @@
 //  en la peticion 11, se recarga solo, y cuando la siguiente llega a ms-auth,
 //  ms-auth la frena por su cuenta porque ese origen ya fallo diez veces.
 //
-//      docker compose --profile carga run --rm k6 run /rendimiento/limite.js
+//      docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-auth/auth-limit.js
 // =============================================================================
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-
-const PORTAL = __ENV.PORTAL_URI || 'http://portal:8080';
-//  Los mismos valores que declara el gateway en su application.properties.
-const CUPO_AUTH = Number(__ENV.RATE_AUTH_CAPACITY || 10);
+import { CUPO_AUTH, PORTAL, opciones } from '../config/options.js';
 
 //  Cada capa se reconoce por su mensaje: las dos responden 429.
 const DEL_GATEWAY = 'Demasiadas solicitudes';
 const DE_MS_AUTH = 'Demasiados intentos';
 
-export const options = {
-  //  Un solo usuario y en serie: lo que se cuenta es en que numero corta, y
-  //  con varios a la vez el orden dejaria de ser observable.
-  scenarios: {
-    limite: { executor: 'shared-iterations', vus: 1, iterations: 1, maxDuration: '3m' },
-  },
-  thresholds: {
-    checks: ['rate==1.0'],
-  },
-};
+export const options = opciones.authLimit;
 
 const json = { headers: { 'Content-Type': 'application/json' } };
 
