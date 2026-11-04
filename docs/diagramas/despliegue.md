@@ -123,7 +123,7 @@ permisos al usuario de la aplicación.
 | --- | --- | --- |
 | Sin perfil | `db-auth`, `db-debt`, `db-payments`, `rabbitmq` y `mailpit` | Programar: los servicios corren desde el editor y encuentran la base, la cola y el correo |
 | `app` | Lo anterior, más los cinco servicios y el portal | Usar el sistema completo: `docker compose --profile app up -d --build --wait` |
-| `carga` | `k6` | Las pruebas de carga de `rendimiento/`, contra el sistema ya levantado |
+| `carga` | `k6` | Las pruebas de carga de `performance-tests/`, contra el sistema ya levantado |
 
 ## Qué queda guardado
 
