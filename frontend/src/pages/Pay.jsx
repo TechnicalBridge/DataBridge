@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { obtenerDeuda } from "../api/deudas";
-import { abrirCobro, obtenerPago } from "../api/pagos";
+import { abrirCobro, cancelarPago, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
 import BarraEstado from "../components/BarraEstado";
 import Cargando from "../components/Cargando";
 import LogoPasarela, { PASARELAS, nombreDePasarela } from "../components/LogoPasarela";
-import { CheckAnimado, IconoCandado, IconoCheck, IconoFlecha, IconoVolver } from "../components/Iconos";
+import { CheckAnimado, IconoAlerta, IconoCandado, IconoCheck, IconoFlecha, IconoVolver } from "../components/Iconos";
 
 
 const porVencimiento = (a, b) => a.vencimiento.localeCompare(b.vencimiento) || a.numero - b.numero;
+const TERMINALES = ["paid", "failed", "expired", "duplicated"];
+const enCurso = (pago) => !!pago && !TERMINALES.includes(pago.status);
 
 /**
  * Pagar una deuda, o las cuotas de su convenio.
@@ -30,8 +32,11 @@ export default function Pay() {
   const [pago, setPago] = useState(null);
   // La ventana de la pasarela, para traerla al frente en vez de abrirla de nuevo.
   const ventana = useRef(null);
+  const [ventanaCerrada, setVentanaCerrada] = useState(false);
   const [acreditado, setAcreditado] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [aviso, setAviso] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -42,15 +47,35 @@ export default function Pay() {
   // rechazo, o el deudor lo anulo) o vencido, no hay nada mas que esperar. El
   // enlace a la pasarela solo viene al abrir el cobro: se conserva.
   useEffect(() => {
-    if (!pago || ["paid", "failed", "expired", "duplicated"].includes(pago.status)) return;
+    if (!enCurso(pago)) return;
+    const idPago = pago.id;
     const t = setInterval(async () => {
       try {
-        const nuevo = await obtenerPago(pago.id);
-        setPago((antes) => ({ ...nuevo, checkoutUrl: antes?.checkoutUrl }));
+        const nuevo = await obtenerPago(idPago);
+        //  Una respuesta vieja no puede devolver a "created" un pago que la
+        //  cancelacion o la pasarela ya cerraron, ni pisar un pago nuevo.
+        setPago((antes) => {
+          if (!antes || antes.id !== idPago || !enCurso(antes)) return antes;
+          return { ...nuevo, checkoutUrl: antes.checkoutUrl };
+        });
       } catch {
         /* se reintenta en el proximo ciclo */
       }
     }, 2000);
+    return () => clearInterval(t);
+  }, [pago?.id, pago?.status]);
+
+  // Si el deudor cierra la ventana, se avisa en pantalla. No se cancela solo:
+  // la pasarela pudo haber autorizado el pago justo antes de cerrarla, y
+  // vencerlo a ciegas dejaria esa plata sin abonar.
+  useEffect(() => {
+    if (!enCurso(pago)) {
+      setVentanaCerrada(false);
+      return;
+    }
+    const t = setInterval(() => {
+      if (!ventana.current || ventana.current.closed) setVentanaCerrada(true);
+    }, 500);
     return () => clearInterval(t);
   }, [pago?.id, pago?.status]);
 
@@ -113,6 +138,9 @@ export default function Pay() {
   const descuento = !enConvenio ? Number(deuda.descuentoDisponible || 0) : 0;
   const monto = capital + mora - descuento;
   const hoy = hoyEnChile();
+  //  El intento abierto bloquea los controles para no abrir dos cobros. Uno
+  //  fallido o vencido ya no bloquea: el deudor puede elegir de nuevo.
+  const pagoBloquea = !!pago && !["failed", "expired"].includes(pago.status);
 
   /** Marcar la cuota i marca todas las anteriores; desmarcarla, todas las que siguen. */
   const alternar = (i) => setCuantas(i < k ? i : i + 1);
@@ -120,6 +148,8 @@ export default function Pay() {
   async function pagar() {
     setBusy(true);
     setError("");
+    setAviso("");
+    setVentanaCerrada(false);
     // Se abre la ventana de inmediato en el evento del usuario para que el navegador no la bloquee.
     // Sin "noopener": con esa opcion window.open devuelve null y quedaba una ventana en blanco
     // mientras el portal se iba a la pasarela. El opener se corta a mano.
@@ -153,14 +183,57 @@ export default function Pay() {
     const abierta = ventana.current;
     if (abierta && !abierta.closed) {
       abierta.focus();
+      setVentanaCerrada(false);
       return;
     }
     if (pago?.gateway === "webpay") {
       pagar();
       return;
     }
-    ventana.current = window.open(pago.checkoutUrl, "_blank", "width=480,height=720");
-    if (ventana.current) ventana.current.opener = null;
+    const nueva = window.open(pago.checkoutUrl, "_blank", "width=480,height=720");
+    if (nueva) {
+      nueva.opener = null;
+      ventana.current = nueva;
+      setVentanaCerrada(false);
+    }
+  }
+
+  /**
+   * El deudor cerro la ventana y pide reiniciar. No se suelta la deuda a
+   * ciegas: ms-payments le pregunta a la pasarela en que quedo. Si alcanzo a
+   * pagarse, el pago queda confirmado; si no, queda vencido y recien ahi se
+   * liberan las cuotas y la pasarela. Un 409 es "todavia esta verificando":
+   * el intento sigue bloqueado y se puede volver a consultar.
+   */
+  async function verificarYReiniciar() {
+    if (!pago || cancelando) return;
+    const idPago = pago.id;
+    const pasarelaDelPago = pago.gateway;
+    setCancelando(true);
+    setError("");
+    setAviso("");
+    try {
+      const cerrado = await cancelarPago(idPago);
+      if (["expired", "failed"].includes(cerrado.status)) {
+        //  La pasarela confirmo que no se pago: el intento quedo cerrado y el
+        //  deudor puede elegir de nuevo sin recargar la pagina.
+        setPago(null);
+        setVentanaCerrada(false);
+        setAviso(
+          `Verificamos con ${nombreDePasarela(pasarelaDelPago)} que el intento anterior no se pagó y quedó ` +
+          "cancelado. Ya puedes elegir cuotas o pasarela y pagar de nuevo."
+        );
+        return;
+      }
+      //  Pagado, duplicado o cualquier otro estado que traiga la pasarela: se
+      //  muestra tal cual. Nunca se libera un intento que el backend no cerro.
+      setPago((antes) => ({ ...cerrado, checkoutUrl: antes?.checkoutUrl }));
+      setVentanaCerrada(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCancelando(false);
+    }
   }
 
   return (
@@ -180,6 +253,7 @@ export default function Pay() {
         </Link>
       </header>
       {error ? <div className="error">{error}</div> : null}
+      {aviso ? <div className="notice" role="status">{aviso}</div> : null}
 
       {pago?.status === "paid" ? (
         <div className="card success aparece">
@@ -231,7 +305,7 @@ export default function Pay() {
                     {pendientes.map((c, i) => (
                       <label key={c.id} className={`cuota-fila${i < k ? " elegida" : ""}`}
                              style={{ "--i": i + pagadas.length }}>
-                        <input type="checkbox" className="oculto" checked={i < k} disabled={!!pago}
+                        <input type="checkbox" className="oculto" checked={i < k} disabled={pagoBloquea}
                                onChange={() => alternar(i)} />
                         <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
                         <span className="cuota-info">
@@ -250,12 +324,12 @@ export default function Pay() {
                   </div>
                   {pendientes.length > 1 ? (
                     <div className="atajos">
-                      <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={!!pago}
+                      <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={pagoBloquea}
                               onClick={() => setCuantas(1)}>
                         Solo la próxima
                       </button>
                       <button type="button" className={`chip${k === pendientes.length ? " on" : ""}`}
-                              disabled={!!pago} onClick={() => setCuantas(pendientes.length)}>
+                              disabled={pagoBloquea} onClick={() => setCuantas(pendientes.length)}>
                         Todas ({pendientes.length})
                       </button>
                     </div>
@@ -331,13 +405,14 @@ export default function Pay() {
               <div className="methods">
                 {Object.entries(PASARELAS).map(([id, p]) => (
                   <button key={id} type="button" className={`method${pasarela === id ? " on" : ""}`}
-                          disabled={!!pago} onClick={() => setPasarela(id)} aria-label={p.nombre}>
+                          disabled={pagoBloquea} onClick={() => setPasarela(id)} aria-label={p.nombre}>
                     <LogoPasarela id={id} alto={24} />
                     <span>{p.detalle}</span>
                   </button>
                 ))}
               </div>
-              <button className="btn btn-primary btn-block" disabled={busy || monto <= 0 || !!pago} onClick={pagar}>
+              <button className="btn btn-primary btn-block" disabled={busy || cancelando || monto <= 0 || pagoBloquea}
+                      onClick={pagar}>
                 {busy ? <><span className="girando" /> Abriendo…</> : <>Pagar {dinero(monto, moneda)} <IconoFlecha size={16} /></>}
               </button>
               {pago?.status === "failed" || pago?.status === "expired" ? (
@@ -351,6 +426,26 @@ export default function Pay() {
                 <div className="error">
                   Estas cuotas ya estaban pagadas con otro pago, así que este no se abonó. Queda marcado para
                   devolución: la empresa te devolverá el dinero en {nombreDePasarela(pago.gateway)}.
+                </div>
+              ) : enCurso(pago) && ventanaCerrada ? (
+                <div className="aviso aviso-cierre" role="alert">
+                  <IconoAlerta size={18} />
+                  <div>
+                    <b>¿Cerraste la ventana de pago?</b>
+                    <p>
+                      No cierres esta página. Primero verificamos con {nombreDePasarela(pago.gateway)} si el pago
+                      alcanzó a hacerse: si se pagó, lo registramos; si no, se anula el intento y puedes pagar de nuevo.
+                    </p>
+                    <div className="aviso-acciones">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={verificarYReiniciar}
+                              disabled={cancelando || busy}>
+                        {cancelando ? <><span className="girando" /> Verificando…</> : "Cancelar y reiniciar"}
+                      </button>
+                      <button type="button" className="link-btn" onClick={abrirDeNuevo} disabled={cancelando || busy}>
+                        Volver a abrir la ventana
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : pago ? (
                 <div className="esperando">

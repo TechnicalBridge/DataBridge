@@ -351,6 +351,36 @@ class PaymentControllerTest {
         verify(payments).avisoMercadoPago(isNull(), isNull(), anyString());
     }
 
+    @Test
+    void el_deudor_cancela_su_intento_y_la_respuesta_dice_como_quedo() throws Exception {
+        PaymentResponse cancelado = new PaymentResponse(41L, 3L, null, new BigDecimal("410000"),
+                Payment.Currency.CLP, 410000L, null, Payment.Gateway.khipu, Payment.Status.expired, null,
+                Instant.parse("2026-09-24T12:00:00Z"), null, false, null, null, null, null, null);
+        when(payments.cancelarPorDeudor(any(), eq(41L))).thenReturn(cancelado);
+
+        mvc.perform(post("/api/payments/41/cancelar").header("Authorization", deudor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("expired"));
+
+        verify(payments).cancelarPorDeudor(any(), eq(41L));
+    }
+
+    @Test
+    void sin_sesion_no_se_cancela_ningun_pago() throws Exception {
+        mvc.perform(post("/api/payments/41/cancelar")).andExpect(status().isUnauthorized());
+        verify(payments, never()).cancelarPorDeudor(any(), any());
+    }
+
+    @Test
+    void si_la_pasarela_sigue_verificando_la_cancelacion_es_409() throws Exception {
+        when(payments.cancelarPorDeudor(any(), eq(41L)))
+                .thenThrow(new ApiException(HttpStatus.CONFLICT, "Khipu todavía está verificando el pago"));
+
+        mvc.perform(post("/api/payments/41/cancelar").header("Authorization", deudor()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Khipu todavía está verificando el pago"));
+    }
+
     /** #137: el admin de DataBridge no abre cobros ni ve los pagos de nadie. */
     @Test
     void el_admin_de_databridge_no_entra_a_los_pagos() throws Exception {

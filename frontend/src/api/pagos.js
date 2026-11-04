@@ -14,6 +14,14 @@ export const abrirCobro = (debtId, installmentIds, pasarela) =>
 export const obtenerPago = (id) => pedir(`/payments/${id}`);
 
 /**
+ * Cancelar el intento que quedo abierto cuando el deudor cerro la ventana.
+ * ms-payments pregunta primero a la pasarela: si alcanzo a pagarse, devuelve
+ * el pago `paid`; si no, lo deja `expired` y anula o vence el cobro alla.
+ * Un 409 significa que la pasarela todavia esta verificando: hay que esperar.
+ */
+export const cancelarPago = (id) => pedir(`/payments/${id}/cancelar`, { method: "POST" });
+
+/**
  * Los pagos ya abonados: al deudor, los suyos; a la empresa, los de su
  * cartera. Salen de ms-debt, donde vive la cuenta de cada deuda.
  */

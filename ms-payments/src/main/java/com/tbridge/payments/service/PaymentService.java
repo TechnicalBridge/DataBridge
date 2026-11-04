@@ -640,6 +640,154 @@ public class PaymentService {
     }
 
     /**
+     * El deudor cerro la ventana de la pasarela y pide reiniciar el pago.
+     *
+     * <p>Antes de soltar la deuda se le pregunta a la pasarela en que quedo. Si
+     * alcanzo a pagarse, se registra y se abona; si no, el intento queda
+     * vencido y, donde la pasarela lo permite, el cobro se anula para que no se
+     * pueda pagar en paralelo. Si la pasarela esta verificando o no responde,
+     * no se libera nada: se devuelve el conflicto y el deudor puede reintentar
+     * la consulta.
+     *
+     * <p>La fila se bloquea con {@link PaymentRepository#paraCerrar}: dos clics
+     * seguidos, o un clic que coincide con la confirmacion de la pasarela, se
+     * resuelven uno despues del otro. La segunda llamada encuentra el pago ya
+     * cerrado y no vuelve a anotar ni a cobrar nada.
+     */
+    @Transactional
+    public PaymentResponse cancelarPorDeudor(JwtPrincipal user, Long id) {
+        if (user == null || !user.isDebtor() || user.rut() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo el deudor puede cancelar su pago");
+        }
+        Payment pago = payments.paraCerrar(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
+        if (!mismo(user.rut(), pago.getDebtorRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Ese pago no es tuyo");
+        }
+        //  Idempotencia: si la pasarela o la vuelta ya lo cerraron, se devuelve
+        //  tal cual. Un pago pagado nunca se convierte en cancelado.
+        if (pago.getStatus() != Payment.Status.created) {
+            return respuesta(pago);
+        }
+        //  Sin una transaccion real no hay nada que consultar ni que anular:
+        //  la pagina simulada no cobra. Se vence y se anota la cancelacion.
+        if (!cobraDeVerdad(pago) || pago.getGatewayTxnId() == null || pago.getGatewayTxnId().isBlank()) {
+            marcarCancelado(pago, user, "No habia una transaccion real que consultar");
+            return respuesta(pago);
+        }
+        switch (pago.getGateway()) {
+            case khipu -> cancelarKhipu(pago, user);
+            case mercadopago -> cancelarMercadoPago(pago, user);
+            case webpay -> cancelarWebpay(pago, user);
+        }
+        return respuesta(pago);
+    }
+
+    /**
+     * Khipu: se consulta, se anula si sigue pendiente y se vuelve a consultar.
+     * Si el deudor alcanzo a pagar en el intermedio, la segunda consulta lo
+     * registra. Si Khipu dice que todavia esta verificando, no se cancela.
+     */
+    private void cancelarKhipu(Payment pago, JwtPrincipal user) {
+        boolean enVerificacion = conciliar(pago);
+        if (pago.getStatus() == Payment.Status.created && !enVerificacion) {
+            boolean anulado = khipu.anular(pago.getGatewayTxnId());
+            enVerificacion = conciliar(pago);
+            if (pago.getStatus() == Payment.Status.created) {
+                if (enVerificacion) {
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "Khipu todavía está verificando el pago: espera a que se confirme antes de reiniciar.");
+                }
+                marcarCancelado(pago, user, anulado
+                        ? "Khipu confirmó que el cobro no se pagó y lo anuló"
+                        : "Khipu confirmó que el cobro no se pagó, pero no lo pudo anular");
+            }
+            return;
+        }
+        if (pago.getStatus() == Payment.Status.created) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Khipu todavía está verificando el pago: espera a que se confirme antes de reiniciar.");
+        }
+    }
+
+    /**
+     * Mercado Pago: se consulta la preferencia, se vence si no hay pago y se
+     * vuelve a consultar. Un pago en curso no se vence: todavia puede aprobarse.
+     */
+    private void cancelarMercadoPago(Payment pago, JwtPrincipal user) {
+        boolean enVerificacion = conciliarMercadoPago(pago);
+        if (pago.getStatus() == Payment.Status.created && !enVerificacion) {
+            boolean vencida = mercadopago.vencerPreferencia(pago.getGatewayTxnId());
+            enVerificacion = conciliarMercadoPago(pago);
+            if (pago.getStatus() == Payment.Status.created) {
+                if (enVerificacion) {
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "Mercado Pago todavía está verificando el pago: espera a que se confirme antes de reiniciar.");
+                }
+                marcarCancelado(pago, user, vencida
+                        ? "Mercado Pago confirmó que la preferencia no se pagó y la venció"
+                        : "Mercado Pago confirmó que la preferencia no se pagó, pero no la pudo vencer");
+            }
+            return;
+        }
+        if (pago.getStatus() == Payment.Status.created) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Mercado Pago todavía está verificando el pago: espera a que se confirme antes de reiniciar.");
+        }
+    }
+
+    /**
+     * Webpay: se consulta Transbank. Si el deudor pago y no alcanzo a volver,
+     * se confirma ahora; si no pago, el cobro se vence. Webpay no tiene una
+     * anulacion explicita para un cobro que aun no se paga.
+     */
+    private void cancelarWebpay(Payment pago, JwtPrincipal user) {
+        String token = pago.getGatewayTxnId();
+        WebpayCommitResponse estado = webpay.estado(token);
+        if ("INITIALIZED".equals(estado.status())) {
+            boolean pagado = estado.vci() != null && !estado.vci().isBlank();
+            if (pagado && pago.getStatus() == Payment.Status.created) {
+                //  Pago y sin confirmar: se confirma ahora. Si Transbank no
+                //  responde, la excepcion sube y el pago sigue abierto.
+                WebpayCommitResponse confirmacion = webpay.commitTransaction(token);
+                aplicarWebpay(pago, token, confirmacion);
+            }
+        } else {
+            aplicarWebpay(pago, token, estado);
+        }
+        if (pago.getStatus() == Payment.Status.created) {
+            marcarCancelado(pago, user,
+                    "Transbank confirmó que el cobro no se pagó; Webpay no tiene anulación explícita");
+        }
+    }
+
+    /**
+     * Cierra un intento que la pasarela confirmo que no se pago. El estado es
+     * {@code expired} para que la revision de vencidos lo vuelva a consultar:
+     * una autorizacion que llega tarde se registra igual. El libro guarda un
+     * evento propio, con quien lo pidio y que dijo la pasarela.
+     */
+    private void marcarCancelado(Payment pago, JwtPrincipal user, String detalle) {
+        pago.setStatus(Payment.Status.expired);
+        payments.save(pago);
+
+        Map<String, Object> libro = new LinkedHashMap<>();
+        libro.put("motivo", "cancelado-por-deudor");
+        libro.put("pasarela", pago.getGateway().name());
+        libro.put("transaccion", pago.getGatewayTxnId());
+        libro.put("detalle", detalle);
+        libro.put("deudor", pago.getDebtorRut());
+        libro.put("solicitadoPor", user.email() != null ? user.email() : user.id());
+        try {
+            eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.cancelled, PaymentEvent.Source.portal)
+                    .conRespuesta(JSON.writeValueAsString(libro)));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudo anotar la cancelacion", e);
+        }
+        log.info("Pago {}: el deudor {} cerro la ventana y el intento quedo cancelado", pago.getId(), user.rut());
+    }
+
+    /**
      * El aviso de Khipu: un pago se concilio. Solo llega si DataBridge tiene
      * una direccion publica ({@code KHIPU_URL_AVISOS}). No se aplica lo que
      * dice: se verifica su firma y se le pregunta a Khipu, asi que un aviso

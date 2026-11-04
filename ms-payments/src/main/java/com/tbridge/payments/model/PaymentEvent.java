@@ -33,7 +33,7 @@ import java.time.Instant;
 @Table(name = "payment_events")
 public class PaymentEvent {
 
-    public enum Type { created, authorized, paid, failed, expired, refunded, duplicated }
+    public enum Type { created, authorized, paid, failed, expired, refunded, duplicated, cancelled }
 
     public enum Source { portal, webhook, manual }
 

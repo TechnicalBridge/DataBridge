@@ -146,6 +146,28 @@ public class PaymentController {
         return enlaces.toModel(payments.get(user, id));
     }
 
+    @PostMapping("/{id}/cancelar")
+    @Operation(summary = "Cancelar un intento abierto y verificar la pasarela",
+            description = "El deudor cerro la ventana de pago y pide reiniciar. Antes de liberar la deuda, "
+                    + "ms-payments le pregunta a la pasarela si la transaccion alcanzo a pagarse. Si se pago, "
+                    + "queda `paid` y se abona; si no, queda `expired` y se anula o vence en la pasarela cuando "
+                    + "esta lo permite. Si la pasarela esta verificando o no responde, no se libera nada.")
+    @SecurityRequirement(name = OpenApiConfig.JWT)
+    @ApiResponse(responseCode = "200", description = "El pago, pagado o cancelado")
+    @ApiResponse(responseCode = "403", description = "El pago no es del deudor que pide cancelarlo",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No existe",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "La pasarela todavia esta verificando el pago",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "La pasarela no respondio: no se libera la deuda",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public EntityModel<PaymentResponse> cancelarPorDeudor(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
+            @PathVariable Long id) {
+        return enlaces.toModel(payments.cancelarPorDeudor(user, id));
+    }
+
     @GetMapping("/{id}/historia")
     @Operation(summary = "El libro de un pago", description = "Cada paso, del primero al ultimo. Nada se sobreescribe.")
     @SecurityRequirement(name = OpenApiConfig.JWT)
