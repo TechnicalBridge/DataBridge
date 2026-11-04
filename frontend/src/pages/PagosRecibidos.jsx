@@ -164,7 +164,7 @@ export default function PagosRecibidos() {
 
       {devueltos.length ? (
         <div className="card bloque aparece">
-          <h3>{devueltos.length === 1 ? "Un pago devuelto" : `${devueltos.length} pagos devueltos`}</h3>
+          <h2>{devueltos.length === 1 ? "Un pago devuelto" : `${devueltos.length} pagos devueltos`}</h2>
           <div className="tabla-scroll">
             <table className="table">
               <thead>

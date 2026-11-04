@@ -29,7 +29,7 @@ export default function ComisionesDelMes() {
   return (
     <section className="card aparece comision-del-mes" aria-labelledby="titulo-comisiones">
       <div className="card-cab">
-        <h3 id="titulo-comisiones">Lo que DataBridge cobra{datos ? ` en ${mesEnPalabras(datos.mes)}` : ""}</h3>
+        <h2 id="titulo-comisiones">Lo que DataBridge cobra{datos ? ` en ${mesEnPalabras(datos.mes)}` : ""}</h2>
         <label className="selector-mes">
           Mes{" "}
           <input type="month" value={mes} max={mesDeHoy()} onChange={(e) => e.target.value && setMes(e.target.value)} />

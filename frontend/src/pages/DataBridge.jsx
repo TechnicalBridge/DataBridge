@@ -168,7 +168,7 @@ export default function DataBridge() {
 
       <div className="card aparece" style={{ "--i": 5 }}>
         <div className="card-cab">
-          <h3>Deudas</h3>
+          <h2>Deudas</h2>
           <button type="button" className="btn btn-ghost btn-sm" disabled={!visibles.length} onClick={exportar}>
             <IconoDescargar size={16} />
             Exportar a Excel

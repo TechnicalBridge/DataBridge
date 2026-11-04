@@ -117,11 +117,11 @@ no se debe borrar su volumen para intentar activar esta siembra.
 
 ## 5. El correo, las pasarelas y el DNS
 
-**Las claves del correo y de las pasarelas** se copian del `.env` del equipo al del servidor, sin que se vean en
+**Las claves del correo, de las pasarelas y del asistente** se copian del `.env` del equipo al del servidor, sin que se vean en
 la pantalla:
 
 ```powershell
-Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORREO_SOLO_A|CORREO_DESVIAR_A|ADMIN_CORREO|KHIPU_LLAVE|KHIPU_SECRETO|MERCADOPAGO_ACCESS_TOKEN|MERCADOPAGO_PUBLIC_KEY|XAI_API_KEY)=.+' |
+Select-String -Path .env -Pattern '^(BREVO_API_KEY|MAIL_FROM|MAIL_FROM_NAME|CORREO_SOLO_A|CORREO_DESVIAR_A|ADMIN_CORREO|KHIPU_LLAVE|KHIPU_SECRETO|MERCADOPAGO_ACCESS_TOKEN|MERCADOPAGO_PUBLIC_KEY|LLM_PROVIDER|GROQ_API_KEY|GEMINI_API_KEY)=.+' |
   ForEach-Object { $_.Line } |
   ssh -i $env:USERPROFILE\.ssh\databridge_vps root@<IP> "cat >> /opt/databridge/.env"
 ```

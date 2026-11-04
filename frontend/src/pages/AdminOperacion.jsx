@@ -112,7 +112,7 @@ export default function AdminOperacion() {
 
       <div className="grid-2">
         <section className="card aparece" style={{ "--i": 1 }} aria-labelledby="op-servicios">
-          <h3 id="op-servicios">Servicios</h3>
+          <h2 id="op-servicios">Servicios</h2>
           <div className="lista">
             {SERVICIOS.map(({ tramo, nombre, servicio }) => (
               <div className="fila" key={tramo}>
@@ -125,7 +125,7 @@ export default function AdminOperacion() {
         </section>
 
         <section className="card aparece" style={{ "--i": 2 }} aria-labelledby="op-pagos">
-          <h3 id="op-pagos">Pagos</h3>
+          <h2 id="op-pagos">Pagos</h2>
           {pagos === "caido" ? <Caido servicio="ms-payments" que="los pagos y la UF" /> : !pagos ? (
             <p className="hint">Consultando…</p>
           ) : (
@@ -147,7 +147,7 @@ export default function AdminOperacion() {
       </div>
 
       <section className="card bloque aparece" style={{ "--i": 3 }} aria-labelledby="op-avisos">
-        <h3 id="op-avisos">Avisos a las empresas</h3>
+        <h2 id="op-avisos">Avisos a las empresas</h2>
         {avisos === "caido" ? <Caido servicio="ms-debt" que="los avisos a las empresas" /> : !avisos ? (
           <p className="hint">Consultando…</p>
         ) : avisos.destinos.length === 0 ? (
@@ -184,7 +184,7 @@ export default function AdminOperacion() {
           ))
         )}
 
-        <h4 className="lista-grupo">De los pagos a ms-debt</h4>
+        <h3 className="lista-grupo">De los pagos a ms-debt</h3>
         {pagos === "caido" ? <Caido servicio="ms-payments" que="los avisos de pago" /> : !pagos ? <p className="hint">Consultando…</p>
           : pagos.avisos.lista.length === 0 ? (
             <div className="empty">ms-debt recibió todos los avisos de pago.</div>
@@ -202,7 +202,7 @@ export default function AdminOperacion() {
 
       <div className="grid-2">
         <section className="card aparece" style={{ "--i": 4 }} aria-labelledby="op-uf">
-          <h3 id="op-uf">UF de hoy</h3>
+          <h2 id="op-uf">UF de hoy</h2>
           {pagos === "caido" ? <Caido servicio="ms-payments" que="la UF" /> : !pagos ? (
             <p className="hint">Consultando…</p>
           ) : (
@@ -232,7 +232,7 @@ export default function AdminOperacion() {
         </section>
 
         <section className="card aparece" style={{ "--i": 5 }} aria-labelledby="op-hecho">
-          <h3 id="op-hecho">Lo último que se hizo con los pagos</h3>
+          <h2 id="op-hecho">Lo último que se hizo con los pagos</h2>
           {pagos === "caido" ? <Caido servicio="ms-payments" que="las acciones con los pagos" /> : !pagos ? (
             <p className="hint">Consultando…</p>
           ) : pagos.acciones.length ? (
@@ -357,7 +357,7 @@ function FormUf({ alCargar }) {
 
   return (
     <form onSubmit={enviar} className="form-uf">
-      <h4 className="lista-grupo">Cargarla a mano</h4>
+      <h3 className="lista-grupo">Cargarla a mano</h3>
       <p className="hint" style={{ marginTop: 0 }}>
         Para cuando el Banco Central no la entregó. Si ese día ya tenía valor, lo reemplaza, y queda anotado quién la cargó.
       </p>

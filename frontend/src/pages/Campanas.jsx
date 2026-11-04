@@ -110,7 +110,7 @@ export default function Campanas() {
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Tus campañas</h3>
+          <h2>Tus campañas</h2>
           {campanas.length === 0 ? (
             <div className="empty">Todavía no hay campañas. Crea una y cárgale sus deudores.</div>
           ) : vivas.length === 0 ? (
@@ -207,7 +207,7 @@ export default function Campanas() {
         </div>
 
         <div className="card aparece" id="form-campana" style={{ "--i": 2 }}>
-          <h3>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h3>
+          <h2>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h2>
           <FormCampana key={vuelta} acreedores={acreedores} editando={editando} onGuardada={guardada}
                        onCancelar={editando ? nueva : null} />
           <p className="hint">

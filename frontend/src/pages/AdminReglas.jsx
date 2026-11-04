@@ -41,9 +41,9 @@ export default function AdminReglas() {
       <div className="reglas">
         {SERVICIOS.map(({ tramo, nombre, servicio }, i) => (
           <section className="card aparece" style={{ "--i": i + 1 }} key={tramo} aria-labelledby={`reglas-${tramo}`}>
-            <h3 id={`reglas-${tramo}`}>
+            <h2 id={`reglas-${tramo}`}>
               {nombre} <span className="reglas-servicio">{servicio}</span>
-            </h3>
+            </h2>
             <Bloque estado={reglas[tramo]} />
           </section>
         ))}
@@ -66,7 +66,7 @@ function Bloque({ estado }) {
   }
   return estado.grupos.map((grupo) => (
     <div key={grupo.nombre}>
-      <h4 className="lista-grupo">{grupo.nombre}</h4>
+      <h3 className="lista-grupo">{grupo.nombre}</h3>
       <div className="lista">
         {grupo.reglas.map((regla) => <Regla regla={regla} key={regla.que} />)}
       </div>

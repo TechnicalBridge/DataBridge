@@ -30,7 +30,7 @@ class AsistenteServiceTest {
 
     @BeforeEach
     void preparar() {
-        when(llm.proveedor()).thenReturn("xai");
+        when(llm.proveedor()).thenReturn("groq");
         when(deudas.deudasDelDeudor("Bearer jwt")).thenReturn(MotorLocalTest.DEUDAS);
     }
 
@@ -53,7 +53,7 @@ class AsistenteServiceTest {
         Respuesta respuesta = asistente.responder(new Pregunta("cuánto debo?", List.of()), "Bearer jwt");
 
         assertEquals("Debes dos deudas.", respuesta.reply());
-        assertEquals("xai", respuesta.source());
+        assertEquals("groq", respuesta.source());
     }
 
     @Test
