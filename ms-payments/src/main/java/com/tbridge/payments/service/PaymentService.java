@@ -648,6 +648,7 @@ public class PaymentService {
     @Transactional
     public void avisoDeKhipu(String cuerpo, String firma, String paymentId) {
         if (!firmaDeKhipu.valida(firma, cuerpo)) {
+            log.info("firewall domain=PAYMENTS rule=KHIPU_SIGNATURE outcome=denied status=401");
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma de Khipu invalida");
         }
         if (paymentId == null || paymentId.isBlank()) {
@@ -1214,6 +1215,7 @@ public class PaymentService {
                 pago.getAmount().toPlainString(), String.valueOf(pago.getDebtId()));
 
         if (!firmaOk) {
+            log.info("firewall domain=PAYMENTS rule=WEBHOOK_SIGNATURE outcome=denied status=401");
             //  Un aviso con firma invalida no se aplica, pero se guarda:
             //  alguien mandando avisos falsos es algo que hay que poder ver.
             eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.failed, PaymentEvent.Source.webhook)
