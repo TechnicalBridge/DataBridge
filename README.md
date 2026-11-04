@@ -2061,6 +2061,19 @@ Esta documentación acompaña #228; no cierra automáticamente el alcance de #22
 foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd -q -f "$s\pom.xml" clean test }   # los cinco
 ```
 
+**Los cuatro tipos de prueba.** `ms-debt` ya los tiene en `AdminControllerTest`, en el mismo archivo y separados con
+`@Nested` y `@Tag`; es el modelo para los demás controladores y servicios ([#329](https://github.com/TechnicalBridge/DataBridge/issues/329)):
+
+| Comando | Qué corre | Con qué | Necesita Docker |
+| --- | --- | --- | --- |
+| `.\mvnw.cmd -f ms-debt\pom.xml test` | Unitarias y de controlador: las de siempre | JUnit y Mockito | No |
+| `.\mvnw.cmd -f ms-debt\pom.xml test -Pintegracion` | Migraciones, MySQL y HTTP de verdad | Testcontainers | Sí |
+| `.\mvnw.cmd -f ms-debt\pom.xml test -Pseguridad` | Ataques por HTTP, al servicio de verdad | JUnit | Sí |
+| `.\mvnw.cmd -f ms-debt\pom.xml test -Prendimiento` | Carga, sin JavaScript. No corre en la CI | JMeter Java DSL | Sí |
+
+Los totales de arriba son las de siempre. Por ahora, ms-debt suma 7 con Docker: 2 de integración, 4 de seguridad y 1 de
+rendimiento. Esta última mide el servicio solo; el camino completo, con nginx y el gateway, sigue en `rendimiento/`.
+
 En GitHub cada módulo tiene su propio workflow (`gateway`, `ms-auth`, `ms-debt`, `ms-payments`,
 `frontend`, `ms-ai`), que prueba solo si cambió su carpeta y deja en el resumen cuántas pruebas
 pasaron, clase por clase. Los de Java comparten [`java.yml`](.github/workflows/java.yml). Todos

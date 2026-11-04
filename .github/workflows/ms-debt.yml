@@ -54,6 +54,7 @@ jobs:
     uses: ./.github/workflows/java.yml
     with:
       modulo: ms-debt
+      con-docker: true
 
   #  El check que exige main: pasa si las pruebas pasaron o si no tocaban.
   resultado:

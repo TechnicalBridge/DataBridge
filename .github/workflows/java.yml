@@ -5,8 +5,10 @@
 #  servicio se compila y se prueba solo, con su propio pom, y deja en el
 #  resumen de la corrida cuantas pruebas pasaron, clase por clase.
 #
-#  Ninguna prueba necesita base de datos: son unitarias (JUnit y Mockito, con
-#  los repositorios simulados) y de controlador (@WebMvcTest).
+#  Las pruebas de siempre no necesitan base de datos: son unitarias (JUnit y
+#  Mockito, con los repositorios simulados) y de controlador (@WebMvcTest). Un
+#  servicio con con-docker corre ademas las de integracion y seguridad, con un
+#  MySQL de verdad en un contenedor. Las de rendimiento no corren aqui.
 # =============================================================================
 name: Java
 
@@ -17,6 +19,11 @@ on:
         description: La carpeta del servicio
         required: true
         type: string
+      con-docker:
+        description: Si corre tambien las pruebas de integracion y seguridad
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,6 +60,11 @@ jobs:
       #  runner de GitHub ya trae Maven.
       - name: Pruebas
         run: mvn -B -f "$MODULO/pom.xml" test
+
+      #  En otra carpeta de reportes, para no pisar el resumen de las de siempre.
+      - name: Pruebas de integracion y seguridad
+        if: inputs.con-docker
+        run: mvn -B -f "$MODULO/pom.xml" test -Pcon-docker -Dsurefire.reportsDirectory=target/surefire-con-docker
 
       - name: Resumen de las pruebas
         if: always()

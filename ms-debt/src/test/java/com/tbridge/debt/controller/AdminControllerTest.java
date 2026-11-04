@@ -1,5 +1,14 @@
 package com.tbridge.debt.controller;
 
+import com.tbridge.debt.security.JwtTestTokens;
+import com.tbridge.debt.soporte.ServicioConMysql;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import us.abstracta.jmeter.javadsl.core.TestPlanStats;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
 import com.tbridge.debt.dto.response.ComisionesResponse;
 import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
@@ -27,6 +36,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.httpSampler;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.testPlan;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.threadGroup;
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -333,5 +346,81 @@ class AdminControllerTest {
                     .andExpect(status().isForbidden());
         }
         verifyNoInteractions(avisos);
+    }
+
+    // ============================================================================
+    //  Integracion: Flyway, MySQL y HTTP de verdad.    mvnw test -Pintegracion
+    // ============================================================================
+    @Nested
+    @Tag("integracion")
+    class Integracion extends ServicioConMysql {
+
+        @Test
+        void las_migraciones_corren_en_un_mysql_vacio() {
+            Integer aplicadas = base.queryForObject("select count(*) from flyway_schema_history where success = 1", Integer.class);
+            Integer fallidas = base.queryForObject("select count(*) from flyway_schema_history where success = 0", Integer.class);
+            assertThat(aplicadas).isGreaterThanOrEqualTo(13);
+            assertThat(fallidas).isZero();
+        }
+
+        @Test
+        void el_admin_lee_una_empresa_guardada_en_la_base() throws Exception {
+            base.update("insert into organizations (rut, legal_name, trade_name, kind) values"
+                    + " ('76086428-5', 'Empresa Test SpA', 'Empresa Test', 'creditor') on duplicate key update trade_name = trade_name");
+            HttpResponse<String> respuesta = pedir(EMPRESAS, sesionDeAdmin());
+            assertThat(respuesta.statusCode()).isEqualTo(200);
+            assertThat(respuesta.body()).contains("76086428-5");
+        }
+    }
+
+    // ============================================================================
+    //  Seguridad: ataques por HTTP, al servicio de verdad.    mvnw test -Pseguridad
+    // ============================================================================
+    @Nested
+    @Tag("seguridad")
+    class Seguridad extends ServicioConMysql {
+
+        @Test
+        void sin_sesion_responde_401() throws Exception {
+            assertThat(pedir(ESTADO, null).statusCode()).isEqualTo(401);
+        }
+
+        @Test
+        void un_deudor_recibe_403() throws Exception {
+            assertThat(pedir(ESTADO, sesionDeDeudor()).statusCode()).isEqualTo(403);
+        }
+
+        @Test
+        void un_token_sin_firma_responde_401() throws Exception {
+            String datos = sesionDeAdmin().split("\\.")[1];
+            String sinFirma = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+            assertThat(pedir(ESTADO, sinFirma + "." + datos + ".").statusCode()).isEqualTo(401);
+        }
+
+        @Test
+        void un_token_firmado_con_otra_llave_responde_401() throws Exception {
+            String ajeno = JwtTestTokens.token(JwtTestTokens.claims(), JwtTestTokens.pair("secp256r1"),
+                    JwtTestTokens.publicKey(JwtTestTokens.PAIR).getKeyID(), "ES256");
+            assertThat(pedir(ESTADO, ajeno).statusCode()).isEqualTo(401);
+        }
+    }
+
+    // ============================================================================
+    //  Rendimiento: carga en Java, con JMeter.    mvnw test -Prendimiento
+    //  No corre en la CI: el resultado depende de la maquina.
+    // ============================================================================
+    @Nested
+    @Tag("rendimiento")
+    class Rendimiento extends ServicioConMysql {
+
+        @Test
+        void veinte_usuarios_durante_veinte_segundos() throws Exception {
+            TestPlanStats resultado = testPlan(
+                    threadGroup(20, Duration.ofSeconds(20),
+                            httpSampler(url(ESTADO)).header("Authorization", "Bearer " + sesionDeAdmin())))
+                    .run();
+            assertThat(resultado.overall().errorsCount()).isZero();
+            assertThat(resultado.overall().sampleTimePercentile99()).isLessThan(Duration.ofMillis(800));
+        }
     }
 }
