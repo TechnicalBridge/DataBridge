@@ -39,7 +39,7 @@ export default function AdminInicio() {
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Servicios</h3>
+          <h2>Servicios</h2>
           <div className="lista">
             {SERVICIOS.map(({ tramo, nombre, servicio, que }, i) => (
               <div className="fila" key={tramo} style={{ "--i": i }}>
@@ -65,7 +65,7 @@ export default function AdminInicio() {
         </div>
 
         <div className="card aparece" style={{ "--i": 2 }}>
-          <h3>Quién entra aquí</h3>
+          <h2>Quién entra aquí</h2>
           <p style={{ marginTop: 0 }}>
             Solo el equipo de DataBridge. Una empresa usa su propio portal y ve solo su cartera, y sus
             clientes entran al portal de pago con su RUT y su código.

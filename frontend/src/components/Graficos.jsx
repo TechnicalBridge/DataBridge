@@ -13,7 +13,7 @@ import { useTema } from "../store/temaStore";
 const PALETA = {
   light: {
     activas: "#c8764b", enConvenio: "#d9a441", enRevision: "#b0443a", pagadas: "#3e7b4f", retiradas: "#c9bda8",
-    barra: "#3e7b4f", texto: "#7c7266", grilla: "#ebe1cf", fondo: "#fffdf8", borde: "#dccfb8", tinta: "#2e2a24",
+    barra: "#3e7b4f", texto: "#6f665b", grilla: "#ebe1cf", fondo: "#fffdf8", borde: "#dccfb8", tinta: "#2e2a24",
   },
   dark: {
     activas: "#e09a72", enConvenio: "#e7bd64", enRevision: "#f08a84", pagadas: "#7dbd8c", retiradas: "#57524a",
@@ -49,7 +49,7 @@ export function EstadoCartera({ resumen, cuentas }) {
 
   return (
     <div className="card">
-      <h3>Estado de la cartera</h3>
+      <h2>Estado de la cartera</h2>
       {datos.length === 0 ? (
         <div className="empty">Sin deudas todavía.</div>
       ) : (
@@ -94,7 +94,7 @@ export function RecuperadoPorDia({ resumen }) {
     <div className="card">
       <div className="card-cab">
         <div>
-          <h3>Recuperado por día</h3>
+          <h2>Recuperado por día</h2>
           {monedas.length ? <span className="sub">{dinero(total, moneda)} en los últimos 30 días</span> : null}
         </div>
         {monedas.length > 1 ? (

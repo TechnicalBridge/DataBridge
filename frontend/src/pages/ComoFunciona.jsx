@@ -62,7 +62,7 @@ function ParaDeudores() {
 
         <div>
           <div className="card aparece" style={{ "--i": 2, marginBottom: 16 }}>
-            <h3>Tu deuda avanza por tres estados</h3>
+            <h2>Tu deuda avanza por tres estados</h2>
             <BarraEstado deuda={EJEMPLO} />
             <p className="hint">
               Pendiente mientras no hagas nada; en convenio si eliges pagar en cuotas, y la barra avanza con
@@ -70,7 +70,7 @@ function ParaDeudores() {
             </p>
           </div>
           <div className="card aparece" style={{ "--i": 3 }}>
-            <h3>Preguntas frecuentes</h3>
+            <h2>Preguntas frecuentes</h2>
             <Preguntas preguntas={[
               ["¿Qué hago si no me llegó el código?", "Entra al portal y usa ¿No te llegó? Recibirás un código nuevo y un enlace en el mismo correo. Al usar uno, el otro deja de servir. No compartas ninguno."],
               ["¿Cobran intereses?", "Depende de lo que pactaste con la empresa. Si tu contrato tiene una tasa de interés, una deuda atrasada crece por cada día de atraso y el convenio lleva interés; el portal te muestra cuánto es capital y cuánto interés antes de pagar. Si no tiene tasa, no se cobra nada extra: el total del convenio es lo que debes hoy."],
@@ -124,7 +124,7 @@ function ParaEmpresas() {
 
         <div>
           <div className="card aparece" style={{ "--i": 2, marginBottom: 16 }}>
-            <h3>Para empezar</h3>
+            <h2>Para empezar</h2>
             <p style={{ margin: 0 }}>
               Todo deudor entra en una campaña. Al cargar la eliges, o la creas ahí mismo, y subes la planilla; la
               plantilla se descarga en el mismo paso.
@@ -135,7 +135,7 @@ function ParaEmpresas() {
             </div>
           </div>
           <div className="card aparece" style={{ "--i": 3, marginBottom: 16 }}>
-            <h3>Campañas</h3>
+            <h2>Campañas</h2>
             <p style={{ margin: 0 }}>
               En <Link className="link-btn" to="/databridge/campanas">Campañas</Link> decides cuántas veces se le escribe
               al deudor y qué días, contados desde que su deuda entra (por ejemplo 1, 4, 11). DataBridge envía cada
@@ -148,7 +148,7 @@ function ParaEmpresas() {
             </p>
           </div>
           <div className="card aparece" style={{ "--i": 4 }}>
-            <h3>Preguntas frecuentes</h3>
+            <h2>Preguntas frecuentes</h2>
             <Preguntas preguntas={[
               ["¿Por qué se rechazó una deuda?", `La revisión te lo dice antes de confirmar, y cada rechazo viene con su motivo. Los más comunes: bajo_umbral_mora (menos de ${minimo} días de mora), cargo_no_vencido (un cargo todavía no vence a la fecha de corte), rut_invalido y sin_canal_contacto (el deudor no trae correo ni teléfono). Un correo mal escrito no rechaza la deuda: entra sin correo, con el aviso correo_invalido, y en la cartera dice Sin correo válido.`],
               ["¿Qué es un convenio en riesgo?", "Un convenio con cuotas vencidas sin pagar. Aparecen en Convenios en riesgo, del más atrasado al menos, para que contactes al deudor antes de que el convenio se caiga."],

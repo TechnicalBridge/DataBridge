@@ -164,7 +164,7 @@ def main():
         "DEMO_DATOS": "true", "INTEGRACION_API": "true", "ADMIN_CORREO": "admin@example.test",
         "PUBLIC_URL": urls["portal"], "COOKIE_SECURE": "false",
         "SMTP_HOST": "mailpit", "SMTP_PORT": "1025", "SMTP_AUTH": "false", "SMTP_STARTTLS": "false", "SMTP_SSL": "false",
-        "BREVO_API_KEY": "", "XAI_API_KEY": "", "KHIPU_LLAVE": "", "KHIPU_SECRETO": "",
+        "BREVO_API_KEY": "", "GROQ_API_KEY": "", "GEMINI_API_KEY": "", "KHIPU_LLAVE": "", "KHIPU_SECRETO": "",
         "MERCADOPAGO_ACCESS_TOKEN": "", "MERCADOPAGO_ENVIRONMENT": "SIMULADA", "TRANSBANK_ENVIRONMENT": "SIMULADA",
         "BCENTRAL_USER": "", "BCENTRAL_PASS": "", "MAIL_FROM": "noreply@databridge.test",
     }

@@ -101,7 +101,7 @@ export default function Mandatos({ onCambio }) {
     <div className="card bloque aparece" id="mandatos" style={{ "--i": 1, marginBottom: 16 }}>
       <div className="campana-cabeza">
         <div>
-          <h3>Mandatos</h3>
+          <h2>Mandatos</h2>
           <p className="hint" style={{ marginTop: 0 }}>
             Por cuenta de qué acreedores cobras. Con un mandato vigente le creas campañas y cargas su cartera.
           </p>

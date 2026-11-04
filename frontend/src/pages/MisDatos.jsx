@@ -49,7 +49,7 @@ export default function MisDatos() {
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h3>Tus datos</h3>
+          <h2>Tus datos</h2>
           <table className="table">
             <tbody>
               <tr><th>Nombre</th><td>{datos.nombre}</td></tr>
@@ -65,7 +65,7 @@ export default function MisDatos() {
         </div>
 
         <div className="card aparece" style={{ "--i": 2 }}>
-          <h3>Quién te registró</h3>
+          <h2>Quién te registró</h2>
           {datos.acreedores.map((a) => (
             <p key={a.rut} style={{ margin: "0 0 12px" }}>
               <b>{a.nombre}</b> (RUT {rutLegible(a.rut)}) te registró con {a.deudas === 1 ? "una deuda" : `${a.deudas} deudas`}

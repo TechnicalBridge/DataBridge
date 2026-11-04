@@ -47,8 +47,8 @@
       <version>${springdoc.version}</version>
     </dependency>
     <!--
-      El SDK oficial de OpenAI. Habla con cualquier API compatible: aqui, la de
-      xAI (Grok), con su propia URL. Ver service/LlmService.
+      El SDK oficial de OpenAI. Habla con cualquier API compatible: aqui, las de
+      Groq y Gemini, cada una con su URL. Ver service/LlmService.
     -->
     <dependency>
       <groupId>com.openai</groupId>

@@ -218,7 +218,7 @@ function PasoCampana({
   }
   return (
     <>
-      <h3>¿En qué campaña entran?</h3>
+      <h2>¿En qué campaña entran?</h2>
       {acreedores.length > 1 ? (
         <div className="field">
           <label htmlFor="acreedor">Acreedor</label>
@@ -299,7 +299,7 @@ function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastr
       }}
     >
       <div className="card-cab">
-        <h3>La planilla</h3>
+        <h2>La planilla</h2>
         <button type="button" className="link-btn" onClick={onPlantilla}>Descargar la plantilla de Excel</button>
       </div>
       <p className="hint" style={{ marginTop: -6 }}>
@@ -341,7 +341,7 @@ function PasoRevision({ revision, campana, busy, onConfirmar, onOtroArchivo }) {
   const hayQueCargar = entran.length + retiradas.length > 0;
   return (
     <>
-      <h3>Esto pasaría al cargarla</h3>
+      <h2>Esto pasaría al cargarla</h2>
       {revision.cartera?.repetido ? (
         <div className="notice">Esa planilla ya se cargó: confirmarla otra vez no cambia nada.</div>
       ) : null}
@@ -364,7 +364,7 @@ function PasoRevision({ revision, campana, busy, onConfirmar, onOtroArchivo }) {
 
       {rechazadas.length ? (
         <>
-          <h4 className="lista-grupo">Las que no entrarían, y por qué</h4>
+          <h3 className="lista-grupo">Las que no entrarían, y por qué</h3>
           <ul className="lista-revision">
             {rechazadas.map((r) => (
               <li key={r.id_externo}>
@@ -376,7 +376,7 @@ function PasoRevision({ revision, campana, busy, onConfirmar, onOtroArchivo }) {
       ) : null}
       {conAvisos.length ? (
         <>
-          <h4 className="lista-grupo">Las que entrarían con un aviso</h4>
+          <h3 className="lista-grupo">Las que entrarían con un aviso</h3>
           <ul className="lista-revision">
             {conAvisos.map((r) => (
               <li key={r.id_externo}><b className="mono">{r.id_externo}</b>: {r.avisos.map((a) => a.mensaje).join(" · ")}</li>
@@ -404,7 +404,7 @@ function PasoListo({ resultado, campana, onOtra }) {
   const aceptadas = resultado.aceptadas ?? 0;
   return (
     <>
-      <h3>Listo</h3>
+      <h2>Listo</h2>
       <div className="notice">
         {resultado.repetido ? "Esa planilla ya estaba cargada: no se duplicó nada. " : ""}
         <b>{aceptadas} {aceptadas === 1 ? "deuda quedó" : "deudas quedaron"}</b> en {campana?.nombre || "la campaña"}
@@ -425,18 +425,18 @@ function PasoListo({ resultado, campana, onOtra }) {
 function Formato({ minDiasMora }) {
   return (
     <div className="card">
-      <h3>La planilla</h3>
+      <h2>La planilla</h2>
       <p style={{ margin: 0 }}>
         Un Excel con dos hojas. En <b>Deudores</b>, una fila por persona. En <b>Deudas</b>, una fila por cada
         <b> mes</b> que se debe, con el RUT de su deudor: quien debe tres meses de arriendo lleva tres filas, con el
         mismo id de la deuda. La plantilla trae las listas desplegables, las fechas y los montos con su tipo, y una
         hoja de <i>Instrucciones</i> con cada columna y un ejemplo.
       </p>
-      <h4 className="lista-grupo">Deudores</h4>
+      <h3 className="lista-grupo">Deudores</h3>
       <div className="columnas-csv">
         {COLUMNAS_DEUDORES.map((c) => <code key={c}>{c}</code>)}
       </div>
-      <h4 className="lista-grupo">Deudas</h4>
+      <h3 className="lista-grupo">Deudas</h3>
       <div className="columnas-csv">
         {COLUMNAS_DEUDAS.map((c) => <code key={c}>{c}</code>)}
         {OPCIONALES_DEUDAS.map((c) => <code key={c} className="opcional">{c}</code>)}

@@ -65,6 +65,8 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
         exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+        org.slf4j.LoggerFactory.getLogger(getClass()).info("firewall domain={} rule=IP_RATE_LIMIT outcome=denied status=429",
+                authPath ? "AUTH" : path.startsWith("/api/payments/") ? "PAYMENTS" : path.startsWith("/api/v1/") || path.startsWith("/api/debts/") ? "DEBT" : "API");
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         byte[] body = "{\"error\":\"Demasiadas solicitudes. Intenta en un minuto.\"}"
                 .getBytes(StandardCharsets.UTF_8);
