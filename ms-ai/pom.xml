@@ -22,6 +22,8 @@
 
   <properties>
     <java.version>25</java.version>
+    <!-- Al programar: el perfil que lee el .env. Docker corre el jar, sin perfil. -->
+    <spring-boot.run.profiles>dev</spring-boot.run.profiles>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
     <openai.version>4.79.0</openai.version>
@@ -47,8 +49,8 @@
       <version>${springdoc.version}</version>
     </dependency>
     <!--
-      El SDK oficial de OpenAI. Habla con cualquier API compatible: aqui, la de
-      xAI (Grok), con su propia URL. Ver service/LlmService.
+      El SDK oficial de OpenAI. Habla con cualquier API compatible: aqui, las de
+      Groq y Gemini, cada una con su URL. Ver service/LlmService.
     -->
     <dependency>
       <groupId>com.openai</groupId>

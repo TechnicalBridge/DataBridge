@@ -8,7 +8,7 @@ import java.util.Set;
 
 /** Only the selected provider is resolved. Never render secret-bearing config. */
 @ConfigurationProperties(prefix = "app.llm")
-public record LlmProperties(String provider, Endpoint groq, Endpoint gemini, Endpoint xai, Duration timeout) {
+public record LlmProperties(String provider, Endpoint groq, Endpoint gemini, Duration timeout) {
     public record Endpoint(String apiKey, String baseUrl, String model) {
         @Override public String toString() { return "Endpoint[redacted]"; }
     }
@@ -18,13 +18,13 @@ public record LlmProperties(String provider, Endpoint groq, Endpoint gemini, End
     }
     public Selected resolve() {
         String name = provider == null ? "local" : provider.strip().toLowerCase(Locale.ROOT);
-        if (!Set.of("local", "groq", "gemini", "xai").contains(name))
-            throw new IllegalArgumentException("LLM_PROVIDER debe ser local, groq, gemini o xai");
+        if (!Set.of("local", "groq", "gemini").contains(name))
+            throw new IllegalArgumentException("LLM_PROVIDER debe ser local, groq o gemini");
         Duration limit = timeout == null ? Duration.ofSeconds(30) : timeout;
         if (limit.isZero() || limit.isNegative() || limit.compareTo(Duration.ofMinutes(2)) > 0)
             throw new IllegalArgumentException("LLM_TIMEOUT debe estar entre cero y dos minutos");
         if (name.equals("local")) return new Selected(name, "", "", "", limit);
-        Endpoint endpoint = switch (name) { case "groq" -> groq; case "gemini" -> gemini; default -> xai; };
+        Endpoint endpoint = name.equals("groq") ? groq : gemini;
         String key = endpoint == null || endpoint.apiKey() == null ? "" : endpoint.apiKey().strip();
         String model = endpoint == null || endpoint.model() == null ? "" : endpoint.model().strip();
         // Provider/model are public metadata, so disallow URLs, whitespace and log control characters.

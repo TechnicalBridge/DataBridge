@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(JwtTestConfig.class)
+@org.springframework.test.context.ActiveProfiles("test")
 class IsolationTest {
  static final String A=token("A"), B=token("B");
  static final AtomicInteger debtStatus=new AtomicInteger(200), llmStatus=new AtomicInteger(200);
@@ -48,10 +49,10 @@ class IsolationTest {
   } catch(Exception e) { throw new IllegalStateException(e); }
  }
  @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
-  r.add("app.llm.provider",()->"xai");
+  r.add("app.llm.provider",()->"groq");
   r.add("app.debt-url",()->"http://127.0.0.1:"+debt.getAddress().getPort());
-  r.add("app.llm.xai.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
-  r.add("app.llm.xai.api-key",()->"fake-provider-key"); r.add("app.llm.xai.model",()->"test");
+  r.add("app.llm.groq.base-url",()->"http://127.0.0.1:"+llm.getAddress().getPort()+"/v1");
+  r.add("app.llm.groq.api-key",()->"fake-provider-key"); r.add("app.llm.groq.model",()->"test");
  }
  @BeforeEach void reset() { debtStatus.set(200); llmStatus.set(200); override.set(null); prompts.clear(); forwarded.clear(); }
  ResponseEntity<Map> ask(String token) {

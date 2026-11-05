@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { obtenerDeuda } from "../api/deudas";
 import { abrirCobro, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
@@ -24,9 +24,12 @@ const porVencimiento = (a, b) => a.vencimiento.localeCompare(b.vencimiento) || a
  */
 export default function Pay() {
   const { id } = useParams();
+  const [parametros] = useSearchParams();
   const [deuda, setDeuda] = useState(null);
   const [pasarela, setPasarela] = useState("webpay");
-  const [cuantas, setCuantas] = useState(1);
+  //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
+  //  deudor lo puede cambiar, y al cobrar ms-debt revisa las cuotas y decide el monto.
+  const [cuantas, setCuantas] = useState(() => Math.max(1, Number.parseInt(parametros.get("cuotas"), 10) || 1));
   const [pago, setPago] = useState(null);
   // La ventana de la pasarela, para traerla al frente en vez de abrirla de nuevo.
   const ventana = useRef(null);
