@@ -91,6 +91,17 @@ class ClienteRealTest {
     }
 
     @Test
+    void prioriza_x_real_ip_cuando_llega_de_proxy_de_confianza() {
+        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "203.0.113.7", "1.2.3.4, 10.0.0.1"));
+    }
+
+    @Test
+    void cabecera_inyectada_previamente_no_engana_al_gateway() {
+        // Atacante inyecto 1.2.3.4, proxy confiable anexo la real 203.0.113.7
+        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "1.2.3.4, 203.0.113.7"));
+    }
+
+    @Test
     void sin_par_no_se_inventa_nada() {
         assertEquals("desconocido", clientes.resolver(null, "1.2.3.4"));
     }

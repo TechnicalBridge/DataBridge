@@ -34,21 +34,42 @@ final class ClienteReal {
         String par = peticion.getRemoteAddress() != null && peticion.getRemoteAddress().getAddress() != null
                 ? peticion.getRemoteAddress().getAddress().getHostAddress()
                 : null;
-        return resolver(par, peticion.getHeaders().getFirst("X-Forwarded-For"));
+        String realIp = peticion.getHeaders().getFirst("X-Real-IP");
+        String xff = peticion.getHeaders().getFirst("X-Forwarded-For");
+        return resolver(par, realIp, xff);
+    }
+
+    String resolver(String par, String reenviadoPor) {
+        return resolver(par, null, reenviadoPor);
     }
 
     /** La regla sola, sin la peticion alrededor: es lo que prueban las pruebas. */
-    String resolver(String par, String reenviadoPor) {
+    String resolver(String par, String ipReal, String reenviadoPor) {
         if (par == null) {
             return "desconocido";
         }
         if (!confiables.matcher(par).matches()) {
             return par;
         }
+        if (ipReal != null && !ipReal.isBlank()) {
+            return ipReal.trim();
+        }
         if (reenviadoPor == null || reenviadoPor.isBlank()) {
             return par;
         }
-        String primero = reenviadoPor.split(",")[0].trim();
-        return primero.isEmpty() ? par : primero;
+        String[] partes = reenviadoPor.split(",");
+        for (int i = partes.length - 1; i >= 0; i--) {
+            String ip = partes[i].trim();
+            if (!ip.isEmpty() && !confiables.matcher(ip).matches()) {
+                return ip;
+            }
+        }
+        for (int i = partes.length - 1; i >= 0; i--) {
+            String ip = partes[i].trim();
+            if (!ip.isEmpty()) {
+                return ip;
+            }
+        }
+        return par;
     }
 }
