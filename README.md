@@ -694,7 +694,7 @@ tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas p
   al tablero. Para el producto: historia de usuario (con su criterio de aceptación), épica, error e
   investigación. Para el equipo: tarea técnica, decisión, versión mayor de una dependencia y, en este
   repositorio, la retrospectiva.
-  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban y Martín
+  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban, Martín y Flavio
   ([`repartir-por-turnos.yml`](.github/workflows/repartir-por-turnos.yml)), salvo las decisiones, las
   retrospectivas y las épicas. Si no corresponde, se reasigna a mano. Tener un issue asignado no es
   tenerlo en curso: el límite de dos tarjetas es para *In progress*.

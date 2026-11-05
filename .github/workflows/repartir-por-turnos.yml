@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
 
           #  El orden de los turnos: para sumar o sacar a alguien, se cambia esta lista.
-          equipo=(pedcamp es-main77 martinkuruzg-hue)
+          equipo=(pedcamp es-main77 martinkuruzg-hue 4mnesia)
 
           [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "No es un numero de issue."; exit 1; }
 
