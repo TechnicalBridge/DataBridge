@@ -3,8 +3,9 @@ import { NavLink, Outlet } from "react-router-dom";
 import { listarEnRiesgo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
+import { useAsistente } from "../store/asistenteStore";
 import Logo from "./Logo";
-import Chatbot from "./Chatbot";
+import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
   IconoAlerta, IconoAyuda, IconoCalendario, IconoCandado, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo,
@@ -62,6 +63,8 @@ export default function Layout({ variant }) {
   const conCuenta = variant !== "debtor";
   const { links, marca, sub } = PORTALES[variant] || PORTALES.debtor;
   const [enRiesgo, setEnRiesgo] = useState(0);
+  //  En el computador, el asistente abierto toma una columna y la pagina se angosta: no tapa nada (#303).
+  const conAsistente = useAsistente((s) => s.abierto) && variant === "debtor";
 
   // Cuantos convenios estan atrasados: va como numero al lado del enlace.
   useEffect(() => {
@@ -70,7 +73,7 @@ export default function Layout({ variant }) {
   }, [esEmpresa]);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
           <Logo size={40} />
@@ -118,6 +121,7 @@ export default function Layout({ variant }) {
         <header className="movil-cabecera">
           <Logo size={32} />
           <span className="brand-name">{marca}</span>
+          {variant === "debtor" ? <BotonAsistente /> : null}
           <TemaToggle />
           <button type="button" className="btn btn-ghost" onClick={logout} aria-label="Cerrar sesión">
             <IconoSalir />

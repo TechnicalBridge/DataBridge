@@ -132,7 +132,7 @@ flowchart LR
 | Ver sus pagos y el comprobante | `Historial` | `GET /api/debts/pagos`, `GET /api/debts/pagos/{id}/comprobante` | El comprobante es un PDF con el capital, el interés y el descuento |
 | Descargar el certificado | `Debts` | `GET /api/debts/{id}/certificate` | Solo si la deuda está **pagada**. Una retirada también queda en cero, y certificarla sería decir algo falso |
 | Ver sus datos y los recordatorios | `MisDatos` | `GET` y `PATCH /api/debts/mis-datos` | Lo único que el deudor decide es si quiere el recordatorio de sus cuotas |
-| Preguntarle al asistente | `Chatbot` | `POST /api/ai/chat` | El asistente lee las deudas con la sesión del deudor: no ve nada que él no vea |
+| Preguntarle al asistente | `Chatbot` | `POST /api/ai/chat` | El asistente lee las deudas con la sesión del deudor: no ve nada que él no vea. En el computador se abre con la burbuja, y abierto va en una columna a la derecha; en el teléfono, con el ícono del encabezado. Así no tapa los botones para pagar ([#303](https://github.com/TechnicalBridge/DataBridge/issues/303)) |
 | Cerrar sesión | Todas | `POST /api/auth/logout` | Se revoca en el servidor, no solo en el navegador |
 
 ---
