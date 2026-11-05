@@ -34,6 +34,7 @@
 
   --radius: 16px;
   --radius-sm: 10px;
+  --ancho-asistente: 360px;
   --font: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -1258,6 +1259,29 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .chat-fab:hover { transform: translateY(-2px); background: var(--brand-2); }
 .chat-fab .icono { animation: girar-entrada 0.35s var(--ease); }
+
+/* En el computador, abierto queda en una columna a la derecha, y la pagina se angosta para dejarle
+   espacio: flotando tapaba el boton para pagar (#303). Se cierra con su X o con Esc. */
+@media (min-width: 981px) {
+  .app-shell.con-asistente { grid-template-columns: 256px 1fr var(--ancho-asistente); }
+  .con-asistente .chat-dock { top: 0; right: 0; bottom: 0; width: var(--ancho-asistente); align-items: stretch; }
+  .con-asistente .chat-panel {
+    width: auto;
+    height: 100%;
+    max-height: none;
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    box-shadow: none;
+    transform-origin: center right;
+  }
+  .con-asistente .messages { max-height: none; min-height: 0; }
+  .con-asistente .chat-fab { display: none; }
+}
+/* Con la pagina mas angosta, lo que va en dos columnas pasa a una. */
+@media (min-width: 981px) and (max-width: 1279px) {
+  .con-asistente .grid-2, .con-asistente .grid-3 { grid-template-columns: 1fr; }
+  .con-asistente .main { padding-inline: 24px; }
+}
 
 /* ---- Cartera en CSV ---------------------------------------------------------------------------- */
 

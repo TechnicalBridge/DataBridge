@@ -11,7 +11,9 @@ const welcome = {
 /**
  * El asistente del deudor. En el computador se abre con la burbuja; en el
  * telefono, con el icono del encabezado (BotonAsistente), y la burbuja no se
- * muestra, porque tapaba los botones para pagar (#303).
+ * muestra, porque tapaba los botones para pagar (#303). Abierto en el
+ * computador, va en una columna a la derecha y la pagina se angosta, asi que
+ * tampoco tapa nada (Layout le pone .con-asistente).
  */
 export default function Chatbot() {
   const open = useAsistente((s) => s.abierto);
@@ -21,6 +23,8 @@ export default function Chatbot() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const lista = useRef(null);
+  const cerrarBoton = useRef(null);
+  const estuvoAbierto = useRef(false);
 
   // La conversacion baja sola hasta el ultimo mensaje.
   useEffect(() => {
@@ -30,6 +34,19 @@ export default function Chatbot() {
 
   //  Al salir del portal (cerrar sesion) queda cerrado para la proxima vez.
   useEffect(() => cerrar, [cerrar]);
+
+  //  Al abrirlo, el foco entra al panel; al cerrarlo, vuelve al boton que lo abre. En el computador
+  //  la burbuja se esconde mientras esta abierto, y sin esto el foco quedaba en ninguna parte.
+  useEffect(() => {
+    if (open) {
+      cerrarBoton.current?.focus({ preventScroll: true });
+    } else if (estuvoAbierto.current && (!document.activeElement || document.activeElement === document.body)) {
+      const boton = [...document.querySelectorAll('[aria-controls="panel-asistente"]')]
+        .find((b) => b.getClientRects().length > 0);
+      boton?.focus({ preventScroll: true });
+    }
+    estuvoAbierto.current = open;
+  }, [open]);
 
   //  Esc lo cierra, como cualquier panel.
   useEffect(() => {
@@ -66,7 +83,7 @@ export default function Chatbot() {
               <strong>Asistente</strong>
               <small>Responde sobre tus deudas y pagos</small>
             </div>
-            <button className="btn btn-ghost btn-sm" type="button" onClick={cerrar} aria-label="Cerrar">
+            <button ref={cerrarBoton} className="btn btn-ghost btn-sm" type="button" onClick={cerrar} aria-label="Cerrar">
               <IconoCerrar size={16} />
             </button>
           </div>

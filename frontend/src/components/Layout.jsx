@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { listarEnRiesgo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
+import { useAsistente } from "../store/asistenteStore";
 import Logo from "./Logo";
 import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
@@ -62,6 +63,8 @@ export default function Layout({ variant }) {
   const conCuenta = variant !== "debtor";
   const { links, marca, sub } = PORTALES[variant] || PORTALES.debtor;
   const [enRiesgo, setEnRiesgo] = useState(0);
+  //  En el computador, el asistente abierto toma una columna y la pagina se angosta: no tapa nada (#303).
+  const conAsistente = useAsistente((s) => s.abierto) && variant === "debtor";
 
   // Cuantos convenios estan atrasados: va como numero al lado del enlace.
   useEffect(() => {
@@ -70,7 +73,7 @@ export default function Layout({ variant }) {
   }, [esEmpresa]);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
           <Logo size={40} />
