@@ -7,7 +7,7 @@ import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import BarraEstado, { etapaDe } from "../components/BarraEstado";
 import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
-import { mesDeHoy } from "../components/ComisionDelMes";
+import { mesDeHoy } from "../utils/formato";
 
 /** De a cuantas deudas se ve la cartera (#280). */
 const POR_PAGINA = 20;
