@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.mockito.Mockito.*;
 @WebMvcTest({ChatController.class,SaludController.class})
 @Import({SecurityConfig.class,JwtTestConfig.class})
+@org.springframework.test.context.ActiveProfiles("test")
 class JwtSecurityTest {
  @Autowired MockMvc mvc;
  @MockitoBean AsistenteService service;

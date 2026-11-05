@@ -633,17 +633,28 @@ git config core.hooksPath .githooks
 ```
 
 Después, **una terminal por pieza**: cada servicio se compila y arranca solo, con su propio
-`pom.xml`, y lee los secretos del mismo `.env`: cada uno se conecta a su base con su clave y su puerto
-(`DB_DEBT_PASSWORD` y `DB_DEBT_PORT` para ms-debt, y así). El perfil `dev` muestra el SQL y el detalle de
-cada ruta:
+`pom.xml`. `spring-boot:run` activa solo el perfil `dev`, que lee los secretos del mismo `.env`: cada uno se
+conecta a su base con su clave y su puerto (`DB_DEBT_PASSWORD` y `DB_DEBT_PORT` para ms-debt, y así), y muestra
+el SQL y el detalle de cada ruta:
 
 ```powershell
-.\mvnw.cmd -f ms-auth\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-debt\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-payments\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f gateway\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-ai\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
+.\mvnw.cmd -f ms-auth\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-debt\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-payments\pom.xml spring-boot:run
+.\mvnw.cmd -f gateway\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-ai\pom.xml spring-boot:run
 ```
+
+**Los perfiles de Spring,** los mismos en cada servicio:
+
+| Perfil | Archivo | Para qué |
+| --- | --- | --- |
+| Sin perfil | `src/main/resources/application.properties` | Docker y el servidor |
+| `dev` | `src/main/resources/application-dev.properties` | Programar con Maven. Es el único que lee el `.env` |
+| `test` | `src/test/resources/application-test.properties` | Las pruebas que levantan Spring |
+
+Para ver cuál usa un servicio: `docker compose logs ms-debt | Select-String "profile"`. Para cambiarlo en Docker,
+se pone `SPRING_PROFILES_ACTIVE` en el `.env`; `dev` es solo para programar, nunca para un servidor.
 
 ```powershell
 cd frontend

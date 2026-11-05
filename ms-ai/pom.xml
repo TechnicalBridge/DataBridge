@@ -22,6 +22,8 @@
 
   <properties>
     <java.version>25</java.version>
+    <!-- Al programar: el perfil que lee el .env. Docker corre el jar, sin perfil. -->
+    <spring-boot.run.profiles>dev</spring-boot.run.profiles>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
     <openai.version>4.79.0</openai.version>

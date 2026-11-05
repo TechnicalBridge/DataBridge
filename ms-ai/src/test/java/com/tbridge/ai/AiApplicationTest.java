@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"app.llm.provider=local", "app.debt-url=http://ms-debt.invalid"})
 @org.springframework.context.annotation.Import(com.tbridge.ai.security.JwtTestConfig.class)
+@org.springframework.test.context.ActiveProfiles("test")
 class AiApplicationTest {
 
     @Autowired
