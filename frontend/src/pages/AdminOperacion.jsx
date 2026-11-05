@@ -3,7 +3,7 @@ import {
   SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, operacionDePagos, reintentarAviso, reintentarAvisoDePago,
   reintentarDestino,
 } from "../api/admin";
-import { fechaHora, hoyEnChile } from "../utils/formato";
+import { fecha, fechaHora, hoyEnChile } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
@@ -16,7 +16,11 @@ const ESTADO_AVISO = {
 
 const QUE_SE_HIZO = {
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
-  uf_cargada: (a) => `Cargó la UF del ${a.sobre}`,
+  //  ms-payments lo guarda como "2026-01-06: 39700.55".
+  uf_cargada: (a) => {
+    const [dia, valor] = a.sobre.split(": ");
+    return `Cargó la UF del ${fecha(dia)}${valor ? `: $${ufLegible(valor)}` : ""}`;
+  },
 };
 
 /** El tipo de un aviso (repactacion.aceptada) se puede cortar despues del punto, para caber a 390 px. */
@@ -188,19 +192,19 @@ export default function AdminOperacion() {
                 <p className="uf-de-hoy">
                   <b>${ufLegible(pagos.uf.valor)}</b>
                   <span className="sub">
-                    {pagos.uf.dia} · {pagos.uf.fuente === "manual" ? "cargada a mano" : "del Banco Central"}
+                    {fecha(pagos.uf.dia)} · {pagos.uf.fuente === "manual" ? "cargada a mano" : "del Banco Central"}
                   </span>
                 </p>
               ) : (
                 <div className="aviso" role="alert">
                   <IconoAlerta size={20} className="icono" />
-                  <div><b>Falta la UF de hoy ({pagos.uf.dia}).</b> Sin ella, los cobros en UF están detenidos.</div>
+                  <div><b>Falta la UF de hoy ({fecha(pagos.uf.dia)}).</b> Sin ella, los cobros en UF están detenidos.</div>
                 </div>
               )}
               <FormUf alCargar={(dia, valor) => {
                 setMensaje("");
                 return cargarUf(dia, valor).then((r) => {
-                  setMensaje(`La UF del ${r.dia} quedó en $${ufLegible(r.valor)}: es la que usan los cobros en UF de ese día.`);
+                  setMensaje(`La UF del ${fecha(r.dia)} quedó en $${ufLegible(r.valor)}: es la que usan los cobros en UF de ese día.`);
                   setVuelta((v) => v + 1);
                 });
               }} />
