@@ -126,6 +126,7 @@ flowchart LR
 | Simular un convenio | `Repact` | `GET /api/debts/{id}/simulate` | De 3 a 24 cuotas. Lo repactado es el capital más la mora de hoy |
 | Aceptar un convenio | `Repact` | `POST /api/debts/{id}/repact` | Las cuotas pendientes se anulan y se emiten las del convenio. El anterior queda marcado como reemplazado |
 | Pagar la deuda o sus cuotas | `Pay`, `Pasarela` | `POST /api/payments/checkout`, y `/api/payments/public/**` | El monto lo decide ms-debt, nunca el navegador. Las cuotas se pagan en orden, y hay un pago abierto a la vez por deuda |
+| Cancelar un cobro abierto | `Pay` | `POST /api/payments/{id}/cancelar` | Por ejemplo, si cerró la ventana de la pasarela. Se le pregunta antes a la pasarela: si ya se pagó queda pagado, y si la está verificando (`409`) o no responde (`503`) el cobro sigue abierto. Si no, se anula allá y queda vencido ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)) |
 | Reclamar una deuda | `Debts` | `POST /api/debts/{id}/disputa` | La deuda queda en revisión y se le deja de escribir. Lo que el deudor escribe no sale de DataBridge |
 | Ver sus próximos vencimientos | `Vencimientos` | `GET /api/debts/vencimientos` | Las cuotas pendientes, por fecha |
 | Ver sus pagos y el comprobante | `Historial` | `GET /api/debts/pagos`, `GET /api/debts/pagos/{id}/comprobante` | El comprobante es un PDF con el capital, el interés y el descuento |
@@ -364,7 +365,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **102 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **103 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -467,6 +468,7 @@ Cada caso de uso de arriba termina en uno o más de estos **102 endpoints**. La 
 | `POST /internal/uf` | Cargar a mano la UF de un día | Operación de DataBridge | Clave interna | No | `InternalController.cargarAMano` |
 | `POST /internal/uf/cargar` | Cargar ahora la UF desde el Banco Central | Operación de DataBridge | Clave interna | No | `InternalController.cargarAhora` |
 | `POST /api/payments/checkout` | Abrir el cobro de una deuda o de una cuota | Deudor | JWT | Sí | `PaymentController.checkout` |
+| `POST /api/payments/{id}/cancelar` | Cancelar un cobro abierto, después de preguntarle a la pasarela | Deudor del pago | JWT | Sí | `PaymentController.cancelar` |
 | `GET /api/payments` | Mis pagos | Deudor y usuario de una empresa | JWT | Sí | `PaymentController.list` |
 | `GET /api/payments/para-devolver` | Los pagos para devolver | Usuario de una empresa | JWT | Sí | `PaymentController.paraDevolver` |
 | `POST /api/payments/{id}/devolucion` | Registrar la devolución de un pago duplicado | Usuario de una empresa | JWT | Sí | `PaymentController.registrarDevolucion` |
