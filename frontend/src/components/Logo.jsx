@@ -1,7 +1,8 @@
 /**
  * El puente colgante de DataBridge (#274): dos torres, el cable y la calzada, con
  * el sol terracota. En SVG y con los colores del tema, asi es la misma marca en
- * claro y en oscuro. El favicon (public/favicon.svg) es el mismo dibujo.
+ * claro y en oscuro. El favicon (public/favicon.svg) es el mismo dibujo con trazos mas
+ * gruesos, para que se lea a 16 px, y public/marca guarda el simbolo y el logotipo en SVG.
  */
 export default function Logo({ size = 44 }) {
   return (

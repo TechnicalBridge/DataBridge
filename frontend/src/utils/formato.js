@@ -141,9 +141,9 @@ export const ESTADO_DEL_MANDATO = {
 };
 
 export const ESTADO_DEUDA = {
-  open: "Pendiente",
+  open: "Por pagar",
   repacted: "En convenio",
-  paid: "Pago conciliado",
+  paid: "Pagada",
   withdrawn: "Retirada",
   disputed: "En revisión",
 };

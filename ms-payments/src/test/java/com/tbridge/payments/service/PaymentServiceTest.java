@@ -1389,4 +1389,208 @@ class PaymentServiceTest {
         assertEquals(Payment.Status.created, respuesta.status());
         verify(avisos, never()).save(any());
     }
+
+    // ------------------------------------------------------------------
+    //  Cancelar un cobro abierto (#307)
+    // ------------------------------------------------------------------
+
+    private Payment conLaFila(Payment pago) {
+        when(payments.paraCerrar(41L)).thenReturn(Optional.of(pago));
+        return pago;
+    }
+
+    /** Quedo vencido, y el libro dice que lo cerro el deudor desde el portal. */
+    private void quedoCanceladoEnElLibro(Payment pago) {
+        assertEquals(Payment.Status.expired, pago.getStatus());
+        verify(eventos).save(argThat(evento -> evento.getType() == PaymentEvent.Type.expired
+                && evento.getSource() == PaymentEvent.Source.portal));
+    }
+
+    @Test
+    void cancelar_en_khipu_sin_pagar_lo_anula_alla_y_queda_vencido() throws Exception {
+        Payment pago = conLaFila(abierto());
+        when(khipu.estado(KHIPU_ID)).thenReturn(estado("pending", "pending", "410000", "TB-41"));
+        when(khipu.anular(KHIPU_ID)).thenReturn(true);
+
+        PaymentResponse respuesta = servicio.cancelarIntento(DEUDOR, 41L);
+
+        verify(khipu).anular(KHIPU_ID);
+        assertEquals(Payment.Status.expired, respuesta.status());
+        quedoCanceladoEnElLibro(pago);
+    }
+
+    @Test
+    void si_ya_se_pago_en_khipu_cancelar_lo_registra_pagado_y_no_lo_anula() throws Exception {
+        Payment pago = conLaFila(abierto());
+        when(khipu.estado(KHIPU_ID)).thenReturn(estado("done", "normal", "410000", "TB-41"));
+
+        assertEquals(Payment.Status.paid, servicio.cancelarIntento(DEUDOR, 41L).status());
+
+        assertEquals(Payment.Status.paid, pago.getStatus());
+        verify(khipu, never()).anular(any());
+        verify(avisos).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void si_justo_se_paga_en_khipu_al_cancelar_el_pago_vale() throws Exception {
+        conLaFila(abierto());
+        when(khipu.estado(KHIPU_ID))
+                .thenReturn(estado("pending", "pending", "410000", "TB-41"))
+                .thenReturn(estado("done", "normal", "410000", "TB-41"));
+        when(khipu.anular(KHIPU_ID)).thenReturn(false);
+
+        assertEquals(Payment.Status.paid, servicio.cancelarIntento(DEUDOR, 41L).status());
+    }
+
+    @Test
+    void mientras_khipu_verifica_no_se_cancela_porque_el_deudor_ya_pago() throws Exception {
+        Payment pago = conLaFila(abierto());
+        when(khipu.estado(KHIPU_ID)).thenReturn(estado("verifying", "pending", "410000", "TB-41"));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertTrue(error.getMessage().contains("en verificación en Khipu"), error.getMessage());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(khipu, never()).anular(any());
+    }
+
+    @Test
+    void si_khipu_no_responde_no_se_cancela_y_dice_que_no_se_sabe() {
+        Payment pago = conLaFila(abierto());
+        when(khipu.estado(KHIPU_ID)).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "error interno de la pasarela"));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 41L));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, error.getStatus());
+        assertEquals("Khipu no responde y no sabemos si el pago se hizo: inténtalo de nuevo en unos segundos.",
+                error.getMessage());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void cancelar_en_mercadopago_sin_pagar_vence_la_preferencia() {
+        Payment pago = conLaFila(abiertoEnMercadoPago());
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia(null));
+
+        servicio.cancelarIntento(DEUDOR, 41L);
+
+        verify(mercadopago).vencerPreferencia("pref_123");
+        quedoCanceladoEnElLibro(pago);
+    }
+
+    @Test
+    void si_ya_se_pago_en_mercadopago_cancelar_lo_registra_pagado() {
+        Payment pago = conLaFila(abiertoEnMercadoPago());
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
+
+        assertEquals(Payment.Status.paid, servicio.cancelarIntento(DEUDOR, 41L).status());
+
+        assertEquals(Payment.Status.paid, pago.getStatus());
+        verify(mercadopago, never()).vencerPreferencia(any());
+    }
+
+    @Test
+    void mientras_mercadopago_revisa_el_pago_no_se_cancela() {
+        Payment pago = conLaFila(abiertoEnMercadoPago());
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("in_process"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("in_process", "410000", "41"));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(mercadopago, never()).vencerPreferencia(any());
+    }
+
+    @Test
+    void cancelar_en_webpay_sin_pagar_queda_vencido_y_no_se_confirma_nada() {
+        Payment pago = abiertoEnWebpay();
+        when(webpay.estado(TOKEN)).thenReturn(estadoDeWebpay("INITIALIZED", null));
+
+        servicio.cancelarIntento(DEUDOR, 41L);
+
+        quedoCanceladoEnElLibro(pago);
+        verify(webpay, never()).commitTransaction(any());
+    }
+
+    @Test
+    void si_ya_se_pago_en_webpay_y_cerro_la_ventana_cancelar_lo_confirma() {
+        Payment pago = abiertoEnWebpay();
+        when(webpay.estado(TOKEN)).thenReturn(estadoDeWebpay("INITIALIZED", "TSY"));
+        when(webpay.commitTransaction(TOKEN)).thenReturn(confirmacion("AUTHORIZED", 0, 410000, "ORD41T123"));
+
+        assertEquals(Payment.Status.paid, servicio.cancelarIntento(DEUDOR, 41L).status());
+
+        assertEquals(Payment.Status.paid, pago.getStatus());
+        verify(avisos).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void si_transbank_no_responde_no_se_cancela() {
+        Payment pago = abiertoEnWebpay();
+        when(webpay.estado(TOKEN)).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "Transbank no responde"));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 41L));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+    }
+
+    @Test
+    void cancelada_la_simulada_su_pagina_y_su_aviso_ya_no_la_confirman() {
+        Payment pago = conLaFila(pagoAbierto());
+
+        servicio.cancelarIntento(DEUDOR, 41L);
+
+        quedoCanceladoEnElLibro(pago);
+        String firma = firmaDe(pago);
+        ApiException desdeLaPagina = assertThrows(ApiException.class, () -> servicio.confirmPublic(41L, firma));
+        assertEquals(HttpStatus.CONFLICT, desdeLaPagina.getStatus());
+        ApiException desdeElAviso = assertThrows(ApiException.class,
+                () -> servicio.webhook(new WebhookRequest(41L, null, "wp-1", firma), null));
+        assertEquals(HttpStatus.CONFLICT, desdeElAviso.getStatus());
+        assertEquals(Payment.Status.expired, pago.getStatus());
+        verify(avisos, never()).save(any());
+    }
+
+    @Test
+    void cancelar_un_pago_ya_cerrado_lo_devuelve_tal_cual_y_no_pregunta_a_nadie() {
+        Payment pago = conLaFila(abierto());
+        for (Payment.Status cerrado : List.of(Payment.Status.expired, Payment.Status.failed, Payment.Status.paid,
+                Payment.Status.duplicated)) {
+            pago.setStatus(cerrado);
+
+            assertEquals(cerrado, servicio.cancelarIntento(DEUDOR, 41L).status());
+        }
+        verify(khipu, never()).estado(any());
+        verify(khipu, never()).anular(any());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void solo_el_deudor_del_pago_lo_cancela() {
+        Payment pago = conLaFila(abierto());
+        JwtPrincipal otro = new JwtPrincipal("15227640-0", null, "DEBTOR", null, "15227640-0");
+        JwtPrincipal empresa = new JwtPrincipal("1", "persona@empresa.cl", "CREDITOR", "Persona", "76418902-7");
+
+        for (JwtPrincipal quien : java.util.Arrays.asList(otro, empresa, null)) {
+            ApiException error = assertThrows(ApiException.class, () -> servicio.cancelarIntento(quien, 41L));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        }
+
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(khipu, never()).estado(any());
+        verify(khipu, never()).anular(any());
+    }
+
+    @Test
+    void cancelar_un_pago_que_no_existe_es_404() {
+        when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 99L)).getStatus());
+    }
 }

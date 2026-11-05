@@ -1,4 +1,4 @@
-# DataBridge
+# <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="" width="40" height="40" align="top"></picture> DataBridge
 
 > **Sesiones ES256:** antes del primer arranque, genera la pareja P-256 con `./scripts/generar-claves-jwt.ps1` y configura `JWT_KEY_DIRECTORY`. Solo auth recibe privada. [Generacion, montaje, corte inicial y rotacion](docs/seguridad/jwt.md). V7 revoca las sesiones anteriores una sola vez: todos vuelven a entrar.
 
@@ -35,9 +35,12 @@ su acreedor los pactó, y decide:
 - **reclamar** si la deuda no corresponde (no la reconoce, ya la pagó, o el monto está mal).
   Mientras la empresa lo revisa, la deuda no se cobra ni le llegan recordatorios.
 
-Una barra le muestra en qué va cada deuda: **pendiente → en convenio → pago conciliado**. Si tiene
+Una barra le muestra en qué va cada deuda: **por pagar → en convenio → pagada**. Si tiene
 dudas, le pregunta a un asistente que lee su deuda con su propia sesión. Cuando termina de pagar,
 descarga su certificado de deuda cero.
+
+Al entrar, lo primero que ve es lo que le toca pagar: cuánto, a quién y el botón para hacerlo. Si no hay
+nada que pagar, lo dice y explica por qué.
 
 Adentro tiene además:
 
@@ -450,10 +453,15 @@ cliente que no muestra HTML muestra el texto, con el código.
 | La invitación | `invitacion` | A quien un admin de DataBridge da de alta |
 | La prueba | `prueba` | A quien pide el correo de prueba |
 
-- **Con los colores del portal:** crema y verde, y carbón y morado en los clientes que siguen el
+- **Con los colores del portal:** crema y verde, y carbón y verde en los clientes que siguen el
   tema oscuro (Apple Mail, Outlook). Están escritas como se escriben los correos, con tablas y el
   estilo en cada elemento, porque Gmail ignora parte del `<style>` y Outlook de escritorio dibuja
-  con Word. No llevan imágenes, que casi todos los clientes bloquean.
+  con Word.
+- **Con el logo de DataBridge arriba** ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)):
+  es la única imagen, el símbolo que sirve el portal en `PUBLIC_URL/logo.png`, y el nombre va escrito
+  al lado. Casi todos los clientes bloquean las imágenes hasta que la persona las acepta, así que la
+  marca se lee igual. En local se ve en Mailpit. Gmail no llega a `localhost`, así que ahí aparece
+  recién con la dirección pública del servidor.
 - **El correo de campaña del deudor no trae el monto ni un enlace:** solo la dirección del portal, para que
   la escriba él. El nombre del acreedor se escapa, así que una empresa no puede meter etiquetas ni
   enlaces en el correo de un deudor. El acceso solicitado tampoco lleva enlace, salvo el respaldo
@@ -633,17 +641,28 @@ git config core.hooksPath .githooks
 ```
 
 Después, **una terminal por pieza**: cada servicio se compila y arranca solo, con su propio
-`pom.xml`, y lee los secretos del mismo `.env`: cada uno se conecta a su base con su clave y su puerto
-(`DB_DEBT_PASSWORD` y `DB_DEBT_PORT` para ms-debt, y así). El perfil `dev` muestra el SQL y el detalle de
-cada ruta:
+`pom.xml`. `spring-boot:run` activa solo el perfil `dev`, que lee los secretos del mismo `.env`: cada uno se
+conecta a su base con su clave y su puerto (`DB_DEBT_PASSWORD` y `DB_DEBT_PORT` para ms-debt, y así), y muestra
+el SQL y el detalle de cada ruta:
 
 ```powershell
-.\mvnw.cmd -f ms-auth\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-debt\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-payments\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f gateway\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
-.\mvnw.cmd -f ms-ai\pom.xml spring-boot:run "-Dspring-boot.run.profiles=dev"
+.\mvnw.cmd -f ms-auth\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-debt\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-payments\pom.xml spring-boot:run
+.\mvnw.cmd -f gateway\pom.xml spring-boot:run
+.\mvnw.cmd -f ms-ai\pom.xml spring-boot:run
 ```
+
+**Los perfiles de Spring,** los mismos en cada servicio:
+
+| Perfil | Archivo | Para qué |
+| --- | --- | --- |
+| Sin perfil | `src/main/resources/application.properties` | Docker y el servidor |
+| `dev` | `src/main/resources/application-dev.properties` | Programar con Maven. Es el único que lee el `.env` |
+| `test` | `src/test/resources/application-test.properties` | Las pruebas que levantan Spring |
+
+Para ver cuál usa un servicio: `docker compose logs ms-debt | Select-String "profile"`. Para cambiarlo en Docker,
+se pone `SPRING_PROFILES_ACTIVE` en el `.env`; `dev` es solo para programar, nunca para un servidor.
 
 ```powershell
 cd frontend
@@ -694,6 +713,10 @@ tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas p
   al tablero. Para el producto: historia de usuario (con su criterio de aceptación), épica, error e
   investigación. Para el equipo: tarea técnica, decisión, versión mayor de una dependencia y, en este
   repositorio, la retrospectiva.
+  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban, Martín y Flavio
+  ([`repartir-por-turnos.yml`](.github/workflows/repartir-por-turnos.yml)), salvo las decisiones, las
+  retrospectivas y las épicas. Si no corresponde, se reasigna a mano. Tener un issue asignado no es
+  tenerlo en curso: el límite de dos tarjetas es para *In progress*.
 - **Ramas (trunk-based).** Todo entra a `main` por PRs chicos y bien descritos. Cada rama vive uno o
   dos días, sale de `main` y se llama `tipo/número-qué`, por ejemplo `feat/45-descuento-contrato`. Un
   issue grande se entrega en varios PRs: los intermedios dicen *Parte de #45* y el último *Closes #45*.
@@ -1366,6 +1389,14 @@ transfiere y que Khipu lo confirma pasa un rato, y en ese rato la cuota todavía
   deuda. Si uno está en verificación (Khipu `verifying`, Mercado Pago `in_process` o `pending`), el
   nuevo se rechaza: *Tienes un pago en verificación*. Si uno quedó abierto sin pagar, se anula en
   la pasarela (Khipu lo borra y la preferencia de Mercado Pago vence en el acto) y queda vencido.
+- **Cerrar la ventana de la pasarela no deja el pago pegado**
+  ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)). Mientras espera, el portal ofrece
+  *Cancelar y elegir de nuevo*, y si ve que la ventana se cerró pregunta *¿Cerraste la ventana de pago?*. Nunca
+  se cancela a ciegas: `POST /api/payments/{id}/cancelar`, solo del deudor del pago, le pregunta antes a la
+  pasarela. Si ya se pagó, queda pagado. Si la está verificando (`409`) o no responde (`503`), el cobro sigue
+  abierto. Si no se pagó, se anula allá y queda vencido, con el evento en el libro. Vencido, y no fallido, para
+  que la revisión de los vencidos lo registre si igual alcanzó a pagarse. Webpay no se puede anular, pero un
+  cobro vencido no se confirma: si el deudor pagara en esa ventana, Transbank lo reversa.
 - **Cada pago guarda las cuotas que cubre**, tal como las cobró ms-debt. Una cuota ya pagada que
   ms-debt todavía no abona no se vuelve a cobrar.
 - **Si igual se paga dos veces** (Webpay no se puede anular: solo cobra si ms-payments confirma la
@@ -2246,6 +2277,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Verificación | Resultado |
 | --- | --- |
 | Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1320**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| La marca ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)) | Los correos de código, recordatorio, prueba y acceso con enlace llegaron a Mailpit con el logo del portal, una sola imagen, y en Edge se ven bien en claro y en oscuro (verde, sin el morado de antes), a 1360 y 390 px. El portal carga sus cuatro íconos, sin errores, en los dos temas. El símbolo contrasta 4,7:1 con la crema y 8,4:1 con el carbón. Las direcciones eran `@example.com`, y lo que crearon las pruebas se borró |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
@@ -2277,6 +2309,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Accesos en el panel ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)) | Por el gateway: tres códigos equivocados contra el mismo RUT salen juntos al filtrar por resultado, como `21.***.***-K`; un enlace pedido para un correo sin cuenta sale como rechazado; recorriendo las 9 páginas están las 411 filas de la bitácora, y ninguna trae un RUT completo, un correo, una IP ni su huella; los totales de hoy calzan con la base, y una empresa recibe `403`. En Edge, a 1360 y 390 px y en los dos temas: los filtros, las páginas y la tabla entera sin desplazarse de lado |
 | Suspender una empresa ([#152](https://github.com/TechnicalBridge/DataBridge/issues/152)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama (`V12` aplicada), por el gateway 30 de 30, suspendiendo APOFYX: con su JWT vigente su persona recibe `403`, al renovar recibe `401` y toda la familia de la sesión queda revocada, pedir un código responde `202` como siempre pero no crea ninguno, y un enlace suyo ya no abre sesión; el deudor de una deuda que cobra APOFYX la ve `enPausa`, y pagarla o repactarla responde `409` sin crear ningún pago. Suspender o reactivar dos veces no anota dos veces. Reactivada, su persona entra, ve su cartera y renueva, y la deuda se puede pagar de nuevo. En Edge, a 1360 y 390 px y en los dos temas, 37 de 37: la confirmación dice lo que se congela, la ficha y la lista dicen *Suspendida* y el historial anota quién; al recargar, su persona queda fuera; el deudor ve *Por ahora no se puede pagar*, sin *Pagar* ni *Pagar en cuotas* pero con *No reconozco esta deuda*, y entrar directo a pagar o repactar muestra la pausa; al reactivarla vuelve *Pagar*. Sin errores de consola. Después de la revisión, 8 de 8 por el gateway: con Patrimonio suspendida, APOFYX (activa) ve su deuda en pausa y reenviarle el código al deudor responde `409` sin dejar ningún contacto; y en Edge, 10 de 10: la ficha suspendida lo dice con una nota y sin el formulario para dar acceso. APOFYX y Patrimonio quedaron activas |
 | Mandatos sin la API ([#234](https://github.com/TechnicalBridge/DataBridge/issues/234)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama (`V13` aplicada), por el gateway 32 de 32: APOFYX ve su mandato con Patrimonio y las deudas que sigue cobrando; no puede declarar otro con Patrimonio (`409`) ni uno con un acreedor nuevo sin su razón social o con un término que ya pasó (`400`); antes del mandato no le puede cargar cartera ni crearle campañas, y después sí, con el acreedor registrado y el mandato a nombre de quien lo declaró; lo renueva y lo termina, y terminado ya no carga ni crea campañas, pero pausa la que tenía. Una empresa que cobra directo recibe `agencia: false` y no puede declarar, y un deudor recibe `403`. En Edge, a 1360 y 390 px y en los dos temas, 23 de 23: la sección *Mandatos* de *Campañas*, declarar (con la casilla de la declaración), renovar y terminar con su confirmación; la campaña nueva ofrece y deja de ofrecer al acreedor; Instituto Andes no ve nada de mandatos, y la ficha del panel muestra cada estado. Sin errores de consola. Lo que crearon las pruebas se borró después |
+| Cerrar la ventana de la pasarela ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama, por el gateway, 14 de 14: sin sesión `401`; otro deudor, la empresa y el admin `403` y el cobro sigue abierto; el deudor lo cancela y queda `expired` con el evento `portal` en el libro; cancelar dos veces no agrega nada; un pago que no existe `404`; y después se abre otro cobro. En Edge, 32 de 32, abriendo un cobro de verdad en Webpay (integración), Khipu y Mercado Pago, cerrando la ventana sin pagar y cancelándolo: el portal lo detecta, pregunta y queda libre para elegir de nuevo. Ningún cobro se pagó, y los de la prueba se borraron. Lo que no se probó en vivo, porque habría que pagar (ya pagado, en verificación) o tirar la pasarela (no responde), lo cubren las pruebas de ms-payments |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |
 | La entrega por API apagada ([#191](https://github.com/TechnicalBridge/TB_web/issues/191)) | Apagada, 10 de 10: `/api/v1` y `/api/claves` responden `404`, Swagger muestra el contrato vacío y la carga por campaña sigue. Encendida, 9 de 9: la empresa emite una clave, entra con ella, la revoca y ya no entra. En Edge, 40 de 40: el portal no ofrece claves ni habla de la API |

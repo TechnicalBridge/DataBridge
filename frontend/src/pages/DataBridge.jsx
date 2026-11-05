@@ -124,7 +124,7 @@ export default function DataBridge() {
         <div>
           <span className="eyebrow">{resumen?.organizacion || "DataBridge"}</span>
           <h1>Cartera morosa</h1>
-          <p>Deudores en mora, y en qué va cada uno: pendiente, en convenio o pago conciliado.</p>
+          <p>Deudores en mora, y en qué va cada uno: por pagar, en convenio o pagada.</p>
         </div>
       </header>
       {error ? <div className="error">{error}</div> : null}
@@ -146,9 +146,13 @@ export default function DataBridge() {
           <small>{resumen ? `${resumen.enConvenio} en convenio de pago` : ""}</small>
         </div>
         <div className="card stat aparece" style={{ "--i": 2 }}>
-          <span>Pagos conciliados</span>
+          <span>Deudas pagadas</span>
           <b>{resumen?.pagadas ?? "–"}</b>
-          <small>{resumen ? `${resumen.retiradas} retiradas por el acreedor` : ""}</small>
+          <small>
+            {resumen?.retiradas
+              ? `Además, ${resumen.retiradas} ${resumen.retiradas === 1 ? "retirada" : "retiradas"} por el acreedor`
+              : ""}
+          </small>
         </div>
         <div className="card stat aparece" style={{ "--i": 3 }}>
           <span>Recuperado</span>
@@ -157,7 +161,7 @@ export default function DataBridge() {
               <span key={m.moneda}>{dinero(m.recuperado, m.moneda)}</span>
             ))}
           </b>
-          <small>{(resumen?.porMoneda || []).map((m) => `${m.tasaRecuperacion}% en ${m.moneda}`).join(", ")}</small>
+          <small>{(resumen?.porMoneda || []).map((m) => `${porcentaje(m.tasaRecuperacion)} en ${m.moneda === "UF" ? "UF" : "pesos"}`).join(", ")}</small>
           <small>
             Lo que pagas a DataBridge: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
           </small>

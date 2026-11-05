@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
@@ -412,7 +413,7 @@ class MailServiceTest {
         correo("mailpit").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
 
         Enviado mensaje = enviado();
-        for (String version : List.of(mensaje.texto(), mensaje.html())) {
+        for (String version : List.of(mensaje.texto(), sinElLogo(mensaje.html()))) {
             assertTrue(version.contains("K7M2QX"), version);
             assertTrue(version.contains("Patrimonio Inmuebles"));
             //  La direccion va escrita, sin http://, como se escribe en el navegador.
@@ -429,7 +430,7 @@ class MailServiceTest {
                 LocalDate.of(2026, 10, 20));
 
         Enviado mensaje = enviado();
-        for (String version : List.of(mensaje.texto(), mensaje.html())) {
+        for (String version : List.of(mensaje.texto(), sinElLogo(mensaje.html()))) {
             assertTrue(version.contains("martes 20 de octubre"), version);
             assertTrue(version.contains("P4R8TW"));
             assertTrue(version.contains("Patrimonio Inmuebles"));
@@ -529,8 +530,41 @@ class MailServiceTest {
             assertTrue(mensaje.html().startsWith("<!DOCTYPE html>"), mensaje.asunto());
             assertTrue(mensaje.html().contains("<html lang=\"es\">"));
             assertTrue(mensaje.html().contains("@media (prefers-color-scheme: dark)"), "con su tema oscuro");
-            assertFalse(mensaje.html().contains("<img"), "sin imagenes, que casi todos bloquean");
+            //  Una sola imagen, el simbolo del portal, y el nombre escrito: si se bloquea, la marca se lee igual (#274).
+            assertEquals(1, mensaje.html().split("<img", -1).length - 1, "solo el logo: " + mensaje.asunto());
+            assertTrue(mensaje.html().contains("src=\"http://localhost:8080/logo.png\""), mensaje.asunto());
+            assertTrue(mensaje.html().contains(">DataBridge</td>"), "el nombre, como texto");
         }
+    }
+
+    @Test
+    void el_tema_oscuro_del_correo_es_el_verde_del_portal_no_el_morado_de_antes() {
+        correo("mailpit").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        String html = enviado().html().toLowerCase(Locale.ROOT);
+        assertTrue(html.contains(".boton { background-color: #7dbd8c !important; }"), "el boton, verde");
+        assertTrue(html.contains(".codigo { color: #95cda2 !important; }"), "el codigo, verde");
+        for (String morado : List.of("#a68cf1", "#bea9f7", "#d9a0e8", "#16131e", "#141316")) {
+            assertFalse(html.contains(morado), "sin el morado de antes: " + morado);
+        }
+    }
+
+    /**
+     * El HTML sin la direccion del logo, la unica que puede llevar {@code http}:
+     * es una imagen, no un enlace, y es la misma para todos (no dice quien abrio
+     * el correo). Se saca una sola vez: si hubiera otra, la prueba la ve (#274).
+     */
+    private static String sinElLogo(String html) {
+        assertTrue(html.contains(" src=\"http://localhost:8080/logo.png\""), "con el logo");
+        return html.replaceFirst(" src=\"http://localhost:8080/logo\\.png\"", "");
+    }
+
+    @Test
+    void el_logo_se_carga_de_la_direccion_publica_del_portal() {
+        assertEquals("https://technicalbridge.site/logo.png", MailService.direccionDelLogo("https://technicalbridge.site/"));
+        assertEquals("http://localhost:8080/logo.png", MailService.direccionDelLogo(" http://localhost:8080 "));
+        //  Sin https:// el cliente de correo la tomaria como una ruta y no la encontraria.
+        assertEquals("https://technicalbridge.site/logo.png", MailService.direccionDelLogo("technicalbridge.site"));
     }
 
     @Test

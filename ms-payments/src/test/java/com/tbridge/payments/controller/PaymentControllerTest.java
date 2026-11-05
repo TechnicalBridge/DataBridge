@@ -152,6 +152,36 @@ class PaymentControllerTest {
     }
 
     @Test
+    void el_deudor_cancela_su_cobro_y_ve_en_que_quedo() throws Exception {
+        PaymentResponse base = pago();
+        when(payments.cancelarIntento(any(), eq(41L))).thenReturn(new PaymentResponse(base.id(), base.debtId(), null,
+                base.amount(), base.currency(), base.amountClp(), null, base.gateway(), Payment.Status.expired, null,
+                base.createdAt(), null, false, null, null, null, null, null));
+
+        mvc.perform(post("/api/payments/41/cancelar").header("Authorization", deudor()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("expired"));
+    }
+
+    @Test
+    void sin_sesion_no_se_cancela_ningun_cobro() throws Exception {
+        mvc.perform(post("/api/payments/41/cancelar")).andExpect(status().isUnauthorized());
+        verify(payments, never()).cancelarIntento(any(), any());
+    }
+
+    @Test
+    void si_la_pasarela_lo_verifica_o_no_responde_cancelar_lo_dice() throws Exception {
+        when(payments.cancelarIntento(any(), eq(41L)))
+                .thenThrow(new ApiException(HttpStatus.CONFLICT, "Tienes un pago en verificación en Khipu"))
+                .thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Khipu no responde"));
+
+        mvc.perform(post("/api/payments/41/cancelar").header("Authorization", deudor()))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/payments/41/cancelar").header("Authorization", deudor()))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
     void sin_sesion_no_se_abre_ningun_cobro() throws Exception {
         mvc.perform(post("/api/payments/checkout").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"debtId\":3,\"gateway\":\"webpay\"}"))

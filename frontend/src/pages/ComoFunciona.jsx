@@ -56,7 +56,7 @@ function ParaDeudores() {
             ["Entras con tu RUT y el código", "El código sirve una vez. Los avisos de campaña duran 24 horas; los códigos pedidos desde el portal, 15 minutos."],
             ["Ves lo que debes", "Cada deuda con su monto, a quién se la debes y los meses que incluye."],
             ["Pagas como te acomode", "Todo de una vez, o en un convenio de 3 a 24 cuotas. En convenio puedes pagar una cuota o varias juntas, siempre desde la que vence primero."],
-            ["Queda conciliado", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. Cada pago tiene su comprobante y, al terminar, descargas el certificado de deuda pagada."],
+            ["Queda pagada", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. Cada pago tiene su comprobante y, al terminar, descargas el certificado de deuda pagada."],
           ]} />
         </div>
 
@@ -65,8 +65,8 @@ function ParaDeudores() {
             <h2>Tu deuda avanza por tres estados</h2>
             <BarraEstado deuda={EJEMPLO} />
             <p className="hint">
-              Pendiente mientras no hagas nada; en convenio si eliges pagar en cuotas, y la barra avanza con
-              cada una; pago conciliado cuando terminas.
+              Por pagar mientras no hagas nada; en convenio si eliges pagar en cuotas, y la barra avanza con
+              cada una; pagada cuando terminas.
             </p>
           </div>
           <div className="card aparece" style={{ "--i": 3 }}>
@@ -106,7 +106,7 @@ function ParaEmpresas() {
       <header className="topbar aparece">
         <div>
           <h1>Cómo funciona</h1>
-          <p>De la planilla de morosos al pago conciliado.</p>
+          <p>De la planilla de morosos a la deuda pagada.</p>
         </div>
       </header>
 
@@ -117,7 +117,7 @@ function ParaEmpresas() {
             ["Cargas a tus deudores", "En Cargar cartera subes la planilla a la campaña. Antes de confirmar ves cuántas deudas entrarían, cuánto suman y cuáles no, con su motivo. Recién al confirmar entran."],
             ["Entran solo morosos", `Una deuda entra cuando su cargo impago más antiguo lleva ${minimo} días vencido, sea un arriendo mensual, un arancel o un tratamiento de un solo cargo. Las que no cumplen se rechazan solas, con su motivo: DataBridge no cobra lo que todavía no es mora.`],
             ["El deudor recibe su código", "Apenas entra su deuda, DataBridge le escribe a su correo con el código para entrar al portal, y la campaña le vuelve a escribir los días que elegiste. Si lo pierde, se lo reenvías desde la cartera. El código no se muestra aquí: quien lo viera podría entrar en su lugar."],
-            ["Paga o pide un convenio", "El deudor paga todo o en 3 a 24 cuotas, con la tasa de interés que traiga la deuda o sin interés si no trae. Tú ves en qué va cada deuda: pendiente, en convenio o pago conciliado."],
+            ["Paga o pide un convenio", "El deudor paga todo o en 3 a 24 cuotas, con la tasa de interés que traiga la deuda o sin interés si no trae. Tú ves en qué va cada deuda: por pagar, en convenio o pagada."],
             ["Ves cada pago", "Cuando la pasarela confirma un pago, se abona solo a la deuda. Lo ves en Pagos recibidos, y lo descargas en una planilla."],
           ]} />
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { obtenerDeuda } from "../api/deudas";
-import { abrirCobro, obtenerPago } from "../api/pagos";
+import { abrirCobro, cancelarPago, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
 import BarraEstado from "../components/BarraEstado";
 import Cargando from "../components/Cargando";
@@ -24,12 +24,20 @@ const porVencimiento = (a, b) => a.vencimiento.localeCompare(b.vencimiento) || a
  */
 export default function Pay() {
   const { id } = useParams();
+  const [parametros] = useSearchParams();
   const [deuda, setDeuda] = useState(null);
   const [pasarela, setPasarela] = useState("webpay");
-  const [cuantas, setCuantas] = useState(1);
+  //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
+  //  deudor lo puede cambiar, y al cobrar ms-debt revisa las cuotas y decide el monto.
+  const [cuantas, setCuantas] = useState(() => Math.max(1, Number.parseInt(parametros.get("cuotas"), 10) || 1));
   const [pago, setPago] = useState(null);
   // La ventana de la pasarela, para traerla al frente en vez de abrirla de nuevo.
   const ventana = useRef(null);
+  //  Se cerro la ventana de la pasarela con el cobro abierto: se ofrece cancelarlo (#307).
+  const [ventanaCerrada, setVentanaCerrada] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [errorCancelar, setErrorCancelar] = useState("");
+  const [aviso, setAviso] = useState("");
   const [acreditado, setAcreditado] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -43,7 +51,13 @@ export default function Pay() {
   // enlace a la pasarela solo viene al abrir el cobro: se conserva.
   useEffect(() => {
     if (!pago || ["paid", "failed", "expired", "duplicated"].includes(pago.status)) return;
+    //  Solo se ofrece, no se cancela solo: un pago hecho justo antes de cerrar la ventana se confirma igual,
+    //  y hay pasarelas que hacen ver cerrada una ventana que sigue abierta.
+    const mirarVentana = () => {
+      if (ventana.current?.closed) setVentanaCerrada(true);
+    };
     const t = setInterval(async () => {
+      mirarVentana();
       try {
         const nuevo = await obtenerPago(pago.id);
         setPago((antes) => ({ ...nuevo, checkoutUrl: antes?.checkoutUrl }));
@@ -51,7 +65,11 @@ export default function Pay() {
         /* se reintenta en el proximo ciclo */
       }
     }, 2000);
-    return () => clearInterval(t);
+    window.addEventListener("focus", mirarVentana);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", mirarVentana);
+    };
   }, [pago?.id, pago?.status]);
 
   // Confirmado el pago, el aviso tarda unos segundos en llegar a la deuda.
@@ -120,6 +138,9 @@ export default function Pay() {
   async function pagar() {
     setBusy(true);
     setError("");
+    setAviso("");
+    setErrorCancelar("");
+    setVentanaCerrada(false);
     // Se abre la ventana de inmediato en el evento del usuario para que el navegador no la bloquee.
     // Sin "noopener": con esa opcion window.open devuelve null y quedaba una ventana en blanco
     // mientras el portal se iba a la pasarela. El opener se corta a mano.
@@ -160,7 +181,38 @@ export default function Pay() {
       return;
     }
     ventana.current = window.open(pago.checkoutUrl, "_blank", "width=480,height=720");
-    if (ventana.current) ventana.current.opener = null;
+    if (ventana.current) {
+      ventana.current.opener = null;
+      setVentanaCerrada(false);
+    }
+  }
+
+  /**
+   * Cancelar este intento para volver a elegir (#307). ms-payments le pregunta
+   * antes a la pasarela: si alcanzo a pagarse, vuelve pagado y se muestra asi; si
+   * la esta verificando o no responde, vuelve un error y el intento sigue abierto.
+   */
+  async function cancelarIntento() {
+    setCancelando(true);
+    setErrorCancelar("");
+    try {
+      const nuevo = await cancelarPago(pago.id);
+      if (nuevo.status === "expired" || nuevo.status === "failed") {
+        //  El portal no puede cerrarla: se le corto el opener al abrirla, para que la pasarela no toque esta pagina.
+        const sigueAbierta = ventana.current && !ventana.current.closed;
+        ventana.current = null;
+        setVentanaCerrada(false);
+        setPago(null);
+        setAviso(`Cancelaste el pago en ${nombreDePasarela(nuevo.gateway)}. No se te cobró nada: puedes elegir de nuevo.`
+          + (sigueAbierta ? " Cierra la ventana de la pasarela, que sigue abierta: ese cobro ya no sirve." : ""));
+      } else {
+        setPago((antes) => ({ ...nuevo, checkoutUrl: antes?.checkoutUrl }));
+      }
+    } catch (err) {
+      setErrorCancelar(err.message);
+    } finally {
+      setCancelando(false);
+    }
   }
 
   return (
@@ -184,7 +236,7 @@ export default function Pay() {
       {pago?.status === "paid" ? (
         <div className="card success aparece">
           <CheckAnimado />
-          <h2>{acreditado ? "Pago conciliado" : "Pago recibido"}</h2>
+          <h2>{acreditado ? "Pago confirmado" : "Pago recibido"}</h2>
           <p>
             {dinero(pago.amount, pago.currency)}
             {pago.currency === "UF" && pago.amountClp ? `, ${dinero(pago.amountClp)} al valor de hoy` : ""}
@@ -353,21 +405,38 @@ export default function Pay() {
                   devolución: la empresa te devolverá el dinero en {nombreDePasarela(pago.gateway)}.
                 </div>
               ) : pago ? (
-                <div className="esperando">
-                  <span className="girando" />
-                  Esperando la confirmación de la pasarela…{" "}
-                  <button type="button" className="link-btn" onClick={abrirDeNuevo} disabled={busy}>
+                <div className="esperando" aria-live="polite">
+                  {ventanaCerrada ? (
+                    <span className="ventana-cerrada">
+                      <b>¿Cerraste la ventana de pago?</b> Si no alcanzaste a pagar, cancela este intento y elige de
+                      nuevo. Si ya pagaste, espera: se confirma solo.
+                    </span>
+                  ) : (
+                    <>
+                      <span className="girando" />
+                      Esperando la confirmación de la pasarela…{" "}
+                    </>
+                  )}
+                  <button type="button" className="link-btn" onClick={abrirDeNuevo} disabled={busy || cancelando}>
                     Abrirla de nuevo
+                  </button>
+                  <button type="button" className={ventanaCerrada ? "btn btn-soft btn-sm" : "link-btn"}
+                          onClick={cancelarIntento} disabled={busy || cancelando}>
+                    {cancelando ? "Revisando con la pasarela…" : "Cancelar y elegir de nuevo"}
                   </button>
                   {pago.venceA && (
                     <span className="hint"> Puedes pagar hasta las {hora(pago.venceA)}.</span>
                   )}
+                  {errorCancelar ? <div className="error" role="alert">{errorCancelar}</div> : null}
                 </div>
               ) : (
-                <p className="hint centro" style={{ display: "flex", gap: 6, justifyContent: "center", alignItems: "center" }}>
-                  <IconoCandado size={14} />
-                  {moneda === "UF" ? "Se cobra en pesos, al valor de la UF de hoy." : "Pago seguro: el monto sale de tu deuda registrada."}
-                </p>
+                <>
+                  {aviso ? <div className="notice aviso-cancelado" role="status">{aviso}</div> : null}
+                  <p className="hint centro" style={{ display: "flex", gap: 6, justifyContent: "center", alignItems: "center" }}>
+                    <IconoCandado size={14} />
+                    {moneda === "UF" ? "Se cobra en pesos, al valor de la UF de hoy." : "Pago seguro: el monto sale de tu deuda registrada."}
+                  </p>
+                </>
               )}
             </div>
           </div>

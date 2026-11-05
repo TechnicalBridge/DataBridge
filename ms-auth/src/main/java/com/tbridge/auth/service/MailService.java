@@ -82,6 +82,11 @@ public class MailService {
     private final boolean conServidor;
     /** La direccion del portal como se escribe en el navegador, sin {@code https://}. */
     private final String portal;
+    /**
+     * El simbolo de DataBridge que muestra el encabezado de cada correo: lo sirve
+     * el portal, en su direccion publica (#274).
+     */
+    private final String logo;
     private final String servidor;
     private final String clave;
     private final String claveDeBrevo;
@@ -125,6 +130,7 @@ public class MailService {
         this.remitente = conNombre(from, nombre);
         this.responderA = StringUtils.hasText(responderA) ? responderA.strip() : null;
         this.portal = publicUrl.strip().replaceFirst("^https?://", "").replaceAll("/$", "");
+        this.logo = direccionDelLogo(publicUrl);
         this.porBrevo = this.mailSender != null && StringUtils.hasText(claveDeBrevo);
         this.conServidor = this.mailSender != null && (porBrevo || StringUtils.hasText(host));
         this.servidor = porBrevo ? "Brevo (API)" : conServidor ? host.strip() + ":" + puerto : null;
@@ -499,7 +505,7 @@ public class MailService {
             //  Un dominio reservado no entrega correo: por el proveedor solo gastaria su cupo (#236).
             if (buzonDeReservados != null) {
                 buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
-                        PLANTILLAS.escribir(plantilla, datos)));
+                        escribir(plantilla, datos)));
                 log.info("Dominio reservado: el correo para {} va al buzon de prueba, no al proveedor", to);
                 return Optional.of(direccionDelBuzon);
             }
@@ -521,11 +527,28 @@ public class MailService {
                     + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
             return Optional.empty();
         }
-        mailSender.send(armar(mailSender, destino.get(), PLANTILLAS.escribir(plantilla, datos)));
+        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos)));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
         }
         return Optional.of(destino.get().a());
+    }
+
+    /** Escribe el correo con su plantilla, con el logo del encabezado que llevan todos. */
+    private Carta escribir(String plantilla, Map<String, ?> datos) {
+        Map<String, Object> conLogo = new HashMap<>(datos);
+        conLogo.put("logo", logo);
+        return PLANTILLAS.escribir(plantilla, conLogo);
+    }
+
+    /**
+     * La direccion del simbolo en el portal: {@code /logo.png} de su direccion
+     * publica, con {@code https://} si se escribio sin el (sin el, el cliente de
+     * correo la tomaria como una ruta y no la encontraria).
+     */
+    static String direccionDelLogo(String publicUrl) {
+        String base = publicUrl.strip().replaceAll("/+$", "");
+        return (base.matches("(?i)^https?://.*") ? base : "https://" + base) + "/logo.png";
     }
 
     /**

@@ -157,6 +157,7 @@ services:
         read_only: true
         bind: { create_host_path: false }
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       JWT_KEY_DIRECTORY: /run/secrets/jwt
       <<: &base
         DB_PORT: "3306"
@@ -232,6 +233,7 @@ services:
       rabbitmq: { condition: service_healthy }
       ms-auth:  { condition: service_started }
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       <<: *base
       DB_HOST: db-debt
       DB_PASSWORD: ${DB_DEBT_PASSWORD:?Falta DB_DEBT_PASSWORD en el .env (crealo con preparar-env.ps1)}
@@ -280,6 +282,7 @@ services:
       rabbitmq:    { condition: service_healthy }
       ms-debt:     { condition: service_healthy }
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       <<: *base
       DB_HOST: db-payments
       DB_PASSWORD: ${DB_PAYMENTS_PASSWORD:?Falta DB_PAYMENTS_PASSWORD en el .env (crealo con preparar-env.ps1)}
@@ -338,6 +341,7 @@ services:
     depends_on:
       ms-debt: { condition: service_healthy }
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       DEBT_URI: http://ms-debt:8083
       AUTH_JWKS_URI: http://ms-auth:8081/.well-known/jwks.json
       LLM_PROVIDER: ${LLM_PROVIDER:-local}
@@ -367,6 +371,7 @@ services:
       ms-debt:     { condition: service_healthy }
       ms-payments: { condition: service_healthy }
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       GATEWAY_PORT: "8082"
       AUTH_URI:     http://ms-auth:8081
       DEBT_URI:     http://ms-debt:8083

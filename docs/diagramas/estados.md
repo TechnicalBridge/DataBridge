@@ -98,7 +98,7 @@ stateDiagram-v2
     [*] --> created: el deudor abre el cobro
     created --> paid: la pasarela lo confirma, y el monto y la transacción calzan
     created --> failed: la pasarela lo rechaza, el deudor anula, o lo confirmado no calza
-    created --> expired: se abandonó, o el deudor abrió otro pago de la misma deuda
+    created --> expired: se abandonó, el deudor lo canceló, o abrió otro pago de la misma deuda
     created --> duplicated: se confirmó, pero otro pago ya había cubierto esas cuotas
     expired --> paid: la pasarela lo concilió después de vencer
     expired --> duplicated: lo concilió después, y esas cuotas ya estaban pagadas
@@ -113,7 +113,7 @@ stateDiagram-v2
 | `created` | El cobro está abierto en la pasarela | Se le pregunta a la pasarela cada 10 segundos. Vence a los 30 minutos en Khipu y Mercado Pago, y a los 15 en Webpay (9 en producción) |
 | `paid` | Cobrado | Queda un aviso pendiente para ms-debt, escrito en la misma transacción |
 | `failed` | No se cobró | Nada. El deudor puede abrir otro pago |
-| `expired` | Nadie lo pagó a tiempo, o lo reemplazó otro | Se sigue revisando por 24 horas: si la pasarela lo cobró igual, se registra |
+| `expired` | Nadie lo pagó a tiempo, el deudor lo canceló ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)), o lo reemplazó otro | Se sigue revisando por 24 horas: si la pasarela lo cobró igual, se registra |
 | `duplicated` | Se cobró dos veces lo mismo | No se abona. La empresa lo ve en *Pagos para devolver*, con su referencia en la pasarela |
 | `refunded` | La empresa ya lo devolvió en la pasarela | Nada más: DataBridge no mueve plata, solo deja constancia. El libro (`payment_events`) guarda la referencia de la devolución, la empresa y la persona que la registró. La empresa lo ve en *Pagos devueltos* y el deudor en su historial. Registrarla de nuevo no cambia nada |
 
