@@ -35,6 +35,9 @@ import java.util.List;
  * <p>Terminado o vencido, <b>lo ya cargado se sigue cobrando</b> hasta pagarse:
  * solo deja de poder cargarse cartera y crearse campanas para ese acreedor, como
  * decidio el PO.
+ *
+ * <p>Con un <b>acreedor suspendido</b> no se declara ni se renueva un mandato
+ * (#296, decidido en #293); terminarlo si se puede.
  */
 @Service
 public class MandatoPortalService {
@@ -103,6 +106,11 @@ public class MandatoPortalService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "DataBridge todavía no conoce a ese acreedor: escribe su razón social");
         }
+        //  Antes de registrar nada: con un acreedor suspendido no se trabaja (#296, decidido en #293).
+        organizations.findByRut(rut).filter(Organization::suspendida).ifPresent(suspendido -> {
+            throw new ApiException(HttpStatus.CONFLICT, suspendido.getTradeName()
+                    + " está suspendida en DataBridge: mientras lo esté, no se declaran mandatos con ella");
+        });
 
         Organization acreedor = mandatos.acreedorDelMandato(rut, pedido.razonSocial(), pedido.nombre());
         List<Mandate> conElAcreedor = mandates.deLaAgencia(agencia).stream()
@@ -137,6 +145,10 @@ public class MandatoPortalService {
         if (mandato.getStatus() == Mandate.Status.ended) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "Ese mandato ya terminó: si vuelven a trabajar juntos, declara uno nuevo");
+        }
+        if (mandato.getCreditor().suspendida()) {
+            throw new ApiException(HttpStatus.CONFLICT, mandato.getCreditor().getTradeName()
+                    + " está suspendida en DataBridge: mientras lo esté, el mandato no se renueva. Terminarlo sí se puede");
         }
         LocalDate hoy = LocalDate.now();
         LocalDate hasta = fecha(pedido == null ? null : pedido.hasta(), null, "La fecha de término no es válida");
