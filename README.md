@@ -1,4 +1,4 @@
-# DataBridge
+# <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="" width="40" height="40" align="top"></picture> DataBridge
 
 > **Sesiones ES256:** antes del primer arranque, genera la pareja P-256 con `./scripts/generar-claves-jwt.ps1` y configura `JWT_KEY_DIRECTORY`. Solo auth recibe privada. [Generacion, montaje, corte inicial y rotacion](docs/seguridad/jwt.md). V7 revoca las sesiones anteriores una sola vez: todos vuelven a entrar.
 
@@ -450,10 +450,15 @@ cliente que no muestra HTML muestra el texto, con el código.
 | La invitación | `invitacion` | A quien un admin de DataBridge da de alta |
 | La prueba | `prueba` | A quien pide el correo de prueba |
 
-- **Con los colores del portal:** crema y verde, y carbón y morado en los clientes que siguen el
+- **Con los colores del portal:** crema y verde, y carbón y verde en los clientes que siguen el
   tema oscuro (Apple Mail, Outlook). Están escritas como se escriben los correos, con tablas y el
   estilo en cada elemento, porque Gmail ignora parte del `<style>` y Outlook de escritorio dibuja
-  con Word. No llevan imágenes, que casi todos los clientes bloquean.
+  con Word.
+- **Con el logo de DataBridge arriba** ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)):
+  es la única imagen, el símbolo que sirve el portal en `PUBLIC_URL/logo.png`, y el nombre va escrito
+  al lado. Casi todos los clientes bloquean las imágenes hasta que la persona las acepta, así que la
+  marca se lee igual. En local se ve en Mailpit. Gmail no llega a `localhost`, así que ahí aparece
+  recién con la dirección pública del servidor.
 - **El correo de campaña del deudor no trae el monto ni un enlace:** solo la dirección del portal, para que
   la escriba él. El nombre del acreedor se escapa, así que una empresa no puede meter etiquetas ni
   enlaces en el correo de un deudor. El acceso solicitado tampoco lleva enlace, salvo el respaldo
@@ -2257,6 +2262,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Verificación | Resultado |
 | --- | --- |
 | Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1320**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| La marca ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)) | Los correos de código, recordatorio, prueba y acceso con enlace llegaron a Mailpit con el logo del portal, una sola imagen, y en Edge se ven bien en claro y en oscuro (verde, sin el morado de antes), a 1360 y 390 px. El portal carga sus cuatro íconos, sin errores, en los dos temas. El símbolo contrasta 4,7:1 con la crema y 8,4:1 con el carbón. Las direcciones eran `@example.com`, y lo que crearon las pruebas se borró |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
