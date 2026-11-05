@@ -35,7 +35,7 @@ su acreedor los pactó, y decide:
 - **reclamar** si la deuda no corresponde (no la reconoce, ya la pagó, o el monto está mal).
   Mientras la empresa lo revisa, la deuda no se cobra ni le llegan recordatorios.
 
-Una barra le muestra en qué va cada deuda: **pendiente → en convenio → pago conciliado**. Si tiene
+Una barra le muestra en qué va cada deuda: **por pagar → en convenio → pagada**. Si tiene
 dudas, le pregunta a un asistente que lee su deuda con su propia sesión. Cuando termina de pagar,
 descarga su certificado de deuda cero.
 

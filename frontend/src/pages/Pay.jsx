@@ -236,7 +236,7 @@ export default function Pay() {
       {pago?.status === "paid" ? (
         <div className="card success aparece">
           <CheckAnimado />
-          <h2>{acreditado ? "Pago conciliado" : "Pago recibido"}</h2>
+          <h2>{acreditado ? "Pago confirmado" : "Pago recibido"}</h2>
           <p>
             {dinero(pago.amount, pago.currency)}
             {pago.currency === "UF" && pago.amountClp ? `, ${dinero(pago.amountClp)} al valor de hoy` : ""}
