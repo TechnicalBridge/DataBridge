@@ -17,6 +17,12 @@ import java.util.regex.Pattern;
  * en vez de agregarla detras de lo que mando el cliente. Si le habla cualquier
  * otro, su {@code X-Forwarded-For} no vale nada y cuenta la direccion del par.
  *
+ * <p>Y se lee de derecha a izquierda (#349): un proxy que AGREGA pone al final
+ * la IP que vio, y lo de la izquierda lo pudo escribir el cliente. El cliente es
+ * el primero, desde la derecha, que no es un proxy de confianza. Asi, si algun
+ * dia un proxy concatena en vez de sobrescribir, inventar un valor adelante
+ * sigue sin dar un cupo nuevo.
+ *
  * <p>Los proxies de confianza son los mismos que Spring Cloud Gateway usa para
  * reenviar esa cabecera a los servicios
  * ({@code spring.cloud.gateway.server.webflux.trusted-proxies}): una sola
@@ -48,7 +54,19 @@ final class ClienteReal {
         if (reenviadoPor == null || reenviadoPor.isBlank()) {
             return par;
         }
-        String primero = reenviadoPor.split(",")[0].trim();
-        return primero.isEmpty() ? par : primero;
+        String[] saltos = reenviadoPor.split(",");
+        String masLejano = null;
+        for (int i = saltos.length - 1; i >= 0; i--) {
+            String ip = saltos[i].trim();
+            if (ip.isEmpty()) {
+                continue;
+            }
+            if (!confiables.matcher(ip).matches()) {
+                return ip;
+            }
+            masLejano = ip;
+        }
+        //  Todos son de confianza: el cliente esta en la red privada, y es el mas lejano.
+        return masLejano == null ? par : masLejano;
     }
 }
