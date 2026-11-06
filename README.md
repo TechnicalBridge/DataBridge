@@ -183,7 +183,70 @@ Con `DEMO_DATOS=true`:
 
 ---
 
-## 5. Metodología de trabajo del equipo: Scrumban
+## 5. Metodología de trabajo: Scrumban
+
+**Scrumban.** Usamos los **roles de Scrum**, pero el trabajo fluye como en **Kanban**: sin sprints, cada
+tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas prácticas ligeras de **DevOps**.
+
+- **Roles (Scrum).**
+  - **Flavio Henríquez, Product Owner:** prioriza el backlog, escribe los criterios de aceptación y decide qué
+    pasa a *Ready*.
+  - **Martín Gutiérrez, Scrum Master:** cuida que el trabajo fluya, que nadie tenga más de dos tarjetas en
+    curso, y abre las retrospectivas.
+  - **Esteban Maino, desarrollador fullstack y Project Coordinator:** programa en el backend y el portal, y
+    coordina el proyecto.
+  - **Pedro Campos, desarrollador fullstack y QA Tester:** programa en el backend y el portal, y prueba lo
+    que se entrega.
+- **Revisión.** Cada autor elige quién revisa su PR. En los de Flavio, las dos cuentas se reparten
+  el trabajo:
+  1. **`4mnesia` hace:** el issue, la rama, los commits y el PR, a nombre de Flavio.
+  2. **`H4desDevs` revisa.** Si algo está mal o la CI falla, pide cambios en el PR y dice
+     exactamente qué corregir.
+  3. **`4mnesia` corrige**, responde nombrando el commit, y se repite hasta que la CI pasa en verde.
+  4. **`H4desDevs` aprueba**, y recién ahí se mergea, en orden si los PRs van apilados.
+- **Flujo (Kanban).** Sin sprints: cada persona toma la siguiente tarjeta de *Ready* cuando termina
+  la que tiene. Las columnas del [tablero](https://github.com/orgs/TechnicalBridge/projects/3) son
+  Backlog, Ready, In progress, In review y Done, y el tablero reúne los tres repositorios.
+- **Issues.** Cada repositorio trae formularios en `.github/ISSUE_TEMPLATE/`, y todo issue entra solo
+  al tablero. Para el producto: historia de usuario (con su criterio de aceptación), épica, error e
+  investigación. Para el equipo: tarea técnica, decisión, versión mayor de una dependencia y, en este
+  repositorio, la retrospectiva.
+  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban, Martín y Flavio
+  ([`repartir-por-turnos.yml`](.github/workflows/repartir-por-turnos.yml)), salvo las decisiones, las
+  retrospectivas y las épicas. Si no corresponde, se reasigna a mano. Tener un issue asignado no es
+  tenerlo en curso: el límite de dos tarjetas es para *In progress*.
+- **Ramas (trunk-based).** Todo entra a `main` por PRs chicos y bien descritos. Cada rama vive uno o
+  dos días, sale de `main` y se llama `tipo/número-qué`, por ejemplo `feat/45-descuento-contrato`. Un
+  issue grande se entrega en varios PRs: los intermedios dicen *Parte de #45* y el último *Closes #45*.
+  Lo que todavía no está terminado entra apagado, detrás de una configuración, en vez de esperar en
+  una rama larga. Cada PR pasa la CI y se mergea con squash.
+- **PRs.** La plantilla pide qué cambia, cómo se probó y cómo se deshace, y trae la **Definition of
+  Done** como checklist. Es la del informe de la fase 2: cumplimiento funcional, verificación,
+  validación de interfaz, seguridad, integración, documentación, y revisión y entrega. Lo que queda
+  pendiente se deja identificado y no se presenta como terminado.
+
+El trabajo se organizó en un tablero con cinco épicas —autenticación, gestión de deudas,
+pagos, asistente y reportes— y un backlog de tareas que se fueron tomando de a una. El
+seguimiento tarea por tarea hasta el 2 de octubre, con **en qué nos apartamos del plan original y
+por qué**, está en [`docs/metodologia/plan-kanban.md`](docs/metodologia/plan-kanban.md). Desde ahí, el trabajo vive en el
+tablero, en épicas como el panel de administración (#136) y la entrada por campaña (#193).
+
+De DevOps se tomaron tres prácticas, cada una porque resolvía un problema concreto:
+
+| Práctica | Qué resuelve |
+| --- | --- |
+| **Integración continua** (GitHub Actions) | Las pruebas corren en cada push, en un equipo limpio. Lo que funciona "en mi máquina" no cuenta |
+| **Infraestructura como código** (Docker Compose) | Levantar el sistema es una orden, y no una página de instrucciones que alguien sigue mal |
+| **Esquema versionado** (Flyway) | Cambiar la base es un archivo con número, revisable, y no un `ALTER TABLE` que alguien corrió una vez |
+
+---
+
+## 6. Arquitectura de la solución
+
+DataBridge es una **arquitectura de microservicios**: cuatro servicios de negocio, cada uno con su
+base, detrás de un **API Gateway**. El navegador solo habla con el portal; el portal manda todo lo
+que empiece con `/api` al gateway, y el gateway decide a qué servicio le toca. Ningún servicio
+queda expuesto hacia afuera.
 
 El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de **Scrum** con la entrega de valor continua y control de flujo de **Kanban**, complementado con prácticas fundamentales de **DevOps**:
 
