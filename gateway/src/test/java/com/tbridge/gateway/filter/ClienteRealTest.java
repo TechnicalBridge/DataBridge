@@ -79,8 +79,30 @@ class ClienteRealTest {
     }
 
     @Test
-    void con_varios_saltos_cuenta_el_primero() {
+    void con_varios_saltos_se_saltan_los_proxies_de_confianza() {
         assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "203.0.113.7, 172.21.0.3"));
+        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "203.0.113.7, 172.21.0.3, 172.21.0.4"));
+    }
+
+    @Test
+    void detras_de_un_proxy_que_concatena_no_se_puede_inventar_la_ip() {
+        //  #349: el cliente manda su propio valor y el proxy agrega al final la IP que vio.
+        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "1.2.3.4, 203.0.113.7"));
+        for (int i = 0; i < 1000; i++) {
+            assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "198.51.100." + i + ", 203.0.113.7"));
+        }
+    }
+
+    @Test
+    void si_todos_son_de_confianza_cuenta_el_mas_lejano() {
+        //  Un cliente dentro de la red privada, detras de dos proxies.
+        assertEquals("172.21.0.2", clientes.resolver("172.21.0.10", "172.21.0.2, 172.21.0.3"));
+    }
+
+    @Test
+    void los_valores_vacios_entre_comas_no_cuentan() {
+        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", " , 203.0.113.7 , "));
+        assertEquals("172.21.0.10", clientes.resolver("172.21.0.10", " , , "));
     }
 
     @Test
