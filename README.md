@@ -2094,11 +2094,14 @@ espera pruebas que nunca van a correr.
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
 código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
 equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
+La prueba de rendimiento de `ms-ai` también usa servidores locales para ms-debt y el LLM, y mide
+la latencia sin llamar a Groq ni a Gemini.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1323 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con
+#312, y `ms-ai` con #336):
 
 | Módulo | Pruebas |
 | --- | --- |
@@ -2106,7 +2109,34 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-auth` | 319 |
 | `ms-debt` | 532 |
 | `ms-payments` | 281 |
-| `ms-ai` | 163 |
+| `ms-ai` | 166 |
+
+Las pruebas de `ms-ai` por tipo, sin contarlas dos veces:
+
+| Tipo | Pruebas | Clases |
+| --- | --- | --- |
+| Integración | 9 | `AiApplicationTest` (3) e `IsolationTest` (6): preguntas completas con ms-debt y LLM simulados, fallback a reglas, sesión rechazada por ms-debt (GHSA-8673) y aislamiento entre deudores |
+| Seguridad | 49 | `JwksHttpTest` (8), `JwksUnavailableSecurityTest` (1), `JwtSecurityTest` (7) y `JwtValidationTest` (33): sesión ES256, roles, JWKS y respuestas 401/403/404/502/503 |
+| Rendimiento | 2 | `RendimientoControladoresTest` (2): latencia de `/api/ai/salud` y `/api/ai/chat` con el LLM simulado |
+| Unitarias y de controlador | 106 | `DeudasClientTest` (28), `LlmPropertiesTest` (10), `PerfilesTest` (1), `ChatControllerTest` (4), `AsistenteServiceTest` (9), `LlmServiceTest` (13), `MotorLocalTest` (18) y `ProviderHttpTest` (23) |
+
+El rechazo de ms-debt y el aislamiento entre deudores se comprueban en las pruebas de integración;
+que `/api/ai/salud` no muestre llaves se comprueba en `ProviderHttpTest` y en la de rendimiento.
+
+### Rendimiento de `ms-ai` con el LLM simulado (#336)
+
+`RendimientoControladoresTest` levanta Spring en un puerto aleatorio y dos servidores HTTP locales:
+uno para ms-debt y otro con el contrato de Chat Completions compatible con OpenAI. El proveedor se
+configura como `groq` pero apunta a `127.0.0.1`, así que **la prueba nunca llama a Groq ni a
+Gemini**. Tras 10 peticiones de calentamiento mide 40 muestras de `GET /api/ai/salud` y
+`POST /api/ai/chat`, y exige un p95 menor a 1000 ms y 2000 ms respectivamente. También comprueba
+que cada chat llegue al LLM simulado y que la salud no publique la clave, `apiKey`, `baseUrl` ni
+`Authorization`. La última corrida midió p95 de 7,4 ms en la salud y 38 ms en el chat.
+
+```powershell
+.\mvnw.cmd -f ms-ai\pom.xml test "-Dtest=RendimientoControladoresTest"   # solo rendimiento
+.\mvnw.cmd -f ms-ai\pom.xml clean test                                    # todo ms-ai, incluida la de rendimiento
+```
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -2255,7 +2285,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1320 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1323 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2276,7 +2306,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1320**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1323**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312, y ms-ai con #336; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | La marca ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)) | Los correos de código, recordatorio, prueba y acceso con enlace llegaron a Mailpit con el logo del portal, una sola imagen, y en Edge se ven bien en claro y en oscuro (verde, sin el morado de antes), a 1360 y 390 px. El portal carga sus cuatro íconos, sin errores, en los dos temas. El símbolo contrasta 4,7:1 con la crema y 8,4:1 con el carbón. Las direcciones eran `@example.com`, y lo que crearon las pruebas se borró |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
