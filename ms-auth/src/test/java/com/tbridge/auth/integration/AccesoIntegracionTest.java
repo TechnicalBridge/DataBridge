@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -61,7 +62,7 @@ class AccesoIntegracionTest {
     /** JwtKeyRing real con claves de prueba (sin claves privadas commiteadas). */
     @TestConfiguration
     static class ClavesPrueba {
-        @Bean
+        @Bean @Primary
         JwtKeyRing jwtKeyRing() {
             KeyPair pair = JwtTestTokens.PAIR;
             return new JwtKeyRing(
