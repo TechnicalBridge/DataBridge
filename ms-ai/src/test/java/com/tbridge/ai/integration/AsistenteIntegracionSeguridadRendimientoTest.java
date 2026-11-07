@@ -4,6 +4,7 @@ import com.tbridge.ai.config.SecurityConfig;
 import com.tbridge.ai.controller.ChatController;
 import com.tbridge.ai.controller.SaludController;
 import com.tbridge.ai.security.JwtTestConfig;
+import com.tbridge.ai.security.JwtTestIssuer;
 import com.tbridge.ai.service.AsistenteService;
 import com.tbridge.ai.service.LlmService;
 import org.junit.jupiter.api.*;
