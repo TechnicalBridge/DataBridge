@@ -48,6 +48,8 @@ class PagoIntegracionTest {
         r.add("app.mercadopago.access-token", () -> "");
         r.add("app.mercadopago.public-key", () -> "");
         r.add("app.internal-key", () -> "clave-interna-de-prueba");
+        r.add("app.webhook-secret", () -> "secreto-de-webhook-de-prueba");
+        r.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://ms-auth.invalid/.well-known/jwks");
     }
 
     @LocalServerPort int puerto;
