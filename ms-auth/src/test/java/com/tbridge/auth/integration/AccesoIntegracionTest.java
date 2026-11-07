@@ -42,6 +42,7 @@ class AccesoIntegracionTest {
         r.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
         r.add("management.health.rabbit.enabled", () -> "false");
         r.add("spring.mail.host", () -> "");
+        r.add("jwt.key-directory", () -> "src/test/resources/claves");
     }
 
     @LocalServerPort int puerto;

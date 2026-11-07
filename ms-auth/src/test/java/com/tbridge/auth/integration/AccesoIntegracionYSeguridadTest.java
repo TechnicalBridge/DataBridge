@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.filter.ForwardedHeaderFilter;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -42,6 +43,9 @@ class AccesoIntegracionYSeguridadTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private JwtService jwt;
+
+    /** Contador de intentos de codigo por RUT (simula el agotamiento tras 5 fallos). */
+    private static final AtomicInteger intentosCodigo = new AtomicInteger(0);
 
     private String deudor(String rut) {
         return "Bearer " + jwt.issue(rut, null, "DEBTOR", null, rut);
@@ -126,5 +130,16 @@ class AccesoIntegracionYSeguridadTest {
         }
         @GetMapping("/.well-known/jwks.json")
         ResponseEntity<Void> jwks() { return ResponseEntity.ok().build(); }
+        @PostMapping("/api/auth/validar-enlace")
+        ResponseEntity<Void> validarEnlace(@RequestParam String token) {
+            if ("repetido".equals(token)) return ResponseEntity.badRequest().build();
+            return ResponseEntity.ok().build();
+        }
+        @PostMapping("/api/auth/codigo")
+        ResponseEntity<Void> codigo(@RequestParam String rut) {
+            int intentos = intentosCodigo.incrementAndGet();
+            if (intentos > 5) return ResponseEntity.status(429).build();
+            return ResponseEntity.badRequest().build();
+        }
     }
 }
