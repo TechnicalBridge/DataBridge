@@ -47,6 +47,7 @@ class PagoIntegracionTest {
         r.add("app.mercadopago.url", () -> "http://mercadopago.invalid");
         r.add("app.mercadopago.access-token", () -> "");
         r.add("app.mercadopago.public-key", () -> "");
+        r.add("app.internal-key", () -> "clave-interna-de-prueba");
     }
 
     @LocalServerPort int puerto;

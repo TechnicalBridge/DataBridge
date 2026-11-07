@@ -1,6 +1,7 @@
 package com.tbridge.payments.integration;
 
 import com.tbridge.payments.config.SecurityConfig;
+import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.security.JwtTestConfig;
 import com.tbridge.payments.security.JwtTestIssuer;
 import org.junit.jupiter.api.*;
@@ -91,7 +92,10 @@ class PagoIntegracionYSeguridadTest {
     @RequestMapping
     static class Probe {
         @GetMapping("/api/payments") ResponseEntity<Void> pagos(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
-        @GetMapping("/api/payments/{id}") ResponseEntity<Void> pago(@PathVariable Long id, @AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
+        @GetMapping("/api/payments/{id}") ResponseEntity<Void> pago(@PathVariable Long id, @AuthenticationPrincipal JwtPrincipal p) {
+            if (p.isDebtor()) return ResponseEntity.status(403).build();
+            return ResponseEntity.ok().build();
+        }
         @GetMapping("/api/payments/historia") ResponseEntity<Void> historia(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/api/admin/payments/cobros") ResponseEntity<Void> adminCobros(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/internal/estado") ResponseEntity<Void> interno(@RequestHeader(value = "X-Internal-Key", required = false) String key) {
