@@ -1,5 +1,6 @@
 package com.tbridge.ai.integration;
 
+import com.tbridge.ai.config.SecurityConfig;
 import com.tbridge.ai.controller.ChatController;
 import com.tbridge.ai.controller.SaludController;
 import com.tbridge.ai.security.JwtTestConfig;
@@ -39,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Ninguna prueba llama a Groq ni a Gemini.
  */
 @WebMvcTest({ChatController.class, SaludController.class})
-@Import(JwtTestConfig.class)
+@Import({SecurityConfig.class, JwtTestConfig.class})
 @ActiveProfiles("test")
 class AsistenteIntegracionSeguridadRendimientoTest {
 
