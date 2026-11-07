@@ -1281,11 +1281,21 @@ public class PaymentService {
      */
     @Transactional
     public PaymentResponse webhook(WebhookRequest aviso, String signatureHeader) {
+        return webhook(null, aviso, signatureHeader);
+    }
+
+    @Transactional
+    public PaymentResponse webhook(Payment.Gateway gateway, WebhookRequest aviso, String signatureHeader) {
         Long id = aviso.pago();
         if (id == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice que pago es");
         }
         Payment pago = buscar(id);
+
+        if (gateway != null && pago.getGateway() != null && pago.getGateway() != gateway) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "El pago " + id + " no corresponde a la pasarela " + gateway);
+        }
 
         String sig = signatureHeader == null || signatureHeader.isBlank() ? aviso.signature() : signatureHeader;
         boolean firmaOk = verifier.matches(sig, String.valueOf(pago.getId()),

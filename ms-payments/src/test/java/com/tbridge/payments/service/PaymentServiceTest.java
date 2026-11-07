@@ -248,6 +248,15 @@ class PaymentServiceTest {
     }
 
     @Test
+    void un_aviso_con_pasarela_distinta_a_la_del_pago_se_rechaza_con_bad_request() {
+        Payment pago = pagoAbierto();
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertTrue(error.getMessage().contains("no corresponde a la pasarela"));
+    }
+
+    @Test
     void un_aviso_con_firma_falsa_no_se_aplica_pero_queda_anotado() {
         Payment pago = pagoAbierto();
 
