@@ -45,14 +45,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AsistenteIntegracionSeguridadRendimientoTest {
 
     @Autowired private MockMvc mvc;
+    @Autowired private JwtTestIssuer jwt;
     @MockBean private AsistenteService asistente;
     @MockBean private LlmService llm;
 
     private String deudor(String rut) {
-        return "Bearer " + com.tbridge.ai.security.JwtTestTokens.token(
-                com.tbridge.ai.security.JwtTestTokens.claims(),
-                com.tbridge.ai.security.JwtTestTokens.pair("secp256r1"),
-                rut, "ES256");
+        return "Bearer " + jwt.issue(rut, rut + "@ejemplo.cl", "DEBTOR", null, rut);
     }
 
     @Test
