@@ -2,8 +2,10 @@ package com.tbridge.debt.integration;
 
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.security.JwtTestConfig;
+import com.tbridge.debt.security.JwtTestIssuer;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -121,7 +123,8 @@ class DeudaIntegracionYSeguridadTest {
         @GetMapping("/api/admin/debt/deudas") ResponseEntity<Void> adminDeudas(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/api/analytics") ResponseEntity<Void> analytics(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/internal/estado") ResponseEntity<Void> interno(@RequestHeader(value = "X-Internal-Key", required = false) String key) {
-            return "clave-interna-de-prueba".equals(key) ? ResponseEntity.ok() : ResponseEntity.status(401).build();
+            if ("clave-interna-de-prueba".equals(key)) return ResponseEntity.ok().build();
+            return ResponseEntity.status(401).build();
         }
     }
 }
