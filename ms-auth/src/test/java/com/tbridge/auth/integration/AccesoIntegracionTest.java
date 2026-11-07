@@ -3,9 +3,10 @@ package com.tbridge.auth.integration;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,6 +15,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.tbridge.auth.security.JwtKeyRing;
+import com.tbridge.auth.security.JwtTestTokens;
+
+import java.security.KeyPair;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -51,7 +58,18 @@ class AccesoIntegracionTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
 
-    @MockBean JwtKeyRing jwtKeyRing;
+    /** JwtKeyRing real con claves de prueba (sin claves privadas commiteadas). */
+    @TestConfiguration
+    static class ClavesPrueba {
+        @Bean
+        JwtKeyRing jwtKeyRing() {
+            KeyPair pair = JwtTestTokens.PAIR;
+            return new JwtKeyRing(
+                    (ECPrivateKey) pair.getPrivate(),
+                    (ECPublicKey) pair.getPublic(),
+                    List.of());
+        }
+    }
 
     @Test
     void el_contexto_levanta_con_mysql_de_verdad() {
