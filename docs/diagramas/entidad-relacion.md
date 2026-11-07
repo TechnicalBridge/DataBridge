@@ -25,8 +25,6 @@ Los diagramas salen del esquema real: el que dejan las migraciones de `ms-*/src/
 
 ## `tb_auth` — el acceso
 
-![Diagrama Entidad-Relacion tb_auth](img/tb_auth.png)
-
 La base de **ms-auth**. Quién entra y cómo. **No hay tabla de deudores**: el deudor no tiene cuenta, entra con su RUT y un código. De nada sensible se guarda el original: del código, del enlace y de la llave de renovación queda solo su huella (SHA-256), y de la IP también.
 
 ```mermaid
@@ -464,8 +462,6 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 ---
 
 ## `tb_payments` — los cobros
-
-![Diagrama Entidad-Relacion tb_payments](img/tb_payments.png)
 
 La base de **ms-payments**. Cada intento de pago y su historia. Un pago nombra la deuda y las cuotas por su id, pero no hay llave foránea: viven en `tb_debt`, que es otra base, y quien los valida es ms-debt.
 

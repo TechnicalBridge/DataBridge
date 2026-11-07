@@ -28,7 +28,9 @@
   - [Descripción de la arquitectura](#descripción-de-la-arquitectura)
   - [Diagrama general de componentes y comunicación](#diagrama-general-de-componentes-y-comunicación)
   - [Diagrama de despliegue físico](#diagrama-de-despliegue-físico)
-  - [Diagrama de secuencia del flujo principal: pago y conciliación](#diagrama-de-secuencia-del-flujo-principal-pago-y-conciliación)
+  - [Diagrama de secuencia del flujo principal](#diagrama-de-secuencia-del-flujo-principal)
+  - [Diagrama de casos de uso](#diagrama-de-casos-de-uso)
+  - [Diagramas entidad-relación (ER)](#diagramas-entidad-relación-er)
   - [Detalle de arquitectura en vistas 4+1](#detalle-de-arquitectura-en-vistas-41)
 
 ---
@@ -287,6 +289,8 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ### Diagrama general de componentes y comunicación
 
+![Diagrama de Componentes](docs/diagramas%20reales/DiagramaComponentes/COMPONENTES.png)
+
 ```mermaid
 flowchart TB
     subgraph CLIENTES["Capa de Clientes"]
@@ -355,6 +359,8 @@ flowchart TB
 
 ### Diagrama de despliegue físico
 
+![Diagrama de Despliegue](docs/diagramas%20reales/DiagramaDespliegue/DESPLIEGUE.png)
+
 ```mermaid
 flowchart LR
     subgraph DISPOSITIVO["Dispositivo Cliente"]
@@ -407,7 +413,9 @@ flowchart LR
 
 ---
 
-### Diagrama de secuencia del flujo principal: pago y conciliación
+### Diagrama de secuencia del flujo principal
+
+![Diagrama de Secuencia](docs/diagramas%20reales/DiagramaSecuencia/DIAGRAMA%20DE%20SECUENCIA.png)
 
 ```mermaid
 sequenceDiagram
@@ -454,14 +462,33 @@ sequenceDiagram
 
 ---
 
+### Diagrama de casos de uso
+
+![Diagrama de Casos de Uso](docs/diagramas%20reales/DiagramaCasosDeUso/CASOS%20DE%20USO.png)
+
+---
+
+### Diagramas entidad-relación (ER)
+
+#### Base de datos `tb_auth`
+![ER tb_auth](docs/diagramas%20reales/DiagramaEntidadRelacion/ER_tb_auth.png)
+
+#### Base de datos `tb_debt`
+![ER tb_debt](docs/diagramas%20reales/DiagramaEntidadRelacion/ER_tb_debt.png)
+
+#### Base de datos `tb_payments`
+![ER tb_payments](docs/diagramas%20reales/DiagramaEntidadRelacion/ER_tb_payments.png)
+
+---
+
 ### Detalle de arquitectura en vistas 4+1
 
-La documentación arquitectónica técnica exhaustiva del sistema se organiza siguiendo el **modelo de vistas 4+1 de Kruchten** en la carpeta [`docs/diagramas/`](docs/diagramas/README.md):
+La documentación técnica complementaria y archivos fuente del modelo 4+1 se encuentran disponibles en:
 
-| Vista 4+1 | Contenido y Especificación | Documento de Detalle |
+| Vista 4+1 | Contenido y Especificación | Documento y Ubicación |
 | :--- | :--- | :--- |
-| **Escenarios (+1)** | Casos de uso completos de cada actor (Deudor, Empresa, Admin, Sistemas y Reloj) y detalle de endpoints. | [docs/diagramas/casos-de-uso.md](docs/diagramas/casos-de-uso.md) |
-| **Vista Lógica** | Diagrama Entidad-Relación de las tres bases (`tb_auth`, `tb_debt`, `tb_payments`), modelo de clases y máquinas de estados. | [docs/diagramas/entidad-relacion.md](docs/diagramas/entidad-relacion.md)<br>[docs/diagramas/clases.md](docs/diagramas/clases.md)<br>[docs/diagramas/estados.md](docs/diagramas/estados.md) |
-| **Vista de Procesos** | Secuencias de interacción detalladas (pagos, autenticación, campañas, reclamos) y flujos BPMN de negocio. | [docs/diagramas/secuencia.md](docs/diagramas/secuencia.md)<br>[docs/diagramas/procesos.md](docs/diagramas/procesos.md) |
-| **Vista de Desarrollo** | Paquetes internos de cada microservicio, interfaces HATEOAS, DTOs y módulos del frontend. | [docs/diagramas/componentes.md](docs/diagramas/componentes.md) |
-| **Vista Física** | Topología de contenedores Docker, orden de arranque, puertos expuestos y perfiles de configuración. | [docs/diagramas/despliegue.md](docs/diagramas/despliegue.md) |
+| **Escenarios (+1)** | Casos de uso de cada actor (Deudor, Empresa, Admin, Sistemas y Reloj) y detalle de endpoints. | [docs/diagramas/casos-de-uso.md](docs/diagramas/casos-de-uso.md)<br>[Diagrama real](docs/diagramas%20reales/DiagramaCasosDeUso/CASOS%20DE%20USO.png) |
+| **Vista Lógica** | Diagramas Entidad-Relación de las tres bases (`tb_auth`, `tb_debt`, `tb_payments`), clases y máquinas de estados. | [docs/diagramas/entidad-relacion.md](docs/diagramas/entidad-relacion.md)<br>[Diagramas ER reales](docs/diagramas%20reales/DiagramaEntidadRelacion/) |
+| **Vista de Procesos** | Secuencias de interacción y flujos de negocio BPMN. | [docs/diagramas/secuencia.md](docs/diagramas/secuencia.md)<br>[Diagrama de secuencia real](docs/diagramas%20reales/DiagramaSecuencia/DIAGRAMA%20DE%20SECUENCIA.png) |
+| **Vista de Desarrollo** | Componentes por paquetes, HATEOAS, DTOs y frontend. | [docs/diagramas/componentes.md](docs/diagramas/componentes.md)<br>[Diagrama de componentes real](docs/diagramas%20reales/DiagramaComponentes/COMPONENTES.png) |
+| **Vista Física** | Topología de despliegue Docker, orden de arranque y puertos. | [docs/diagramas/despliegue.md](docs/diagramas/despliegue.md)<br>[Diagrama de despliegue real](docs/diagramas%20reales/DiagramaDespliegue/DESPLIEGUE.png) |
