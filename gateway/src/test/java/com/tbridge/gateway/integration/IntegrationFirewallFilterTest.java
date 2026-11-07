@@ -2,16 +2,12 @@ package com.tbridge.gateway.integration;
 
 import com.tbridge.gateway.filter.IntegrationFirewallFilter;
 import org.junit.jupiter.api.*;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Issue 335 - gateway: prueba el filtro IntegrationFirewallFilter (firewall por dominio/CIDR).
  */
-@SpringBootTest
-@ActiveProfiles("test")
 class IntegrationFirewallFilterTest {
 
     @Test

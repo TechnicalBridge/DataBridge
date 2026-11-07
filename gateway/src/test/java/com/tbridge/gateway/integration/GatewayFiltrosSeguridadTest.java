@@ -3,8 +3,6 @@ package com.tbridge.gateway.integration;
 import com.tbridge.gateway.filter.ClienteReal;
 import com.tbridge.gateway.filter.IntegrationFirewallFilter;
 import org.junit.jupiter.api.*;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,8 +16,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Seguridad: los cupos de peticiones, el firewall por dominio, un X-Forwarded-For falso y
  * CORS con un origen malicioso.
  */
-@SpringBootTest
-@ActiveProfiles("test")
 class GatewayFiltrosSeguridadTest {
 
     /** ClienteReal: sin proxy de confianza, se usa la IP del par. */
