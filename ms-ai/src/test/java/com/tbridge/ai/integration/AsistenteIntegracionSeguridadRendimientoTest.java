@@ -91,7 +91,7 @@ class AsistenteIntegracionSeguridadRendimientoTest {
         // Un deudor con su sesión: el asistente solo usa su propia sesión, no la de otro.
         when(asistente.responder(any(), any())).thenAnswer(inv -> {
             String sesion = inv.getArgument(1, String.class);
-            return new com.tbridge.ai.dto.response.Respuesta("Tus deudas: " + sesion);
+            return new com.tbridge.ai.dto.response.Respuesta("Tus deudas: " + sesion, "local-nlp", 0, null);
         });
 
         MvcResult r1 = mvc.perform(post("/api/ai/chat")
@@ -118,7 +118,7 @@ class AsistenteIntegracionSeguridadRendimientoTest {
         // Si el LLM falla, el asistente responde con reglas locales (no llama al proveedor real).
         when(asistente.responder(any(), any())).thenAnswer(inv -> {
             String sesion = inv.getArgument(1, String.class);
-            return new com.tbridge.ai.dto.response.Respuesta("Respuesta por reglas (LLM caido) para " + sesion);
+            return new com.tbridge.ai.dto.response.Respuesta("Respuesta por reglas (LLM caido) para " + sesion, "local-nlp", 0, null);
         });
 
         mvc.perform(post("/api/ai/chat")
@@ -133,7 +133,7 @@ class AsistenteIntegracionSeguridadRendimientoTest {
     void latencia_con_llm_simulado_es_baja() throws Exception {
         when(asistente.responder(any(), any())).thenAnswer(inv -> {
             // Simula una respuesta rapida del LLM simulado.
-            return new com.tbridge.ai.dto.response.Respuesta("Respuesta rapida");
+            return new com.tbridge.ai.dto.response.Respuesta("Respuesta rapida", "local-nlp", 0, null);
         });
 
         long inicio = System.nanoTime();
