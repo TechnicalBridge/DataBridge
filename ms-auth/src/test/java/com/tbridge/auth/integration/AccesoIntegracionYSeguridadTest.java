@@ -5,6 +5,7 @@ import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.security.JwtTestConfig;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -120,7 +121,8 @@ class AccesoIntegracionYSeguridadTest {
         }
         @GetMapping("/internal/sesiones")
         ResponseEntity<Void> sesiones(@RequestHeader(value = "X-Internal-Key", required = false) String key) {
-            return "clave-interna-de-prueba".equals(key) ? ResponseEntity.ok() : ResponseEntity.status(401).build();
+            if ("clave-interna-de-prueba".equals(key)) return ResponseEntity.ok().build();
+            return ResponseEntity.status(401).build();
         }
         @GetMapping("/.well-known/jwks.json")
         ResponseEntity<Void> jwks() { return ResponseEntity.ok().build(); }
