@@ -3,6 +3,7 @@ package com.tbridge.auth.integration;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,6 +12,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import com.tbridge.auth.security.JwtKeyRing;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -42,12 +45,13 @@ class AccesoIntegracionTest {
         r.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
         r.add("management.health.rabbit.enabled", () -> "false");
         r.add("spring.mail.host", () -> "");
-        r.add("jwt.key-directory", () -> "src/test/resources/claves");
     }
 
     @LocalServerPort int puerto;
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
+
+    @MockBean JwtKeyRing jwtKeyRing;
 
     @Test
     void el_contexto_levanta_con_mysql_de_verdad() {
