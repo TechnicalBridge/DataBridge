@@ -25,10 +25,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-static {
-    System.setProperty("spring.main.allow-bean-definition-overriding", "true");
-}
-
 /**
  * Issue 333 - ms-auth: integracion contra una base de verdad.
  *
@@ -40,6 +36,10 @@ static {
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AccesoIntegracionTest {
+
+    static {
+        System.setProperty("spring.main.allow-bean-definition-overriding", "true");
+    }
 
     @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
