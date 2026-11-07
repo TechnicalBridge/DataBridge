@@ -1,6 +1,7 @@
 package com.tbridge.debt.integration;
 
 import com.tbridge.debt.config.SecurityConfig;
+import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.security.JwtTestConfig;
 import com.tbridge.debt.security.JwtTestIssuer;
 import org.junit.jupiter.api.*;
@@ -113,8 +114,14 @@ class DeudaIntegracionYSeguridadTest {
     @RequestMapping
     static class Probe {
         @GetMapping("/api/debts") ResponseEntity<Void> deudas(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
-        @GetMapping("/api/debts/{id}") ResponseEntity<Void> deuda(@PathVariable Long id, @AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
-        @GetMapping("/api/campanas") ResponseEntity<Void> campanas(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
+        @GetMapping("/api/debts/{id}") ResponseEntity<Void> deuda(@PathVariable Long id, @AuthenticationPrincipal JwtPrincipal p) {
+            if (p.isDebtor() && !p.rut().equals(String.valueOf(id))) return ResponseEntity.status(403).build();
+            return ResponseEntity.ok().build();
+        }
+        @GetMapping("/api/campanas") ResponseEntity<Void> campanas(@AuthenticationPrincipal JwtPrincipal p) {
+            if (p.isDebtor()) return ResponseEntity.status(403).build();
+            return ResponseEntity.ok().build();
+        }
         @GetMapping("/api/cuotas") ResponseEntity<Void> cuotas(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/api/mandatos") ResponseEntity<Void> mandatos(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/api/historial") ResponseEntity<Void> historial(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }

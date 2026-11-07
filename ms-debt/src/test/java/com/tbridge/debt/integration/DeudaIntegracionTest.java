@@ -44,6 +44,7 @@ class DeudaIntegracionTest {
         r.add("app.cifrado.llave-anterior", () -> "");
         r.add("app.internal-key", () -> "clave-interna-de-prueba");
         r.add("app.auth-url", () -> "http://ms-auth.invalid");
+        r.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://ms-auth.invalid/.well-known/jwks");
     }
 
     @LocalServerPort int puerto;
