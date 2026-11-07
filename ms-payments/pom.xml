@@ -108,7 +108,17 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
       <!-- Excluir pruebas de rendimiento (Gatling) del ciclo de pruebas unitarias.
-           Gatling no es una dependencia de este modulo; esas pruebas corren por separado. -->
+           Gatling no es una dependencia de este modulo; esas pruebas corren por separado.
+           Se excluyen tanto de compilacion (compiler) como de ejecucion (surefire). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <testExcludes>
+            <exclude>**/rendimiento/**</exclude>
+          </testExcludes>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
