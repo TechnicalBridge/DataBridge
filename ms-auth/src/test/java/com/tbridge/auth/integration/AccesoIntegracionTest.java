@@ -58,6 +58,7 @@ class AccesoIntegracionTest {
         r.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
         r.add("management.health.rabbit.enabled", () -> "false");
         r.add("spring.mail.host", () -> "");
+        r.add("app.internal-key", () -> "clave-interna-de-prueba");
     }
 
     /** JwtKeyRing real con claves de prueba (sobrescribe el de JwtKeyConfig). */
