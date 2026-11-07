@@ -62,7 +62,7 @@ public class IntegrationFirewallFilter implements GlobalFilter, Ordered {
         return exchange.getResponse().setComplete();
     }
 
-    static String hash(String value) {
+    public static String hash(String value) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
     }
