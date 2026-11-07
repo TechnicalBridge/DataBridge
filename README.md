@@ -2098,6 +2098,19 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
+**Pruebas de integración (Testcontainers + MySQL de verdad).** `ms-debt`, `ms-auth` y `ms-payments`
+levantan un MySQL efímero con Testcontainers y ejecutan las migraciones de Flyway contra él.
+Necesitan Docker corriendo. Se ejecutan con el mismo `mvnw clean test`: las clases que terminan
+en `IntegracionTest` (`DeudaIntegracionTest`, `AccesoIntegracionTest`, `PagoIntegracionTest`)
+prueban que el contexto levanta con base real y que Flyway aplica las migraciones en un esquema
+vacío. Nunca usan H2 y nunca tocan una base persistente.
+
+**Pruebas de seguridad (`@WebMvcTest` + MockMvc).** Cada servicio tiene una clase
+`*IntegracionYSeguridadTest` que, sin levantar la aplicación completa, verifica:
+`401` sin sesión, `401` con token inválido o de otra llave, `403` con rol insuficiente o
+deuda de otro, `200` solo con el rol correcto, y que las rutas internas exigen su clave interna.
+Se ejecutan con el mismo `mvnw clean test` y corren en segundos sin base de datos ni red.
+
 **1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
 
 | Módulo | Pruebas |
