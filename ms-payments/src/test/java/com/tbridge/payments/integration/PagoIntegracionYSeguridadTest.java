@@ -2,8 +2,10 @@ package com.tbridge.payments.integration;
 
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.security.JwtTestConfig;
+import com.tbridge.payments.security.JwtTestIssuer;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
@@ -93,7 +95,8 @@ class PagoIntegracionYSeguridadTest {
         @GetMapping("/api/payments/historia") ResponseEntity<Void> historia(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/api/admin/payments/cobros") ResponseEntity<Void> adminCobros(@AuthenticationPrincipal Object p) { return ResponseEntity.ok().build(); }
         @GetMapping("/internal/estado") ResponseEntity<Void> interno(@RequestHeader(value = "X-Internal-Key", required = false) String key) {
-            return "clave-interna-de-prueba".equals(key) ? ResponseEntity.ok() : ResponseEntity.status(401).build();
+            if ("clave-interna-de-prueba".equals(key)) return ResponseEntity.ok().build();
+            return ResponseEntity.status(401).build();
         }
     }
 }
