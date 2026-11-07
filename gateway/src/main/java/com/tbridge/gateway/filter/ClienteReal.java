@@ -22,11 +22,11 @@ import java.util.regex.Pattern;
  * ({@code spring.cloud.gateway.server.webflux.trusted-proxies}): una sola
  * definicion de "en quien se confia" para las dos cosas.
  */
-final class ClienteReal {
+public final class ClienteReal {
 
     private final Pattern confiables;
 
-    ClienteReal(String patronDeConfiables) {
+    public ClienteReal(String patronDeConfiables) {
         this.confiables = Pattern.compile(patronDeConfiables);
     }
 
@@ -38,7 +38,7 @@ final class ClienteReal {
     }
 
     /** La regla sola, sin la peticion alrededor: es lo que prueban las pruebas. */
-    String resolver(String par, String reenviadoPor) {
+    public String resolver(String par, String reenviadoPor) {
         if (par == null) {
             return "desconocido";
         }
