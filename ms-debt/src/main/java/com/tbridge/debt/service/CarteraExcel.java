@@ -163,6 +163,7 @@ public final class CarteraExcel {
         Lector(Workbook libro) {
             this.libro = libro;
             this.formulas = libro.getCreationHelper().createFormulaEvaluator();
+            this.formulas.setIgnoreMissingWorkbooks(true);
         }
 
         ObjectNode leer(CarteraCsv.Lote lote) {
@@ -497,7 +498,14 @@ public final class CarteraExcel {
 
         private String texto(Row fila, Map<String, Integer> col, Columna columna) {
             Cell c = celda(fila, col, columna);
-            return c == null ? "" : formato.formatCellValue(c, formulas).trim();
+            if (c == null) {
+                return "";
+            }
+            try {
+                return formato.formatCellValue(c, formulas).trim();
+            } catch (Exception e) {
+                return formato.formatCellValue(c).trim();
+            }
         }
 
         private boolean vacio(Row fila, Map<String, Integer> col, Columna columna) {
@@ -510,8 +518,16 @@ public final class CarteraExcel {
             }
             for (int i : columnas) {
                 Cell c = fila.getCell(i);
-                if (c != null && !formato.formatCellValue(c, formulas).isBlank()) {
-                    return false;
+                if (c != null) {
+                    String valor;
+                    try {
+                        valor = formato.formatCellValue(c, formulas);
+                    } catch (Exception e) {
+                        valor = formato.formatCellValue(c);
+                    }
+                    if (!valor.isBlank()) {
+                        return false;
+                    }
                 }
             }
             return true;
