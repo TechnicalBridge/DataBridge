@@ -106,6 +106,41 @@ class ContactOutboxIntegrationTest {
         tx.executeWithoutResult(status->debts.findById(id).orElseThrow().getDebtor().setEmail("corrected@example.com"));
         assertTrue(enqueue(id));assertEquals(ContactJob.State.QUEUED,jobs.findById(job).orElseThrow().getState());
     }
+
+    private void makeDue(Long jobId) {
+        tx.executeWithoutResult(status -> org.springframework.test.util.ReflectionTestUtils.setField(
+                jobs.findById(jobId).orElseThrow(), "nextAttemptAt", Instant.EPOCH));
+    }
+    @Test void pre_connection_failure_is_persisted_delayed_and_recovers_without_duplicate_contacts() {
+        Long id=debt();assertTrue(enqueue(id));Long jobId=job(id);
+        AuthClient fake=mock(AuthClient.class);
+        when(fake.emitirCodigo(any())).thenThrow(new com.tbridge.debt.client.AuthNoContactado()).thenReturn(null);
+        try(var dispatcher=new AutoClosingDispatcher(jobs,dispatchTx,fake)) {
+            dispatcher.delegate.dispatch(jobId);
+            ContactJob deferred=jobs.findById(jobId).orElseThrow();
+            assertEquals(ContactJob.State.QUEUED,deferred.getState());assertEquals(1,deferred.getDispatchAttempts());
+            assertFalse(jobs.queued(deferred.getNextAttemptAt().minusSeconds(1),org.springframework.data.domain.PageRequest.of(0,1000)).contains(jobId));
+            assertTrue(jobs.queued(deferred.getNextAttemptAt().plusSeconds(1),org.springframework.data.domain.PageRequest.of(0,1000)).contains(jobId));
+            assertEquals(Boolean.TRUE,tx.execute(status->contacts.findByDebtOrderByOccurredAtAsc(debts.findById(id).orElseThrow()).isEmpty()));
+            dispatcher.delegate.dispatch(jobId);verify(fake,times(1)).emitirCodigo(any());
+            makeDue(jobId);dispatcher.delegate.dispatch(jobId);dispatcher.delegate.dispatch(jobId);
+        }
+        verify(fake,times(2)).emitirCodigo(any());
+        assertEquals(ContactJob.State.ACCEPTED,jobs.findById(jobId).orElseThrow().getState());
+        assertEquals(1,tx.execute(status->contacts.findByDebtOrderByOccurredAtAsc(debts.findById(id).orElseThrow()).size()).intValue());
+    }
+    @Test void exhausted_connection_retries_release_the_identity_and_preserve_the_failed_job() {
+        Long id=debt();assertTrue(enqueue(id));Long jobId=job(id);
+        for(int attempt=1;attempt<=3;attempt++) {
+            makeDue(jobId);assertNotNull(dispatchTx.claim(jobId));
+            assertEquals(attempt<3,dispatchTx.retryBeforeSend(jobId));
+        }
+        ContactJob exhausted=jobs.findById(jobId).orElseThrow();
+        assertEquals(ContactJob.State.FAILED,exhausted.getState());assertEquals(3,exhausted.getDispatchAttempts());
+        assertNull(dispatchTx.claim(jobId));
+        assertEquals(Boolean.TRUE,tx.execute(status->outbox.enqueue(Contact.reenvio(debts.findById(id).orElseThrow(),"***"))));
+        assertEquals(ContactJob.State.FAILED,jobs.findById(jobId).orElseThrow().getState());
+    }
     private static class AutoClosingDispatcher implements AutoCloseable {
         final ContactDispatcher delegate;
         AutoClosingDispatcher(ContactJobRepository jobs,ContactDispatchTransactions tx,AuthClient auth){delegate=new ContactDispatcher(jobs,tx,auth);}

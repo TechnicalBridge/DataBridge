@@ -7,6 +7,7 @@ import java.time.Instant;
 @Entity
 @Table(name="contact_jobs")
 public class ContactJob {
+    public static final int MAX_DISPATCH_ATTEMPTS = 3;
     public enum State { QUEUED, SENDING, ACCEPTED, FAILED, UNCERTAIN, CANCELLED }
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
     @Column(name="job_key", nullable=false, unique=true, length=160) private String jobKey;
@@ -19,6 +20,8 @@ public class ContactJob {
     @Column(name="destination_hash", nullable=false, columnDefinition="char(64)") private String destinationHash;
     @Column(name="created_at", nullable=false) private Instant createdAt = Instant.now();
     @Column(name="updated_at", nullable=false) private Instant updatedAt = Instant.now();
+    @Column(name="dispatch_attempts", nullable=false) private int dispatchAttempts;
+    @Column(name="next_attempt_at", nullable=false) private Instant nextAttemptAt = Instant.now();
     protected ContactJob() {}
     public ContactJob(Contact contact, String hash) {
         debt=contact.getDebt(); kind=contact.getKind(); campaign=contact.getCampaign();
@@ -40,7 +43,19 @@ public class ContactJob {
             case resend -> Contact.reenvio(debt,destination);
         };
     }
-    public void correctedDestination(String hash) { destinationHash=hash; state(State.QUEUED); }
+    public boolean ready(Instant now) { return !now.isBefore(nextAttemptAt); }
+    public void startAttempt() { dispatchAttempts++; state(State.SENDING); }
+    public boolean retryBeforeSend(Instant now) {
+        if (dispatchAttempts >= MAX_DISPATCH_ATTEMPTS) { state(State.FAILED); return false; }
+        nextAttemptAt = now.plusSeconds(30L << Math.max(0, dispatchAttempts - 1));
+        state(State.QUEUED);
+        return true;
+    }
+    public void correctedDestination(String hash) {
+        destinationHash=hash; dispatchAttempts=0; nextAttemptAt=Instant.now(); state(State.QUEUED);
+    }
+    public int getDispatchAttempts() { return dispatchAttempts; }
+    public Instant getNextAttemptAt() { return nextAttemptAt; }
     public void state(State value) { state=value; updatedAt=Instant.now(); }
     public Long getId() { return id; }
     public Debt getDebt() { return debt; }

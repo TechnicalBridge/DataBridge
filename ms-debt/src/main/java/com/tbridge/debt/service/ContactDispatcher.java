@@ -1,6 +1,7 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.client.AuthClient;
+import com.tbridge.debt.client.AuthNoContactado;
 import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.repository.ContactJobRepository;
 import java.util.concurrent.*;
@@ -28,7 +29,7 @@ public class ContactDispatcher {
         transactions.recover();
         int free=slots.availablePermits();
         if(free==0) return;
-        for(Long id:jobs.queued(PageRequest.of(0,free))) {
+        for(Long id:jobs.queued(java.time.Instant.now(), PageRequest.of(0,free))) {
             if(!slots.tryAcquire()) break;
             try { executor.execute(() -> { try { dispatch(id); } finally { slots.release(); } }); }
             catch(RejectedExecutionException full) { slots.release(); break; }
@@ -41,6 +42,11 @@ public class ContactDispatcher {
         if(work==null) return;
         try {
             auth.emitirCodigo(work.request());
+        } catch(AuthNoContactado notSent) {
+            boolean scheduled = transactions.retryBeforeSend(id);
+            LoggerFactory.getLogger(getClass()).warn("job_id={} outcome={}", id,
+                    scheduled ? "retry_scheduled" : "retry_exhausted");
+            return;
         } catch(CorreoNoSalio rejected) {
             transactions.failed(id,rejected.deLaDireccion(),false);
             LoggerFactory.getLogger(getClass()).warn("job_id={} outcome=failed",id);

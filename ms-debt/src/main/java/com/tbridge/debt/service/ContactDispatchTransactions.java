@@ -34,6 +34,10 @@ public class ContactDispatchTransactions {
     public Dispatch claim(Long id) {
         ContactJob job=lockJob(id);
         if(job==null || job.getState()!=ContactJob.State.QUEUED) return null;
+        if (!job.ready(Instant.now())) return null;
+        if (job.getDispatchAttempts() >= ContactJob.MAX_DISPATCH_ATTEMPTS) {
+            job.state(ContactJob.State.FAILED); return null;
+        }
         Debt debt=job.getDebt();
         Debtor debtor=debtors.locked(debt.getDebtor().getId()).orElseThrow();
         if(debt.congelada() || (job.getKind()!=Contact.Kind.resend && debtor.correoConProblemas()) || debtor.getEmail()==null
@@ -52,6 +56,10 @@ public class ContactDispatchTransactions {
             job.state(ContactJob.State.CANCELLED); return null;
         }
         Campaign campaign=job.getCampaign();
+        if (job.getKind() == Contact.Kind.campaign && (campaign == null || debt.getCampaign() == null
+                || !java.util.Objects.equals(campaign.getId(), debt.getCampaign().getId()))) {
+            job.state(ContactJob.State.CANCELLED); return null;
+        }
         if(campaign!=null && (campaign.getStatus()!=Campaign.Status.running
                 || hoy.isBefore(campaign.getStartsOn()) || (campaign.getEndsOn()!=null && hoy.isAfter(campaign.getEndsOn()))
                 || !campaign.getChannels().contains("\"correo\""))) {
@@ -65,10 +73,22 @@ public class ContactDispatchTransactions {
         if(job.getKind()==Contact.Kind.invitation && !tope.tomar()) {
             job.state(ContactJob.State.QUEUED); return null;
         }
-        job.state(ContactJob.State.SENDING);
+        job.startAttempt();
         return new Dispatch(id,new AuthClient.PedidoDeCodigo(debtor.getRut(),List.of("correo"),debtor.getEmail(),
                 debt.getCreditor().getTradeName(),debt.getExternalId(),
                 job.getInstallment()==null?null:job.getInstallment().getDueDate()));
+    }
+    @Transactional
+    public boolean retryBeforeSend(Long id) {
+        ContactJob job=java.util.Objects.requireNonNull(lockJob(id));
+        if (job.getState() != ContactJob.State.SENDING) return false;
+        boolean scheduled = job.retryBeforeSend(Instant.now());
+        Debtor debtor = job.getDebt().getDebtor();
+        if (ContactOutbox.hash(debtor.getEmail()).equals(job.getDestinationHash())) {
+            debtor.correoNoSalio(scheduled ? "Servicio de acceso no disponible; reintento programado"
+                    : "Servicio de acceso no disponible; reintentos agotados", false, Instant.now());
+        }
+        return scheduled;
     }
     @Transactional
     public void accepted(Long id) { accepted(id, null); }

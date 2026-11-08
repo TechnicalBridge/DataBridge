@@ -7,8 +7,9 @@ import jakarta.persistence.LockModeType;
 public interface ContactJobRepository extends JpaRepository<ContactJob,Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ContactJob> findByJobKey(String key);
-    @Query("select j.id from ContactJob j where j.state = com.tbridge.debt.model.ContactJob.State.QUEUED order by j.updatedAt, j.id")
-    List<Long> queued(org.springframework.data.domain.Pageable page);
+    @Query("select j.id from ContactJob j where j.state = com.tbridge.debt.model.ContactJob.State.QUEUED "
+            + "and j.nextAttemptAt <= :now order by j.updatedAt, j.id")
+    List<Long> queued(@Param("now") java.time.Instant now, org.springframework.data.domain.Pageable page);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select j from ContactJob j where j.id = :id")
     Optional<ContactJob> locked(@Param("id") Long id);

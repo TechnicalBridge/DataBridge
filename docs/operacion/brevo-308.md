@@ -63,7 +63,7 @@ identifica cuota, toque/campana o invitacion/deuda/lote; reingresar una deuda en
 lote nuevo permite una invitacion nueva, sujeta al limite vigente. Una reserva activa
 impide que otras deudas del mismo deudor generen contactos simultaneos.
 El worker vuelve a comprobar estado, suspension, destino, opt-out de recordatorios,
-campana, horario, limite e invitaciones. Difiere si no hay ventana, con margen de 30 s
+campana, su asignacion actual a la deuda, horario, limite e invitaciones. Difiere si no hay ventana, con margen de 30 s
 al cierre. No mantiene transaccion mientras espera ms-auth ni Brevo.
 Se preservan las consultas y restricciones unicas de contactos/cuotas existentes.
 
@@ -75,6 +75,23 @@ Se preservan las consultas y restricciones unicas de contactos/cuotas existentes
 | FAILED | Rechazo conocido; no crea contacto; el operador corrige la causa |
 | UNCERTAIN | Transporte ambiguo o SENDING de mas de 120 s; requiere conciliacion |
 | CANCELLED | La intencion dejo de ser elegible |
+
+Los fallos al establecer conexion con ms-auth (conexion rechazada, DNS o ruta no disponible)
+se distinguen mediante una excepcion interna sin PII. Como no se envio la solicitud, el mismo
+trabajo vuelve a QUEUED con `next_attempt_at` persistido: espera 30 s tras el primer intento
+y 60 s tras el segundo. El limite es tres intentos de despacho en total. Al agotarlo pasa a
+FAILED, conserva el diagnostico y libera la reserva del deudor; no se convierte en UNCERTAIN.
+El poll y la reclamacion bloqueada respetan la fecha, sin sleeps ni HTTP en transacciones.
+La espera por horario/tope no consume intentos. Un timeout de lectura, reset de conexion o
+respuesta cuyo resultado no pueda garantizarse NO se reintenta por esta via: queda UNCERTAIN.
+Un error HTTP generico tampoco se presume previo al envio. Se preserva la politica de Brevo
+para respuestas de proveedor: estos reintentos nuevos solo cubren establecer conexion con ms-auth.
+
+La migracion debt V15 agrega el contador y la proxima fecha, conservando los trabajos existentes.
+No libera UNCERTAIN anteriores: sin el diagnostico original no se puede demostrar que no
+hubo envio. Esos casos siguen requiriendo conciliacion antes de cualquier reencolado.
+Un toque se cancela si la deuda paso a otra campana (o perdio la asignacion) mientras estaba en cola;
+no se envia ni se registra un contacto de la campana anterior.
 
 Una caida conserva QUEUED. SENDING abandonado pasa a UNCERTAIN; no se reenvia a ciegas.
 Si el commit de confirmacion falla despues del HTTP se aplica la misma politica.
@@ -156,7 +173,8 @@ SELECT state, COUNT(*) FROM contact_jobs GROUP BY state;
 SELECT id, kind, state, created_at, updated_at
 FROM contact_jobs WHERE state IN ('FAILED', 'UNCERTAIN') ORDER BY updated_at;
 -- Solo despues de corregir un fallo conocido y verificar que NO fue aceptado:
-UPDATE contact_jobs SET state='QUEUED', updated_at=CURRENT_TIMESTAMP(6)
+UPDATE contact_jobs SET state='QUEUED', dispatch_attempts=0,
+    next_attempt_at=CURRENT_TIMESTAMP(6), updated_at=CURRENT_TIMESTAMP(6)
 WHERE id=:job_id AND state='FAILED';
 ```
 

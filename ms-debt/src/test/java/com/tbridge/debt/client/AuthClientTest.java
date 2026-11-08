@@ -112,4 +112,23 @@ class AuthClientTest {
         assertEquals(300, fallo.motivo().length());
         assertTrue(fallo.motivo().endsWith("..."));
     }
+    @Test
+    void connection_refused_is_known_not_sent() throws IOException {
+        servidor = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        int port = servidor.getAddress().getPort();servidor.start();servidor.stop(0);servidor=null;
+        AuthClient client = new AuthClient("http://127.0.0.1:" + port, "fixture");
+        assertThrows(AuthNoContactado.class, () -> client.emitirCodigo(pedido()));
+    }
+
+    @Test
+    void classifies_only_connection_setup_failures_as_safe_to_retry() {
+        for (IOException cause : List.of(new java.net.ConnectException(), new java.net.UnknownHostException(),
+                new java.net.NoRouteToHostException())) {
+            assertTrue(AuthClient.falloAntesDeEnviar(new org.springframework.web.client.ResourceAccessException("fixture", cause)));
+        }
+        assertFalse(AuthClient.falloAntesDeEnviar(new java.net.SocketTimeoutException("Read timed out")));
+        assertFalse(AuthClient.falloAntesDeEnviar(new java.net.SocketException("Connection reset")));
+        assertFalse(AuthClient.falloAntesDeEnviar(new javax.net.ssl.SSLHandshakeException("fixture")));
+    }
+
 }
