@@ -323,10 +323,10 @@ los dos se eligen en el `.env`, sin editar el compose ni el código:
 
 | Camino | Cuándo | Qué hace falta |
 | --- | --- | --- |
-| **La API de Brevo** | El de producción: va por HTTPS, así que sale aunque el servidor bloquee el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
-| **Un servidor SMTP** | Para probar en un equipo, o con otro proveedor | Una cuenta de Gmail con contraseña de aplicación, u otro servidor |
+| **La API de Brevo** | Alternativa opcional por HTTPS | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
+| **Un servidor SMTP** | Producción con relay institucional o propio | Un relay SMTP estándar accesible desde ms-auth |
 
-Si están los dos, gana Brevo.
+Elegir `MAIL_TRANSPORT=smtp`, `brevo` o `mailpit`. Vacío: `SMTP_HOST` tiene prioridad sobre Brevo; sin ambos se usa Mailpit local si está anunciado. Un cambio desde una instalación con ambos configurados requiere `MAIL_TRANSPORT=brevo` para conservar Brevo. [Guía SMTP y entregabilidad](docs/operacion/smtp.md).
 
 <details>
 <summary><b>Con Brevo</b>, paso a paso</summary>
@@ -346,6 +346,7 @@ Si están los dos, gana Brevo.
 5. **En el `.env`:**
 
 ```
+MAIL_TRANSPORT=brevo
 BREVO_API_KEY=la clave de API de Brevo
 MAIL_FROM=tucuenta@gmail.com
 MAIL_FROM_NAME=DataBridge
@@ -1935,7 +1936,8 @@ no es secreto sí tiene un valor de desarrollo.
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, `SMTP_SSL` | vacía, `587`, vacías, `true`, `true`, `false` | El servidor de correo ([cómo](#para-mandar-correos-de-verdad)). Sin `SMTP_HOST`, en Docker los correos van al buzón de prueba y lo demás se ignora |
-| `BREVO_API_KEY` | vacía | Con ella, los correos salen por la API de Brevo y no por SMTP ([cómo](#para-mandar-correos-de-verdad)). Es la de producción |
+| `MAIL_TRANSPORT` | vacía | `smtp`, `brevo` o `mailpit`; vacío resuelve SMTP → Brevo → Mailpit local → sin correo |
+| `BREVO_API_KEY` | vacía | Solo necesaria para Brevo; SMTP funciona sin ella |
 | `BREVO_URL` | `https://api.brevo.com/v3/smtp/email` | La dirección de la API de Brevo. Solo se cambia para probar contra un servidor falso |
 | `SMTP_TIMEOUT_MS` | `10000` | Cuánto se espera al servidor de correo, o a Brevo, antes de darlo por caído |
 | `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `noreply@technicalbridge.local`, `DataBridge`, vacía | El remitente, el nombre que muestra el buzón a su lado, y a quién se le responde si no es al remitente. Con Gmail, el remitente tiene que ser la propia cuenta |

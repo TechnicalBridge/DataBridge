@@ -94,4 +94,24 @@ class BuzonDePruebaTest {
         assertEquals("", entorno.getProperty("spring.mail.username"));
         assertEquals("", entorno.getProperty("spring.mail.password"));
     }
-}
+    @Test
+    void mailpit_explicito_ignora_smtp_y_brevo_y_no_exige_starttls() {
+        StandardEnvironment env = entorno(Map.of("app.mail.transport", "mailpit",
+                "spring.mail.host", "smtp.example.test", "app.mail.brevo.api-key", "fixture-only",
+                "spring.mail.properties.mail.smtp.starttls.required", "true",
+                "app.mail.buzon-de-prueba", "mailpit:1025"));
+        assertEquals("mailpit", env.getProperty("spring.mail.host"));
+        assertEquals("false", env.getProperty("spring.mail.properties.mail.smtp.starttls.required"));
+        assertEquals("mailpit", env.getProperty("app.mail.transport"));
+    }
+
+    @Test
+    void modos_explicitos_no_recurren_al_buzon_por_falta_de_configuracion() {
+        for (String modo : new String[]{"smtp", "brevo"}) {
+            StandardEnvironment env = entorno(Map.of("app.mail.transport", modo,
+                    "app.mail.buzon-de-prueba", "mailpit:1025"));
+            assertEquals("", env.getProperty("spring.mail.host"));
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> entorno(Map.of("app.mail.transport", "mailpit")));
+    }}
