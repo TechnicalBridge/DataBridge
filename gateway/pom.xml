@@ -25,6 +25,15 @@
     <spring-cloud.version>2025.0.3</spring-cloud.version>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.9.1</springdoc.version>
+    <gatling.version>3.16.0</gatling.version>
+    <gatling-maven-plugin.version>4.21.12</gatling-maven-plugin.version>
+    <!--
+      Gatling 3.16 usa Netty 4.2; el BOM de Spring Boot 3.5 fija 4.1 y Gatling
+      no arranca con esa version (falta io.netty.channel.IoOps). En el gateway
+      Netty tambien es el servidor: se sube la version para que la prueba y el
+      runtime usen el mismo Netty.
+    -->
+    <netty.version>4.2.18.Final</netty.version>
   </properties>
 
   <dependencyManagement>
@@ -64,6 +73,12 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>io.gatling.highcharts</groupId>
+      <artifactId>gatling-charts-highcharts</artifactId>
+      <version>${gatling.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -71,6 +86,11 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>io.gatling</groupId>
+        <artifactId>gatling-maven-plugin</artifactId>
+        <version>${gatling-maven-plugin.version}</version>
       </plugin>
     </plugins>
   </build>

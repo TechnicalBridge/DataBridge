@@ -14,7 +14,10 @@ __pycache__/
 .venv/
 venv/
 
-# Notas locales de cada uno: no se versionan.
+# Eclipse / VS Code Java artifacts
+.classpath
+.project
+.settings/
 api_transbank.md
 Conexion_MS.md
 /todo*.md

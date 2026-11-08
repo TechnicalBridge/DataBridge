@@ -159,7 +159,7 @@ servicio externo es obligatorio: sin sus llaves, cada uno se simula o se reempla
 | **Contenedores** | Docker · Docker Compose: once contenedores, una orden |
 | **Servidor web** | nginx sin privilegios: sirve el portal compilado y hace de proxy al gateway |
 | **Integración continua** | GitHub Actions · CodeQL · Dependabot: pruebas y análisis de seguridad en cada push |
-| **Pruebas** | JUnit 5 · Mockito · MockMvc · k6: unitarias, de la capa web y de rendimiento |
+| **Pruebas** | JUnit 5 · Mockito · MockMvc · Gatling · k6: unitarias, de la capa web y de rendimiento |
 | **Correo de prueba** | Mailpit: recibe los correos sin mandárselos a nadie |
 
 ---
@@ -1769,7 +1769,7 @@ correo queda fechado a esa hora.
 
 | Requisito | Cómo se cumple | Dónde está |
 | --- | --- | --- |
-| **Medido** | Con 100 personas a la vez, **cero errores** en unas 32.000 peticiones y un p95 de 7 a 12 ms según el día. En estrés, holgado hasta 1.000 peticiones por segundo; **toca techo en unas 1.800**, donde se pone lento pero no falla. Mediciones del 23 y 24 de septiembre, con máquina y detalle en [`docs/rendimiento`](docs/rendimiento/README.md) | `rendimiento/` |
+| **Medido** | Con 100 personas a la vez, **cero errores** en unas 32.000 peticiones y un p95 de 7 a 12 ms según el día. En estrés, holgado hasta 1.000 peticiones por segundo; **toca techo en unas 1.800**, donde se pone lento pero no falla. Mediciones del 23 y 24 de septiembre, con máquina y detalle en [`docs/rendimiento`](docs/rendimiento/README.md) | `performance-tests/` |
 | **Límite de peticiones** | Dos capas: el gateway deja 10 por minuto en `/api/auth/**` y 120 globales por IP, y `ms-auth` bloquea diez minutos al origen que falla diez códigos | `gateway/RateLimitFilter`, `AuthService` |
 | **Consultas** | Índices para los caminos que se usan: `ix_debt_creditor_status` (la cartera de un acreedor), `ix_debt_debtor` (lo que debe una persona). `uq_payment_gateway` evita cobrar dos veces la misma transacción y además es el índice con que se busca el retorno de Webpay y el aviso de Khipu | `V1__esquema_inicial.sql` |
 | **Memoria** | La JVM lee el límite del contenedor (`MaxRAMPercentage=75`), y cada servicio tiene su tope declarado | `*/Dockerfile` |
@@ -2048,9 +2048,19 @@ Esta documentación acompaña #228; no cierra automáticamente el alcance de #22
 ## 11. Pruebas
 
 ```powershell
-.\mvnw.cmd -f ms-debt\pom.xml clean test                        # un servicio (lo mismo con gateway, ms-auth, ms-payments o ms-ai)
-foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd -q -f "$s\pom.xml" clean test }   # los cinco
+docker compose --profile app up -d --wait
+.\mvnw.cmd test -Dtest="PerformTest*" -DbaseUrl=http://localhost:8080
 ```
+En Docker todo el tráfico entra por el portal en `http://localhost:8080`. JWT opcional: `POST /api/auth/codigo` (rut demo) → código en http://localhost:8025 → `POST /api/auth/acceso` → `$sesion.token` (15 min). Para correr un módulo individual: `.\mvnw.cmd -f ms-debt\pom.xml test -Dtest=PerformTestMsDebt -DbaseUrl=http://localhost:8080` (o `Gateway`, `MsAI`, `MsAuth`, `MsPayments`). Sin servicio vivo se omiten los 10 `@Test` de rendimiento automáticamente.
+
+Gatling (`.../troughput/`, Java DSL; solo lectura, sin LLM real): `Load` 50→500, `Stress` hasta techo, `Spike` base→pico→recuperación, `Soak` constante larga. Config por env/`-D`: `baseUrl` (http://localhost:8080), `token`, `tasa`, `rampa`, `duracion`, `usuariosMax`, `pico`, `baseSeg`, `soakSeg`. Guía completa de comandos y ejecución en otro equipo en [`docs/rendimiento/README.md`](docs/rendimiento/README.md).
+```powershell
+.\mvnw.cmd -f ms-debt\pom.xml gatling:test "-Dgatling.simulationClass=com.tbridge.debt.troughput.LoadSimulationMsDebt" -DbaseUrl=http://localhost:8080
+# idem: StressSimulationMsDebt, SpikeSimulationMsDebt, SoakSimulationMsDebt
+# idem: Load/Stress/Spike/Soak Simulation de Gateway, MsAI, MsPayments, MsAuth
+# carga chica de verificación rápida: -Drampa=2 -Dduracion=3 -DusuariosMax=10
+```
+Reportes: `<servicio>/target/gatling/<simulacion-fecha>/index.html` (p50/p95/p99, RPS, fallos).
 
 En GitHub cada módulo tiene su propio workflow (`gateway`, `ms-auth`, `ms-debt`, `ms-payments`,
 `frontend`, `ms-ai`), que prueba solo si cambió su carpeta y deja en el resumen cuántas pruebas
@@ -2063,20 +2073,23 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
+código. **Ninguna unitaria necesita base de datos ni internet**, así que corren en segundos en cualquier
 equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
+Las excepciones son los 10 `@Test` de rendimiento (`PerformTest*`), que apuntan a un servicio vivo y se
+**omiten automáticamente** si ese servicio no responde.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1324 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, para #228, y gateway, ms-ai y ms-debt de nuevo con #234):
+**1348 pruebas** en Java sin fallos (con JDK 25; suites con los `PerformTest*` de rendimiento incluidos,
+que se omiten cuando no hay servicio vivo):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 20 |
-| `ms-auth` | 315 |
+| `gateway` | 25 |
+| `ms-auth` | 319 |
 | `ms-debt` | 532 |
-| `ms-payments` | 281 |
+| `ms-payments` | 296 |
 | `ms-ai` | 176 |
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
@@ -2148,7 +2161,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](docs/eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
-| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](docs/rendimiento/README.md)) |
+| **De rendimiento** (k6 + Gatling + JUnit) | k6: un escenario por servicio (`gateway`, `ms-auth`, `ms-debt`, `ms-payments`, `ms-ai`, `portal`) con capacidad, techo y frenos de acceso (`payment-load.js`, solo con pasarelas simuladas). Gatling (`PerformTest*` en `.../troughput/`): simulaciones de carga sostenida por servicio. JUnit (`PerformTest*`, 2 `@Test` por servicio = 10): latencia p50/p95 y throughput contra el servicio vivo + sobrecarga por niveles de concurrencia (se omiten si el servicio no está levantado). El chat de ms-ai usa el fallback local; **nunca llama a Groq/Gemini/xAI reales**. [`docs/rendimiento`](docs/rendimiento/README.md) |
 
 </details>
 
@@ -2226,7 +2239,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1324 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1348 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2247,7 +2260,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1324**, sin fallos ([§11](#11-pruebas)); gateway, ms-ai y ms-debt se repitieron con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1348** (gateway 25, ms-auth 319, ms-debt 532, ms-payments 296, ms-ai 176), sin fallos; con los `PerformTest*` de rendimiento incluidos (2 `@Test` por servicio, 10 en total, que se omiten si no hay servicio vivo). Rendimiento con servicio vivo y JWT de deudor: ver [§11](#11-pruebas). Las ejecuciones anteriores quedan en el historial del informe; en Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
@@ -2261,7 +2274,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Mercado Pago | Contra el Mercado Pago real con credenciales de prueba, con ms-payments reconstruido y en Edge: la preferencia se crea con vencimiento a 30 minutos; el deudor paga con la tarjeta de prueba y no vuelve al portal, y la consulta periódica registra el pago en unos 10 s: queda `paid` y la deuda del contrato en Patrimonio baja a $0 |
 | Doble pago | Contra las pasarelas reales, con la migración `V2` aplicada sobre la base con datos: mientras Khipu verifica, otro pago por la misma cuota se rechaza (*Tienes un pago en verificación*); recién pagada la cuota, antes de que ms-debt la abone, también; un cobro de Khipu abierto sin pagar queda `deleted` en Khipu y vencido aquí al abrir otro, y la preferencia de Mercado Pago vence en el acto. Pagados a la vez un cobro de Webpay y uno de Khipu por la misma cuota, el primero se abona y el segundo queda `duplicated`: la deuda baja una sola vez, el deudor ve *Estas cuotas ya estaban pagadas* y la empresa lo ve en *Pagos para devolver* con la referencia de Khipu |
 | Webpay según Transbank ([#75](https://github.com/TechnicalBridge/TB_web/issues/75)) | En Edge contra el ambiente de integración, con ms-payments y el portal reconstruidos: 11 de 11 comprobaciones. La página abierta dos veces dice *Webpay ya se abrió* en vez del Error 21, y la primera ventana paga igual; una vuelta por tiempo con una sesión inventada responde 400 y no toca el cobro; *Abrirla de nuevo* abre un cobro nuevo y vence el anterior; **pagado y sin volver al portal, ms-payments lo confirmó solo en 7 segundos**, y la Mastercard de prueba queda rechazada. El cobro que había quedado abierto por el Error 21 se venció solo, después de consultarlo |
-| Carga de pagos (`rendimiento/pagos.js`) | Con las pasarelas simuladas, hasta 100 deudores abriendo cobros a la vez: 5.817 peticiones sin una falla, abrir un cobro en 30 ms y consultarlo en 7 ms (p95) |
+| Carga de pagos (`performance-tests/k6/ms-payments/payment-load.js`) | Con las pasarelas simuladas, hasta 100 deudores abriendo cobros a la vez: 5.817 peticiones sin una falla, abrir un cobro en 30 ms y consultarlo en 7 ms (p95) |
 | Reclamo en pantalla | Recorrido en Edge: el deudor reclama, la empresa lo ve con su detalle y lo retira, y el acreedor ve *Disputa aceptada* |
 | Interés por mora | Con los tres sistemas reconstruidos y Khipu real: un contrato de Patrimonio al 2% mensual, con tres arriendos de $300.000 atrasados 62, 31 y 1 día, llegó por APOFYX con su tasa. El portal mostró $18.800 de mora, se pagaron $918.800 con Khipu, y Patrimonio dejó los cargos en $0 y anotó $18.800 de intereses |
 | Convenio con interés | Otro contrato, al 1,5%, repactó $914.100 (capital más mora) en 6 cuotas de $160.448, la última de $160.445: $962.685 en total, $48.585 de intereses del convenio |
