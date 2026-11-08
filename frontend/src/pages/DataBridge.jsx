@@ -62,7 +62,7 @@ export default function DataBridge() {
     setAvisos((a) => ({ ...a, [deuda.id]: { enviando: true } }));
     try {
       const r = await pedirCodigo(deuda.id);
-      setAvisos((a) => ({ ...a, [deuda.id]: { ok: `Enviado a ${r.destino}` } }));
+      setAvisos((a) => ({ ...a, [deuda.id]: { ok: r.estado === "QUEUED" ? `Solicitud aceptada para ${r.destino}` : `Enviado a ${r.destino}` } }));
     } catch (err) {
       setAvisos((a) => ({ ...a, [deuda.id]: { error: err.message } }));
     }

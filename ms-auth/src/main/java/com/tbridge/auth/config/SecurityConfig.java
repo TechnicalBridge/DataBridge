@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         //  Donde se consigue la sesion: no puede exigirla.
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/brevo").permitAll()
                         //  El gateway no expone /internal: lo protege la clave interna.
                         .requestMatchers("/internal/**").permitAll()
                         //  El panel de administracion es solo del admin de DataBridge.

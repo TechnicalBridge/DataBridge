@@ -72,6 +72,11 @@ public class CorreoPorBrevo implements JavaMailSender {
     /** Los correos se arman en memoria: esta sesion no se conecta a nada. */
     private static final Session SESION = Session.getInstance(new Properties());
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CorreoPorBrevo.class);
+    @FunctionalInterface interface Sleeper { void sleep(long millis) throws InterruptedException; }
+    private final Sleeper sleeper;
+    private final java.util.function.LongUnaryOperator jitter;
+    private final java.util.function.BiConsumer<String, java.time.Instant> accepted;
     private final HttpClient http;
     private final URI url;
     private final String clave;
@@ -79,6 +84,16 @@ public class CorreoPorBrevo implements JavaMailSender {
     private final ObjectMapper json;
 
     public CorreoPorBrevo(String url, String clave, Duration espera, ObjectMapper json) {
+        this(url, clave, espera, json, Thread::sleep,
+                upper -> java.util.concurrent.ThreadLocalRandom.current().nextLong(upper + 1), (id, at) -> {});
+    }
+
+    CorreoPorBrevo(String url, String clave, Duration espera, ObjectMapper json, Sleeper sleeper,
+                   java.util.function.LongUnaryOperator jitter,
+                   java.util.function.BiConsumer<String, java.time.Instant> accepted) {
+        this.sleeper = sleeper;
+        this.jitter = jitter;
+        this.accepted = accepted;
         this.http = HttpClient.newBuilder().connectTimeout(espera).build();
         this.url = URI.create(url);
         this.clave = clave;
@@ -116,39 +131,86 @@ public class CorreoPorBrevo implements JavaMailSender {
                 para.add(destinatario(destinatario));
             }
             enviar(cuerpo(remitente(mensaje.getFrom()), para, mensaje.getSubject(), mensaje.getText(), null,
-                    mensaje.getReplyTo()));
+                    mensaje.getReplyTo(), "manual"));
         }
     }
 
     private void enviar(String cuerpo) {
-        HttpRequest pedido = HttpRequest.newBuilder(url)
-                .timeout(espera)
-                .header("api-key", clave)
-                .header("accept", "application/json")
-                .header("content-type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(cuerpo, StandardCharsets.UTF_8))
-                .build();
-        HttpResponse<String> respuesta;
-        try {
-            respuesta = http.send(pedido, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new MailSendException("Brevo no respondio: "
-                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), e);
-        } catch (InterruptedException e) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) throw new MailSendException("Brevo: presupuesto de reintentos agotado");
+            HttpRequest pedido = HttpRequest.newBuilder(url)
+                    .timeout(Duration.ofNanos(Math.min(espera.toNanos(), remaining)))
+                    .header("api-key", clave).header("accept", "application/json")
+                    .header("content-type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(cuerpo, StandardCharsets.UTF_8)).build();
+            long started = System.nanoTime();
+            HttpResponse<String> respuesta;
+            try {
+                respuesta = http.send(pedido, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                log.info("provider=brevo attempt={} outcome=transport_error duration_ms={}", attempt,
+                        Duration.ofNanos(System.nanoTime() - started).toMillis());
+                if (attempt == 3) throw new MailSendException("Brevo no respondio: fallo de transporte");
+                pause(attempt, 0, deadline);
+                continue;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new MailSendException("Se interrumpio el envio a Brevo");
+            }
+            int estado = respuesta.statusCode();
+            log.info("provider=brevo attempt={} status={} outcome={} duration_ms={}", attempt, estado,
+                    estado / 100 == 2 ? "accepted" : "rejected",
+                    Duration.ofNanos(System.nanoTime() - started).toMillis());
+            if (estado / 100 == 2) {
+                try {
+                    JsonNode body = json.readTree(respuesta.body());
+                    if (body != null && body.hasNonNull("messageId"))
+                        accepted.accept(body.get("messageId").asText(), java.time.Instant.now());
+                } catch (Exception telemetryFailure) {
+                    // Ya fue aceptado: un fallo de telemetria nunca dispara otro envio.
+                    log.warn("provider=brevo outcome=acceptance_telemetry_failed");
+                }
+                return;
+            }
+            if (attempt < 3 && (estado == 429 || estado == 500 || estado == 502 || estado == 503 || estado == 504)) {
+                pause(attempt, retryAfter(respuesta), deadline);
+                continue;
+            }
+            String[] error = error(respuesta.body());
+            String detail = UNA_IP.matcher(error[1]).replaceAll("<IP>").replace(clave, "***")
+                    .replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", "<EMAIL>");
+            String text = "Brevo respondio " + estado + (error[0] == null ? "" : " (" + error[0] + ")") + ": " + detail;
+            if (estado == 400 && "invalid_parameter".equals(error[0]) && DEL_DESTINATARIO.matcher(error[1]).find())
+                throw new MailParseException(text);
+            throw new MailSendException(text);
+        }
+    }
+
+    private long retryAfter(HttpResponse<?> response) {
+        String value = response.headers().firstValue("Retry-After").orElse(null);
+        if (value == null) return 0;
+        try { return Math.multiplyExact(Math.max(0, Long.parseLong(value)), 1000); }
+        catch (NumberFormatException | ArithmeticException ignored) {
+            try {
+                return Math.max(0, java.time.Duration.between(java.time.Instant.now(),
+                        java.time.ZonedDateTime.parse(value, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+                                .toInstant()).toMillis());
+            } catch (RuntimeException invalid) { return 0; }
+        }
+    }
+
+    private void pause(int attempt, long retryAfter, long deadline) {
+        long backoff = 250L << (attempt - 1);
+        long delay = Math.max(retryAfter, backoff + jitter.applyAsLong(backoff));
+        if (delay >= Duration.ofNanos(Math.max(0, deadline - System.nanoTime())).toMillis())
+            throw new MailSendException("Brevo: Retry-After excede el presupuesto; reprogramar mas tarde");
+        try { sleeper.sleep(delay); }
+        catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new MailSendException("Se interrumpio el envio a Brevo", e);
+            throw new MailSendException("Se interrumpio el reintento a Brevo");
         }
-        int estado = respuesta.statusCode();
-        if (estado / 100 == 2) {
-            return;
-        }
-        String[] error = error(respuesta.body());
-        String texto = "Brevo respondio " + estado + (error[0] == null ? "" : " (" + error[0] + ")") + ": "
-                + UNA_IP.matcher(error[1]).replaceAll("<IP>");
-        if (estado == 400 && "invalid_parameter".equals(error[0]) && DEL_DESTINATARIO.matcher(error[1]).find()) {
-            throw new MailParseException(texto);
-        }
-        throw new MailSendException(texto);
     }
 
     /** El JSON de un correo armado: lo que no son direcciones esta en sus partes. */
@@ -166,7 +228,7 @@ public class CorreoPorBrevo implements JavaMailSender {
         try {
             String[] versiones = new String[2];
             versiones(mensaje, versiones);
-            return cuerpo(de, para, mensaje.getSubject(), versiones[0], versiones[1], responderA(mensaje));
+            return cuerpo(de, para, mensaje.getSubject(), versiones[0], versiones[1], responderA(mensaje), mensaje.getHeader("X-DataBridge-Notification", null));
         } catch (MessagingException | IOException e) {
             //  Sin la causa, como el remitente: el correo lo arma DataBridge.
             throw new MailSendException("No se pudo leer el correo para Brevo: " + e.getMessage());
@@ -175,7 +237,7 @@ public class CorreoPorBrevo implements JavaMailSender {
 
     /** El JSON que pide Brevo: el remitente con su nombre, los destinatarios, el asunto y el cuerpo. */
     private String cuerpo(InternetAddress de, List<String> para, String asunto, String texto, String html,
-                          String responderA) {
+                          String responderA, String tipo) {
         Map<String, Object> cuerpo = new LinkedHashMap<>();
         cuerpo.put("sender", persona(de));
         List<Map<String, Object>> destinatarios = new ArrayList<>();
@@ -183,6 +245,14 @@ public class CorreoPorBrevo implements JavaMailSender {
             destinatarios.add(Map.of("email", destinatario));
         }
         cuerpo.put("to", destinatarios);
+        String category = switch (tipo == null ? "manual" : tipo) {
+            case "acceso", "enlace" -> "otp";
+            case "invitacion" -> "invitation";
+            case "recordatorio" -> "reminder";
+            case "codigo" -> "access_code";
+            default -> "manual";
+        };
+        cuerpo.put("tags", List.of(category));
         cuerpo.put("subject", asunto);
         if (texto != null) {
             cuerpo.put("textContent", texto);

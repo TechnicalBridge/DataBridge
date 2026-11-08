@@ -50,7 +50,11 @@ public class AuthClient {
 
     public AuthClient(@Value("${app.auth-url}") String authUrl,
                       @Value("${app.internal-key}") String internalKey) {
-        this.rest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).build();
+        org.springframework.http.client.SimpleClientHttpRequestFactory transport =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        transport.setConnectTimeout(java.time.Duration.ofSeconds(5));
+        transport.setReadTimeout(java.time.Duration.ofSeconds(20));
+        this.rest = RestClient.builder().requestFactory(transport).baseUrl(authUrl.replaceAll("/$", "")).build();
         this.internalKey = internalKey;
     }
 

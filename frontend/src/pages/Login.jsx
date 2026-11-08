@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../components/Logo";
 import TemaToggle from "../components/TemaToggle";
@@ -54,9 +54,27 @@ function ConCodigo({ esDeudor, esAdmin }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
   const [enviado, setEnviado] = useState(null);
+  const solicitando = useRef(false);
+  const cooldownKey = `databridge:access-cooldown:${esDeudor ? "debtor" : esAdmin ? "admin" : "staff"}`;
+  const [hasta, setHasta] = useState(() => {
+    try { return Math.min(Number(sessionStorage.getItem(cooldownKey)) || 0, Date.now() + 60000); }
+    catch { return 0; }
+  });
+  const [ahora, setAhora] = useState(Date.now());
+  const segundos = Math.max(0, Math.ceil((hasta - ahora) / 1000));
+  useEffect(() => {
+    if (!hasta) return;
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setAhora(current);
+      if (current >= hasta) clearInterval(timer);
+    }, 250);
+    return () => clearInterval(timer);
+  }, [hasta]);
 
   async function solicitar(respaldo) {
-    if (!entrada.current.reportValidity()) return;
+    if (solicitando.current || busy || Date.now() < hasta || !entrada.current.reportValidity()) return;
+    solicitando.current = true;
     setBusy(respaldo ? "respaldo" : "codigo");
     setError("");
     setEnviado(null);
@@ -65,9 +83,14 @@ function ConCodigo({ esDeudor, esAdmin }) {
       const respuesta = await pedir(esDeudor ? null : identificador, esDeudor ? identificador : null);
       setCodigo("");
       setEnviado(respuesta);
+      const next = Date.now() + 60000;
+      setAhora(Date.now());
+      setHasta(next);
+      try { sessionStorage.setItem(cooldownKey, String(next)); } catch { /* almacenamiento opcional */ }
     } catch (err) {
       setError(err.message);
     } finally {
+      solicitando.current = false;
       setBusy(null);
     }
   }
@@ -102,13 +125,14 @@ function ConCodigo({ esDeudor, esAdmin }) {
                placeholder={esDeudor ? "12.345.678-5" : esAdmin ? "nombre@databridge.cl" : "nombre@empresa.cl"}
                autoComplete="username" maxLength={esDeudor ? 20 : 254} required />
       </div>
-      <button type="button" className="btn btn-ghost btn-block" disabled={Boolean(busy)}
+      <button type="button" className="btn btn-ghost btn-block" disabled={Boolean(busy) || segundos > 0}
               onClick={() => solicitar(false)}>
-        {busy === "codigo" ? <><span className="girando" /> Enviando…</> : "Enviar código"}
+        {busy === "codigo" ? <><span className="girando" /> Enviando…</> : segundos > 0 ? `Reenviar código en ${segundos} s` : hasta ? "Reenviar código" : "Enviar código"}
       </button>
       {enviado ? (
         <div className="notice" role="status" style={{ marginTop: 16 }}>
           <p style={{ margin: 0 }}>{enviado.mensaje}</p>
+          <p className="hint">El correo puede tardar unos momentos en llegar. Revisa también tu carpeta de spam.</p>
           <p className="hint" style={{ marginBottom: 0 }}>Vence en {enviado.expiraEnMinutos} minutos y sirve una sola vez.</p>
         </div>
       ) : null}
@@ -122,7 +146,7 @@ function ConCodigo({ esDeudor, esAdmin }) {
         {busy === "entrar" ? <><span className="girando" /> Entrando…</> : "Entrar"}
       </button>
       <p className="hint centro">
-        <button type="button" className="link-btn" disabled={Boolean(busy)} onClick={() => solicitar(true)}>
+        <button type="button" className="link-btn" disabled={Boolean(busy) || segundos > 0} onClick={() => solicitar(true)}>
           {busy === "respaldo" ? "Enviando respaldo…" : "¿No te llegó?"}
         </button>
       </p>

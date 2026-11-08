@@ -1,14 +1,11 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.exception.ApiException;
-import com.tbridge.debt.client.AuthClient;
-import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Installment;
-import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.InstallmentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,23 +22,10 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
-/**
- * El correo que le recuerda al deudor una cuota por vencer.
- *
- * <p>Pasa una vez al dia y avisa las cuotas que vencen dentro de
- * {@code app.recordatorios.dias-antes} dias. El correo lo manda ms-auth, con un
- * codigo de acceso nuevo, y no lleva ni el monto ni un enlace: por la misma
- * razon que el primer aviso, un correo que llega a quien no es no debe decir
- * cuanto debe alguien ni a quien, ni llevarlo a ninguna parte.
- *
- * <p>Solo dentro del horario de la ley ({@link HorarioDeContacto}): un domingo
- * o un feriado no sale ninguno. No se pierde ninguno, porque la pasada del dia
- * siguiente en que se puede avisa las cuotas que vencen en sus proximos dias.
- *
- * <p>Cada cuota se avisa una sola vez: que ya se aviso es que existe su
- * contacto, y la base no deja que haya dos. Si ms-auth no responde, o el
- * correo no sale, no queda ninguno y el aviso sale en la pasada siguiente, al
- * otro dia. Si la culpa es del servidor de correo, la pasada se corta ahi.
+/** Selecciona cuotas por recordar sin esperar al proveedor.
+ * Cada intencion se persiste en el outbox; el trabajador vuelve a comprobar
+ * preferencias, estado de cuota, horario y limite antes del envio.
+ * Solo la aceptacion del proveedor crea Contact.recordatorio.
  */
 @Service
 public class RecordatorioService {
@@ -51,18 +35,16 @@ public class RecordatorioService {
     private static final List<Debt.Status> EN_COBRANZA = List.of(Debt.Status.open, Debt.Status.repacted);
 
     private final InstallmentRepository installments;
-    private final ContactRepository contactos;
-    private final AuthClient auth;
+    private final ContactOutbox outbox;
     private final LimiteDeContacto limite;
     private final HorarioDeContacto horario;
     private final int diasAntes;
 
-    public RecordatorioService(InstallmentRepository installments, ContactRepository contactos, AuthClient auth,
+    public RecordatorioService(InstallmentRepository installments, ContactOutbox outbox,
                                LimiteDeContacto limite, HorarioDeContacto horario,
                                @Value("${app.recordatorios.dias-antes:3}") int diasAntes) {
         this.installments = installments;
-        this.contactos = contactos;
-        this.auth = auth;
+        this.outbox = outbox;
         this.limite = limite;
         this.horario = horario;
         this.diasAntes = diasAntes;
@@ -78,7 +60,7 @@ public class RecordatorioService {
         }
         RecordatoriosResponse pasada = enviar(LocalDate.now(CHILE));
         if (pasada.enviados() + pasada.omitidos() > 0) {
-            log.info("Recordatorios de cuota: {} enviados, {} omitidos", pasada.enviados(), pasada.omitidos());
+            log.info("Recordatorios de cuota: {} encolados, {} omitidos", pasada.enviados(), pasada.omitidos());
         }
     }
 
@@ -106,28 +88,8 @@ public class RecordatorioService {
                 omitidos++;
                 continue;
             }
-            try {
-                auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
-                        deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId(),
-                        cuota.getDueDate()));
-            } catch (CorreoNoSalio noSalio) {
-                deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), Instant.now());
-                omitidos++;
-                if (!noSalio.deLaDireccion()) {
-                    log.warn("Recordatorios: la pasada se corta, el correo no sale: {}", noSalio.motivo());
-                    return new RecordatoriosResponse(enviados, omitidos);
-                }
-                fallaron.add(deudor);
-                continue;
-            } catch (ApiException e) {
-                log.warn("No se pudo recordar la cuota {} de {}: {}", cuota.getId(), deuda.getExternalId(),
-                        e.getMessage());
-                omitidos++;
-                continue;
-            }
-            contactos.save(Contact.recordatorio(cuota, AccesoService.enmascarar(deudor.getEmail())));
-            deudor.correoSalio();
-            enviados++;
+            if (outbox.enqueue(Contact.recordatorio(cuota, AccesoService.enmascarar(deudor.getEmail())))) enviados++;
+            else omitidos++;
         }
         return new RecordatoriosResponse(enviados, omitidos);
     }

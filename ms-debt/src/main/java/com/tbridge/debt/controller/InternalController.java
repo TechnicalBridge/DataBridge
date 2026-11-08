@@ -155,10 +155,9 @@ public class InternalController {
     @Operation(summary = "Mandar ahora los toques de las campanas",
             description = """
                     Sin esperar la pasada de cada 15 minutos. Con `ahora`, como si fuera ese momento en Chile: \
-                    sirve para la demo y las pruebas, porque una cadencia de 45 dias no se puede esperar. Los \
-                    toques quedan fechados a esa hora, y se respetan igual el horario, los feriados y el limite \
+                    sirve para la demo y las pruebas, porque una cadencia de 45 dias no se puede esperar. Las intenciones se seleccionan con esa hora, y se respetan igual el horario, los feriados y el limite \
                     de dos por semana.""")
-    @ApiResponse(responseCode = "200", description = "Cuantos salieron, cuantos quedaron para despues, y si era horario")
+    @ApiResponse(responseCode = "200", description = "Intenciones encoladas (estado QUEUED), omitidas y horario; no confirma entrega")
     public ContactosResponse contactar(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
             @Parameter(description = "El momento, hora de Chile, si no es ahora", example = "2026-10-08T10:00:00")
@@ -176,7 +175,7 @@ public class InternalController {
     @Operation(summary = "Mandar ahora los recordatorios de cuota",
             description = """
                     Sin esperar la pasada de las 9:00. Con `hoy`, como si fuera ese dia: sirve para la demo y las                     pruebas, porque una cuota que vence en tres dias no se puede esperar.""")
-    @ApiResponse(responseCode = "200", description = "Cuantos salieron y cuantos no")
+    @ApiResponse(responseCode = "200", description = "Intenciones encoladas (estado QUEUED) y omitidas; no confirma entrega")
     public RecordatoriosResponse recordar(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
             @Parameter(description = "El dia desde el que se cuenta, si no es hoy", example = "2026-10-17")

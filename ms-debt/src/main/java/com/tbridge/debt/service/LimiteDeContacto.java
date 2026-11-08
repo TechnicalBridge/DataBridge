@@ -46,6 +46,8 @@ public class LimiteDeContacto {
     private final ContactRepository contactos;
     /** Solo para probar ({@code CONTACTO_SIN_LIMITE}): se le escribe cuantas veces se pida. */
     private final boolean apagado;
+    @Autowired
+    private com.tbridge.debt.repository.ContactJobRepository jobs;
 
     public LimiteDeContacto(ContactRepository contactos) {
         this(contactos, false);
@@ -69,14 +71,25 @@ public class LimiteDeContacto {
 
     /** Si en este momento se le puede escribir al deudor. */
     public boolean permite(Debtor deudor, Instant ahora) {
+        if (jobs != null && jobs.pending(deudor.getId(), ContactOutbox.RESERVED) > 0) return false;
+        return permite(deudor, ahora, false);
+    }
+
+    public boolean permiteSinReserva(Debtor deudor, Instant ahora) {
+        return permite(deudor, ahora, true);
+    }
+
+    private boolean permite(Debtor deudor, Instant ahora, boolean locked) {
         if (apagado) {
             return true;
         }
         LocalDate hoy = LocalDate.ofInstant(ahora, CHILE);
         //  La semana son los ultimos siete dias, hoy incluido.
         Instant desde = hoy.minusDays(6).atStartOfDay(CHILE).toInstant();
-        List<LocalDate> dias = contactos.cuandoSeLeEscribio(deudor, desde)
-                .stream()
+        List<Instant> history = locked && org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                ? contactos.historiaParaLimite(deudor, desde).stream().map(com.tbridge.debt.model.Contact::getOccurredAt).toList()
+                : contactos.cuandoSeLeEscribio(deudor, desde);
+        List<LocalDate> dias = history.stream()
                 .map(cuando -> LocalDate.ofInstant(cuando, CHILE))
                 .filter(dia -> !dia.isAfter(hoy))
                 .toList();

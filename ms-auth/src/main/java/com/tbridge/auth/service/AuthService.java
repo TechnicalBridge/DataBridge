@@ -68,6 +68,17 @@ public class AuthService {
     private final String publicUrl;
     private final long codeTtlHours;
     private final long magicTtlMinutes;
+    @org.springframework.beans.factory.annotation.Autowired
+    private OtpIdentityLock identityLock;
+    @Value("${app.otp.resend-cooldown-seconds:60}")
+    private long resendCooldownSeconds = 60;
+    @Value("${app.otp.previous-code-grace-seconds:180}")
+    private long previousCodeGraceSeconds = 180;
+
+    private void lockIdentity(String identity) {
+        if (identityLock != null) identityLock.lock(identity);
+    }
+
 
     /**
      * Una sesion recien abierta o renovada.
@@ -161,6 +172,7 @@ public class AuthService {
 
         String rut = normalizarRut(rutCrudo);
         String codigo = normalizarCodigo(codigoCrudo);
+        lockIdentity(rut);
 
         MagicLink pedido = enlaces.findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(rut)
                 .orElse(null);
@@ -205,6 +217,7 @@ public class AuthService {
     @Transactional(noRollbackFor = ApiException.class)
     public Sesion entrarConCodigoDePersonal(String email, String codigo, String ip) {
         String direccion = correoValido(email);
+        lockIdentity(direccion);
         String ipHash = ip == null ? null : Hash.sha256(ip);
         frenarFuerzaBruta(ipHash);
         MagicLink pedido = enlaces
@@ -228,13 +241,20 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde, venció o ya se usó");
         }
         String identidad = rut == null ? pedido.getEmail() : rut;
-        if (!Hash.igualesEnTiempoConstante(pedido.getCodeHash(), huella(identidad, codigo))) {
+        List<MagicLink> hermanos = enlaces.pendientes(rut, pedido.getEmail());
+        MagicLink coincide = hermanos.stream().filter(MagicLink::vigente)
+                .filter(m -> Hash.igualesEnTiempoConstante(m.getCodeHash(), huella(identidad, codigo)))
+                .findFirst().orElse(null);
+        if (!Hash.igualesEnTiempoConstante(pedido.getCodeHash(), huella(identidad, codigo)) && coincide == null) {
+            for (MagicLink hermano : hermanos) {
+                if (hermano != pedido && hermano.vigente()) { hermano.fallo(); enlaces.save(hermano); }
+            }
             pedido.fallo();
             enlaces.save(pedido);
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
         }
-        return abrirSesionDePedido(pedido, AccessLog.Method.code, ipHash);
+        return abrirSesionDePedido(coincide == null ? pedido : coincide, AccessLog.Method.code, ipHash);
     }
 
     // ------------------------------------------------------------------
@@ -291,8 +311,23 @@ public class AuthService {
         if (destino == null) {
             anotar(rut, metodo, AccessLog.Outcome.refused, ipHash);
         } else {
-            if (rut == null) enlaces.anularPedidosDeCorreo(destino, Instant.now());
-            else enlaces.anularPedidosDeRut(rut, Instant.now());
+            lockIdentity(rut == null ? destino : rut);
+            Instant ahora = Instant.now();
+            List<MagicLink> anteriores = enlaces.pendientes(rut, destino);
+            MagicLink reciente = anteriores.isEmpty() ? null : anteriores.getFirst();
+            if (reciente != null && reciente.vigente()
+                    && reciente.getIssuedAt().plusSeconds(Math.max(60, resendCooldownSeconds)).isAfter(ahora)) {
+                anotar(rut, metodo, AccessLog.Outcome.sent, ipHash);
+                return new EnlaceResponse(true, conEnlace ? RESPUESTA_ENLACE : RESPUESTA_CODIGO, magicTtlMinutes);
+            }
+            // Solo el anterior sobrevive, hasta el menor de su TTL y la gracia.
+            for (MagicLink anterior : anteriores) {
+                if (anterior == reciente && anterior.vigente() && previousCodeGraceSeconds > 0) {
+                    Instant hasta = ahora.plusSeconds(Math.min(900, previousCodeGraceSeconds));
+                    if (anterior.getExpiresAt().isAfter(hasta)) anterior.setExpiresAt(hasta);
+                } else anterior.setConsumedAt(ahora);
+                enlaces.save(anterior);
+            }
             String token = UUID.randomUUID().toString();
             String codigo = generarCodigo();
             MagicLink enlace = new MagicLink();
@@ -321,7 +356,9 @@ public class AuthService {
     @Transactional(noRollbackFor = ApiException.class)
     public Sesion entrarConEnlace(String token, String ip) {
         String ipHash = ip == null ? null : Hash.sha256(ip);
-        MagicLink enlace = enlaces.findByTokenHash(Hash.sha256(token == null ? "" : token.trim()))
+        String tokenHash = Hash.sha256(token == null ? "" : token.trim());
+        enlaces.identidadDelToken(tokenHash).ifPresent(this::lockIdentity);
+        MagicLink enlace = enlaces.findByTokenHash(tokenHash)
                 .orElse(null);
         if (enlace == null || !enlace.isLinkEnabled() || !enlace.vigente()) {
             anotar(enlace == null ? null : enlace.getDebtorRut(),
@@ -337,6 +374,12 @@ public class AuthService {
             //  Una falla al comprobar la empresa no gasta un acceso correcto.
             pedido.setConsumedAt(Instant.now());
             enlaces.save(pedido);
+            if (pedido.getCodeHash() != null) {
+                for (MagicLink hermano : enlaces.pendientes(pedido.getDebtorRut(), pedido.getEmail())) {
+                    hermano.setConsumedAt(Instant.now());
+                    enlaces.save(hermano);
+                }
+            }
             anotar(pedido.getDebtorRut(), metodo, AccessLog.Outcome.granted, ipHash);
             return sesion;
         } catch (ApiException ex) {

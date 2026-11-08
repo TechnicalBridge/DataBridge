@@ -48,6 +48,11 @@ class AccesoSolicitadoTest {
                 correo, deudas, "http://localhost:8080", 24, 15);
         when(deudas.correoDelDeudor(RUT)).thenReturn(Optional.of("deudor@example.com"));
         when(deudas.empresa(any())).thenAnswer(i -> Optional.of(new DeudasClient.Empresa(i.getArgument(0), "Empresa", true)));
+        when(enlaces.pendientes(nullable(String.class), nullable(String.class))).thenAnswer(i ->
+                pedidos.reversed().stream().filter(p -> p.getConsumedAt() == null)
+                    .filter(p -> i.getArgument(0) != null ? Objects.equals(p.getDebtorRut(), i.getArgument(0))
+                        : p.getDebtorRut() == null && p.getEmail().equalsIgnoreCase(i.getArgument(1)))
+                    .toList());
         when(enlaces.save(any())).thenAnswer(invocacion -> {
             MagicLink pedido = invocacion.getArgument(0);
             if (!pedidos.contains(pedido)) pedidos.add(pedido);
@@ -208,12 +213,14 @@ class AccesoSolicitadoTest {
     }
 
     @Test
-    void pedir_otro_codigo_invalida_el_pedido_anterior() {
+    void reenviar_en_cooldown_conserva_el_pedido_y_no_duplica_correo() {
         auth.pedirEnlace(RUT, null, "127.0.0.1");
         MagicLink anterior = pedidos.getLast();
         auth.pedirCodigo(RUT, null, "127.0.0.1");
-        assertNotNull(anterior.getConsumedAt());
-        assertNotEquals(anterior.getCodeHash(), pedidos.getLast().getCodeHash());
+        assertNull(anterior.getConsumedAt());
+        assertSame(anterior, pedidos.getLast());
+        assertEquals(1, pedidos.size());
+        assertEquals(1, mensajes.size());
         assertEquals("DEBTOR", auth.entrarConCodigo(RUT, ultimo().codigo(), "127.0.0.1").user().role());
     }
 
@@ -314,4 +321,52 @@ class AccesoSolicitadoTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void grace_keeps_only_two_codes_and_consumes_both(boolean debtor) {
+        String email="persona@example.com";
+        if(!debtor){StaffUser staff=new StaffUser();staff.setEmail(email);staff.setRole(StaffUser.Role.admin);
+            when(personal.findByEmailIgnoreCase(email)).thenReturn(Optional.of(staff));}
+        auth.pedirCodigo(debtor?RUT:null,debtor?null:email,null);
+        String first=ultimo().codigo();MagicLink previous=pedidos.getLast();
+        previous.setIssuedAt(Instant.now().minusSeconds(61));
+        auth.pedirCodigo(debtor?RUT:null,debtor?null:email,null);
+        String second=ultimo().codigo();assertEquals(2,pedidos.size());
+        assertTrue(previous.vigente());assertTrue(previous.getExpiresAt().isBefore(Instant.now().plusSeconds(181)));
+        if(debtor)auth.entrarConCodigo(RUT,first,null);else auth.entrarConCodigoDePersonal(email,first,null);
+        assertTrue(pedidos.stream().allMatch(p->p.getConsumedAt()!=null));
+        assertThrows(ApiException.class,()->{if(debtor)auth.entrarConCodigo(RUT,second,null);
+            else auth.entrarConCodigoDePersonal(email,second,null);});
+    }
+    @Test void third_rotation_retires_oldest_and_failed_attempts_are_shared(){
+        auth.pedirCodigo(RUT,null,null);MagicLink first=pedidos.getLast();first.setIssuedAt(Instant.now().minusSeconds(122));
+        auth.pedirCodigo(RUT,null,null);MagicLink second=pedidos.getLast();second.setIssuedAt(Instant.now().minusSeconds(61));
+        auth.pedirCodigo(RUT,null,null);assertNotNull(first.getConsumedAt());
+        assertEquals(2,pedidos.stream().filter(MagicLink::vigente).count());
+        assertThrows(ApiException.class,()->auth.entrarConCodigo(RUT,"000000",null));
+        assertEquals((short)1,second.getAttempts().shortValue());assertEquals((short)1,pedidos.getLast().getAttempts().shortValue());
+    }
+    @Test void expired_or_consumed_request_does_not_suppress_new_code(){
+        auth.pedirCodigo(RUT,null,null);pedidos.getLast().setExpiresAt(Instant.now().minusSeconds(1));
+        auth.pedirCodigo(RUT,null,null);assertEquals(2,mensajes.size());
+        pedidos.getLast().setConsumedAt(Instant.now());auth.pedirCodigo(RUT,null,null);assertEquals(3,mensajes.size());
+    }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void concurrent_requests_use_database_mutex_even_for_first_request(boolean debtor) throws Exception {
+        var source=new org.h2.jdbcx.JdbcDataSource();source.setURL("jdbc:h2:mem:"+UUID.randomUUID()+";DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000");
+        var db=new org.springframework.jdbc.core.JdbcTemplate(source);db.execute("create table otp_identity_locks(id int primary key)");
+        for(int n=0;n<256;n++)db.update("insert into otp_identity_locks values(?)",n);
+        org.springframework.test.util.ReflectionTestUtils.setField(auth,"identityLock",new OtpIdentityLock(db));
+        if(!debtor){StaffUser staff=new StaffUser();staff.setEmail("persona@example.com");staff.setRole(StaffUser.Role.admin);
+            when(personal.findByEmailIgnoreCase(staff.getEmail())).thenReturn(Optional.of(staff));}
+        var tx=new org.springframework.transaction.support.TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(source));
+        var start=new java.util.concurrent.CountDownLatch(1);
+        try(var executor=java.util.concurrent.Executors.newFixedThreadPool(2)){
+            var futures=new ArrayList<java.util.concurrent.Future<?>>();
+            for(int n=0;n<2;n++)futures.add(executor.submit(()->{try{start.await();}catch(InterruptedException e){throw new RuntimeException(e);}
+                tx.executeWithoutResult(status->auth.pedirCodigo(debtor?RUT:null,debtor?null:"persona@example.com",null));}));
+            start.countDown();for(var future:futures)future.get(10,java.util.concurrent.TimeUnit.SECONDS);
+        }
+        assertEquals(1,pedidos.size());assertEquals(1,mensajes.size());assertTrue(pedidos.getFirst().vigente());
+    }
+
 }

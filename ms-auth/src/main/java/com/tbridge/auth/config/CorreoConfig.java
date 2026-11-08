@@ -29,8 +29,9 @@ public class CorreoConfig {
     JavaMailSender correoPorBrevo(@Value("${app.mail.brevo.url}") String url,
                               @Value("${app.mail.brevo.api-key}") String clave,
                               @Value("${app.mail.timeout-ms:10000}") long espera,
-                              ObjectMapper json) {
-        return new CorreoPorBrevo(url, clave.strip(), Duration.ofMillis(espera), json);
+                              ObjectMapper json, com.tbridge.auth.service.BrevoTelemetry telemetry) {
+        return new CorreoPorBrevo(url, clave.strip(), Duration.ofMillis(espera), json, Thread::sleep,
+                upper -> java.util.concurrent.ThreadLocalRandom.current().nextLong(upper + 1), telemetry::accepted);
     }
 
     /** Una clave vacia es lo mismo que no tenerla: es como queda el .env de quien no usa Brevo. */

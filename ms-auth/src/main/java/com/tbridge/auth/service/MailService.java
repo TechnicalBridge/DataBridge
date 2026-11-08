@@ -183,27 +183,7 @@ public class MailService {
      * demostracion termina escribiendole a alguien de verdad.
      */
     private void decirComoQuedo(String host, String buzonDePrueba) {
-        if (!conServidor) {
-            log.info("Correo: sin servidor. Los codigos y los enlaces quedan en el log");
-        } else if (porBrevo && modo.activo()) {
-            log.info("Correo: por la API de Brevo, remitente {}; {}", from, modo.descripcion());
-        } else if (porBrevo) {
-            log.warn("Correo: por la API de Brevo, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
-                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", from);
-        } else if (alBuzonDePrueba) {
-            log.info("Correo: al buzon de prueba ({}). Nada sale hacia afuera", servidor);
-        } else if (modo.activo()) {
-            log.info("Correo: servidor real {}, remitente {}; {}", servidor, from, modo.descripcion());
-        } else {
-            log.warn("Correo: servidor real {}, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
-                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", servidor, from);
-        }
-        if (conServidor && !alBuzonDePrueba) {
-            log.info("Correo: lo de un dominio reservado (example.com, .test...) va {}; el desvio, hasta {} por dia",
-                    buzonDeReservados != null ? "al buzon de prueba (" + direccionDelBuzon + ")"
-                            : modo.desvia() ? "al desvio" : "a ninguna parte",
-                    topeDeDesvio.maximo() == 0 ? "sin tope" : String.valueOf(topeDeDesvio.maximo()));
-        }
+        log.info("provider={} configured={} test_mode={}", porBrevo ? "brevo" : "smtp", conServidor, modo.activo());
     }
 
     /**
@@ -284,7 +264,7 @@ public class MailService {
         if (!conServidor) {
             //  Solo sin SMTP, que es desarrollo. Con SMTP el codigo NO va al
             //  log: quien leyera los logs podria entrar como cualquier deudor.
-            log.info("Sin SMTP: codigo de acceso para {}: {}", to, codigo);
+            log.info("provider=none outcome=not_sent");
         }
         enviarODecirlo(to, "Tu código de acceso", "codigo", datos(
                 "acreedor", acreedor == null ? "Una empresa" : acreedor,
@@ -304,7 +284,7 @@ public class MailService {
      */
     public void enviarRecordatorio(String to, String codigo, String acreedor, LocalDate vence) {
         if (!conServidor) {
-            log.info("Sin SMTP: recordatorio para {}, cuota del {}, codigo {}", to, vence, codigo);
+            log.info("provider=none outcome=not_sent");
         }
         enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", "recordatorio", datos(
                 "vence", vence.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", ES_CL)),
@@ -321,7 +301,7 @@ public class MailService {
     @Async
     public void enviarEnlace(String to, String url, long minutos) {
         if (!conServidor) {
-            log.info("Sin SMTP: enlace de acceso para {}: {}", to, url);
+            log.info("provider=none outcome=not_sent");
         }
         enviar(to, "Tu enlace para entrar a DataBridge", "enlace", datos(
                 "url", url,
@@ -356,7 +336,7 @@ public class MailService {
     @Async
     public void enviarInvitacion(String to, String nombre, String aQue, String url, long horas, String entrada) {
         if (!conServidor) {
-            log.info("Sin SMTP: invitacion para {}: {}", to, url);
+            log.info("provider=none outcome=not_sent");
         }
         String direccion = entrada.strip().replaceFirst("^https?://", "");
         enviar(to, "Tu acceso a DataBridge", "invitacion", datos(
@@ -470,7 +450,7 @@ public class MailService {
         try {
             entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
-            log.warn("No se pudo enviar SMTP a {}: {}", to, motivo(e));
+            log.warn("notification_type={} outcome=failed", plantilla);
         }
     }
 
@@ -487,7 +467,7 @@ public class MailService {
             entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
             String motivo = motivo(e);
-            log.warn("No se pudo enviar SMTP a {}: {}", to, motivo);
+            log.warn("notification_type={} outcome=failed", plantilla);
             throw new CorreoNoSalio(motivo, esDeLaDireccion(e));
         }
     }
@@ -505,31 +485,29 @@ public class MailService {
             //  Un dominio reservado no entrega correo: por el proveedor solo gastaria su cupo (#236).
             if (buzonDeReservados != null) {
                 buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
-                        escribir(plantilla, datos)));
-                log.info("Dominio reservado: el correo para {} va al buzon de prueba, no al proveedor", to);
+                        escribir(plantilla, datos), plantilla));
+                log.info("notification_type={} outcome=reserved_domain", plantilla);
                 return Optional.of(direccionDelBuzon);
             }
             destino = modo.desviar(to, asunto);
             if (destino.isEmpty()) {
-                log.info("Dominio reservado: el correo para {} no sale (no hay buzon de prueba ni CORREO_DESVIAR_A)", to);
+                log.info("notification_type={} outcome=reserved_domain", plantilla);
                 return Optional.empty();
             }
         } else {
             destino = modo.para(to, asunto);
             if (destino.isEmpty()) {
-                log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)",
-                        to);
+                log.info("notification_type={} outcome=test_mode", plantilla);
                 return Optional.empty();
             }
         }
         if (destino.get().desviado() && !topeDeDesvio.tomar()) {
-            log.warn("Modo de prueba: el correo para {} no sale, porque hoy ya se desviaron {} "
-                    + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
+            log.warn("notification_type={} outcome=diversion_limit", plantilla);
             return Optional.empty();
         }
-        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos)));
+        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos), plantilla));
         if (destino.get().desviado()) {
-            log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
+            log.info("notification_type={} outcome=test_mode", plantilla);
         }
         return Optional.of(destino.get().a());
     }
@@ -560,7 +538,7 @@ public class MailService {
      * la direccion del deudor. Un destinatario mal escrito, en cambio, si es de
      * la direccion.
      */
-    private MimeMessage armar(JavaMailSender servidor, ModoDePrueba.Destino destino, Carta carta) {
+    private MimeMessage armar(JavaMailSender servidor, ModoDePrueba.Destino destino, Carta carta, String tipo) {
         InternetAddress de;
         InternetAddress[] responder;
         try {
@@ -578,6 +556,7 @@ public class MailService {
         try {
             MimeMessage mensaje = servidor.createMimeMessage();
             mensaje.setFrom(de);
+            mensaje.setHeader("X-DataBridge-Notification", tipo);
             mensaje.setRecipient(Message.RecipientType.TO, para);
             if (responder != null) {
                 mensaje.setReplyTo(responder);

@@ -24,7 +24,11 @@ class RutasConfigTest {
 
     /** El servicio al que llega esa ruta, o vacio si el gateway no la deja pasar. */
     private Optional<String> destino(String ruta) {
-        MockServerWebExchange pedido = MockServerWebExchange.from(MockServerHttpRequest.get(ruta));
+        return destino(ruta, org.springframework.http.HttpMethod.GET);
+    }
+
+    private Optional<String> destino(String ruta, org.springframework.http.HttpMethod method) {
+        MockServerWebExchange pedido = MockServerWebExchange.from(MockServerHttpRequest.method(method, ruta));
         return rutas.getRoutes()
                 .filterWhen(r -> Mono.from(r.getPredicate().apply(pedido)))
                 .next()
@@ -62,4 +66,12 @@ class RutasConfigTest {
         assertEquals(Optional.empty(), destino("/internal/uf"));
         assertEquals(Optional.empty(), destino("/internal/claves"));
     }
+    @Test
+    void webhook_solo_expone_post_exacto_y_no_abre_rutas_internas() {
+        assertEquals(Optional.of("ms-auth.invalid"), destino("/api/webhooks/brevo", org.springframework.http.HttpMethod.POST));
+        assertEquals(Optional.empty(), destino("/api/webhooks/brevo"));
+        assertEquals(Optional.empty(), destino("/api/webhooks/brevo/otro", org.springframework.http.HttpMethod.POST));
+        assertEquals(Optional.empty(), destino("/internal/webhooks/brevo", org.springframework.http.HttpMethod.POST));
+    }
+
 }

@@ -13,6 +13,9 @@ import java.util.Optional;
 
 public interface MagicLinkRepository extends JpaRepository<MagicLink, Long> {
 
+    @Query("select coalesce(m.debtorRut, m.email) from MagicLink m where m.tokenHash = :hash")
+    Optional<String> identidadDelToken(@Param("hash") String hash);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<MagicLink> findByTokenHash(String tokenHash);
 
@@ -22,6 +25,13 @@ public interface MagicLinkRepository extends JpaRepository<MagicLink, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<MagicLink> findFirstByEmailIgnoreCaseAndDebtorRutIsNullAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(
             String correo);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from MagicLink m where m.codeHash is not null and "
+            + "((:rut is not null and m.debtorRut = :rut) or "
+            + "(:rut is null and m.debtorRut is null and lower(m.email) = lower(:email))) "
+            + "and m.consumedAt is null order by m.issuedAt desc, m.id desc")
+    java.util.List<MagicLink> pendientes(@Param("rut") String rut, @Param("email") String email);
 
     @Modifying
     @Query("update MagicLink m set m.consumedAt = :ahora where m.debtorRut = :rut "
