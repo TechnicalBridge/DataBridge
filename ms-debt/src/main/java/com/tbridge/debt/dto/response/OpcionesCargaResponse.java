@@ -23,11 +23,14 @@ public record OpcionesCargaResponse(
     public record AcreedorCarga(
             @Schema(example = "76418902-7") String rut,
             @Schema(example = "Patrimonio Inmuebles") String nombre,
-            List<CampanaCarga> campanas
+            List<CampanaCarga> campanas,
+            @Schema(description = "Suspendido en DataBridge: mientras lo esté no se le carga cartera (#296)",
+                    example = "false") boolean suspendido
     ) {
         public static AcreedorCarga de(Organization acreedor, List<Campaign> campanas) {
             return new AcreedorCarga(acreedor.getRut(), acreedor.getTradeName(),
-                    campanas.stream().map(c -> new CampanaCarga(c.getExternalId(), c.getName(), estado(c))).toList());
+                    campanas.stream().map(c -> new CampanaCarga(c.getExternalId(), c.getName(), estado(c))).toList(),
+                    acreedor.suspendida());
         }
 
         private static String estado(Campaign campana) {

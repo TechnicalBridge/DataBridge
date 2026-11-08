@@ -3,10 +3,12 @@ package com.tbridge.debt.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.CarteraResponse.ResultadoDeuda;
+import com.tbridge.debt.dto.response.OpcionesCargaResponse.AcreedorCarga;
 import com.tbridge.debt.dto.response.RevisionResponse;
 import com.tbridge.debt.exception.CarteraInvalida;
 import com.tbridge.debt.model.Batch;
 import com.tbridge.debt.model.Campaign;
+import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
 import com.tbridge.debt.repository.CampaignRepository;
 import com.tbridge.debt.repository.MandateRepository;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -98,6 +101,39 @@ class CargaServiceTest {
         assertEquals("CMP-1", cartera.getValue().at("/lote/campana_id_externo").asText());
         assertEquals("CARGA-X", cartera.getValue().at("/lote/id_externo").asText());
         assertEquals(2, cartera.getValue().at("/deudas/0/cargos").size());
+    }
+
+    @Test
+    void las_opciones_marcan_al_acreedor_suspendido_para_que_la_agencia_sepa_por_que() {
+        Organization apofyx = new Organization();
+        apofyx.setRut("77305118-6");
+        apofyx.setTradeName("APOFYX");
+        apofyx.setKind(Organization.Kind.agency);
+        JwtPrincipal agencia = new JwtPrincipal("2", "persona@apofyx.cl", "CREDITOR", "Persona", "77305118-6");
+        when(debts.organizacionDe(agencia)).thenReturn(apofyx);
+        patrimonio.setTradeName("Patrimonio Inmuebles");
+        patrimonio.setStatus(Organization.Status.suspended);
+        Organization andes = new Organization();
+        andes.setRut("77812341-K");
+        andes.setTradeName("Instituto Andes");
+        when(mandatos.findByAgencyAndStatus(apofyx, Mandate.Status.active))
+                .thenReturn(List.of(mandato(apofyx, patrimonio), mandato(apofyx, andes)));
+        when(campanas.findByAgencyAndCreditorOrderByStartsOnDesc(any(), any())).thenReturn(List.of());
+
+        List<AcreedorCarga> acreedores = servicio.opciones(agencia).acreedores();
+
+        assertEquals(List.of("Patrimonio Inmuebles", "Instituto Andes"),
+                acreedores.stream().map(AcreedorCarga::nombre).toList(), "sigue apareciendo, marcado");
+        assertTrue(acreedores.get(0).suspendido());
+        assertFalse(acreedores.get(1).suspendido());
+    }
+
+    private static Mandate mandato(Organization agencia, Organization acreedor) {
+        Mandate mandato = new Mandate();
+        mandato.setAgency(agencia);
+        mandato.setCreditor(acreedor);
+        mandato.setValidFrom(LocalDate.of(2026, 1, 1));
+        return mandato;
     }
 
     @Test
