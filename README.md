@@ -2116,6 +2116,48 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
 
+### Recursos privados por ID: auditoría #321 (8 de noviembre de 2026)
+
+Base: `dd2fc2e34b82f38ad6328cf6816f311a0f5be836`. Línea base local:
+ms-debt **538**, ms-payments **300**, sin fallos, errores ni omisiones.
+Regresión final con `clean test`: ms-debt **542**, ms-payments **301**, total **843**,
+sin fallos, errores ni omisiones. Los IDs consecutivos 40 (ajeno) y 41 (inexistente)
+se comparan por estado y mensaje exacto.
+
+| Ruta autenticada | Rol autorizado | Antes: inexistente / ajeno | Después | Cambio |
+| --- | --- | --- | --- | --- |
+| `GET /api/debts/{id}` | Deudor, empresa operadora | 404 / 403 | 403, `No puedes ver esta deuda` | Helper central |
+| `GET /api/debts/{id}/simulate` | Deudor, empresa operadora | 404 / 403 | Igual que detalle | Helper central |
+| `POST /api/debts/{id}/repact` | Deudor | 404 / 403 | Igual que detalle | Helper central |
+| `POST /api/debts/{id}/disputa` | Deudor | 404 / 403 | Igual que detalle | Helper central |
+| `POST /api/debts/{id}/disputa/resolucion` | Empresa operadora | 404 / 403 | Igual que detalle | Helper central |
+| `POST /api/debts/{id}/codigo` | Empresa operadora | 404 / 403 | Igual que detalle | Helper central |
+| `GET /api/debts/{id}/certificate` | Deudor, empresa operadora | 404 / 403 | Igual que detalle | Helper central |
+| `GET /api/debts/pagos/{id}/comprobante` | Deudor, empresa operadora | 404 / 403 | 403, `No puedes ver esta deuda` | Historial y helper |
+| `GET /api/payments/{id}` | Deudor, acreedor | 404 / 403 | 403, `No puedes ver este pago` | Búsqueda privada |
+| `POST /api/payments/{id}/cancelar` | Deudor | 404 / 403, texto diferente | 403, `No puedes ver este pago` | Conserva bloqueo de fila |
+| `GET /api/payments/{id}/historia` | Deudor, acreedor | 404 / 403 | 403, `No puedes ver este pago` | Búsqueda privada |
+| `POST /api/payments/{id}/devolucion` | Empresa operadora | 404 / 403, texto diferente | 403, `No puedes ver este pago` | Búsqueda privada |
+
+Las comprobaciones de rol y los estados financieros posteriores a autorizar se conservan.
+Las rutas de claves (`DELETE /api/claves/{id}`), mandatos (`renovar`, `terminar`) y campañas
+(`/{idExterno}/estado`) ya acotan el recurso a la empresa: ajeno e inexistente reciben el mismo 404.
+`/api/v1/**` usa claves de integración e IDs externos; no expone estas consultas privadas por ID.
+Admin, `/internal/**`, callbacks, webhooks y `/api/payments/public/**` conservan su contrato.
+
+**Hallazgo pendiente:** `POST /api/payments/checkout` recibe `debtId` e `installmentIds` en el
+cuerpo. Consulta `/internal/debts/{id}` antes de comprobar el propietario, por lo que puede
+propagar 404/400/409 frente al 403 de una deuda ajena. También distingue cuota inexistente
+(404) de cuota de otra deuda (400). Requiere autorizar la deuda antes de calcular o validar
+las cuotas; no se cambia el contrato interno ni se convierten conflictos financieros en 403.
+
+**SEG-DAT-007:** cubierto por `DebtServiceTest`, `DebtControllerTest`, `HistorialServiceTest`
+y `PaymentServiceTest`, con comparación de estado y mensaje; incluye detalle, simulación,
+comprobantes, cancelación, historia y devolución. El plan oficial no está localizado en el
+repositorio ni en la búsqueda de Drive: su actualización queda pendiente de ubicarlo.
+El portal conserva el texto de `body.error` mediante `frontend/src/api/client.js`; sin cambios
+frontend ni validación de navegador en esta ejecución.
+
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
 Gemini y xAI (quitado después, en #312) con servidores simulados. El portal compiló con `npm ci` y
@@ -2318,7 +2360,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 | Suspender una empresa ([#152](https://github.com/TechnicalBridge/DataBridge/issues/152)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama (`V12` aplicada), por el gateway 30 de 30, suspendiendo APOFYX: con su JWT vigente su persona recibe `403`, al renovar recibe `401` y toda la familia de la sesión queda revocada, pedir un código responde `202` como siempre pero no crea ninguno, y un enlace suyo ya no abre sesión; el deudor de una deuda que cobra APOFYX la ve `enPausa`, y pagarla o repactarla responde `409` sin crear ningún pago. Suspender o reactivar dos veces no anota dos veces. Reactivada, su persona entra, ve su cartera y renueva, y la deuda se puede pagar de nuevo. En Edge, a 1360 y 390 px y en los dos temas, 37 de 37: la confirmación dice lo que se congela, la ficha y la lista dicen *Suspendida* y el historial anota quién; al recargar, su persona queda fuera; el deudor ve *Por ahora no se puede pagar*, sin *Pagar* ni *Pagar en cuotas* pero con *No reconozco esta deuda*, y entrar directo a pagar o repactar muestra la pausa; al reactivarla vuelve *Pagar*. Sin errores de consola. Después de la revisión, 8 de 8 por el gateway: con Patrimonio suspendida, APOFYX (activa) ve su deuda en pausa y reenviarle el código al deudor responde `409` sin dejar ningún contacto; y en Edge, 10 de 10: la ficha suspendida lo dice con una nota y sin el formulario para dar acceso. APOFYX y Patrimonio quedaron activas |
 | Acreedor suspendido ([#296](https://github.com/TechnicalBridge/DataBridge/issues/296)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama, por el gateway, 17 de 17. APOFYX declara un mandato con un acreedor de prueba y le crea una campaña. Con el acreedor suspendido por el admin: las opciones de carga lo marcan, la revisión y la carga responden `409` (`acreedor_suspendido`) y no entra ninguna deuda; el mandato lo dice, no se renueva ni se declara otro, y sí se termina. Reactivado, la revisión vuelve a pasar y el mandato se renueva. En Edge, 37 de 37 (*Cargar cartera* y *Mandatos*, a 1360 y 390 px, en los dos temas, sin errores). Lo que creó la prueba se borró |
 | Mandatos sin la API ([#234](https://github.com/TechnicalBridge/DataBridge/issues/234)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama (`V13` aplicada), por el gateway 32 de 32: APOFYX ve su mandato con Patrimonio y las deudas que sigue cobrando; no puede declarar otro con Patrimonio (`409`) ni uno con un acreedor nuevo sin su razón social o con un término que ya pasó (`400`); antes del mandato no le puede cargar cartera ni crearle campañas, y después sí, con el acreedor registrado y el mandato a nombre de quien lo declaró; lo renueva y lo termina, y terminado ya no carga ni crea campañas, pero pausa la que tenía. Una empresa que cobra directo recibe `agencia: false` y no puede declarar, y un deudor recibe `403`. En Edge, a 1360 y 390 px y en los dos temas, 23 de 23: la sección *Mandatos* de *Campañas*, declarar (con la casilla de la declaración), renovar y terminar con su confirmación; la campaña nueva ofrece y deja de ofrecer al acreedor; Instituto Andes no ve nada de mandatos, y la ficha del panel muestra cada estado. Sin errores de consola. Lo que crearon las pruebas se borró después |
-| Cerrar la ventana de la pasarela ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama, por el gateway, 14 de 14: sin sesión `401`; otro deudor, la empresa y el admin `403` y el cobro sigue abierto; el deudor lo cancela y queda `expired` con el evento `portal` en el libro; cancelar dos veces no agrega nada; un pago que no existe `404`; y después se abre otro cobro. En Edge, 32 de 32, abriendo un cobro de verdad en Webpay (integración), Khipu y Mercado Pago, cerrando la ventana sin pagar y cancelándolo: el portal lo detecta, pregunta y queda libre para elegir de nuevo. Ningún cobro se pagó, y los de la prueba se borraron. Lo que no se probó en vivo, porque habría que pagar (ya pagado, en verificación) o tirar la pasarela (no responde), lo cubren las pruebas de ms-payments |
+| Cerrar la ventana de la pasarela ([#307](https://github.com/TechnicalBridge/DataBridge/issues/307)) | Con respaldo previo de las tres bases y Docker reconstruido entero desde la rama, por el gateway, 14 de 14: sin sesión `401`; otro deudor, la empresa y el admin `403` y el cobro sigue abierto; el deudor lo cancela y queda `expired` con el evento `portal` en el libro; cancelar dos veces no agrega nada; un pago que no existe `404` en esa ejecución histórica (desde #321 responde `403` neutro); y después se abre otro cobro. En Edge, 32 de 32, abriendo un cobro de verdad en Webpay (integración), Khipu y Mercado Pago, cerrando la ventana sin pagar y cancelándolo: el portal lo detecta, pregunta y queda libre para elegir de nuevo. Ningún cobro se pagó, y los de la prueba se borraron. Lo que no se probó en vivo, porque habría que pagar (ya pagado, en verificación) o tirar la pasarela (no responde), lo cubren las pruebas de ms-payments |
 | Reglas en el panel ([#140](https://github.com/TechnicalBridge/TB_web/issues/140)) | En Edge, a 1360 y 390 px y en los dos temas: las tres tarjetas con sus reglas, los feriados desplegables, ninguna clave a la vista y, con ms-payments detenido, su tarjeta dice *No responde* |
 | Carga en una campaña ([#190](https://github.com/TechnicalBridge/TB_web/issues/190)) | En vivo, con una planilla de 6 deudas: sin campaña, `400`; la revisión dijo que entrarían 4 por $2.800.000 y que 2 no (`bajo_umbral_mora` y `rut_invalido`), y la base quedó igual antes y después de revisar. Al confirmar entró exactamente eso, confirmar otra vez no cargó nada, y las 4 invitaciones llegaron. En Edge, 44 de 44 comprobaciones |
 | La entrega por API apagada ([#191](https://github.com/TechnicalBridge/TB_web/issues/191)) | Apagada, 10 de 10: `/api/v1` y `/api/claves` responden `404`, Swagger muestra el contrato vacío y la carga por campaña sigue. Encendida, 9 de 9: la empresa emite una clave, entra con ella, la revoca y ya no entra. En Edge, 40 de 40: el portal no ofrece claves ni habla de la API |

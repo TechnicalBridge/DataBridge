@@ -339,21 +339,30 @@ public class DebtService {
      * las de su cartera; el deudor, solo las propias.
      */
     public Debt requireVisible(JwtPrincipal user, Long id) {
-        Debt deuda = debts.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         if (user == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesion invalida");
         }
+        Organization org = user.isCreditor() ? organizacionDe(user) : null;
+        if (!user.isCreditor() && (user.rut() == null || user.rut().isBlank())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+        }
+        Debtor deudor = user.isCreditor() ? null
+                : debtors.findByRut(user.rut()).orElseThrow(DebtService::deudaNoVisible);
+        Debt deuda = debts.findById(id).orElseThrow(DebtService::deudaNoVisible);
         if (user.isCreditor()) {
-            if (!opera(organizacionDe(user), deuda)) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Esa deuda no es de tu cartera");
+            if (!opera(org, deuda)) {
+                throw deudaNoVisible();
             }
             return deuda;
         }
-        if (!deuda.getDebtor().getId().equals(deudorDe(user).getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        if (!deuda.getDebtor().getId().equals(deudor.getId())) {
+            throw deudaNoVisible();
         }
         return deuda;
+    }
+
+    private static ApiException deudaNoVisible() {
+        return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
     }
 
     /** La misma regla que {@code DebtRepository.carteraDe}, para una deuda suelta. */

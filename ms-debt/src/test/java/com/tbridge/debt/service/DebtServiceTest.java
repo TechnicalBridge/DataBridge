@@ -159,6 +159,41 @@ class DebtServiceTest {
     }
 
     @Test
+    void una_identidad_sin_deudas_no_revela_ids_y_sin_sesion_sigue_401() {
+        for (long id : new long[]{3L, 999999L}) {
+            ApiException sinDeudas = assertThrows(ApiException.class,
+                    () -> servicio.requireVisible(deudor("sin-registro"), id));
+            assertEquals(HttpStatus.FORBIDDEN, sinDeudas.getStatus());
+            assertEquals("No puedes ver esta deuda", sinDeudas.getMessage());
+            assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(ApiException.class,
+                    () -> servicio.requireVisible(null, id)).getStatus());
+        }
+    }
+
+    @Test
+    void seg_dat_007_ids_correlativos_no_revelan_existencia() {
+        when(debts.findById(40L)).thenReturn(Optional.of(deuda));
+        when(debts.findById(41L)).thenReturn(Optional.empty());
+        Debtor otro = new Debtor();
+        otro.setId(99L);
+        when(debtors.findByRut("otro")).thenReturn(Optional.of(otro));
+        when(organizations.findByRut("otra")).thenReturn(Optional.of(organizacion(99L, "otra", "Otra")));
+        for (JwtPrincipal user : List.of(deudor("otro"), empresa("otra"))) {
+            for (java.util.function.LongConsumer consulta : List.<java.util.function.LongConsumer>of(
+                    id -> servicio.requireVisible(user, id),
+                    id -> servicio.getFor(user, id),
+                    id -> servicio.simulate(user, id, 6))) {
+                ApiException ajena = assertThrows(ApiException.class, () -> consulta.accept(40L));
+                ApiException ausente = assertThrows(ApiException.class, () -> consulta.accept(41L));
+                assertEquals(HttpStatus.FORBIDDEN, ajena.getStatus());
+                assertEquals(ajena.getStatus(), ausente.getStatus());
+                assertEquals("No puedes ver esta deuda", ajena.getMessage());
+                assertEquals(ajena.getMessage(), ausente.getMessage());
+            }
+        }
+    }
+
+    @Test
     void el_deudor_ve_su_deuda_con_el_saldo_de_las_cuotas() {
         when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
 
