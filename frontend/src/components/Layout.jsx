@@ -82,6 +82,8 @@ export default function Layout({ variant }) {
             <div className="brand-sub">{sub}</div>
           </div>
         </div>
+        {/* El asistente se abre desde arriba, no con una burbuja que tape la pagina (#303). */}
+        {variant === "debtor" ? <BotonAsistente conTexto /> : null}
         {links.map(({ to, label, end, Icono, aparte, riesgo }) => (
           <div key={to}>
             {aparte ? <div className="nav-separador" /> : null}

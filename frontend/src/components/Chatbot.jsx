@@ -9,9 +9,9 @@ const welcome = {
 };
 
 /**
- * El asistente del deudor. En el computador se abre con la burbuja; en el
- * telefono, con el icono del encabezado (BotonAsistente), y la burbuja no se
- * muestra, porque tapaba los botones para pagar (#303). Abierto en el
+ * El asistente del deudor. Se abre desde arriba (BotonAsistente): en el
+ * computador, al comienzo del menu; en el telefono, en el encabezado. No hay
+ * burbuja flotante, porque tapaba los botones para pagar (#303). Abierto en el
  * computador, va en una columna a la derecha y la pagina se angosta, asi que
  * tampoco tapa nada (Layout le pone .con-asistente).
  */
@@ -35,8 +35,8 @@ export default function Chatbot() {
   //  Al salir del portal (cerrar sesion) queda cerrado para la proxima vez.
   useEffect(() => cerrar, [cerrar]);
 
-  //  Al abrirlo, el foco entra al panel; al cerrarlo, vuelve al boton que lo abre. En el computador
-  //  la burbuja se esconde mientras esta abierto, y sin esto el foco quedaba en ninguna parte.
+  //  Al abrirlo, el foco entra al panel; al cerrarlo con su X, vuelve al boton que lo abre (el que se
+  //  ve: el del menu o el del encabezado). Sin esto el foco quedaba en ninguna parte.
   useEffect(() => {
     if (open) {
       cerrarBoton.current?.focus({ preventScroll: true });
@@ -109,22 +109,23 @@ export default function Chatbot() {
           </form>
         </div>
       ) : null}
-      <button className="chat-fab" type="button" onClick={alternar} aria-expanded={open} aria-controls="panel-asistente"
-              aria-label={open ? "Cerrar el asistente" : "Abrir el asistente"}>
-        {open ? <IconoCerrar key="x" size={22} /> : <IconoChat key="chat" size={24} />}
-      </button>
     </div>
   );
 }
 
-/** El mismo asistente desde el encabezado del telefono, donde no tapa nada (#303). */
-export function BotonAsistente() {
+/**
+ * El boton que abre y cierra el asistente, siempre arriba, donde no tapa nada (#303): con texto al
+ * comienzo del menu del computador, y solo el icono en el encabezado del telefono.
+ */
+export function BotonAsistente({ conTexto = false }) {
   const open = useAsistente((s) => s.abierto);
   const alternar = useAsistente((s) => s.alternar);
+  const nombre = open ? "Cerrar el asistente" : "Abrir el asistente";
   return (
-    <button type="button" className="btn btn-ghost boton-asistente" onClick={alternar} aria-expanded={open}
-            aria-controls="panel-asistente" aria-label={open ? "Cerrar el asistente" : "Abrir el asistente"}>
+    <button type="button" className={`btn btn-ghost boton-asistente${conTexto ? " con-texto" : ""}`} onClick={alternar}
+            aria-expanded={open} aria-controls="panel-asistente" aria-label={conTexto ? undefined : nombre}>
       {open ? <IconoCerrar size={18} /> : <IconoChat size={20} />}
+      {conTexto ? (open ? "Cerrar el asistente" : "Preguntar al asistente") : null}
     </button>
   );
 }

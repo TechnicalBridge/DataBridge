@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
 /**
- * Si el panel del asistente esta abierto. Lo abre la burbuja en el computador
- * y el icono del encabezado en el telefono, donde la burbuja tapaba los botones
- * para pagar (#303). Al estar aca, la conversacion sigue abierta al cambiar de
- * pagina.
+ * Si el panel del asistente esta abierto. Lo abre el boton del menu en el
+ * computador o el del encabezado en el telefono, que no tapan los botones para
+ * pagar como la burbuja de antes (#303). Al estar aca, la conversacion sigue
+ * abierta al cambiar de pagina.
  */
 export const useAsistente = create((set) => ({
   abierto: false,
