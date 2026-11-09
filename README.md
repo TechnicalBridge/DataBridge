@@ -1334,7 +1334,6 @@ la base, están en [`docs/diagramas/clases.md`](docs/diagramas/clases.md).
 
 #### El pago con Khipu, la funcionalidad principal
 
-![Diagrama de secuencia del flujo de pago](docs/diagramas/img/secuencia-pago.png)
 
 ```mermaid
 sequenceDiagram
