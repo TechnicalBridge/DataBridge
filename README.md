@@ -2076,21 +2076,45 @@ Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de p
 código. **Ninguna unitaria necesita base de datos ni internet**, así que corren en segundos en cualquier
 equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
 Las excepciones son los 10 `@Test` de rendimiento (`PerformTest*`), que apuntan a un servicio vivo y se
-**omiten automáticamente** si ese servicio no responde.
+**omiten automáticamente** si ese servicio no responde, y las 9 pruebas de integración de
+`ms-debt` contra MySQL real (ver abajo).
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1348 pruebas** en Java sin fallos (con JDK 25; suites con los `PerformTest*` de rendimiento incluidos,
+**1357 pruebas** en Java sin fallos (con JDK 25; suites con los `PerformTest*` de rendimiento incluidos,
 que se omiten cuando no hay servicio vivo):
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 25 |
 | `ms-auth` | 319 |
-| `ms-debt` | 532 |
+| `ms-debt` | 541 |
 | `ms-payments` | 296 |
 | `ms-ai` | 176 |
+
+`ms-debt` suma 9 pruebas de integración contra MySQL real
+(`ms-debt/src/test/java/com/tbridge/debt/integration/IntegracionControladoresTest.java`):
+levantan el contexto completo, aplican las migraciones con Flyway y recorren los
+controladores. En CI usan un MySQL efímero con Testcontainers (`mysql:8.4`). En
+local, para no pagar el arranque del contenedor, se apuntan al MySQL del compose
+y a un esquema aparte:
+
+```powershell
+$env:DB_TEST_URL="jdbc:mysql://127.0.0.1:3309/tb_debt_integration?useUnicode=true&characterEncoding=utf8&serverTimezone=America/Santiago"
+$env:DB_TEST_USER="tbridge"
+$env:DB_TEST_PASSWORD="la clave DB_DEBT_PASSWORD del .env"
+.\mvnw.cmd -f ms-debt\pom.xml test -Dtest=IntegracionControladoresTest
+```
+
+El esquema se crea una vez (Flyway hace el resto al correr la prueba):
+
+```powershell
+docker exec tbridge-db-debt mysql -uroot -p"$env:DB_DEBT_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS tb_debt_integration; GRANT ALL PRIVILEGES ON tb_debt_integration.* TO 'tbridge'@'%';"
+```
+
+Sin `DB_TEST_URL` y fuera de CI, la clase se omite: `clean test` sigue rápido y
+verde. El resto de las pruebas sigue sin necesitar base de datos ni internet.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubren configuración y contratos HTTP de Groq,
@@ -2239,7 +2263,7 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ## 14. Estado al 19 de octubre de 2026
 
-**1348 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1357 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2260,7 +2284,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1348** (gateway 25, ms-auth 319, ms-debt 532, ms-payments 296, ms-ai 176), sin fallos; con los `PerformTest*` de rendimiento incluidos (2 `@Test` por servicio, 10 en total, que se omiten si no hay servicio vivo). Rendimiento con servicio vivo y JWT de deudor: ver [§11](#11-pruebas). Las ejecuciones anteriores quedan en el historial del informe; en Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1357** (gateway 25, ms-auth 319, ms-debt 541, ms-payments 296, ms-ai 176), sin fallos; con los `PerformTest*` de rendimiento incluidos (2 `@Test` por servicio, 10 en total, que se omiten si no hay servicio vivo). Rendimiento con servicio vivo y JWT de deudor: ver [§11](#11-pruebas). Las ejecuciones anteriores quedan en el historial del informe; en Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
 | Demo por campaña ([#192](https://github.com/TechnicalBridge/TB_web/issues/192)) | En un proyecto de Docker aparte, con MySQL vacío y `DEMO_DATOS=true`: ms-debt instala una empresa acreedora, dos campañas y seis deudas, sin agencias ni mandatos. En Edge, `camila.reyes@example.com` pide su código, lo recibe en el buzón de prueba y entra; ve `DEMO-PESOS` y `DEMO-UF`, **crea una campaña nueva** (`200`) y ve a los seis deudores en su cartera. *Campañas* a 1360 y 390 px, en ambos temas, sin salirse del ancho y sin errores de consola. Apagada no crea nada; con datos propios no completa nada; reiniciar no duplica (pruebas de `DataSeeder`) |
