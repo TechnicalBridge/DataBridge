@@ -282,7 +282,6 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ### Diagrama de secuencia del flujo principal
 
-![Diagrama de Secuencia](docs/diagramas/img/secuencia-pago.png)
 
 ```mermaid
 sequenceDiagram
@@ -290,7 +289,7 @@ sequenceDiagram
     participant P as Portal (React)
     participant Y as ms-payments
     participant M as ms-debt
-    participant K as Pasarela (Khipu / Webpay)
+    participant K as Pasarela (Khipu / Webpay/ Mercado Pago)
     participant R as RabbitMQ
     participant B as Banco Central (UF)
 
