@@ -271,7 +271,6 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ### Diagrama de secuencia del flujo principal
 
-![Diagrama de Secuencia](docs/diagramas%20reales/DiagramaSecuencia/DIAGRAMA%20DE%20SECUENCIA.png)
 
 ```mermaid
 sequenceDiagram
