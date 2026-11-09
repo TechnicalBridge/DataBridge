@@ -34,6 +34,7 @@
 
   --radius: 16px;
   --radius-sm: 10px;
+  --ancho-asistente: 360px;
   --font: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -501,7 +502,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 
 /* ---- La cartera de la empresa (#280): la busqueda, cuantas hay en cada filtro y, en pantallas
-   angostas, cada deuda como tarjeta con el nombre de cada dato. */
+   angostas, cada deuda como tarjeta compacta (#299): el deudor y el saldo en la misma linea, la
+   deuda en letra chica, el estado, y el acceso con su ultimo correo. Sin etiquetas: cada dato se
+   entiende por su lugar. */
 .chip-cuenta { margin-left: 6px; font-variant-numeric: tabular-nums; opacity: 0.75; }
 .chip.on .chip-cuenta { opacity: 0.9; }
 .card-cab .buscador { width: min(320px, 100%); }
@@ -510,26 +513,51 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .stats.stats-cartera > :first-child { grid-column: auto; }
   .stats.stats-cartera > :last-child { grid-column: 1 / -1; }
   .tabla-cartera thead { display: none; }
-  .tabla-cartera, .tabla-cartera tbody, .tabla-cartera tr, .tabla-cartera td { display: block; width: 100%; }
+  .tabla-cartera, .tabla-cartera tbody { display: block; width: 100%; }
   .tabla-cartera tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "deudor saldo"
+      "acreedor acreedor"
+      "estado estado"
+      "acceso acceso";
+    column-gap: 12px;
     margin-bottom: 10px;
     padding: 12px 14px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     background: var(--paper);
   }
-  .table.tabla-cartera td, .table.tabla-cartera td.num { padding: 8px 0; text-align: left; }
-  .table.tabla-cartera td:last-child { border-bottom: 0; }
-  .tabla-cartera td::before {
-    content: attr(data-campo);
-    display: block;
-    margin-bottom: 2px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: color-mix(in srgb, var(--muted) 70%, var(--ink));
+  .table.tabla-cartera td, .table.tabla-cartera td.num { display: block; padding: 0; border: 0; text-align: left; }
+  .tabla-cartera td[data-campo="Deudor"] { grid-area: deudor; font-size: 16.5px; font-weight: 600; }
+  .tabla-cartera td[data-campo="Deudor"] .sub { font-weight: 400; }
+  .table.tabla-cartera td[data-campo="Saldo"] { grid-area: saldo; text-align: right; font-weight: 600; }
+  .tabla-cartera td[data-campo="Saldo"] .sub { font-weight: 400; }
+  .tabla-cartera td[data-campo="Acreedor"] { grid-area: acreedor; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+  .tabla-cartera td[data-campo="Acreedor"] .sub { display: inline; }
+  .tabla-cartera td[data-campo="Acreedor"] .sub::before { content: " · "; }
+  /* La fecha va al lado de la barra, que no ocupa todo el ancho; un reclamo baja a su propia linea. */
+  .table.tabla-cartera td[data-campo="Estado"] {
+    grid-area: estado;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 2px 12px;
+    margin-top: 8px;
   }
-  .tabla-cartera td[data-campo="Deudor"] { font-size: 16.5px; font-weight: 600; }
-  .tabla-cartera td[data-campo="Deudor"]::before { content: none; }
+  .tabla-cartera td[data-campo="Estado"] .sub { margin: 0; }
+  .tabla-cartera td[data-campo="Estado"] .sub + .sub { flex-basis: 100%; }
+  .table.tabla-cartera td[data-campo="Acceso"] {
+    grid-area: acceso;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin-top: 8px;
+  }
+  .tabla-cartera td[data-campo="Acceso"]:empty { display: none; }
+  .tabla-cartera td[data-campo="Acceso"] .sub { margin: 0; }
 }
 
 /* ---- Portal: marco ------------------------------------------------------------------------- */
@@ -662,6 +690,47 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .destino-avisos .card-cab { flex-wrap: wrap; gap: 8px; }
 .error-de-aviso { display: block; margin-top: 4px; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
 .accion-de-aviso { text-align: right; }
+/* Muchos avisos de un destino (#299): cuantos por motivo, y el detalle plegado. */
+.motivos-de-avisos { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 8px; font-size: 15px; }
+
+/* Lo que se abre a pedido (#299): las campanas terminadas, el detalle de los avisos. */
+.terminadas > summary, .detalle-avisos > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--brand);
+  font-size: 14.5px;
+  font-weight: 600;
+  list-style: none;
+}
+.terminadas > summary::-webkit-details-marker, .detalle-avisos > summary::-webkit-details-marker { display: none; }
+.terminadas > summary::before, .detalle-avisos > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s var(--ease);
+}
+.terminadas[open] > summary::before, .detalle-avisos[open] > summary::before { transform: rotate(45deg); }
+.terminadas { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+.lista-terminadas { list-style: none; margin: 0; padding: 0; }
+.lista-terminadas li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.lista-terminadas li:first-child { border-top: 0; }
+.terminada-cifras { color: var(--muted); font-size: 14px; white-space: nowrap; }
+@media (max-width: 620px) {
+  .lista-terminadas li { flex-direction: column; gap: 2px; }
+}
 .uf-de-hoy { margin: 0 0 6px; }
 .uf-de-hoy b { font-size: 26px; font-variant-numeric: tabular-nums; }
 .form-uf { margin-top: 16px; }
@@ -1245,21 +1314,34 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .escribiendo i:nth-child(3) { animation-delay: 0.3s; }
 .composer { display: flex; gap: 8px; margin-top: 12px; }
 .composer input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 15px; }
-.chat-fab {
-  width: 56px;
-  height: 56px;
-  border: 0;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--on-brand);
-  background: var(--brand);
-  box-shadow: var(--shadow-lg);
-  cursor: pointer;
-  transition: transform 0.25s var(--ease), background-color 0.2s ease;
+/* Se abre desde arriba y no con una burbuja, que tapaba los botones para pagar (#303): al comienzo del
+   menu en el computador y en el encabezado del telefono. Abierto, se marca como el enlace activo. */
+.boton-asistente .icono { animation: girar-entrada 0.35s var(--ease); }
+.boton-asistente.con-texto { justify-content: flex-start; width: 100%; margin: 0 0 14px; padding: 0 12px; height: 42px; }
+.boton-asistente[aria-expanded="true"] { background: var(--brand-soft); color: var(--brand-2); border-color: transparent; }
+
+/* En el computador, abierto queda en una columna a la derecha, y la pagina se angosta para dejarle
+   espacio: flotando tapaba el boton para pagar (#303). Se cierra con el mismo boton, su X o Esc. */
+@media (min-width: 981px) {
+  .app-shell.con-asistente { grid-template-columns: 256px 1fr var(--ancho-asistente); }
+  .con-asistente .chat-dock { top: 0; right: 0; bottom: 0; width: var(--ancho-asistente); align-items: stretch; }
+  .con-asistente .chat-panel {
+    width: auto;
+    height: 100%;
+    max-height: none;
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    box-shadow: none;
+    transform-origin: center right;
+  }
+  .con-asistente .messages { max-height: none; min-height: 0; }
 }
-.chat-fab:hover { transform: translateY(-2px); background: var(--brand-2); }
-.chat-fab .icono { animation: girar-entrada 0.35s var(--ease); }
+/* Con la pagina mas angosta, lo que va en dos columnas pasa a una: a 1280 px, en Pagar, los tres medios de
+   pago no cabian en la columna del resumen y el ultimo quedaba bajo el panel. */
+@media (min-width: 981px) and (max-width: 1439px) {
+  .con-asistente .grid-2, .con-asistente .grid-3 { grid-template-columns: 1fr; }
+  .con-asistente .main { padding-inline: 24px; }
+}
 
 /* ---- Cartera en CSV ---------------------------------------------------------------------------- */
 
@@ -1310,10 +1392,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
-  /* Abajo va la barra y encima el boton del asistente: lo ultimo de la pagina tiene que poder subir mas alla de los dos. */
-  .main { padding: 18px 16px 170px; }
+  /* Abajo va la barra: lo ultimo de la pagina tiene que poder subir mas alla de ella. */
+  .main { padding: 18px 16px 104px; }
   .topbar { flex-wrap: wrap; align-items: flex-start; }
-  .chat-dock { right: 16px; bottom: 88px; }
+  /* El asistente se abre desde el encabezado (#303), y el panel va justo bajo el encabezado, sin llegar a
+     la barra. */
+  .chat-dock { top: 67px; right: 12px; bottom: auto; left: 12px; align-items: stretch; }
+  .chat-panel { width: auto; max-height: calc(100dvh - 67px - 84px); transform-origin: top right; }
   .movil-cabecera {
     display: flex;
     align-items: center;
