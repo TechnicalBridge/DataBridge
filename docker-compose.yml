@@ -434,7 +434,7 @@ services:
   #  Perfil "carga": las pruebas de rendimiento.
   # ===========================================================================
   #  No levanta nada: se corre a demanda, una vez por escenario.
-  #      docker compose --profile carga run --rm k6 run /rendimiento/capacidad.js
+  #      docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-debt/debt-load.js
   #
   #  Va dentro de la red de compose a proposito, para entrar por el portal
   #  igual que un navegador y poder pedirle un codigo a ms-auth por dentro.
@@ -444,16 +444,20 @@ services:
     image: grafana/k6:latest
     environment:
       PORTAL_URI:   http://portal:8080
+      GATEWAY_URI:  http://gateway:8082
       AUTH_URI:     http://ms-auth:8081
+      DEBT_URI:     http://ms-debt:8083
+      PAYMENTS_URI: http://ms-payments:8084
+      AI_URI:       http://ms-ai:8085
       MAIL_URI:     http://mailpit:8025
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
-      #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
+      #  Los mismos cupos que tenga el gateway, para que auth-limit.js compruebe
       #  contra el numero real y no contra uno escrito a mano.
       DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
     volumes:
-      - ./rendimiento:/rendimiento:ro
+      - ./performance-tests:/performance-tests:ro
 
 #  Ningun servicio de la aplicacion publica su puerto: al portal se entra por
 #  el 8080 y de ahi en adelante todo viaja por la red interna de Docker. El
