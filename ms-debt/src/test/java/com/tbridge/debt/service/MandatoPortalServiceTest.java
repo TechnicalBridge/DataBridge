@@ -267,6 +267,41 @@ class MandatoPortalServiceTest {
                 "Ese mandato ya terminó: si vuelven a trabajar juntos, declara uno nuevo"));
     }
 
+    // ------------------------------------------------------------------
+    //  Con el acreedor suspendido (#296, decidido en #293)
+    // ------------------------------------------------------------------
+
+    @Test
+    void con_un_acreedor_suspendido_no_se_declara_un_mandato_y_no_se_registra_nada() {
+        patrimonio.setStatus(Organization.Status.suspended);
+
+        assertEquals(HttpStatus.CONFLICT, falla(() -> servicio.declarar(apofyx, CAMILA,
+                        pedido("76418902-7", "Otro nombre SpA", null, null, null, null)),
+                "Patrimonio Inmuebles está suspendida en DataBridge: mientras lo esté, no se declaran mandatos con ella"));
+        verify(mandates, never()).save(any());
+        verify(organizations, never()).save(any());
+        assertEquals("Patrimonio Inmuebles SpA", patrimonio.getLegalName(), "ni se le cambia el nombre");
+
+        //  Reactivado, vuelve a poder declararse.
+        patrimonio.setStatus(Organization.Status.active);
+        assertEquals("vigente", servicio.declarar(apofyx, CAMILA, pedido("76418902-7", null, null, null, null, null)).estado());
+    }
+
+    @Test
+    void con_el_acreedor_suspendido_el_mandato_lo_dice_no_se_renueva_y_si_se_termina() {
+        Mandate mandato = yaTiene(9L, LocalDate.of(2026, 1, 1), hoy.plusDays(30), Mandate.Status.active);
+        patrimonio.setStatus(Organization.Status.suspended);
+
+        assertTrue(servicio.listar(apofyx).mandatos().get(0).acreedorSuspendido(), "la agencia ve por que");
+        assertEquals(HttpStatus.CONFLICT, falla(() -> servicio.renovar(apofyx, CAMILA, 9L, new RenovarMandatoRequest(null)),
+                "Patrimonio Inmuebles está suspendida en DataBridge: mientras lo esté, el mandato no se renueva. "
+                        + "Terminarlo sí se puede"));
+        assertEquals(hoy.plusDays(30), mandato.getValidTo(), "el termino queda como estaba");
+        assertNull(mandato.getRenewedAt());
+
+        assertEquals("terminado", servicio.terminar(apofyx, CAMILA, 9L).estado());
+    }
+
     @Test
     void el_mandato_de_otra_agencia_no_existe_para_ella() {
         when(mandates.findByIdAndAgency(77L, apofyx)).thenReturn(Optional.empty());
