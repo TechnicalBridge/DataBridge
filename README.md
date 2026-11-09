@@ -8,23 +8,27 @@
 
 ## Índice
 
-- [1. Descripción](#1-descripción)
+- [1. Nombre del proyecto](#1-nombre-del-proyecto)
+- [2. Descripción](#2-descripción)
   - [Qué hace](#qué-hace)
   - [A quién va dirigido](#a-quién-va-dirigido)
   - [Qué problema resuelve](#qué-problema-resuelve)
-- [2. Tecnologías utilizadas](#2-tecnologías-utilizadas)
+- [3. Tecnologías utilizadas](#3-tecnologías-utilizadas)
   - [Lenguajes](#lenguajes)
   - [Frameworks y librerías](#frameworks-y-librerías)
   - [Base de datos](#base-de-datos)
   - [Cloud y servicios externos](#cloud-y-servicios-externos)
-- [3. Instrucciones para ejecutar el proyecto localmente](#3-instrucciones-para-ejecutar-el-proyecto-localmente)
+- [4. Instrucciones para ejecutar el proyecto localmente](#4-instrucciones-para-ejecutar-el-proyecto-localmente)
   - [Requisitos previos](#requisitos-previos)
   - [Paso a paso en Docker](#paso-a-paso-en-docker)
   - [Servicios y URLs principales](#servicios-y-urls-principales)
   - [Cuentas de prueba y demostración](#cuentas-de-prueba-y-demostración)
-- [4. Integrantes del equipo](#4-integrantes-del-equipo)
-- [5. Metodología de trabajo del equipo: Scrumban](#5-metodología-de-trabajo-del-equipo-scrumban)
-- [6. Arquitectura de solución](#6-arquitectura-de-solución)
+- [5. Integrantes del equipo con sus roles](#5-integrantes-del-equipo-con-sus-roles)
+- [6. Metodología de trabajo del equipo](#6-metodología-de-trabajo-del-equipo)
+  - [Marco de trabajo: Scrumban](#marco-de-trabajo-scrumban)
+  - [Prácticas DevOps y aseguramiento de calidad](#prácticas-devops-y-aseguramiento-de-calidad)
+  - [Pruebas automatizadas (1.180 pruebas)](#pruebas-automatizadas-1180-pruebas)
+- [7. Arquitectura de la solución](#7-arquitectura-de-la-solución)
   - [Descripción de la arquitectura](#descripción-de-la-arquitectura)
   - [Diagrama general de componentes y comunicación](#diagrama-general-de-componentes-y-comunicación)
   - [Diagrama de despliegue físico](#diagrama-de-despliegue-físico)
@@ -35,7 +39,13 @@
 
 ---
 
-## 1. Descripción
+## 1. Nombre del proyecto
+
+**DataBridge** — Plataforma web de autoservicio y gestión integral de cobranza temprana y regularización de deudas morosas.
+
+---
+
+## 2. Descripción
 
 ### Qué hace
 
@@ -70,7 +80,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## 2. Tecnologías utilizadas
+## 3. Tecnologías utilizadas
 
 ### Lenguajes
 
@@ -116,7 +126,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## 3. Instrucciones para ejecutar el proyecto localmente
+## 4. Instrucciones para ejecutar el proyecto localmente
 
 ### Requisitos previos
 
@@ -174,100 +184,60 @@ Con `DEMO_DATOS=true`:
 
 ---
 
-## 4. Integrantes del equipo
+## 5. Integrantes del equipo con sus roles
 
-| Integrante | Rol |
-| :--- | :--- |
-| **Flavio Henríquez** | Product Owner |
-| **Martín Gutiérrez** | Scrum Master |
-| **Esteban Maino** | Desarrollador fullstack y Project Coordinator |
-| **Pedro Campos** | Desarrollador fullstack y QA Tester |
-
----
-
-## 5. Metodología de trabajo: Scrumban
-
-**Scrumban.** Usamos los **roles de Scrum**, pero el trabajo fluye como en **Kanban**: sin sprints, cada
-tarjeta pasa por el tablero hasta quedar hecha. Para entregar, sumamos algunas prácticas ligeras de **DevOps**.
-
-- **Roles (Scrum).**
-  - **Flavio Henríquez, Product Owner:** prioriza el backlog, escribe los criterios de aceptación y decide qué
-    pasa a *Ready*.
-  - **Martín Gutiérrez, Scrum Master:** cuida que el trabajo fluya, que nadie tenga más de dos tarjetas en
-    curso, y abre las retrospectivas.
-  - **Esteban Maino, desarrollador fullstack y Project Coordinator:** programa en el backend y el portal, y
-    coordina el proyecto.
-  - **Pedro Campos, desarrollador fullstack y QA Tester:** programa en el backend y el portal, y prueba lo
-    que se entrega.
-- **Revisión.** Cada autor elige quién revisa su PR. En los de Flavio, las dos cuentas se reparten
-  el trabajo:
-  1. **`4mnesia` hace:** el issue, la rama, los commits y el PR, a nombre de Flavio.
-  2. **`H4desDevs` revisa.** Si algo está mal o la CI falla, pide cambios en el PR y dice
-     exactamente qué corregir.
-  3. **`4mnesia` corrige**, responde nombrando el commit, y se repite hasta que la CI pasa en verde.
-  4. **`H4desDevs` aprueba**, y recién ahí se mergea, en orden si los PRs van apilados.
-- **Flujo (Kanban).** Sin sprints: cada persona toma la siguiente tarjeta de *Ready* cuando termina
-  la que tiene. Las columnas del [tablero](https://github.com/orgs/TechnicalBridge/projects/3) son
-  Backlog, Ready, In progress, In review y Done, y el tablero reúne los tres repositorios.
-- **Issues.** Cada repositorio trae formularios en `.github/ISSUE_TEMPLATE/`, y todo issue entra solo
-  al tablero. Para el producto: historia de usuario (con su criterio de aceptación), épica, error e
-  investigación. Para el equipo: tarea técnica, decisión, versión mayor de una dependencia y, en este
-  repositorio, la retrospectiva.
-  Un issue nuevo sin responsable se reparte por turnos entre Pedro, Esteban, Martín y Flavio
-  ([`repartir-por-turnos.yml`](.github/workflows/repartir-por-turnos.yml)), salvo las decisiones, las
-  retrospectivas y las épicas. Si no corresponde, se reasigna a mano. Tener un issue asignado no es
-  tenerlo en curso: el límite de dos tarjetas es para *In progress*.
-- **Ramas (trunk-based).** Todo entra a `main` por PRs chicos y bien descritos. Cada rama vive uno o
-  dos días, sale de `main` y se llama `tipo/número-qué`, por ejemplo `feat/45-descuento-contrato`. Un
-  issue grande se entrega en varios PRs: los intermedios dicen *Parte de #45* y el último *Closes #45*.
-  Lo que todavía no está terminado entra apagado, detrás de una configuración, en vez de esperar en
-  una rama larga. Cada PR pasa la CI y se mergea con squash.
-- **PRs.** La plantilla pide qué cambia, cómo se probó y cómo se deshace, y trae la **Definition of
-  Done** como checklist. Es la del informe de la fase 2: cumplimiento funcional, verificación,
-  validación de interfaz, seguridad, integración, documentación, y revisión y entrega. Lo que queda
-  pendiente se deja identificado y no se presenta como terminado.
-
-El trabajo se organizó en un tablero con cinco épicas —autenticación, gestión de deudas,
-pagos, asistente y reportes— y un backlog de tareas que se fueron tomando de a una. El
-seguimiento tarea por tarea hasta el 2 de octubre, con **en qué nos apartamos del plan original y
-por qué**, está en [`docs/metodologia/plan-kanban.md`](docs/metodologia/plan-kanban.md). Desde ahí, el trabajo vive en el
-tablero, en épicas como el panel de administración (#136) y la entrada por campaña (#193).
-
-De DevOps se tomaron tres prácticas, cada una porque resolvía un problema concreto:
-
-| Práctica | Qué resuelve |
-| --- | --- |
-| **Integración continua** (GitHub Actions) | Las pruebas corren en cada push, en un equipo limpio. Lo que funciona "en mi máquina" no cuenta |
-| **Infraestructura como código** (Docker Compose) | Levantar el sistema es una orden, y no una página de instrucciones que alguien sigue mal |
-| **Esquema versionado** (Flyway) | Cambiar la base es un archivo con número, revisable, y no un `ALTER TABLE` que alguien corrió una vez |
+| Integrante | Rol | Responsabilidades clave |
+| :--- | :--- | :--- |
+| **Flavio Henríquez** | Product Owner | Priorización del backlog, redacción de historias de usuario con criterios de aceptación y aprobación de paso a *Ready*. |
+| **Martín Gutiérrez** | Scrum Master | Facilitación del flujo continuo, gestión de impedimentos, control del WIP y facilitación de ceremonias de retrospectiva. |
+| **Esteban Maino** | Desarrollador fullstack y Project Coordinator | Arquitectura técnica, desarrollo en Spring Boot y React, y coordinación técnica del proyecto. |
+| **Pedro Campos** | Desarrollador fullstack y QA Tester | Desarrollo integral en backend/frontend, diseño y ejecución de pruebas automatizadas y aseguramiento de calidad. |
 
 ---
 
-## 6. Arquitectura de la solución
+## 6. Metodología de trabajo del equipo
 
-DataBridge es una **arquitectura de microservicios**: cuatro servicios de negocio, cada uno con su
-base, detrás de un **API Gateway**. El navegador solo habla con el portal; el portal manda todo lo
-que empiece con `/api` al gateway, y el gateway decide a qué servicio le toca. Ningún servicio
-queda expuesto hacia afuera.
+### Marco de trabajo: Scrumban
 
-El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de **Scrum** con la entrega de valor continua y control de flujo de **Kanban**, complementado con prácticas fundamentales de **DevOps**:
+El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de **Scrum** con la entrega de valor continua y control de flujo de **Kanban**:
 
 - **Roles Scrum definidos**:
-  - **Product Owner (Flavio Henríquez)**: Prioriza el backlog, redacta historias de usuario con criterios de aceptación explícitos y aprueba el paso a *Ready*.
-  - **Scrum Master (Martín Gutiérrez)**: Vela por el flujo de trabajo continuo, la eliminación de bloqueos, el cumplimiento del límite de trabajo en curso y la facilitación de retrospectivas.
-  - **Project Coordinator y Desarrollador Fullstack (Esteban Maino)**: Desarrollo de microservicios y frontend, y coordinación de la arquitectura técnica.
-  - **QA Tester y Desarrollador Fullstack (Pedro Campos)**: Implementación de pruebas automatizadas, control de calidad y desarrollo integral.
-- **Flujo Kanban sin Sprints cerrados**: Las tareas se extraen progresivamente de acuerdo a la capacidad del equipo a través de un tablero unificado (*Backlog → Ready → In Progress → In Review → Done*).
-- **Control de WIP (Work In Progress)**: Límite estricto de máximo 2 tareas simultáneas por integrante para reducir cambios de contexto y optimizar el tiempo de ciclo (*lead time*).
-- **Trunk-Based Development y Ramas Efímeras**: Estrategia de ramas cortas (`tipo/numero-descripcion`) con una vida útil promedio de 1 a 2 días, fusionadas hacia `main` mediante Pull Requests atómicos acompañados de la *Definition of Done* (DoD).
-- **Prácticas DevOps integradas**:
-  - **Integración Continua (GitHub Actions)**: Pipeline automatizado de pruebas unitarias, análisis estático de vulnerabilidades (CodeQL) y auditoría de credenciales (Gitleaks).
-  - **Infraestructura como Código (Docker Compose)**: Configuración reproducible y parametrizada de todo el entorno productivo y de prueba.
-  - **Evolución Controlada de Base de Datos (Flyway)**: Migraciones versionadas en código que garantizan consistencia y reproducibilidad en todos los entornos.
+  - **Product Owner (Flavio Henríquez)**: Prioriza el backlog, escribe los criterios de aceptación y decide qué pasa a *Ready*.
+  - **Scrum Master (Martín Gutiérrez)**: Cuida que el trabajo fluya, que nadie exceda el límite de tarjetas en curso y abre las retrospectivas.
+  - **Project Coordinator y Desarrollador Fullstack (Esteban Maino)**: Programa en backend y portal, y coordina la arquitectura técnica.
+  - **QA Tester y Desarrollador Fullstack (Pedro Campos)**: Programa en backend y portal, e implementa y valida las pruebas automatizadas.
+- **Flujo Kanban sin Sprints fijos**: Las tareas avanzan de forma continua a través del [tablero Kanban de GitHub Projects](https://github.com/orgs/TechnicalBridge/projects/3) a través de las columnas: *Backlog → Ready → In Progress → In Review → Done*.
+- **Control de WIP (Work In Progress)**: Límite estricto de máximo 2 tarjetas simultáneas en *In Progress* por persona para minimizar cambios de contexto y reducir los tiempos de ciclo (*lead time*).
+- **Trunk-Based Development y Ramas Efímeras**: Desarrollo sobre `main` a través de ramas cortas (`tipo/numero-descripcion`) con vida útil promedio de 1 a 2 días, integradas mediante Pull Requests atómicos con revisión de código cruzada.
+- **Definition of Done (DoD)**: Todo Pull Request debe cumplir con verificación de pruebas automatizadas en verde, análisis de seguridad sin vulnerabilidades, documentación al día y validación funcional antes de integrarse.
+
+### Prácticas DevOps y aseguramiento de calidad
+
+| Práctica DevOps | Implementación en DataBridge | Beneficio |
+| :--- | :--- | :--- |
+| **Integración Continua (CI)** | GitHub Actions en cada push y PR (flujos para cada microservicio, frontend y gateway). | Garantiza que todo cambio compila y pasa la suite completa de pruebas en entornos limpios e independientes. |
+| **Análisis Estático y Seguridad** | CodeQL y Gitleaks integrados en los flujos de CI. | Detección preventiva de vulnerabilidades de código y prevención de filtración de secretos. |
+| **Infraestructura como Código (IaC)** | Docker Compose orquestando 11 contenedores con perfiles (`app`, `tools`, `prod`). | Despliegue determinista y replicable idéntico en local y producción. |
+| **Evolución de Base de Datos** | Flyway ejecutando migraciones SQL ordenadas y versionadas. | Eliminación de desfases entre esquemas de base de datos y validación al inicio (`ddl-auto: validate`). |
+
+### Pruebas automatizadas (1.180 pruebas)
+
+El proyecto cuenta con una cobertura integral de **1.180 pruebas automatizadas** que se ejecutan de manera continua en los flujos de CI:
+
+| Componente / Módulo | Cantidad de pruebas | Tipos de pruebas | Herramientas / Frameworks |
+| :--- | :---: | :--- | :--- |
+| **ms-debt** | **508** | Unitarias, integración JPA, reglas de negocio CAE, contratos y generación de reportes | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-auth** | **275** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, JJWT, MockMvc |
+| **ms-payments** | **261** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, WireMock, MockMvc |
+| **ms-ai** | **80** | Cliente LLM, motor local de fallback (`MotorLocal`), seguridad de endpoints y contexto | JUnit 5, Mockito, MockMvc |
+| **gateway** | **26** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Cloud Gateway TestKit |
+| **frontend** | **30** | Renderizado de componentes, navegación, validación de formularios y flujos de usuario | Vitest, React Testing Library, jsdom |
+| **pruebas de seguridad** | **Suite activa** | Auditoría y validación estricta de variables de entorno y no exposición de secretos | Node.js, `secretos.test.cjs` |
+| **Total suite automatizada** | **1.180 pruebas** | Cobertura integral continua en cada Pull Request | GitHub Actions CI |
 
 ---
 
-## 6. Arquitectura de solución
+## 7. Arquitectura de la solución
 
 ### Descripción de la arquitectura
 
@@ -291,6 +261,13 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ![Diagrama de Componentes](docs/diagramas%20reales/DiagramaComponentes/COMPONENTES.png)
 
+---
+
+### Diagrama de despliegue físico
+
+![Diagrama de Despliegue](docs/diagramas%20reales/DiagramaDespliegue/DESPLIEGUE.png)
+
+---
 
 ### Diagrama de secuencia del flujo principal
 
