@@ -2100,21 +2100,60 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
-equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
+código. Las unitarias y de controlador no necesitan base de datos ni internet, así que corren en
+segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un
+servidor HTTP local. La excepción son las **20 pruebas de integración y seguridad de `ms-auth`**,
+que sí abren un MySQL real.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1343 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites se midieron con #312 y
+`ms-auth` volvió a medirse con #333):
 
 | Módulo | Pruebas |
 | --- | --- |
 | `gateway` | 25 |
-| `ms-auth` | 319 |
+| `ms-auth` | 342 |
 | `ms-debt` | 532 |
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
+
+### Integración y seguridad de `ms-auth`
+
+Las **8 pruebas de integración** viven en
+[`integration/`](ms-auth/src/test/java/com/tbridge/auth/integration/) y las **12 de seguridad** en
+[`security/SeguridadControladoresTest.java`](ms-auth/src/test/java/com/tbridge/auth/security/SeguridadControladoresTest.java).
+Levantan el servicio completo contra MySQL 8 y cubren lo que una prueba de controlador no ve: las
+migraciones de Flyway sobre una base vacía, el código y el enlace de un solo uso, el bloqueo a los
+cinco intentos, el alta de personas desde el panel, `/internal` y el `JWKS`. `MailService` y
+`DeudasClient` son mocks: **ninguna prueba abre SMTP ni manda un correo**, y no se llama a ms-debt.
+
+En GitHub, el runner trae Docker y Testcontainers levanta `mysql:8.4` solo. En un equipo local se
+apunta a un MySQL 8 de pruebas con `DB_TEST_URL`, `DB_TEST_USER` y `DB_TEST_PASSWORD`; el usuario
+tiene que poder crear la base y las tablas. Con el `db-auth` de `docker compose` (3308) y su clave
+de root del `.env`, por ejemplo:
+
+```powershell
+$env:DB_TEST_URL='jdbc:mysql://127.0.0.1:3308/tb_auth_pruebas?createDatabaseIfNotExist=true&serverTimezone=America/Santiago'
+$env:DB_TEST_USER='root'
+$env:DB_TEST_PASSWORD='la-clave-de-root-del-.env'
+.\mvnw.cmd -f ms-auth\pom.xml test
+```
+
+> Apunta a una base de pruebas, nunca a la del `.env`: antes de cada caso se borran las tablas de
+> personas, códigos, enlaces, sesiones y bitácoras.
+
+Solo un grupo, que es lo que conviene al tocar código de acceso:
+
+```powershell
+.\mvnw.cmd -f ms-auth\pom.xml test -Dgroups=integracion   # 8 pruebas
+.\mvnw.cmd -f ms-auth\pom.xml test -Dgroups=seguridad     # 12 pruebas
+```
+
+Sin `DB_TEST_URL` y fuera de CI (`CI` distinto de `true`), esas 20 se omiten y el resto de la suite
+corre sin base de datos. Con Docker encendido también se puede forzar el contenedor con
+`$env:CI='true'`.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -2183,6 +2222,8 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De Swagger** | Cada grupo ofrece en *Authorize* solo la llave que usan sus operaciones, sin quitársela a los otros grupos; lo público se llama por la dirección desde la que se abrió Swagger, y lo interno dice que con Docker no se alcanza desde el navegador y cómo llamarlo. ms-ai solo publica rutas que el gateway le manda (`/api/ai/**`) |
 | **De las reglas del panel** | Cada regla dice cuánto vale y de qué variable sale, o que la fija la ley; cómo entran los deudores; el horario apagado para probar, a gritos; y los feriados, los mismos que usan las campañas |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
+| **De integración de `ms-auth`** (MySQL real) | Las migraciones de Flyway sobre una base vacía; el código de campaña y el enlace de un solo uso; el código que se agota a los cinco intentos; el alta de personas desde el panel; `/internal` y el `JWKS`. `MailService` y `DeudasClient` son mocks: ningún correo sale y no se llama a ms-debt |
+| **De seguridad de `ms-auth`** (MySQL real) | `401` sin token, con un token sin firma, con otra llave, con otro algoritmo o vencido; `403` para un deudor o una empresa en el panel; `401` para un enlace repetido o inventado; `400` ante inyección en el RUT o el correo, sin crear filas; `/internal` sin su clave; el `JWKS` sin la parte privada |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](docs/eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](docs/rendimiento/README.md)) |
@@ -2261,9 +2302,9 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 19 de octubre de 2026
+## 14. Estado al 9 de noviembre de 2026
 
-**1320 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1343 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2284,7 +2325,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1320**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1343**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312, `ms-auth` con #333; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | La marca ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)) | Los correos de código, recordatorio, prueba y acceso con enlace llegaron a Mailpit con el logo del portal, una sola imagen, y en Edge se ven bien en claro y en oscuro (verde, sin el morado de antes), a 1360 y 390 px. El portal carga sus cuatro íconos, sin errores, en los dos temas. El símbolo contrasta 4,7:1 con la crema y 8,4:1 con el carbón. Las direcciones eran `@example.com`, y lo que crearon las pruebas se borró |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
