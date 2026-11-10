@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { cambiarEstadoCampana, listarCampanas } from "../api/campanas";
 import { opcionesDeCarga } from "../api/deudas";
-import { fecha } from "../utils/formato";
+import { fecha, paraBuscar } from "../utils/formato";
 import Cargando from "../components/Cargando";
 import ComisionDelMes, { mesEnPalabras } from "../components/ComisionDelMes";
 import { dinero } from "../utils/formato";
@@ -31,6 +31,7 @@ export default function Campanas() {
   const [hecho, setHecho] = useState("");
   //  Lo que recuperó cada campaña en el mes que muestra el modelo de negocio.
   const [comision, setComision] = useState(null);
+  const [buscar, setBuscar] = useState("");
 
   const cargar = () => listarCampanas().then(setCampanas);
   const cargarAcreedores = () => opcionesDeCarga().then((o) => setAcreedores(o.acreedores || []));
@@ -89,9 +90,13 @@ export default function Campanas() {
 
   if (campanas === null) return <Cargando tarjetas={2} />;
 
+  //  Como en la cartera, la busqueda no se fija en tildes, mayusculas, puntos ni guiones (#414).
+  const texto = paraBuscar(buscar);
+  const calza = (c) => !texto || [c.nombre, c.idExterno, c.propia ? "Cartera propia" : c.acreedor]
+    .some((v) => paraBuscar(v).includes(texto));
   //  Arriba las que siguen escribiendo (en curso o pausadas); las terminadas van plegadas al final (#299).
-  const vivas = campanas.filter((c) => c.estado !== "terminada");
-  const terminadas = campanas.filter((c) => c.estado === "terminada");
+  const vivas = campanas.filter((c) => c.estado !== "terminada" && calza(c));
+  const terminadas = campanas.filter((c) => c.estado === "terminada" && calza(c));
 
   return (
     <div>
@@ -110,11 +115,21 @@ export default function Campanas() {
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
-          <h2>Tus campañas</h2>
+          <div className="card-cab">
+            <h2>Tus campañas</h2>
+            {campanas.length > 1 ? (
+              <input className="buscador" type="search" value={buscar} placeholder="Buscar por nombre, ID o acreedor"
+                     aria-label="Buscar en las campañas" onChange={(e) => setBuscar(e.target.value)} />
+            ) : null}
+          </div>
           {campanas.length === 0 ? (
             <div className="empty">Todavía no hay campañas. Crea una y cárgale sus deudores.</div>
+          ) : texto && vivas.length === 0 && terminadas.length === 0 ? (
+            <div className="empty">Ninguna campaña calza con la búsqueda.</div>
           ) : vivas.length === 0 ? (
-            <div className="empty">No hay campañas en curso. Crea una y cárgale sus deudores.</div>
+            <div className="empty">
+              {texto ? "Ninguna campaña en curso calza con la búsqueda." : "No hay campañas en curso. Crea una y cárgale sus deudores."}
+            </div>
           ) : (
             <div className="campanas">
               {vivas.map((c) => {
@@ -181,8 +196,9 @@ export default function Campanas() {
             </div>
           )}
           {terminadas.length ? (
-            //  Ya no le escriben a nadie: plegadas, para que las en curso queden a la vista (#299).
-            <details className="terminadas">
+            //  Ya no le escriben a nadie: plegadas, para que las en curso queden a la vista (#299). Mientras se
+            //  busca se abren, o lo que se encontro quedaria escondido (#414).
+            <details className="terminadas" key={texto ? "buscando" : "todas"} open={Boolean(texto)}>
               <summary>
                 Terminadas <span className="chip-cuenta">{terminadas.length}</span>
               </summary>
