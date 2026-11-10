@@ -2100,21 +2100,38 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
-equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
+código. Las unitarias y de la capa web no necesitan base de datos ni internet, así que corren en
+segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un
+servidor HTTP local. Las de integración y seguridad de #364 levantan MySQL 8.4 con Testcontainers
+(o usan el que indiquen `DB_TEST_URL`, `DB_TEST_USER` y `DB_TEST_PASSWORD`) y, sin base ni Docker
+fuera de CI, se omiten.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1369 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas el 9 de
+noviembre sobre `93d5a14`, más las 19 pruebas de este PR):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 25 |
-| `ms-auth` | 319 |
-| `ms-debt` | 532 |
-| `ms-payments` | 281 |
-| `ms-ai` | 163 |
+| `gateway` | 26 |
+| `ms-auth` | 322 |
+| `ms-debt` | 548 |
+| `ms-payments` | 309 |
+| `ms-ai` | 164 |
+
+`ms-debt` aporta 10 pruebas de #364: 5 de integración en
+[`IdorDocumentosIntegracionTest`](ms-debt/src/test/java/com/tbridge/debt/integration/IdorDocumentosIntegracionTest.java)
+y 5 de seguridad en
+[`IdorDocumentosSeguridadTest`](ms-debt/src/test/java/com/tbridge/debt/security/IdorDocumentosSeguridadTest.java).
+`ms-payments` aporta otras 9: 5 de integración en
+[`IdorPagosIntegracionTest`](ms-payments/src/test/java/com/tbridge/payments/integration/IdorPagosIntegracionTest.java)
+y 4 de seguridad en
+[`IdorPagosSeguridadTest`](ms-payments/src/test/java/com/tbridge/payments/security/IdorPagosSeguridadTest.java).
+Las dos suites corren contra MySQL real (Testcontainers, migraciones Flyway y JWT ES256 de prueba)
+y comprueban que un deudor no lista, lee ni descarga comprobantes o certificados de otro: la
+respuesta es 403 sin datos personales ni financieros, también cuando el cliente pide el PDF con
+`Accept: application/pdf`. No llaman a pasarelas reales ni mandan correo.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,

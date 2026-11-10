@@ -178,6 +178,8 @@ public class DebtController {
     @Operation(summary = "Certificado de deuda pagada (PDF)",
             description = "Solo para deudas pagadas por completo. Una deuda retirada tambien queda en cero, pero no se pago.")
     @ApiResponse(responseCode = "200", description = "El PDF", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE))
+    @ApiResponse(responseCode = "403", description = "La deuda no es de quien pregunta",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda no esta pagada",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<byte[]> certificate(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,

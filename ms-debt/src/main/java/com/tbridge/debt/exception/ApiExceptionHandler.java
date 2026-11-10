@@ -9,6 +9,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -133,6 +134,12 @@ public class ApiExceptionHandler {
     }
 
     private static ResponseEntity<ApiError> responder(HttpStatusCode codigo, String mensaje) {
-        return ResponseEntity.status(codigo).body(new ApiError(mensaje));
+        //  El tipo se fija a mano: los PDF se piden con "Accept: application/pdf"
+        //  y, sin esto, Spring no negocia el JSON del error (406 o 500 en vez de
+        //  403). Un documento ajeno siempre debe responder 403, sin importar el
+        //  Accept con que se pida.
+        return ResponseEntity.status(codigo)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(mensaje));
     }
 }
