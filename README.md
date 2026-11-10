@@ -2089,6 +2089,19 @@ Esta documentación acompaña #228; no cierra automáticamente el alcance de #22
 foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd -q -f "$s\pom.xml" clean test }   # los cinco
 ```
 
+Solo las pruebas de integración o solo las de seguridad del gateway:
+
+```powershell
+.\mvnw.cmd -f gateway\pom.xml test "-Dtest=com.tbridge.gateway.integration.*Test"
+.\mvnw.cmd -f gateway\pom.xml test "-Dtest=com.tbridge.gateway.security.*Test,com.tbridge.gateway.filter.DomainFirewallHttpTest"
+```
+
+Las de integración levantan el gateway en un puerto aleatorio y hablan con un servidor HTTP local por
+servicio: comprueban que cada ruta llegue a su servicio, que la documentación se reescriba antes de
+salir y que `/internal` no tenga puerta pública. Las de seguridad comprueban los cupos, el firewall
+por CIDR, un `X-Forwarded-For` inventado, CORS con un origen malicioso y la vuelta anulada de Webpay.
+Las de rendimiento van aparte, en #331.
+
 En GitHub cada módulo tiene su propio workflow (`gateway`, `ms-auth`, `ms-debt`, `ms-payments`,
 `frontend`, `ms-ai`), que prueba solo si cambió su carpeta y deja en el resumen cuántas pruebas
 pasaron, clase por clase. Los de Java comparten [`java.yml`](.github/workflows/java.yml). Todos
@@ -2100,21 +2113,35 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
+código; en el gateway, las de integración van en `integration/` y las de seguridad en `security/`.
+**Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
 equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1345 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312, y el gateway medido de nuevo con #335):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 25 |
+| `gateway` | 50 |
 | `ms-auth` | 319 |
 | `ms-debt` | 532 |
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
+
+El gateway reparte sus 50 pruebas así:
+
+| Tipo | Dónde | Pruebas |
+| --- | --- | --- |
+| Integración | `gateway/src/test/java/com/tbridge/gateway/integration` | 7 |
+| Seguridad | `gateway/src/test/java/com/tbridge/gateway/security` (más `filter/DomainFirewallHttpTest`) | 19 |
+| Unitarias y de configuración | `gateway/src/test/java/com/tbridge/gateway/{config,filter}` | 24 |
+
+Las 7 de integración son la del asistente que ya existía, las 4 de rutas y las 2 del registro de
+peticiones. Las 19 de seguridad cubren cupos, firewall, `X-Forwarded-For`, CORS y la vuelta de
+Webpay, además de la prueba HTTP de dominio que ya existía. No hay pruebas de rendimiento en este
+conteo: van aparte, en #331.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -2183,6 +2210,8 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De Swagger** | Cada grupo ofrece en *Authorize* solo la llave que usan sus operaciones, sin quitársela a los otros grupos; lo público se llama por la dirección desde la que se abrió Swagger, y lo interno dice que con Docker no se alcanza desde el navegador y cómo llamarlo. ms-ai solo publica rutas que el gateway le manda (`/api/ai/**`) |
 | **De las reglas del panel** | Cada regla dice cuánto vale y de qué variable sale, o que la fija la ley; cómo entran los deudores; el horario apagado para probar, a gritos; y los feriados, los mismos que usan las campañas |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
+| **De la integración del gateway** | Cada tramo (`/api/auth`, `/api/me`, `/api/debts`, `/api/analytics`, `/api/claves`, `/api/v1`, `/api/payments`, `/api/ai` y el panel) llega al servicio que le toca con método, cuerpo y autorización intactos; la documentación se reescribe antes de salir; `/internal` responde `404`. El registro anota método y ruta, sin la consulta |
+| **De la seguridad del gateway** | El cupo estrecho del código y el general por cliente; agotar uno no cierra el otro; un `X-Forwarded-For` inventado no abre cupos; el firewall por CIDR deja pasar la llave solo desde sus redes (IPv4 e IPv6); CORS rechaza un origen malicioso y devuelve el origen exacto al portal; la vuelta de Webpay pasa sin su `Origin` y ese origen se sigue rechazando en las demás rutas de pago |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](docs/eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](docs/rendimiento/README.md)) |
