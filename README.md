@@ -2108,15 +2108,16 @@ un servidor HTTP local. La excepción es la prueba de integración de `ms-debt` 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1335 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1359 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas el 9 de noviembre
+sobre `93d5a14`, más las 9 pruebas de este PR):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 25 |
-| `ms-auth` | 319 |
+| `gateway` | 26 |
+| `ms-auth` | 322 |
 | `ms-debt` | 547 |
-| `ms-payments` | 281 |
-| `ms-ai` | 163 |
+| `ms-payments` | 300 |
+| `ms-ai` | 164 |
 
 `ms-debt` suma 9 pruebas de integración contra MySQL real
 (`ms-debt/src/test/java/com/tbridge/debt/integration/IntegracionControladoresTest.java`):
@@ -2132,10 +2133,14 @@ $env:DB_TEST_PASSWORD="la clave DB_DEBT_PASSWORD del .env"
 .\mvnw.cmd -f ms-debt\pom.xml test -Dtest=IntegracionControladoresTest
 ```
 
-El esquema se crea una vez (Flyway hace el resto al correr la prueba):
+El esquema se crea una vez (Flyway hace el resto al correr la prueba). La clave
+de root sale del entorno del contenedor y nunca se escribe en la línea de comandos:
 
 ```powershell
-docker exec tbridge-db-debt mysql -uroot -p"$env:DB_DEBT_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS tb_debt_integration; GRANT ALL PRIVILEGES ON tb_debt_integration.* TO 'tbridge'@'%';"
+@'
+CREATE DATABASE IF NOT EXISTS tb_debt_integration;
+GRANT ALL PRIVILEGES ON tb_debt_integration.* TO 'tbridge'@'%';
+'@ | docker compose exec -T db-debt sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot'
 ```
 
 Sin `DB_TEST_URL` y fuera de CI, la clase se omite: `clean test` sigue rápido y
@@ -2286,9 +2291,9 @@ $cuerpo | docker compose --profile app exec -T ms-payments sh -c 'curl -s -X POS
 
 ---
 
-## 14. Estado al 19 de octubre de 2026
+## 14. Estado al 9 de noviembre de 2026
 
-**1335 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1359 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
@@ -2309,7 +2314,7 @@ pesos y moneda. No se repitió un cobro contra la pasarela real para este cambio
 
 | Verificación | Resultado |
 | --- | --- |
-| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1335**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
+| Pruebas Java (cada servicio con su `mvnw -f <servicio>\pom.xml clean test`, JDK 25) | **1359**, sin fallos ([§11](#11-pruebas)); las cinco se repitieron con #312, ms-debt con #332; gateway, ms-ai y ms-debt, con #234 (las cinco, con #228), ms-auth con #152, ms-debt y ms-payments sobre `main` con #139 y #258 juntos, ms-auth con #141; ms-auth, ms-debt y ms-payments con #238, ya con las sesiones ES256 de #256; ms-debt con #46, ms-auth con #236, ms-payments con la confirmación de Mercado Pago, ms-debt con #154 y ms-auth con #192, el resto conserva la ejecución anterior. En Windows se usó `-DargLine=-Djdk.net.hosts.file=C:\Windows\System32\drivers\etc\hosts` para evitar una demora del DNS en los correos simulados |
 | La marca ([#274](https://github.com/TechnicalBridge/DataBridge/issues/274)) | Los correos de código, recordatorio, prueba y acceso con enlace llegaron a Mailpit con el logo del portal, una sola imagen, y en Edge se ven bien en claro y en oscuro (verde, sin el morado de antes), a 1360 y 390 px. El portal carga sus cuatro íconos, sin errores, en los dos temas. El símbolo contrasta 4,7:1 con la crema y 8,4:1 con el carbón. Las direcciones eran `@example.com`, y lo que crearon las pruebas se borró |
 | Tres bases ([#238](https://github.com/TechnicalBridge/TB_web/issues/238)) | En un proyecto de Docker aparte, desde cero: cada MySQL tiene solo su base y sus migraciones, la clave de la aplicación de un servicio no entra a la base de otro, y con `db-debt` apagada siguen ms-auth, ms-payments y el portal (ms-debt se recupera solo al volver). Cada instancia usa unos 200 MB. En este equipo, con respaldo previo, el script de entonces pasó los datos (1.238, 1.677 y 346 filas, iguales tabla por tabla) y todo quedó sano: por el gateway y en Edge se ve lo de siempre. Con Maven, ms-debt arranca contra su base con el mismo `.env` |
 | Código primero ([#222](https://github.com/TechnicalBridge/TB_web/issues/222)) | Migración V6 sobre MySQL con datos, con respaldo previo. Deudor, empresa y admin solicitan solo código y entran por el gateway desde Edge. El respaldo entrega código y enlace en un único mensaje de Mailpit. Canjeados simultáneamente, solo uno abre sesión; un intento incorrecto persiste después del `401`. Las tres entradas se revisaron a 1360 y 390 px, en ambos temas. Sin correos externos ni carga de la planilla del equipo. El 19 de octubre, la empresa pidió su código por el gateway y el correo salió por Brevo, desviado por el modo de prueba |
