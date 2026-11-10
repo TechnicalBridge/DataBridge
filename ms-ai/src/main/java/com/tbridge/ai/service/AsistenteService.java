@@ -4,6 +4,7 @@ import com.tbridge.ai.client.DeudasClient;
 import com.tbridge.ai.dto.request.Pregunta;
 import com.tbridge.ai.dto.response.Animo;
 import com.tbridge.ai.dto.response.Respuesta;
+import com.tbridge.ai.security.ContencionDeInstrucciones;
 import com.tbridge.ai.util.Valor;
 import org.springframework.stereotype.Service;
 
@@ -42,11 +43,23 @@ public class AsistenteService {
                 .orElse("");
 
         Animo animo = MotorLocal.sentimiento(ultimo);
+
+        //  La contención va después de pedir las deudas para conservar 401, 403,
+        //  404 y 503, y antes del LLM para que el ataque ni siquiera se envíe.
+        Optional<String> rechazo = ContencionDeInstrucciones.revisionDeEntrada(historia);
+        if (rechazo.isPresent()) {
+            return new Respuesta(rechazo.get(), "local-nlp", susDeudas.size(), animo);
+        }
+
         Optional<String> delLlm = llm.responder(historia, susDeudas, animo.etiqueta());
-        return new Respuesta(
-                delLlm.orElseGet(() -> MotorLocal.responder(ultimo, susDeudas)),
-                delLlm.isPresent() ? llm.proveedor() : "local-nlp",
-                susDeudas.size(),
-                animo);
+        if (delLlm.isEmpty()) {
+            return new Respuesta(MotorLocal.responder(ultimo, susDeudas), "local-nlp", susDeudas.size(), animo);
+        }
+
+        //  Si el LLM repite instrucciones, credenciales o un RUT, no se publica:
+        //  se reemplaza por la negativa local y la fuente lo refleja.
+        String respuesta = ContencionDeInstrucciones.protegerRespuesta(delLlm.get());
+        boolean filtrada = !respuesta.equals(delLlm.get());
+        return new Respuesta(respuesta, filtrada ? "local-nlp" : llm.proveedor(), susDeudas.size(), animo);
     }
 }
