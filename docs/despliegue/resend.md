@@ -40,10 +40,19 @@ el tipo. Los destinatarios, el asunto y los cuerpos quedan fuera de la telemetr�
 Un 400/422 indica un pedido inválido. Ante 401/403 revisa la clave, los permisos
 y el dominio. Un 429 puede indicar un límite de solicitudes o de cuota según
 el plan. Un 5xx indica un error del proveedor. Un timeout deja la aceptación
-indeterminada. El adaptador envía una sola solicitud con clave opaca, sin
-reintentos propios ni fallback. Un nuevo envío genera otra clave. Cuando se
-integre el outbox de correo, su ID permite estabilizar la clave entre intentos
-dentro de la ventana de idempotencia de 24 horas.
+indeterminada. El adaptador realiza un POST por envío, sin reintentos propios
+ni fallback. **PENDING INTEGRATION WITH #402**. El futuro outbox debe colocar
+el mismo UUID de trabajo en el header interno MIME `X-DataBridge-Mail-Job-Id`
+para cada intento de un mismo envío. Resend recibe `Idempotency-Key: mail-job/<uuid>`
+y el mismo contenido. Si no existe un UUID estable, el adaptador omite la clave.
+La ventana de idempotencia de Resend es de 24 horas.
+
+Flyway crea ambas tablas con `V9__resend_delivery_events.sql`. En una base local
+donde se aplicó el borrador repetible, revisa primero el historial de Flyway. Si
+la única migración ausente es `R__resend_delivery_events.sql`, respalda la base,
+ejecuta `flyway repair` con la misma configuración de migraciones y vuelve a
+arrancar. V9 conserva las tablas y los datos existentes. Al integrar #402,
+reconcilia el orden de las migraciones antes de aplicarlas en una base compartida.
 
 ## Prueba manual de OTP y latencia
 

@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +52,9 @@ class ResendIntegrationTest {
     private final LinkedBlockingQueue<JsonNode> recibidos = new LinkedBlockingQueue<>();
     private final ResendDeliveryTelemetry telemetria = mock(ResendDeliveryTelemetry.class);
     private final UUID idProveedor = UUID.randomUUID();
+    private final CountDownLatch responder = new CountDownLatch(1);
+    private final LinkedBlockingQueue<Optional<String>> claves = new LinkedBlockingQueue<>();
+    private volatile boolean retenerRespuesta;
     private HttpServer servidor;
     private final java.util.concurrent.atomic.AtomicInteger estado = new java.util.concurrent.atomic.AtomicInteger(200);
 
@@ -61,12 +65,20 @@ class ResendIntegrationTest {
             try (intercambio) {
                 if (!intercambio.getRequestMethod().equals("POST")
                         || !"Bearer fixture-only".equals(intercambio.getRequestHeaders().getFirst("Authorization"))
-                        || !"application/json".equals(intercambio.getRequestHeaders().getFirst("Content-Type"))
-                        || intercambio.getRequestHeaders().getFirst("Idempotency-Key") == null) {
+                        || !"application/json".equals(intercambio.getRequestHeaders().getFirst("Content-Type"))) {
                     intercambio.sendResponseHeaders(400, -1);
                     return;
                 }
+                claves.add(Optional.ofNullable(intercambio.getRequestHeaders().getFirst("Idempotency-Key")));
                 recibidos.add(json.readTree(intercambio.getRequestBody()));
+                if (retenerRespuesta) {
+                    try {
+                        if (!responder.await(5, TimeUnit.SECONDS)) return;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
                 byte[] cuerpo = ("{\"id\":\"" + idProveedor + "\"}").getBytes(StandardCharsets.UTF_8);
                 intercambio.sendResponseHeaders(estado.get(), cuerpo.length);
                 intercambio.getResponseBody().write(cuerpo);
@@ -77,6 +89,7 @@ class ResendIntegrationTest {
 
     @AfterEach
     void detener() {
+        responder.countDown();
         servidor.stop(0);
     }
 
@@ -175,6 +188,41 @@ class ResendIntegrationTest {
             cartaRecibida();
             assertThat(recibidos).isEmpty();
             verifyNoInteractions(telemetria);
+        });
+    }
+
+    @Test
+    void timeout_despues_de_recibir_el_post_deja_la_aceptacion_desconocida() {
+        retenerRespuesta = true;
+        contexto().withPropertyValues("app.mail.timeout-ms=1000").run(app -> {
+            assertThat(app).hasSingleBean(JavaMailSender.class);
+            var respuesta = app.getBean(MailService.class).probar(DESTINO);
+            assertThat(respuesta.enviado()).isFalse();
+            assertThat(respuesta.error()).contains("aceptación desconocida");
+            cartaRecibida();
+            responder.countDown();
+            assertThat(claves).containsExactly(Optional.empty());
+            verifyNoInteractions(telemetria);
+        });
+    }
+
+    @Test
+    void un_uuid_de_trabajo_estable_se_conserva_en_distintos_mensajes() {
+        contexto().run(app -> {
+            var sender = app.getBean(JavaMailSender.class);
+            UUID trabajo = UUID.randomUUID();
+            for (int intento = 0; intento < 2; intento++) {
+                var mensaje = sender.createMimeMessage();
+                mensaje.setFrom("sender@example.com");
+                mensaje.setRecipients(jakarta.mail.Message.RecipientType.TO, DESTINO);
+                mensaje.setSubject("Fixture");
+                mensaje.setText("Contenido estable");
+                mensaje.setHeader("X-DataBridge-Mail-Job-Id", trabajo.toString());
+                sender.send(mensaje);
+                cartaRecibida();
+            }
+            var clave = Optional.of("mail-job/" + trabajo);
+            assertThat(claves).containsExactly(clave, clave);
         });
     }
 

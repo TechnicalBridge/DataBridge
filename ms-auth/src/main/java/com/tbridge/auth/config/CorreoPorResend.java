@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 
 final class CorreoPorResend extends JavaMailSenderImpl {
+    private static final String JOB_HEADER = "X-DataBridge-Mail-Job-Id";
     private static final Logger log = LoggerFactory.getLogger(CorreoPorResend.class);
     private final HttpClient http;
     private final URI url;
@@ -51,7 +52,7 @@ final class CorreoPorResend extends JavaMailSenderImpl {
     @Override
     protected void doSend(MimeMessage[] mensajes, Object[] originales) {
         for (MimeMessage mensaje : mensajes) {
-            enviar(cuerpo(mensaje));
+            enviar(cuerpo(mensaje), claveDeOperacion(mensaje));
         }
     }
 
@@ -86,18 +87,31 @@ final class CorreoPorResend extends JavaMailSenderImpl {
                 .map(InternetAddress::getAddress).toList();
     }
 
-    private void enviar(Map<String, Object> cuerpo) {
+    private static String claveDeOperacion(MimeMessage mensaje) {
+        try {
+            String id = mensaje.getHeader(JOB_HEADER, null);
+            if (id == null) return null;
+            UUID uuid = UUID.fromString(id);
+            if (!uuid.toString().equalsIgnoreCase(id)) {
+                throw new IllegalArgumentException();
+            }
+            return "mail-job/" + uuid;
+        } catch (MessagingException | IllegalArgumentException e) {
+            throw new MailSendException("Identificador interno de envío inválido");
+        }
+    }
+
+    private void enviar(Map<String, Object> cuerpo, String claveDeOperacion) {
         long inicio = System.nanoTime();
         HttpResponse<String> respuesta;
         try {
-            HttpRequest pedido = HttpRequest.newBuilder(url)
+            HttpRequest.Builder pedido = HttpRequest.newBuilder(url)
                     .timeout(espera)
                     .header("Authorization", "Bearer " + clave)
                     .header("Content-Type", "application/json")
-                    .header("Idempotency-Key", "mail-send/" + UUID.randomUUID())
-                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(cuerpo)))
-                    .build();
-            respuesta = http.send(pedido, HttpResponse.BodyHandlers.ofString());
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(cuerpo)));
+            if (claveDeOperacion != null) pedido.header("Idempotency-Key", claveDeOperacion);
+            respuesta = http.send(pedido.build(), HttpResponse.BodyHandlers.ofString());
         } catch (HttpTimeoutException e) {
             throw new MailSendException("Resend no respondió a tiempo; aceptación desconocida");
         } catch (IOException e) {

@@ -19,6 +19,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ResendWebhookControllerTest {
     @Test
+    void rechaza_el_webhook_si_no_hay_secreto_configurado() throws Exception {
+        var telemetria = mock(ResendDeliveryTelemetry.class);
+        var mvc = MockMvcBuilders.standaloneSetup(
+                new ResendWebhookController("", new ObjectMapper(), telemetria)).build();
+        mvc.perform(post("/api/webhooks/resend").header("svix-id", "msg_fixture")
+                .header("svix-timestamp", Instant.now().getEpochSecond())
+                .header("svix-signature", "fixture").content("{}"))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(telemetria);
+    }
+    @Test
     void acepta_eventos_firmados_y_rechaza_el_cuerpo_alterado() throws Exception {
         byte[] llave = new byte[32];
         new java.security.SecureRandom().nextBytes(llave);
