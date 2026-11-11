@@ -3,26 +3,32 @@ package com.tbridge.ai.security;
 import com.tbridge.ai.util.Valor;
 
 import java.text.Normalizer;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Contención frente a inyección de instrucciones y fuga de datos.
  *
  * <p>El asistente solo habla de las deudas del deudor autenticado. Antes de
- * llamar al LLM se revisan todos los mensajes del deudor: si alguno intenta
- * cambiar el rol del asistente, sacarle las instrucciones internas o pedir
- * datos de un tercero, responde una negativa fija del motor local. Después del
- * LLM se revisa la respuesta: si repite el prompt del sistema, una credencial o
- * un RUT ajeno, se reemplaza por la misma negativa.
+ * llamar al LLM se revisa solo el mensaje nuevo del deudor: si intenta cambiar
+ * el rol del asistente, sacarle las instrucciones internas o pedir datos de un
+ * tercero, responde una negativa fija del motor local. Los mensajes anteriores
+ * que sean ataques se quitan del historial que viaja al modelo, para que un
+ * rechazo no bloquee la conversación. Después del LLM se revisa la respuesta:
+ * si repite el prompt del sistema, una credencial o un RUT ajeno, se reemplaza
+ * por la misma negativa.
  *
- * <p>La revisión de entrada ignora los mensajes del asistente: son salida del
- * modelo y, si se escanearan, la propia negativa envenenaría los turnos
- * siguientes. La respuesta del LLM sí se filtra, porque es justamente donde
- * ocurriría una fuga.
+ * <p>El RUT de la sesión y los RUT de los acreedores de sus deudas son datos
+ * legítimos de la conversación. Solo un RUT fuera de ese conjunto cuenta como
+ * fuga o como intento de consultar a un tercero.
  */
 public final class ContencionDeInstrucciones {
 
@@ -36,19 +42,10 @@ public final class ContencionDeInstrucciones {
     private static final Pattern RUT = Pattern.compile(
             "(?<!\\d)\\d{1,2}\\.\\d{3}\\.\\d{3}-[\\dk]|(?<!\\d)\\d{7,8}-[\\dk]");
 
-    /** Una consulta de datos que menciona un RUT, o un RUT seguido de "de otro". */
-    private static final Pattern PIDE_DATOS_POR_RUT = Pattern.compile(
-            "(dame|muestra|muestrame|consulta|consultame|necesito|quiero|revela|revelame|entrega|entregame|"
-                    + "saldo|datos|deuda|deudas|contacto|correo|telefono|informacion|historial|pago|pagos)"
-                    + ".{0,80}(rut|\\d{1,2}\\.\\d{3}\\.\\d{3}-[\\dk]|\\d{7,8}-[\\dk])"
-                    + "|(rut|\\d{1,2}\\.\\d{3}\\.\\d{3}-[\\dk]|\\d{7,8}-[\\dk])"
-                    + ".{0,40}(de|del|sobre)\\s+(otro|otra|tercer|ajen|un|una)");
-
-    /** Referencias explícitas a otra persona o a datos de terceros. */
+    /** Pedir datos de otra persona. "Otra cuenta" u "otra persona puede pagar" no entran. */
     private static final Pattern TERCERO = Pattern.compile(
-            "(otro|otra|tercer|ajen)[a-z]*\\s+(deudor|persona|cliente|usuario|rut|cuenta)"
-                    + "|(datos|saldo|deuda|contacto|correo|telefono|informacion)\\s+(de|del|sobre)\\s+"
-                    + "(otro|otra|tercer|ajen)");
+            "(datos|saldo|deuda|deudas|contacto|correo|telefono|informacion|historial|cuotas?)"
+                    + "\\s+(de|del|sobre)\\s+((un|una|el|la)\\s+)?(otro|otra|tercer|ajen)[a-z]*");
 
     /** Órdenes de manipulación, extracción del prompt o cambio de rol. */
     private static final List<Pattern> MANIPULACION = List.of(
@@ -60,18 +57,23 @@ public final class ContencionDeInstrucciones {
                     + "(depuracion|debug|desarrollador|desarrollo|administrador|root)"),
             Pattern.compile("modo (depuracion|debug|desarrollador|desarrollo|administrador|root)"),
             Pattern.compile("(system|sistema) prompt|prompt (del|de) sistema"),
-            Pattern.compile("(muestra|muestrame|revela|revelame|dame|ensena|entregame|imprime|escribe)[a-z]*"
-                    + "[^.]{0,40}(tus|las|mis) (instrucciones|directivas|reglas|claves|credenciales|configuracion)"),
-            Pattern.compile("(primeras|ultimas) \\d{1,4} palabras"),
+            Pattern.compile("(dime|muestra|muestrame|revela|revelame|dame|ensena|entregame|imprime|escribe)"
+                    + "[a-z]*[^.]{0,40}(tus|tu) "
+                    + "(instrucciones|directivas|reglas|claves|credenciales|configuracion|prompt)"),
+            Pattern.compile("(primeras|ultimas) \\d{1,4} palabras (de|del) "
+                    + "(tus|tu|las|el) (instrucciones|directivas|reglas|prompt|sistema)"),
             Pattern.compile("(directivas|instrucciones|reglas|configuracion) (internas?|del sistema|de sistema)"),
-            Pattern.compile("(tus|las|mis) (claves|credenciales|contrasenas|tokens)"),
+            Pattern.compile("(tus|sus) (claves|credenciales|contrasenas|tokens)"),
+            Pattern.compile("(claves|credenciales|contrasenas|tokens) "
+                    + "(configuradas|del sistema|de la aplicacion|del asistente|del servicio|de la api)"),
             Pattern.compile("api[ _-]?key|clave de api|groq_api_key|gemini_api_key|openai_api_key"),
             Pattern.compile("(soy|eres|actua como|actuar como|finge ser|pretende ser) "
                     + "(un |una |el |la )?(administrador|admin|desarrollador|root|superusuario)"),
             Pattern.compile("jailbreak|dan mode|developer mode"),
             Pattern.compile("(repite|repetir|resume|resumir|traduce|traducir|copia|copiar)[a-z]*"
-                    + "[^.]{0,40}(tus|las|mis) (instrucciones|directivas|reglas|prompt)"),
-            Pattern.compile("(que|cuales) (son|fueron) (tus|las|mis) (instrucciones|directivas|claves|credenciales)"));
+                    + "[^.]{0,40}(tus|tu) (instrucciones|directivas|reglas|prompt)"),
+            Pattern.compile("(que|cuales) (son|fueron) (tus|sus) "
+                    + "(instrucciones|directivas|reglas|claves|credenciales)"));
 
     /** Fragmentos que solo pueden salir si el modelo repite sus instrucciones. */
     private static final List<Pattern> FUGA = List.of(
@@ -97,44 +99,98 @@ public final class ContencionDeInstrucciones {
     private ContencionDeInstrucciones() {
     }
 
-    /** La negativa si algún mensaje del deudor intenta manipular el asistente. */
-    public static Optional<String> revisionDeEntrada(List<Map<String, Object>> historia) {
+    /** Los RUT que la sesión puede mencionar: el suyo y los de sus acreedores. */
+    public static Set<String> rutsPermitidos(String rutSesion, List<Map<String, Object>> deudas) {
+        Set<String> permitidos = new LinkedHashSet<>();
+        agregarRut(permitidos, rutSesion);
+        if (deudas != null) {
+            for (Map<String, Object> deuda : deudas) {
+                if (deuda != null) {
+                    agregarRut(permitidos, deuda.get("acreedorRut"));
+                }
+            }
+        }
+        return Set.copyOf(permitidos);
+    }
+
+    /** La negativa si el mensaje nuevo del deudor intenta manipular el asistente. */
+    public static Optional<String> revisionDeEntrada(String mensaje, Collection<String> rutsPermitidos) {
+        return esIntentoDeManipulacion(mensaje, rutsPermitidos)
+                ? Optional.of(RECHAZO)
+                : Optional.empty();
+    }
+
+    /** El historial sin los mensajes del deudor que contengan un ataque. */
+    public static List<Map<String, Object>> historiaSinAtaques(List<Map<String, Object>> historia,
+                                                               Collection<String> rutsPermitidos) {
         if (historia == null) {
-            return Optional.empty();
+            return List.of();
         }
-        for (Map<String, Object> mensaje : historia) {
-            if (mensaje == null || "assistant".equals(mensaje.get("role"))) {
-                continue;
-            }
-            Object contenido = Valor.primero(mensaje.get("content"), mensaje.get("message"));
-            if (contenido != null && esIntentoDeManipulacion(String.valueOf(contenido))) {
-                return Optional.of(RECHAZO);
-            }
-        }
-        return Optional.empty();
+        return historia.stream()
+                .filter(Objects::nonNull)
+                .filter(mensaje -> "assistant".equals(mensaje.get("role"))
+                        || !esIntentoDeManipulacion(textoDe(mensaje), rutsPermitidos))
+                .toList();
     }
 
     /** Si el texto pide cambiar el rol, sacar instrucciones o consultar a un tercero. */
-    public static boolean esIntentoDeManipulacion(String texto) {
+    public static boolean esIntentoDeManipulacion(String texto, Collection<String> rutsPermitidos) {
         String normalizado = normalizar(texto);
         if (normalizado.isEmpty()) {
             return false;
         }
-        return MANIPULACION.stream().anyMatch(patron -> patron.matcher(normalizado).find())
-                || PIDE_DATOS_POR_RUT.matcher(normalizado).find()
+        return contieneRutNoPermitido(normalizado, rutsPermitidos)
+                || MANIPULACION.stream().anyMatch(patron -> patron.matcher(normalizado).find())
                 || TERCERO.matcher(normalizado).find();
     }
 
-    /** La respuesta tal cual, o la negativa si repite el prompt, una credencial o un RUT. */
-    public static String protegerRespuesta(String respuesta) {
+    /** La respuesta tal cual, o la negativa si repite el prompt, una credencial o un RUT ajeno. */
+    public static String protegerRespuesta(String respuesta, Collection<String> rutsPermitidos) {
         if (respuesta == null || respuesta.isBlank()) {
             return RECHAZO;
         }
         String normalizado = normalizar(respuesta);
         boolean fuga = FUGA.stream().anyMatch(patron -> patron.matcher(normalizado).find())
                 || CREDENCIALES.stream().anyMatch(patron -> patron.matcher(normalizado).find())
-                || RUT.matcher(normalizado).find();
+                || contieneRutNoPermitido(normalizado, rutsPermitidos);
         return fuga ? RECHAZO : respuesta;
+    }
+
+    private static String textoDe(Map<String, Object> mensaje) {
+        Object contenido = Valor.primero(mensaje.get("content"), mensaje.get("message"));
+        return contenido == null ? "" : String.valueOf(contenido);
+    }
+
+    private static void agregarRut(Set<String> permitidos, Object valor) {
+        if (valor != null) {
+            String canonico = canonizarRut(String.valueOf(valor));
+            if (!canonico.isEmpty()) {
+                permitidos.add(canonico);
+            }
+        }
+    }
+
+    private static boolean contieneRutNoPermitido(String texto, Collection<String> rutsPermitidos) {
+        Set<String> permitidos = new LinkedHashSet<>();
+        if (rutsPermitidos != null) {
+            for (String rut : rutsPermitidos) {
+                String canonico = canonizarRut(rut);
+                if (!canonico.isEmpty()) {
+                    permitidos.add(canonico);
+                }
+            }
+        }
+        Matcher matcher = RUT.matcher(texto);
+        while (matcher.find()) {
+            if (!permitidos.contains(canonizarRut(matcher.group()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String canonizarRut(String rut) {
+        return rut == null ? "" : rut.toLowerCase(Locale.ROOT).replaceAll("[^0-9k]", "");
     }
 
     private static String normalizar(String texto) {

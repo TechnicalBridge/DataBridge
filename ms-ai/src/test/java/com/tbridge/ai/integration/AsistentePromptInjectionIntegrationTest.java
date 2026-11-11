@@ -7,6 +7,8 @@ import com.tbridge.ai.security.JwtTestTokens;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -54,8 +56,24 @@ class AsistentePromptInjectionIntegrationTest {
     /** Datos del deudor autenticado, con campos ajenos que ms-debt no debe proyectar. */
     private static final String DEUDA_PROPIA = "{\"_embedded\":{\"debts\":[{\"acreedor\":\"Empresa-Propia\","
             + "\"concepto\":\"Servicio\",\"estado\":\"open\",\"moneda\":\"CLP\",\"montoOriginal\":520001,"
-            + "\"saldo\":520001,\"totalHoy\":520001,\"interesMora\":0,\"deudorRut\":\"19.230.418-0\","
+            + "\"saldo\":520001,\"totalHoy\":520001,\"interesMora\":0,\"acreedorRut\":\"76.000.000-0\","
+            + "\"deudorRut\":\"19.230.418-0\","
             + "\"email\":\"carolina@example.com\",\"telefono\":\"+56911111111\"}]}}";
+
+    /** Las preguntas normales que el revisor comprobó contra la rama anterior. */
+    private static final List<String> PREGUNTAS_NORMALES = List.of(
+            "¿Cuánto debo?",
+            "Quiero saber mi deuda, mi RUT es 16.482.337-7",
+            "Necesito pagar mi deuda, mi rut es 16482337-7",
+            "¿Cuál es el saldo de mi RUT?",
+            "¿Cuáles son las instrucciones para pagar con Khipu?",
+            "Muéstrame las instrucciones para pagar en cuotas",
+            "Dame las reglas del convenio",
+            "¿Puedo pagar desde otra cuenta bancaria?",
+            "¿Otra persona puede pagar por mí?",
+            "Olvidé mis claves del banco, ¿cómo pago?",
+            "¿Qué pasa si pago con la tarjeta de otro?",
+            "¿Cuándo vence mi próxima cuota?");
 
     private static final AtomicInteger estadoDeudas = new AtomicInteger(200);
     private static final AtomicReference<String> respuestaLlm = new AtomicReference<>("Tu saldo es $520.001.");
@@ -64,6 +82,7 @@ class AsistentePromptInjectionIntegrationTest {
     private static final HttpServer DEUDAS = servidor(false);
     private static final HttpServer LLM = servidor(true);
     private static final String TOKEN = JwtTestTokens.token();
+    private static final String TOKEN_179 = tokenConRut("17.893.456-2");
 
     @Autowired
     private TestRestTemplate http;
@@ -96,17 +115,65 @@ class AsistentePromptInjectionIntegrationTest {
     }
 
     @Test
-    void un_ataque_escondido_en_la_conversacion_tambien_se_rechaza() {
+    void un_ataque_anterior_sale_del_historial_y_la_pregunta_actual_sigue() {
         List<Map<String, Object>> historia = List.of(
                 Map.of("role", "user", "content", ATAQUES.get(2)),
-                Map.of("role", "assistant", "content", "Puedo ayudarte con tu saldo."));
+                Map.of("role", "assistant", "content", ContencionDeInstrucciones.RECHAZO));
 
         ResponseEntity<Map> respuesta = preguntar("¿Cuánto debo?", historia);
 
         assertEquals(200, respuesta.getStatusCode().value());
-        assertEquals(ContencionDeInstrucciones.RECHAZO, respuesta.getBody().get("reply"));
-        assertEquals("local-nlp", respuesta.getBody().get("source"));
-        assertTrue(peticionesAlLlm.isEmpty());
+        assertEquals("Tu saldo es $520.001.", respuesta.getBody().get("reply"));
+        assertEquals("groq", respuesta.getBody().get("source"));
+        assertEquals(1, peticionesAlLlm.size());
+        String pedido = peticionesAlLlm.peek();
+        assertFalse(pedido.contains("directivas internas"), pedido);
+        assertTrue(pedido.contains("Cuánto debo"), pedido);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "¿Cuánto debo?",
+            "Quiero saber mi deuda, mi RUT es 16.482.337-7",
+            "Necesito pagar mi deuda, mi rut es 16482337-7",
+            "¿Cuál es el saldo de mi RUT?",
+            "¿Cuáles son las instrucciones para pagar con Khipu?",
+            "Muéstrame las instrucciones para pagar en cuotas",
+            "Dame las reglas del convenio",
+            "¿Puedo pagar desde otra cuenta bancaria?",
+            "¿Otra persona puede pagar por mí?",
+            "Olvidé mis claves del banco, ¿cómo pago?",
+            "¿Qué pasa si pago con la tarjeta de otro?",
+            "¿Cuándo vence mi próxima cuota?"
+    })
+    void las_doce_preguntas_normales_llegan_al_llm_sin_rechazo(String pregunta) {
+        ResponseEntity<Map> respuesta = preguntar(pregunta, List.of());
+
+        assertEquals(200, respuesta.getStatusCode().value(), pregunta);
+        assertEquals("Tu saldo es $520.001.", respuesta.getBody().get("reply"), pregunta);
+        assertEquals("groq", respuesta.getBody().get("source"), pregunta);
+        assertEquals(1, peticionesAlLlm.size(), pregunta);
+    }
+
+    @Test
+    void acepta_el_rut_del_deudor_y_el_de_su_acreedor_en_la_respuesta() {
+        respuestaLlm.set("Tu RUT 16.482.337-7 tiene una cuota vencida. La deuda es con Empresa-Propia "
+                + "(RUT 76.000.000-0) y puedes pagar en cuotas.");
+
+        ResponseEntity<Map> respuesta = preguntar("¿Cuánto debo?", List.of());
+
+        assertEquals(respuestaLlm.get(), respuesta.getBody().get("reply"));
+        assertEquals("groq", respuesta.getBody().get("source"));
+    }
+
+    @Test
+    void el_rut_propio_de_otra_sesion_tambien_pasa_en_la_respuesta() {
+        respuestaLlm.set("Tu RUT 17.893.456-2 tiene una cuota vencida por $120.000.");
+
+        ResponseEntity<Map> respuesta = preguntar(TOKEN_179, "¿Cuánto debo?", List.of());
+
+        assertEquals(respuestaLlm.get(), respuesta.getBody().get("reply"));
+        assertEquals("groq", respuesta.getBody().get("source"));
     }
 
     @Test
@@ -172,13 +239,27 @@ class AsistentePromptInjectionIntegrationTest {
     }
 
     private ResponseEntity<Map> preguntar(String mensaje, List<Map<String, Object>> historia) {
+        return preguntar(TOKEN, mensaje, historia);
+    }
+
+    private ResponseEntity<Map> preguntar(String token, String mensaje,
+                                          List<Map<String, Object>> historia) {
         HttpHeaders cabeceras = new HttpHeaders();
-        cabeceras.setBearerAuth(TOKEN);
+        cabeceras.setBearerAuth(token);
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
         Map<String, Object> cuerpo = new HashMap<>();
         cuerpo.put("message", mensaje);
         cuerpo.put("messages", historia);
         return http.postForEntity("/api/ai/chat", new HttpEntity<>(cuerpo, cabeceras), Map.class);
+    }
+
+    private static String tokenConRut(String rut) {
+        Map<String, Object> claims = JwtTestTokens.claims();
+        claims.put("sub", rut);
+        claims.put("id", rut);
+        claims.put("rut", rut);
+        return JwtTestTokens.token(claims, JwtTestTokens.PAIR,
+                JwtTestTokens.publicKey(JwtTestTokens.PAIR).getKeyID(), "ES256");
     }
 
     private static HttpServer servidor(boolean esLlm) {
