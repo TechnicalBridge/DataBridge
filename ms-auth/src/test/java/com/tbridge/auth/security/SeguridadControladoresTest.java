@@ -181,7 +181,7 @@ class SeguridadControladoresTest extends BaseIntegracionMySql {
 
     @Test
     void la_inyeccion_en_el_correo_no_llega_a_la_base() throws Exception {
-        String inyeccion = "admin@databridge.cl' OR '1'='1";
+        String inyeccion = "admin@example.com' OR '1'='1";
 
         mvc.perform(post("/api/auth/codigo")
                         .with(origen())
@@ -214,7 +214,7 @@ class SeguridadControladoresTest extends BaseIntegracionMySql {
                         .contentType(APPLICATION_JSON)
                         .content(cuerpo))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/internal/correo/prueba").param("para", "equipo@databridge.cl"))
+        mvc.perform(post("/internal/correo/prueba").param("para", "equipo@example.com"))
                 .andExpect(status().isUnauthorized());
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM access_codes", Integer.class)).isZero();

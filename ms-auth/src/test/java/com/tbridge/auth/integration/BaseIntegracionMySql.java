@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,11 +59,11 @@ public abstract class BaseIntegracionMySql {
 
     protected static final String RUT_DEUDOR = "18905214-6";
     protected static final String RUT_OTRO_DEUDOR = "16482337-7";
-    protected static final String CORREO_DEUDOR = "valentina.soto@correo.cl";
-    protected static final String CORREO_OTRO_DEUDOR = "otro.deudor@correo.cl";
+    protected static final String CORREO_DEUDOR = "valentina.soto@example.com";
+    protected static final String CORREO_OTRO_DEUDOR = "otro.deudor@example.com";
     protected static final String RUT_EMPRESA = "76418902-7";
-    protected static final String ADMIN_EMAIL = "admin@databridge.cl";
-    protected static final String EMPRESA_EMAIL = "empresa@databridge.cl";
+    protected static final String ADMIN_EMAIL = "admin@example.com";
+    protected static final String EMPRESA_EMAIL = "empresa@example.com";
     protected static final String CLAVE_INTERNA = "clave-interna-de-prueba";
 
     private static final AtomicInteger ORIGEN = new AtomicInteger(1);
@@ -91,6 +92,62 @@ public abstract class BaseIntegracionMySql {
         return System.getenv("DB_TEST_URL") != null || "true".equalsIgnoreCase(System.getenv("CI"));
     }
 
+    /**
+     * El nombre de la base en una URL JDBC, sin parametros ni credenciales.
+     *
+     * <p>Se usa solo para decidir si la base externa es desechable. Si la URL
+     * no trae un nombre reconocible devuelve una cadena vacia.
+     */
+    static String nombreDeBase(String url) {
+        if (url == null) {
+            return "";
+        }
+        int esquema = url.indexOf("://");
+        if (esquema < 0) {
+            return "";
+        }
+        String resto = url.substring(esquema + 3);
+        int barra = resto.indexOf('/');
+        if (barra < 0) {
+            return "";
+        }
+        String nombre = resto.substring(barra + 1);
+        int fin = nombre.length();
+        int parametros = nombre.indexOf('?');
+        if (parametros >= 0 && parametros < fin) {
+            fin = parametros;
+        }
+        int opciones = nombre.indexOf(';');
+        if (opciones >= 0 && opciones < fin) {
+            fin = opciones;
+        }
+        return nombre.substring(0, fin).strip();
+    }
+
+    /**
+     * Falla si {@code DB_TEST_URL} apunta a una base que no es de pruebas.
+     *
+     * <p>{@code limpiarYPreparar} borra personas, sesiones, codigos, enlaces y
+     * bitacoras antes de cada caso. Para no tocar una base real, el nombre debe
+     * terminar en {@code _pruebas} o {@code _test}. La base de Testcontainers
+     * queda fuera de esta validacion porque es nueva y desechable.
+     */
+    static void validarBaseDePruebas(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        String nombre = nombreDeBase(url);
+        String enMinusculas = nombre.toLowerCase(Locale.ROOT);
+        if (enMinusculas.endsWith("_pruebas") || enMinusculas.endsWith("_test")) {
+            return;
+        }
+        String cual = nombre.isEmpty() ? "sin nombre" : "'" + nombre + "'";
+        throw new IllegalStateException("DB_TEST_URL apunta a la base " + cual
+                + ", pero las pruebas borran sus tablas antes de cada caso. Usa una base cuyo nombre "
+                + "termine en _pruebas o _test (por ejemplo, tb_auth_pruebas), o deja DB_TEST_URL "
+                + "sin definir para usar Testcontainers.");
+    }
+
     /** MySQL efimero; {@code null} cuando se usa un MySQL externo por variables de entorno. */
     private static MySQLContainer<?> MYSQL;
 
@@ -111,13 +168,15 @@ public abstract class BaseIntegracionMySql {
 
     @DynamicPropertySource
     static void propiedades(DynamicPropertyRegistry propiedades) {
-        if (System.getenv("DB_TEST_URL") == null) {
+        String urlExterna = System.getenv("DB_TEST_URL");
+        if (urlExterna == null) {
             MySQLContainer<?> mysql = contenedor();
             propiedades.add("spring.datasource.url", mysql::getJdbcUrl);
             propiedades.add("spring.datasource.username", mysql::getUsername);
             propiedades.add("spring.datasource.password", mysql::getPassword);
         } else {
-            propiedades.add("spring.datasource.url", () -> System.getenv("DB_TEST_URL"));
+            validarBaseDePruebas(urlExterna);
+            propiedades.add("spring.datasource.url", () -> urlExterna);
             propiedades.add("spring.datasource.username",
                     () -> System.getenv().getOrDefault("DB_TEST_USER", "tbridge"));
             propiedades.add("spring.datasource.password",
@@ -152,6 +211,8 @@ public abstract class BaseIntegracionMySql {
 
     @BeforeEach
     void limpiarYPreparar() {
+        validarBaseDePruebas(System.getenv("DB_TEST_URL"));
+
         jdbc.execute("DELETE FROM sessions");
         jdbc.execute("DELETE FROM magic_links");
         jdbc.execute("DELETE FROM access_codes");

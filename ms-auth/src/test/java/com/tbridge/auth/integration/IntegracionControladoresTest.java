@@ -244,21 +244,21 @@ class IntegracionControladoresTest extends BaseIntegracionMySql {
                 """, Integer.class, RUT_DEUDOR)).isEqualTo(1);
 
         clearInvocations(correo);
-        PruebaDeCorreoResponse respuesta = new PruebaDeCorreoResponse(true, "equipo@databridge.cl",
-                "equipo@databridge.cl", "smtp.interno:0", "DataBridge <equipo@databridge.cl>",
+        PruebaDeCorreoResponse respuesta = new PruebaDeCorreoResponse(true, "equipo@example.com",
+                "equipo@example.com", "smtp.interno:0", "DataBridge <equipo@example.com>",
                 "modo de prueba", null);
-        when(correo.probar("equipo@databridge.cl")).thenReturn(respuesta);
+        when(correo.probar("equipo@example.com")).thenReturn(respuesta);
 
         mvc.perform(post("/internal/correo/prueba")
-                        .param("para", "equipo@databridge.cl")
+                        .param("para", "equipo@example.com")
                         .header("X-Internal-Key", CLAVE_INTERNA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enviado").value(true))
-                .andExpect(jsonPath("$.para").value("equipo@databridge.cl"))
-                .andExpect(jsonPath("$.llegaA").value("equipo@databridge.cl"));
+                .andExpect(jsonPath("$.para").value("equipo@example.com"))
+                .andExpect(jsonPath("$.llegaA").value("equipo@example.com"));
 
         // La prueba paso por el mock; ninguna conexion SMTP se abrio.
-        verify(correo).probar("equipo@databridge.cl");
+        verify(correo).probar("equipo@example.com");
     }
 
     // ------------------------------------------------------------------
