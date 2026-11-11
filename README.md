@@ -125,7 +125,7 @@ solo, a las 11 de la noche si quiere. El acreedor se entera sin que nadie escrib
 | **Frontend** | React 18 · React Router 7 · Vite · Zustand · Recharts · CSS propio | El portal del deudor, el de las empresas y el panel de administración |
 | **Autenticación** | JWT (JJWT) · códigos de un solo uso | Sin contraseñas |
 | **Cifrado** | AES-256-GCM, de la JCA | Los secretos que hay que leer de vuelta se guardan cifrados |
-| **Correo** | Jakarta Mail · Thymeleaf | Los correos en HTML y en texto, por Brevo o por un servidor SMTP |
+| **Correo** | Jakarta Mail · Thymeleaf | Los correos en HTML y en texto, por Resend, Brevo o un servidor SMTP |
 | **Mensajería** | RabbitMQ 3.13 | Lleva el aviso de pago entre servicios |
 | **Asistente** | SDK oficial de OpenAI para Java (`openai-java`) | Le habla a Groq o a Gemini, que tienen una API compatible con la de OpenAI. Sin llave, el asistente responde con sus reglas |
 
@@ -323,10 +323,10 @@ los dos se eligen en el `.env`, sin editar el compose ni el código:
 
 | Camino | Cuándo | Qué hace falta |
 | --- | --- | --- |
-| **La API de Brevo** | El de producción: va por HTTPS, así que sale aunque el servidor bloquee el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
+| **La API de Brevo** | Opción legada de reversión: va por HTTPS, así que sale aunque el servidor bloquee el SMTP | Una cuenta gratuita de Brevo (300 correos al día) y su clave de API |
 | **Un servidor SMTP** | Para probar en un equipo, o con otro proveedor | Una cuenta de Gmail con contraseña de aplicación, u otro servidor |
 
-Si están los dos, gana Brevo.
+Para producción se recomienda [Resend API](docs/despliegue/resend.md). Usa `MAIL_TRANSPORT=resend` para seleccionarlo. Con la variable vacía, Brevo tiene precedencia sobre SMTP.
 
 <details>
 <summary><b>Con Brevo</b>, paso a paso</summary>
