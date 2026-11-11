@@ -87,7 +87,11 @@ public class ContactoService {
         this.horario = horario;
     }
 
+    //  La pasada entera va en una transaccion, como las demas tareas programadas. Llamar a contactar() desde
+    //  aqui no pasa por el proxy de Spring, asi que su @Transactional no corre: sin transaccion (y con
+    //  open-in-view apagado) Debt.congelada() no alcanza a leer la empresa, que es LAZY, y la pasada se caia (#338).
     @Scheduled(cron = "${app.contacto.cron:0 */15 * * * *}", zone = "America/Santiago")
+    @Transactional
     public void pasar() {
         ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
         if (hecho.enviados() + hecho.invitados() > 0) {
