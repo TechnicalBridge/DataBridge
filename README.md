@@ -1,4 +1,4 @@
-# <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="DataBridge" width="40" height="40" align="top"></picture> DataBridge
+1# <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="DataBridge" width="40" height="40" align="top"></picture> DataBridge
 
 [![gateway](https://github.com/TechnicalBridge/DataBridge/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/DataBridge/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/DataBridge/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/codeql.yml)
 
@@ -41,7 +41,7 @@
 
 ---
 
-## Descripción
+## 2 Descripción
 
 ### Qué hace
 
@@ -76,7 +76,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## Tecnologías utilizadas
+## 3 Tecnologías utilizadas
 
 ### Lenguajes
 
@@ -122,7 +122,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## Instrucciones para ejecutar el proyecto localmente
+## 4 Instrucciones para ejecutar el proyecto localmente
 
 ### Requisitos previos
 
@@ -182,7 +182,7 @@ Para ver el recorrido guiado completo de demostración, consultar [docs/demo/rec
 
 ---
 
-## Integrantes del equipo con sus roles
+## 5 Integrantes del equipo con sus roles
 
 | Integrante | Rol | Responsabilidades clave |
 | :--- | :--- | :--- |
@@ -193,7 +193,7 @@ Para ver el recorrido guiado completo de demostración, consultar [docs/demo/rec
 
 ---
 
-## Metodología de trabajo del equipo
+## 6 Metodología de trabajo del equipo
 
 ### Marco de trabajo: Scrumban
 
@@ -243,7 +243,7 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 ---
 
-## Arquitectura de la solución
+## 7 Arquitectura de la solución
 
 ### Descripción de la arquitectura
 
