@@ -3,8 +3,10 @@ package com.tbridge.gateway.filter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.env.PropertiesPropertySourceLoader;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -91,14 +93,25 @@ class ClienteRealTest {
     }
 
     @Test
-    void prioriza_x_real_ip_cuando_llega_de_proxy_de_confianza() {
-        assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "203.0.113.7", "1.2.3.4, 10.0.0.1"));
+    void ignora_x_real_ip_inyectada_cuando_proxy_concatena_x_forwarded_for() {
+        MockServerHttpRequest peticion = MockServerHttpRequest.get("/api/auth/codigo")
+                .remoteAddress(new InetSocketAddress("172.21.0.10", 12345))
+                .header("X-Real-IP", "6.6.6.6")
+                .header("X-Forwarded-For", "6.6.6.6, 203.0.113.7")
+                .build();
+        assertEquals("203.0.113.7", clientes.de(peticion));
     }
 
     @Test
     void cabecera_inyectada_previamente_no_engana_al_gateway() {
         // Atacante inyecto 1.2.3.4, proxy confiable anexo la real 203.0.113.7
         assertEquals("203.0.113.7", clientes.resolver("172.21.0.10", "1.2.3.4, 203.0.113.7"));
+    }
+
+    @Test
+    void si_todos_los_saltos_son_de_confianza_devuelve_el_mas_lejano() throws IOException {
+        ClienteReal porOmision = comoViene();
+        assertEquals("10.0.0.5", porOmision.resolver("172.21.0.10", "10.0.0.5, 172.21.0.3"));
     }
 
     @Test
