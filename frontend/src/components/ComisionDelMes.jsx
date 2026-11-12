@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { comisionDelMes } from "../api/analitica";
 import { dinero, porcentaje, mesDeHoy, mesEnPalabras } from "../utils/formato";
 
-export { mesDeHoy, mesEnPalabras };
-
 /** "Más de $1.000.000 y hasta $5.000.000" */
 function tramo(t) {
   if (t.hasta == null) return `Más de ${dinero(t.desde)}`;

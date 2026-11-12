@@ -113,6 +113,14 @@ export function porMoneda(filas, campo) {
   return Object.entries(totales);
 }
 
+/**
+ * Un texto listo para buscar: sin tildes, sin mayusculas y sin puntos, guiones
+ * ni espacios, asi un RUT o un nombre se encuentran escritos de cualquier forma
+ * (#280, #299).
+ */
+export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  .replace(/[.\-\s]/g, "");
+
 /** Hoy en Chile, como 2026-09-24. */
 export const hoyEnChile = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Santiago" });
 
