@@ -264,12 +264,19 @@ class PaymentControllerTest {
 
     @Test
     void el_aviso_de_la_pasarela_llega_sin_sesion() throws Exception {
-        when(payments.webhook(any(), eq("firma"))).thenReturn(pago());
+        when(payments.webhook(eq(Payment.Gateway.webpay), any(), eq("firma"))).thenReturn(pago());
 
         mvc.perform(post("/api/payments/webhooks/webpay").header("X-Signature", "firma")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"paymentId\":41,\"txnId\":\"wp-1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(41));
+    }
+
+    @Test
+    void el_aviso_con_pasarela_invalida_se_rechaza() throws Exception {
+        mvc.perform(post("/api/payments/webhooks/pasarela-invalida")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"paymentId\":41,\"txnId\":\"wp-1\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

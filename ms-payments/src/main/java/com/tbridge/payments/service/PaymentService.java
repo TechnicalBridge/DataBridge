@@ -1280,7 +1280,7 @@ public class PaymentService {
      * unico (gateway, gateway_txn_id) por si el codigo se equivoca.
      */
     @Transactional
-    public PaymentResponse webhook(WebhookRequest aviso, String signatureHeader) {
+    public PaymentResponse webhook(Payment.Gateway gateway, WebhookRequest aviso, String signatureHeader) {
         Long id = aviso.pago();
         if (id == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice que pago es");
@@ -1298,6 +1298,10 @@ public class PaymentService {
             eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.failed, PaymentEvent.Source.webhook)
                     .conFirma(false));
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma criptografica invalida");
+        }
+        if (gateway != null && pago.getGateway() != null && pago.getGateway() != gateway) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "El pago " + id + " no corresponde a la pasarela " + gateway);
         }
         if (cobraDeVerdad(pago)) {
             throw new ApiException(HttpStatus.CONFLICT, "Este pago lo confirma " + nombre(pago));
