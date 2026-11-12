@@ -251,9 +251,24 @@ class PaymentServiceTest {
     void un_aviso_con_pasarela_distinta_a_la_del_pago_se_rechaza_con_bad_request() {
         Payment pago = pagoAbierto();
         ApiException error = assertThrows(ApiException.class,
-                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", firmaDe(pago)), null));
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
         assertTrue(error.getMessage().contains("no corresponde a la pasarela"));
+    }
+
+    @Test
+    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_y_queda_anotado() {
+        Payment pago = pagoAbierto();
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
+        verify(eventos).save(libro.capture());
+        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
+        assertFalse(libro.getValue().getSignatureOk());
     }
 
     @Test
@@ -261,7 +276,7 @@ class PaymentServiceTest {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
-                () -> servicio.webhook(new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+                () -> servicio.webhook(Payment.Gateway.webpay, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
@@ -1559,7 +1574,7 @@ class PaymentServiceTest {
         ApiException desdeLaPagina = assertThrows(ApiException.class, () -> servicio.confirmPublic(41L, firma));
         assertEquals(HttpStatus.CONFLICT, desdeLaPagina.getStatus());
         ApiException desdeElAviso = assertThrows(ApiException.class,
-                () -> servicio.webhook(new WebhookRequest(41L, null, "wp-1", firma), null));
+                () -> servicio.webhook(Payment.Gateway.webpay, new WebhookRequest(41L, null, "wp-1", firma), null));
         assertEquals(HttpStatus.CONFLICT, desdeElAviso.getStatus());
         assertEquals(Payment.Status.expired, pago.getStatus());
         verify(avisos, never()).save(any());
