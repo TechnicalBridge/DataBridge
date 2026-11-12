@@ -16,9 +16,12 @@ import java.nio.charset.StandardCharsets;
 /**
  * Un {@code X-Forwarded-For} inventado no puede abrir un cupo nuevo.
  *
- * <p>El atacante manda un valor distinto en cada intento. Como el gateway no
- * confia en quien le habla directo, la cabecera no vale y todos los intentos
- * caen en el mismo cubo.
+ * <p>El atacante manda un valor distinto en cada intento. Como aquí nadie es
+ * proxy de confianza, la cabecera no vale y todos los intentos caen en el
+ * mismo cubo: prueba a quien le habla directo al gateway.
+ *
+ * <p>El caso de un proxy de confianza que concatena la cabecera (#349) lo
+ * cubren las pruebas de #355 y no se repite aquí.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class XForwardedForFalsoSecurityTest {

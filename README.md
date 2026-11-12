@@ -2120,28 +2120,15 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1345 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312, y el gateway medido de nuevo con #335):
+**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 50 |
+| `gateway` | 25 |
 | `ms-auth` | 319 |
 | `ms-debt` | 532 |
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
-
-El gateway reparte sus 50 pruebas así:
-
-| Tipo | Dónde | Pruebas |
-| --- | --- | --- |
-| Integración | `gateway/src/test/java/com/tbridge/gateway/integration` | 7 |
-| Seguridad | `gateway/src/test/java/com/tbridge/gateway/security` (más `filter/DomainFirewallHttpTest`) | 19 |
-| Unitarias y de configuración | `gateway/src/test/java/com/tbridge/gateway/{config,filter}` | 24 |
-
-Las 7 de integración son la del asistente que ya existía, las 4 de rutas y las 2 del registro de
-peticiones. Las 19 de seguridad cubren cupos, firewall, `X-Forwarded-For`, CORS y la vuelta de
-Webpay, además de la prueba HTTP de dominio que ya existía. No hay pruebas de rendimiento en este
-conteo: van aparte, en #331.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
