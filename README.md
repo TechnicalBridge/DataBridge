@@ -38,15 +38,10 @@
   - [Detalle de arquitectura en vistas 4+1](#detalle-de-arquitectura-en-vistas-41)
 - [Documentación complementaria](#documentación-complementaria)
 
----
-
-## 1. Nombre del proyecto
-
-**DataBridge** — Plataforma web de autoservicio y gestión integral de cobranza temprana y regularización de deudas morosas.
 
 ---
 
-## 2. Descripción
+## Descripción
 
 ### Qué hace
 
@@ -81,7 +76,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## 3. Tecnologías utilizadas
+## Tecnologías utilizadas
 
 ### Lenguajes
 
@@ -127,7 +122,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## 4. Instrucciones para ejecutar el proyecto localmente
+## Instrucciones para ejecutar el proyecto localmente
 
 ### Requisitos previos
 
@@ -187,7 +182,7 @@ Para ver el recorrido guiado completo de demostración, consultar [docs/demo/rec
 
 ---
 
-## 5. Integrantes del equipo con sus roles
+## Integrantes del equipo con sus roles
 
 | Integrante | Rol | Responsabilidades clave |
 | :--- | :--- | :--- |
@@ -198,7 +193,7 @@ Para ver el recorrido guiado completo de demostración, consultar [docs/demo/rec
 
 ---
 
-## 6. Metodología de trabajo del equipo
+## Metodología de trabajo del equipo
 
 ### Marco de trabajo: Scrumban
 
@@ -248,7 +243,7 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 ---
 
-## 7. Arquitectura de la solución
+## Arquitectura de la solución
 
 ### Descripción de la arquitectura
 
