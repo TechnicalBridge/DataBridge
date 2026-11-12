@@ -9,11 +9,12 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -157,12 +158,10 @@ public final class CarteraExcel {
 
         private final Workbook libro;
         private final DataFormatter formato = new DataFormatter(CHILE);
-        private final FormulaEvaluator formulas;
         private final List<String> problemas = new ArrayList<>();
 
         Lector(Workbook libro) {
             this.libro = libro;
-            this.formulas = libro.getCreationHelper().createFormulaEvaluator();
         }
 
         ObjectNode leer(CarteraCsv.Lote lote) {
@@ -470,7 +469,7 @@ public final class CarteraExcel {
             Row primera = hoja.getRow(0);
             if (primera != null) {
                 for (Cell celda : primera) {
-                    donde.put(simple(formato.formatCellValue(celda)), celda.getColumnIndex());
+                    donde.put(simple(valor(celda)), celda.getColumnIndex());
                 }
             }
             Map<String, Integer> col = new LinkedHashMap<>();
@@ -495,9 +494,40 @@ public final class CarteraExcel {
             return fila == null || i == null ? null : fila.getCell(i);
         }
 
+        /**
+         * Lee el valor de la celda sin ejecutar formulas en el servidor: para celdas
+         * de formula usa el resultado precalculado que guardo Excel.
+         */
+        private String valor(Cell c) {
+            if (c == null) {
+                return "";
+            }
+            if (c.getCellType() != CellType.FORMULA) {
+                return formato.formatCellValue(c);
+            }
+            if (c instanceof XSSFCell xc && xc.getRawValue() == null) {
+                return "";
+            }
+            return switch (c.getCachedFormulaResultType()) {
+                case STRING -> c.getStringCellValue() == null ? "" : c.getStringCellValue();
+                case NUMERIC -> {
+                    var estilo = c.getCellStyle();
+                    int indice = estilo != null ? estilo.getDataFormat() : 0;
+                    String cadena = estilo != null && estilo.getDataFormatString() != null
+                            ? estilo.getDataFormatString() : "General";
+                    yield formato.formatRawCellContents(c.getNumericCellValue(), indice, cadena);
+                }
+                case BOOLEAN -> c.getBooleanCellValue() ? "TRUE" : "FALSE";
+                case ERROR -> {
+                    byte codigo = c.getErrorCellValue();
+                    yield FormulaError.isValidCode(codigo) ? FormulaError.forInt(codigo).getString() : "";
+                }
+                default -> "";
+            };
+        }
+
         private String texto(Row fila, Map<String, Integer> col, Columna columna) {
-            Cell c = celda(fila, col, columna);
-            return c == null ? "" : formato.formatCellValue(c, formulas).trim();
+            return valor(celda(fila, col, columna)).trim();
         }
 
         private boolean vacio(Row fila, Map<String, Integer> col, Columna columna) {
@@ -509,8 +539,7 @@ public final class CarteraExcel {
                 return true;
             }
             for (int i : columnas) {
-                Cell c = fila.getCell(i);
-                if (c != null && !formato.formatCellValue(c, formulas).isBlank()) {
+                if (!valor(fila.getCell(i)).isBlank()) {
                     return false;
                 }
             }
