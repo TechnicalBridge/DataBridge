@@ -42,7 +42,7 @@ export default function PagosRecibidos() {
   const buscados = useMemo(() => {
     const texto = paraBuscar(buscar);
     if (!pagos || !texto) return pagos || [];
-    return pagos.filter((p) => [p.deudor, p.deudorRut, p.externalId].some((v) => paraBuscar(v).includes(texto)));
+    return pagos.filter((p) => [p.deudor, p.deudorRut, p.externalId, p.referencia, p.acreedor].some((v) => paraBuscar(v).includes(texto)));
   }, [pagos, buscar]);
   const cuantos = useMemo(() => Object.fromEntries(MEDIOS.map((m) => [m,
     m === "todas" ? buscados.length : buscados.filter((p) => p.pasarela === m).length])), [buscados]);

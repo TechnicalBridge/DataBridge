@@ -118,7 +118,7 @@ export function porMoneda(filas, campo) {
  * ni espacios, asi un RUT o un nombre se encuentran escritos de cualquier forma
  * (#280, #299).
  */
-export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
   .replace(/[.\-\s]/g, "");
 
 /** Hoy en Chile, como 2026-09-24. */
