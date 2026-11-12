@@ -420,6 +420,9 @@ entrada mientras la entrega por API esté apagada (`INTEGRACION_API`).
 
 - **La campaña es obligatoria:** sin `campana_id_externo` responde `400` (`sin_campana`), y en
   una terminada, `409` (`campana_terminada`).
+- **A un acreedor suspendido no se le carga cartera** (#296): ni él ni una agencia por su cuenta.
+  La revisión y la carga responden `409` (`acreedor_suspendido`), igual que la entrega por API, y
+  `GET /api/debts/cartera/opciones` lo marca con `suspendido: true`.
 - **El id del lote y la fecha de corte se arman solos** si no vienen: el corte es hoy.
 - **Antes de confirmar se puede revisar:** `POST /api/debts/cartera/revision` recibe lo mismo y
   responde lo que pasaría con cada deuda y cuánto entraría por moneda. No guarda nada ni invita a

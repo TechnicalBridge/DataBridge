@@ -43,7 +43,9 @@ export default function Cargar() {
     setOpciones(o);
     const buscada = elegir || campana;
     const suyo = o.acreedores?.find((a) => a.campanas?.some((c) => c.idExterno === buscada));
-    setAcreedor((actual) => suyo?.rut || actual || o.acreedores?.[0]?.rut || "");
+    //  Por omision, uno al que se le puede cargar: a uno suspendido no (#296).
+    const primero = o.acreedores?.find((a) => !a.suspendido) || o.acreedores?.[0];
+    setAcreedor((actual) => suyo?.rut || actual || primero?.rut || "");
     if (elegir) setCampana(elegir);
     return { o, suyo };
   }
@@ -53,8 +55,8 @@ export default function Cargar() {
     leerOpciones()
       .then(({ suyo }) => {
         const pedida = suyo?.campanas?.find((c) => c.idExterno === campana);
-        if (pedida && pedida.estado !== "terminada") setPaso(1);
-        //  Una que no existe, o que ya terminó, no queda elegida.
+        if (pedida && pedida.estado !== "terminada" && !suyo.suspendido) setPaso(1);
+        //  Una que no existe, que ya terminó o de un acreedor suspendido, no queda elegida.
         else setCampana("");
       })
       .catch((err) => setError(err.message));
@@ -221,12 +223,20 @@ function PasoCampana({
         <div className="field">
           <label htmlFor="acreedor">Acreedor</label>
           <select id="acreedor" value={acreedor} onChange={(e) => setAcreedor(e.target.value)}>
-            {acreedores.map((a) => <option key={a.rut} value={a.rut}>{a.nombre}</option>)}
+            {acreedores.map((a) => (
+              <option key={a.rut} value={a.rut}>{a.nombre}{a.suspendido ? " (suspendida)" : ""}</option>
+            ))}
           </select>
         </div>
       ) : null}
 
-      {creando ? (
+      {elegido?.suspendido ? (
+        //  Lo suyo esta congelado (#152): no se le carga cartera (#296).
+        <div className="notice" role="status">
+          <b>{elegido.nombre}</b> está suspendida en DataBridge: mientras lo esté, no se le carga cartera. Lo que
+          ya está cargado queda en pausa hasta que la reactiven.
+        </div>
+      ) : creando ? (
         <>
           <p className="hint" style={{ marginTop: 0 }}>
             La campaña dice cuándo y cuántas veces se contacta a cada deudor. Después la puedes cambiar en
