@@ -1,4 +1,5 @@
-# <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="DataBridge" width="40" height="40" align="top"></picture> DataBridge
+<a id="1-nombre-del-proyecto"></a>
+# 1 <picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/marca/simbolo-oscuro.svg"><img src="frontend/public/marca/simbolo-claro.svg" alt="DataBridge" width="40" height="40" align="top"></picture> DataBridge
 
 [![gateway](https://github.com/TechnicalBridge/DataBridge/actions/workflows/gateway.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/gateway.yml) [![ms-auth](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-auth.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-auth.yml) [![ms-debt](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-debt.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-debt.yml) [![ms-payments](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-payments.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-payments.yml) [![frontend](https://github.com/TechnicalBridge/DataBridge/actions/workflows/frontend.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/frontend.yml) [![ms-ai](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-ai.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/ms-ai.yml) [![codeql](https://github.com/TechnicalBridge/DataBridge/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/TechnicalBridge/DataBridge/actions/workflows/codeql.yml)
 
@@ -41,7 +42,7 @@
 
 ---
 
-## Descripción
+## 2 Descripción
 
 ### Qué hace
 
@@ -76,7 +77,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## Tecnologías utilizadas
+## 3 Tecnologías utilizadas
 
 ### Lenguajes
 
@@ -122,7 +123,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 
 ---
 
-## Instrucciones para ejecutar el proyecto localmente
+## 4 Instrucciones para ejecutar el proyecto localmente
 
 ### Requisitos previos
 
@@ -182,28 +183,28 @@ Para ver el recorrido guiado completo de demostración, consultar [docs/demo/rec
 
 ---
 
-## Integrantes del equipo con sus roles
+## 5 Integrantes del equipo con sus roles
 
 | Integrante | Rol | Responsabilidades clave |
 | :--- | :--- | :--- |
-| **Flavio Henríquez** | Product Owner | Priorización del backlog, redacción de historias de usuario con criterios de aceptación y aprobación de paso a *Ready*. |
+| **Pedro Campos** | Product Owner | Priorización del backlog, redacción de historias de usuario con criterios de aceptación y aprobación de paso a *Ready*. |
 | **Martín Gutiérrez** | Scrum Master | Facilitación del flujo continuo, gestión de impedimentos, control del WIP y facilitación de ceremonias de retrospectiva. |
 | **Esteban Maino** | Desarrollador fullstack y Project Coordinator | Coordinación del proyecto y desarrollo en Spring Boot y React. |
-| **Pedro Campos** | Desarrollador fullstack y QA Tester | Desarrollo integral en backend y frontend, diseño y ejecución de pruebas automatizadas y aseguramiento de calidad. |
+| **Flavio Henríquez** | Desarrollador fullstack y QA Tester | Desarrollo integral en backend y frontend, diseño y ejecución de pruebas automatizadas y aseguramiento de calidad. |
 
 ---
 
-## Metodología de trabajo del equipo
+## 6 Metodología de trabajo del equipo
 
 ### Marco de trabajo: Scrumban
 
 El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de **Scrum** con la entrega de valor continua y control de flujo de **Kanban**:
 
 - **Roles Scrum definidos**:
-  - **Product Owner (Flavio Henríquez)**: Prioriza el backlog, escribe los criterios de aceptación y decide qué pasa a *Ready*.
+  - **Product Owner (Pedro Campos)**: Prioriza el backlog, escribe los criterios de aceptación y decide qué pasa a *Ready*.
   - **Scrum Master (Martín Gutiérrez)**: Cuida que el trabajo fluya, que nadie exceda el límite de tarjetas en curso y abre las retrospectivas.
   - **Project Coordinator y Desarrollador Fullstack (Esteban Maino)**: Programa en backend y portal, y coordina el avance del proyecto.
-  - **QA Tester y Desarrollador Fullstack (Pedro Campos)**: Programa en backend y portal, e implementa y valida las pruebas automatizadas.
+  - **QA Tester y Desarrollador Fullstack (Flavio Henríquez)**: Programa en backend y portal, e implementa y valida las pruebas automatizadas.
 - **Flujo Kanban sin Sprints fijos**: Las tareas avanzan de forma continua a través del tablero Kanban de GitHub Projects a través de las columnas: *Backlog → Ready → In Progress → In Review → Done*.
 - **Control de WIP (Work In Progress)**: Límite estricto de máximo 2 tarjetas simultáneas en *In Progress* por persona para minimizar cambios de contexto y reducir los tiempos de ciclo (*lead time*).
 - **Trunk-Based Development y Ramas cortas**: Desarrollo sobre `main` a través de ramas cortas (`tipo/numero-descripcion`), integradas mediante Pull Requests atómicos con revisión de código cruzada y aprobación de CI.
@@ -243,7 +244,7 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 ---
 
-## Arquitectura de la solución
+## 7 Arquitectura de la solución
 
 ### Descripción de la arquitectura
 
