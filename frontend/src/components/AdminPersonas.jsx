@@ -119,12 +119,16 @@ const QUE_SE_HIZO = {
 
 /** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero, con paginacion (#383). */
 export function Historial({ acciones }) {
-  const [pagina, setPagina] = useState(0);
+  const [paginaGuardada, setPagina] = useState(0);
   const porPagina = 10;
+  const total = acciones?.length ?? 0;
+  const paginas = Math.ceil(total / porPagina);
+  const pagina = Math.min(paginaGuardada, Math.max(0, paginas - 1));
 
-  if (!acciones || acciones.length === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+  if (pagina !== paginaGuardada) setPagina(pagina);
 
-  const paginas = Math.ceil(acciones.length / porPagina);
+  if (total === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+
   const visibles = acciones.slice(pagina * porPagina, (pagina + 1) * porPagina);
 
   return (
