@@ -107,6 +107,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
   - `tb_debt`: Empresas, mandatos, campañas, deudores, deudas, cargos, convenios, contactos y outbox de eventos.
   - `tb_payments`: Transacciones de pago, eventos de pasarelas, avisos de conciliación y valores históricos de la UF.
 - **Flyway**: Versionamiento ordenado de esquemas relacionales con validación automática al inicio (`ddl-auto: validate`).
+  Migraciones vigentes: `tb_auth` `V1`–`V8` (incluye la bitácora de accesos del panel), `tb_debt` `V1`–`V13` (secretos cifrados, intereses, descuento, contactos, CAE de convenios) y `tb_payments` `V1`–`V6` (pago duplicado, interés y descuento del pago).
 
 ### Cloud y servicios externos
 
@@ -260,6 +261,12 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
    Cada microservicio dispone de su propia base de datos física en **MySQL 8.4** (`tb_auth`, `tb_debt`, `tb_payments`). No existen llaves foráneas entre bases distintas; las relaciones entre dominios se mantienen a nivel de aplicación mediante identificadores de negocio (RUT, identificadores de deuda).
 4. **Comunicación y Mensajería Asíncrona**:
    El aviso de pago completado se propaga desde `ms-payments` hacia `ms-debt` mediante una cola dedicada en **RabbitMQ** (`ms-debt.pagos-confirmados`), garantizando persistencia y reintentos automáticos en caso de indisponibilidad temporal.
+5. **Cifrado de secretos y rotación de llave**:
+   `ms-debt` guarda los secretos de `subscriptions` cifrados con **AES-256-GCM** (`Cifrado`). Al cambiar `CIFRADO_LLAVE`, la llave anterior queda en `CIFRADO_LLAVE_ANTERIOR` y el componente `RecifrarSecretosGuardados` vuelve a cifrar en el arranque los secretos guardados con la nueva, dentro de una transacción. El procedimiento está en [`docs/despliegue/docker.md`](docs/despliegue/docker.md).
+6. **Panel de administración y bitácora de accesos**:
+   Las rutas del panel van bajo `/api/admin/` con el rol admin, a través del gateway. La bitácora de quién entró y qué accesos se rechazaron la sirve `ms-auth` en `/api/admin/auth/accesos` (migraciones `V5` y `V8` de `tb_auth`).
+7. **Barreras contra secretos en el repositorio**:
+   `scripts/verificar-secretos.cjs` corre en el hook de pre-commit (`.githooks`) y el workflow [`secretos.yml`](.github/workflows/secretos.yml) revisa cada PR y cada push a `main` con gitleaks. Detalle en [`docs/seguridad/secretos.md`](docs/seguridad/secretos.md).
 
 ---
 

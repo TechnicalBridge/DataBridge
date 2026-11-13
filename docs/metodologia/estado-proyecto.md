@@ -1,6 +1,8 @@
-## 14. Estado al 19 de octubre de 2026
+## 14. Estado al 13 de noviembre de 2026
 
-**1320 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+**1.359 pruebas Java sin fallos**, y el portal compila (768 módulos). El acceso por código de los tres portales se comprobó por el gateway y en Edge, usando solo el proyecto Docker `tb_web`, cuentas ficticias y Mailpit sin salida externa. Las verificaciones de otros recorridos de la tabla son anteriores; no se repitieron para este cambio de acceso.
+
+**Versión actual:** sesiones `ES256` con `JWKS`, tres MySQL 8.4 independientes (`db-auth`, `db-debt`, `db-payments`, puertos 3308, 3309 y 3310), rotación de `CIFRADO_LLAVE` con `RecifrarSecretosGuardados`, bitácora de accesos en el panel y verificación de secretos en pre-commit y CI. Migraciones: `tb_auth` `V1`–`V8`, `tb_debt` `V1`–`V13`, `tb_payments` `V1`–`V6`. Las pruebas se midieron el 12 de noviembre sobre `main` `f60c5c2` (gateway 29, ms-auth 322, ms-debt 541, ms-payments 303, ms-ai 164). Las verificaciones en vivo de la tabla siguen siendo las de cada fecha: no se repitieron para esta actualización de documentos.
 
 En la revisión de #222 se corrigió el consumo prematuro de un acceso correcto cuando ms-debt no
 responde al comprobar la empresa: código y enlace se consumen solo después de abrir la sesión. Las
