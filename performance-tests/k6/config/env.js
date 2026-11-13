@@ -57,8 +57,8 @@ export const DURACION_CARGA = __ENV.DURACION_CARGA || '2m';
 export const DURACION_ENDURANCE = __ENV.DURACION_ENDURANCE || '10m';
 export const UMBRAL_P95_MS = numero('UMBRAL_P95_MS', 800);
 
-export const PERMITIR_ESCRITURAS = booleano('PERMITIR_ESCRITURAS', true);
-export const INCLUIR_IA = booleano('INCLUIR_IA', true);
+export const PERMITIR_ESCRITURAS = booleano('PERMITIR_ESCRITURAS', false);
+export const INCLUIR_IA = booleano('INCLUIR_IA', false);
 export const VERIFICAR_PASARELAS = booleano('VERIFICAR_PASARELAS', false);
 
 //  Donde viven los CSV/XLSX y donde se escriben los reportes. Compose los

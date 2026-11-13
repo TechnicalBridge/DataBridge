@@ -97,11 +97,17 @@ function markdown(data, nombre) {
   return lineas.join('\n');
 }
 
+function quitarSetupData(data) {
+  const { setup_data, ...resto } = data;
+  return resto;
+}
+
 export function resumen(data, nombre = REPORTE_NOMBRE) {
   const marca = new Date().toISOString().replace(/[:.]/g, '-');
   const base = `${REPORT_DIR}/${nombre}-${marca}`;
+  const datosLimpios = quitarSetupData(data);
   const salida = {
-    [`${base}.json`]: JSON.stringify(data, null, 2),
+    [`${base}.json`]: JSON.stringify(datosLimpios, null, 2),
     [`${base}.md`]: markdown(data, nombre),
     stdout: markdown(data, nombre),
   };
