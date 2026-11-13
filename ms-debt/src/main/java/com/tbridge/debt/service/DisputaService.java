@@ -78,9 +78,9 @@ public class DisputaService {
         }
         switch (deuda.getStatus()) {
             case open, repacted -> { }
-            case disputed -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya esta en revision");
-            case paid -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya esta pagada");
-            case withdrawn -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya no esta en cobranza");
+            case disputed -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya está en revisión");
+            case paid -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya está pagada");
+            case withdrawn -> throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya no está en cobranza");
         }
 
         deuda.setStatus(Debt.Status.disputed);
@@ -102,7 +102,7 @@ public class DisputaService {
         }
         Debt deuda = deudas.requireVisible(user, id);
         if (deuda.getStatus() != Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "Esa deuda no esta en disputa");
+            throw new ApiException(HttpStatus.CONFLICT, "Esa deuda no está en disputa");
         }
         String resultado = pedido.resultado() == null ? "" : pedido.resultado().trim();
         String nota = pedido.nota() == null || pedido.nota().isBlank() ? null : pedido.nota().trim();

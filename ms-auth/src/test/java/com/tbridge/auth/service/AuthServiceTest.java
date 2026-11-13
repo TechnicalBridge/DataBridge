@@ -186,7 +186,15 @@ class AuthServiceTest {
 
         ApiException vencido = assertThrows(ApiException.class,
                 () -> auth.entrarConCodigo("16482337-7", codigo, "1.2.3.4"));
-        assertTrue(vencido.getMessage().contains("expiro"));
+        assertEquals("El código expiró. Pide uno nuevo.", vencido.getMessage());
+    }
+
+    @Test
+    void un_enlace_desconocido_devuelve_el_mensaje_visible() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> auth.entrarConEnlace("desconocido", "1.2.3.4"));
+        assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
+        assertEquals("Enlace inválido o vencido", error.getMessage());
     }
 
     @Test
@@ -232,6 +240,7 @@ class AuthServiceTest {
                 () -> auth.entrarConCodigo("16482337-7", "ZZZZZZ", "1.2.3.4")).getMessage();
 
         //  Si fueran distintos, se podria averiguar que RUT tienen deuda.
+        assertEquals("El código no corresponde a ese RUT", sinCodigo);
         assertEquals(sinCodigo, equivocado);
     }
 

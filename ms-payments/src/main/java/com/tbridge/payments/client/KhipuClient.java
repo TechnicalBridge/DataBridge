@@ -112,7 +112,7 @@ public class KhipuClient {
                     .retrieve()
                     .body(JsonNode.class);
             if (r == null || !r.hasNonNull("payment_id") || !r.hasNonNull("payment_url")) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no devolvio el cobro");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no devolvió el cobro");
             }
             return new Cobro(r.get("payment_id").asText(), r.get("payment_url").asText());
         } catch (RestClientException e) {
@@ -126,13 +126,13 @@ public class KhipuClient {
         try {
             JsonNode r = rest.get().uri(PAGOS + "/{id}", paymentId).retrieve().body(JsonNode.class);
             if (r == null) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no dijo en que va el pago");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no dijo en qué va el pago");
             }
             BigDecimal monto = r.hasNonNull("amount") ? new BigDecimal(r.get("amount").asText()) : null;
             return new Estado(texto(r, "status"), texto(r, "status_detail"), monto, texto(r, "currency"),
                     texto(r, "transaction_id"), r);
         } catch (RestClientException | NumberFormatException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no dijo en que va el pago");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Khipu no dijo en qué va el pago");
         }
     }
 

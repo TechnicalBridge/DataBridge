@@ -95,9 +95,9 @@ public class OperacionService {
     @Transactional
     public OperacionResponse.Aviso reintentarAviso(Long id, String admin) {
         DebtNotification aviso = avisos.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningun aviso con ese id"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningún aviso con ese id"));
         if (aviso.getStatus() == DebtNotification.Status.delivered) {
-            throw new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entrego");
+            throw new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entregó");
         }
         aviso.reintentar();
         avisos.save(aviso);

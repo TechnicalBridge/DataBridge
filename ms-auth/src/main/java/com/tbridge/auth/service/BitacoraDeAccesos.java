@@ -63,7 +63,7 @@ public class BitacoraDeAccesos {
     public Page<AccesoResponse> buscar(LocalDate desde, LocalDate hasta, AccessLog.Method metodo,
                                        AccessLog.Outcome resultado, int pagina, int porPagina) {
         if (pagina < 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "La pagina empieza en 0");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "La página empieza en 0");
         }
         if (desde != null && hasta != null && hasta.isBefore(desde)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "'hasta' no puede ser antes de 'desde'");

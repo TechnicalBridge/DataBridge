@@ -58,11 +58,11 @@ public class MandatoService {
     public MandatoResponse registrarMandato(Organization agencia, MandatoRequest pedido) {
         if (!agencia.esAgencia()) {
             throw new CarteraInvalida("no_es_agencia",
-                    "Esa organizacion no esta registrada como agencia de cobranza", 403);
+                    "Esa organización no está registrada como agencia de cobranza", 403);
         }
         Organization acreedor = buscarORegistrarAcreedor(pedido);
         if (acreedor.getId().equals(agencia.getId())) {
-            throw new CarteraInvalida("mandato_invalido", "Una agencia no puede tener mandato sobre si misma");
+            throw new CarteraInvalida("mandato_invalido", "Una agencia no puede tener mandato sobre sí misma");
         }
 
         LocalDate desde = fecha(pedido.vigenteDesde(), LocalDate.now());
@@ -109,10 +109,10 @@ public class MandatoService {
         Organization acreedor = buscarAcreedor(pedido.acreedorRut());
         String idExterno = pedido.idExterno();
         if (idExterno == null || idExterno.isBlank()) {
-            throw new CarteraInvalida("campana_incompleta", "La campana necesita id_externo");
+            throw new CarteraInvalida("campana_incompleta", "La campaña necesita id_externo");
         }
         if (idExterno.length() > 64) {
-            throw new CarteraInvalida("id_invalido", "El id_externo de la campana tiene hasta 64 caracteres");
+            throw new CarteraInvalida("id_invalido", "El id_externo de la campaña tiene hasta 64 caracteres");
         }
         boolean esElAcreedor = quien.getId().equals(acreedor.getId());
         Optional<Campaign> guardada = campaigns.findByAgencyAndExternalId(quien, idExterno);
@@ -134,7 +134,7 @@ public class MandatoService {
         //  el estado no le pisa el nombre con su id ni el inicio con hoy.
         if (pedido.nombre() != null && !pedido.nombre().isBlank()) {
             if (pedido.nombre().strip().length() > 120) {
-                throw new CarteraInvalida("nombre_invalido", "El nombre de la campana tiene hasta 120 caracteres");
+                throw new CarteraInvalida("nombre_invalido", "El nombre de la campaña tiene hasta 120 caracteres");
             }
             campana.setName(pedido.nombre().strip());
         } else if (nueva) {
@@ -149,14 +149,14 @@ public class MandatoService {
             campana.setEndsOn(fecha(pedido.fin(), null));
         }
         if (campana.getEndsOn() != null && campana.getEndsOn().isBefore(campana.getStartsOn())) {
-            throw new CarteraInvalida("fechas_invalidas", "La campana no puede terminar antes de empezar");
+            throw new CarteraInvalida("fechas_invalidas", "La campaña no puede terminar antes de empezar");
         }
         if (presente(pedido.canales())) {
             campana.setChannels(pedido.canales().toString());
         }
         if (pedido.intentos() != null) {
             if (pedido.intentos() < 1 || pedido.intentos() > 10) {
-                throw new CarteraInvalida("intentos_invalidos", "Los intentos de una campana van de 1 a 10");
+                throw new CarteraInvalida("intentos_invalidos", "Los intentos de una campaña van de 1 a 10");
             }
             campana.setAttempts(pedido.intentos().shortValue());
         }
@@ -174,11 +174,11 @@ public class MandatoService {
                 case "pausada" -> Campaign.Status.paused;
                 case "terminada" -> Campaign.Status.finished;
                 default -> throw new CarteraInvalida("estado_invalido",
-                        "El estado de la campana va como en_curso, pausada o terminada");
+                        "El estado de la campaña va como en_curso, pausada o terminada");
             };
             if (!nueva && campana.getStatus() == Campaign.Status.finished && nuevo != Campaign.Status.finished) {
                 throw new CarteraInvalida("campana_terminada",
-                        "Una campana terminada no se puede volver a poner en curso ni pausar", 409);
+                        "Una campaña terminada no se puede volver a poner en curso ni pausar", 409);
             }
             campana.setStatus(nuevo);
         }
@@ -198,7 +198,7 @@ public class MandatoService {
         for (JsonNode dia : cadencia) {
             if (!dia.canConvertToInt() || !dia.isIntegralNumber() || dia.asInt() <= anterior) {
                 throw new CarteraInvalida("cadencia_invalida",
-                        "La cadencia son dias crecientes y mayores que cero, por ejemplo 1, 4, 11");
+                        "La cadencia son días crecientes y mayores que cero, por ejemplo 1, 4, 11");
             }
             anterior = dia.asInt();
         }
@@ -207,7 +207,7 @@ public class MandatoService {
     private Organization buscarAcreedor(String crudo) {
         String rut = rutDelAcreedor(crudo);
         return organizations.findByRut(rut).orElseThrow(() -> new CarteraInvalida(
-                "acreedor_desconocido", "El acreedor " + rut + " no esta registrado", 404));
+                "acreedor_desconocido", "El acreedor " + rut + " no está registrado", 404));
     }
 
     /**
@@ -239,7 +239,7 @@ public class MandatoService {
     private static String rutDelAcreedor(String crudo) {
         String rut = Rut.normalizar(crudo);
         if (!Rut.esValido(rut)) {
-            throw new CarteraInvalida("acreedor_invalido", "El RUT del acreedor no es valido");
+            throw new CarteraInvalida("acreedor_invalido", "El RUT del acreedor no es válido");
         }
         return rut;
     }

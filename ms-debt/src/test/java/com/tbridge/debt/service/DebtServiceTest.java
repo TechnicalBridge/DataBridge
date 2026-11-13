@@ -416,7 +416,7 @@ class DebtServiceTest {
         assertEquals("va**************@correo.cl", invitacion.referencia());
         assertEquals(el("2026-09-19T10:05"), invitacion.ocurrioEn());
         assertEquals(null, invitacion.monto());
-        assertEquals("campana Arriendos octubre, toque 1 de 2", sucesos.get(2).referencia());
+        assertEquals("campaña Arriendos octubre, toque 1 de 2", sucesos.get(2).referencia());
         assertEquals(DebtEvent.Actor.system, sucesos.get(2).quien());
         assertEquals(DebtEvent.Actor.agency, sucesos.get(4).quien(), "el reenvio lo pide la empresa");
         assertEquals("va**************@correo.cl", sucesos.get(4).referencia());
@@ -434,7 +434,7 @@ class DebtServiceTest {
         when(contactos.findByDebtOrderByOccurredAtAsc(deuda)).thenReturn(List.of(
                 Contact.toque(deuda, campana, 2, null).el(el("2026-09-23T10:00"))));
 
-        assertEquals("campana Arriendos octubre, toque 2 de 2",
+        assertEquals("campaña Arriendos octubre, toque 2 de 2",
                 servicio.getFor(empresa("77305118-6"), 3L).historia().getFirst().referencia());
     }
 

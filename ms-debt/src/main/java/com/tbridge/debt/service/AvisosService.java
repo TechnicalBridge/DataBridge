@@ -64,9 +64,9 @@ public class AvisosService {
     @Transactional
     public AvisosResponse.Aviso reintentar(Long id, String admin) {
         OutboxEvent aviso = bandeja.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningun aviso con ese id"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningún aviso con ese id"));
         if (aviso.getStatus() == OutboxEvent.Status.delivered) {
-            throw new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entrego");
+            throw new ApiException(HttpStatus.CONFLICT, "Ese aviso ya se entregó");
         }
         aviso.reintentar();
         bandeja.save(aviso);
@@ -112,11 +112,11 @@ public class AvisosService {
         try {
             URI uri = URI.create(url);
             if (uri.getScheme() == null || uri.getHost() == null) {
-                return "(direccion no valida)";
+                return "(dirección no válida)";
             }
             return uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
         } catch (IllegalArgumentException e) {
-            return "(direccion no valida)";
+            return "(dirección no válida)";
         }
     }
 }

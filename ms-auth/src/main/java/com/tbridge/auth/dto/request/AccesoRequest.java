@@ -19,13 +19,13 @@ public record AccesoRequest(
         String rut,
 
         @Schema(description = "Seis caracteres, sin 0, O, 1, I ni L", example = "K7M2QX")
-        @NotBlank(message = "Falta el codigo")
-        @Size(max = 16, message = "El codigo es demasiado largo")
+        @NotBlank(message = "Falta el código")
+        @Size(max = 16, message = "El código es demasiado largo")
         String codigo,
 
         @Schema(description = "Correo del personal. Se usa en vez del RUT", nullable = true)
-        @Email(message = "Correo no valido")
-        @Size(max = 254, message = "Correo no valido")
+        @Email(message = "Correo no válido")
+        @Size(max = 254, message = "Correo no válido")
         String correo
 ) {
     @AssertTrue(message = "Indica tu RUT o tu correo, no ambos")

@@ -14,8 +14,8 @@ public record EnlaceRequest(
 
         @Schema(description = "Solo para el personal. El deudor no lo manda: su acceso va al correo "
                 + "que registro el acreedor", example = "camila.reyes@apofyx.cl", nullable = true)
-        @Email(message = "Correo no valido")
-        @Size(max = 254, message = "Correo no valido")
+        @Email(message = "Correo no válido")
+        @Size(max = 254, message = "Correo no válido")
         String correo
 ) {
 }

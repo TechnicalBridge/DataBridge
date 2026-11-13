@@ -9,8 +9,8 @@ import jakarta.validation.constraints.Size;
 public record DevolucionRequest(
         @Schema(description = "La referencia de la devolucion que dio la pasarela", example = "DEV-99214",
                 maxLength = PaymentService.MAX_REFERENCIA)
-        @NotBlank(message = "Falta la referencia de la devolucion en la pasarela")
+        @NotBlank(message = "Falta la referencia de la devolución en la pasarela")
         @Size(max = PaymentService.MAX_REFERENCIA,
-                message = "La referencia de la devolucion tiene mas de " + PaymentService.MAX_REFERENCIA + " caracteres")
+                message = "La referencia de la devolución tiene más de " + PaymentService.MAX_REFERENCIA + " caracteres")
         String referencia
 ) {}

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "Un nombre para reconocer la clave: para que sistema es")
 public record ClaveRequest(
         @Schema(example = "Servidor de APOFYX")
-        @NotBlank(message = "Ponle un nombre a la clave, para saber despues de que sistema es")
+        @NotBlank(message = "Ponle un nombre a la clave, para saber después de qué sistema es")
         @Size(max = 80, message = "El nombre puede tener hasta 80 caracteres")
         String nombre
 ) {

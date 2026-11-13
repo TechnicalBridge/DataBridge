@@ -25,8 +25,8 @@ import java.util.List;
 @Schema(description = "La deuda (o sus cuotas) a pagar y la pasarela")
 public record CheckoutRequest(
         @Schema(example = "3")
-        @NotNull(message = "Indica que deuda quieres pagar")
-        @Positive(message = "Indica que deuda quieres pagar")
+        @NotNull(message = "Indica qué deuda quieres pagar")
+        @Positive(message = "Indica qué deuda quieres pagar")
         Long debtId,
 
         @Schema(description = "Las cuotas a pagar: las que vencen primero, en orden. Sin ellas se paga todo "

@@ -89,7 +89,7 @@ public class EmpresaService {
     public EmpresaResponse crear(NuevaEmpresaRequest pedido, String admin) {
         String rut = Rut.normalizar(pedido.rut());
         if (!Rut.esValido(rut)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "El RUT no es valido: revisa el digito verificador");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El RUT no es válido: revisa el dígito verificador");
         }
         organizations.findByRut(rut).ifPresent(existente -> {
             throw new ApiException(HttpStatus.CONFLICT, "Ya hay una empresa con ese RUT: "

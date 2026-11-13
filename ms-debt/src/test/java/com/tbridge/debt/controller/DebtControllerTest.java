@@ -157,7 +157,7 @@ class DebtControllerTest {
     void un_id_que_no_es_numero_es_400() throws Exception {
         mvc.perform(get("/api/debts/abc").header("Authorization", deudor()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("El parametro 'id' no tiene el formato esperado"));
+                .andExpect(jsonPath("$.error").value("El parámetro 'id' no tiene el formato esperado"));
     }
 
     // ------------------------------------------------------------------

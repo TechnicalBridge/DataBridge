@@ -192,6 +192,14 @@ class PaymentServiceTest {
     }
 
     @Test
+    void un_pago_sin_rut_devuelve_el_mensaje_visible() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.checkout(null, new CheckoutRequest(3L, null, "webpay")));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        assertEquals("La sesión no identifica al deudor", error.getMessage());
+    }
+
+    @Test
     void una_pasarela_que_no_existe_es_400() {
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "paypal")));

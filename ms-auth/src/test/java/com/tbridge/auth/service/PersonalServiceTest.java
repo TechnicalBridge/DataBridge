@@ -208,7 +208,7 @@ class PersonalServiceTest {
 
         ApiException misma = assertThrows(ApiException.class, () -> servicio.crearUsuario(EMPRESA, ana(), ADMIN));
         assertEquals(HttpStatus.CONFLICT, misma.getStatus());
-        assertTrue(misma.getMessage().contains("ya esta en esta empresa"));
+        assertTrue(misma.getMessage().contains("ya está en esta empresa"));
 
         ApiException otra = assertThrows(ApiException.class, () -> servicio.crearUsuario(EMPRESA,
                 new NuevaPersonaRequest("CAMILA.REYES@apofyx.cl", "Camila Reyes"), ADMIN));

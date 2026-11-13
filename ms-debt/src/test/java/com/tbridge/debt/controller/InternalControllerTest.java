@@ -167,6 +167,6 @@ class InternalControllerTest {
         mvc.perform(post("/internal/claves").header("X-Internal-Key", CLAVE)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"nombre\":\"Demo\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Falta el RUT de la organizacion"));
+                .andExpect(jsonPath("$.error").value("Falta el RUT de la organización"));
     }
 }

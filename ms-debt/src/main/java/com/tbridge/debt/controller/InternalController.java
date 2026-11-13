@@ -52,7 +52,7 @@ import java.util.List;
 @RequestMapping("/internal")
 @Tag(name = "Interno", description = "Para los otros servicios y operaciones, con la clave interna")
 @SecurityRequirement(name = OpenApiConfig.CLAVE_INTERNA)
-@ApiResponse(responseCode = "401", description = "Clave interna invalida",
+@ApiResponse(responseCode = "401", description = "Clave interna inválida",
         content = @Content(schema = @Schema(implementation = ApiError.class)))
 public class InternalController {
 
@@ -217,7 +217,7 @@ public class InternalController {
 
     private void exigirClave(String clave) {
         if (clave == null || !clave.equals(internalKey)) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna inválida");
         }
     }
 }

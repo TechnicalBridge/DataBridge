@@ -116,9 +116,9 @@ public final class ModoDePrueba {
     /** Como se le dice a una persona en que modo esta, para el log de arranque y la prueba de correo. */
     public String descripcion() {
         if (!activo()) {
-            return "sin modo de prueba: se le escribe a cualquier direccion";
+            return "sin modo de prueba: se le escribe a cualquier dirección";
         }
-        String directo = permitidos.isEmpty() ? "a nadie mas" : "solo a " + String.join(", ", permitidos);
+        String directo = permitidos.isEmpty() ? "a nadie más" : "solo a " + String.join(", ", permitidos);
         return "modo de prueba: directo " + directo
                 + (desvio == null ? "; lo demas no sale" : "; lo demas se desvia a " + desvio);
     }

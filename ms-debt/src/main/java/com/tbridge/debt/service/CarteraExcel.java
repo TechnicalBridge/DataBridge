@@ -178,7 +178,7 @@ public final class CarteraExcel {
                 throw conProblemas();
             }
             if (hojaDeudas.getLastRowNum() > CarteraCsv.MAX_FILAS) {
-                throw invalido("La hoja Deudas tiene mas de " + CarteraCsv.MAX_FILAS
+                throw invalido("La hoja Deudas tiene más de " + CarteraCsv.MAX_FILAS
                         + " filas: divídela en varias planillas");
             }
             Map<String, Deudor> deudores = deudores(hojaDeudores, enDeudores);

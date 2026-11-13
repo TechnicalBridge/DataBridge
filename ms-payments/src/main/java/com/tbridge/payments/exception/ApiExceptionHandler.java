@@ -54,7 +54,7 @@ public class ApiExceptionHandler {
         String mensaje = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(FieldError::getDefaultMessage)
-                .orElse("La peticion no es valida");
+                .orElse("La petición no es válida");
         return responder(HttpStatus.BAD_REQUEST, mensaje);
     }
 
@@ -64,7 +64,7 @@ public class ApiExceptionHandler {
         String mensaje = ex.getAllErrors().stream()
                 .findFirst()
                 .map(MessageSourceResolvable::getDefaultMessage)
-                .orElse("La peticion no es valida");
+                .orElse("La petición no es válida");
         return responder(HttpStatus.BAD_REQUEST, mensaje);
     }
 
@@ -76,20 +76,20 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> cuerpoIlegible(HttpMessageNotReadableException ex) {
         if (ex.getCause() instanceof UnrecognizedPropertyException desconocido) {
             return responder(HttpStatus.BAD_REQUEST,
-                    "La peticion trae un campo que no existe: '" + desconocido.getPropertyName() + "'");
+                    "La petición trae un campo que no existe: '" + desconocido.getPropertyName() + "'");
         }
         return responder(HttpStatus.BAD_REQUEST,
-                "El cuerpo de la peticion no es JSON valido o trae un campo con otro tipo");
+                "El cuerpo de la petición no es JSON válido o trae un campo con otro tipo");
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiError> tipoInvalido(MethodArgumentTypeMismatchException ex) {
-        return responder(HttpStatus.BAD_REQUEST, "El parametro '" + ex.getName() + "' no tiene el formato esperado");
+        return responder(HttpStatus.BAD_REQUEST, "El parámetro '" + ex.getName() + "' no tiene el formato esperado");
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiError> faltaParametro(MissingServletRequestParameterException ex) {
-        return responder(HttpStatus.BAD_REQUEST, "Falta el parametro '" + ex.getParameterName() + "'");
+        return responder(HttpStatus.BAD_REQUEST, "Falta el parámetro '" + ex.getParameterName() + "'");
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
@@ -99,7 +99,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> archivoGrande(MaxUploadSizeExceededException ex) {
-        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamano maximo permitido");
+        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamaño máximo permitido");
     }
 
     /**
@@ -125,10 +125,10 @@ public class ApiExceptionHandler {
     private static String mensajePara(HttpStatusCode codigo) {
         return switch (codigo.value()) {
             case 404 -> "No existe esa ruta";
-            case 405 -> "Esa ruta no acepta ese metodo";
+            case 405 -> "Esa ruta no acepta ese método";
             case 406 -> "No se puede responder en el formato pedido";
             case 415 -> "Tipo de contenido no soportado";
-            default -> "La peticion no se pudo procesar";
+            default -> "La petición no se pudo procesar";
         };
     }
 

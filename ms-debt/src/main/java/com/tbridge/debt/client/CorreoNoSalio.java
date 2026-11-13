@@ -44,7 +44,7 @@ public class CorreoNoSalio extends ApiException {
     private static String motivo(String respuesta, boolean deLaDireccion) {
         String dijo = respuesta == null || respuesta.isBlank() ? "sin detalle" : tapar(respuesta.strip());
         String texto = deLaDireccion
-                ? "el servidor rechazo la direccion (" + dijo + ")"
+                ? "el servidor rechazó la dirección (" + dijo + ")"
                 : "el servidor de correo de DataBridge no lo acepto (" + dijo + "). Se reintenta solo";
         return texto.length() > 300 ? texto.substring(0, 297) + "..." : texto;
     }

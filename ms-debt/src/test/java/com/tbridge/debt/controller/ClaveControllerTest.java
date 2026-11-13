@@ -90,7 +90,7 @@ class ClaveControllerTest {
         mvc.perform(post("/api/claves").header("Authorization", empresa())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"nombre\":\" \"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Ponle un nombre a la clave, para saber despues de que sistema es"));
+                .andExpect(jsonPath("$.error").value("Ponle un nombre a la clave, para saber después de qué sistema es"));
 
         when(claves.emitir(apofyx, "Servidor de APOFYX")).thenReturn(new ClaveEmitidaResponse("tbk_secreta",
                 "tbk_secreta", "APOFYX", "Guardala ahora: no se puede volver a mostrar"));

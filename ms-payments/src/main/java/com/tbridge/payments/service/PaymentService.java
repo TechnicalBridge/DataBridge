@@ -173,7 +173,7 @@ public class PaymentService {
         //  que trae la sesion de un deudor, que entra con su codigo, sin
         //  cuenta ni correo.
         if (user == null || user.rut() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "La sesion no identifica al deudor");
+            throw new ApiException(HttpStatus.FORBIDDEN, "La sesión no identifica al deudor");
         }
         Payment.Gateway gateway = pasarela(pedido.gateway());
 
@@ -542,7 +542,7 @@ public class PaymentService {
     @Transactional
     public PaymentResponse registrarDevolucion(JwtPrincipal user, Long id, String referencia) {
         if (user == null || !user.isCreditor() || user.rut() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolución de un pago");
         }
         Payment pago = buscar(id);
         if (!deudas.cartera(user.rut()).contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
@@ -553,15 +553,15 @@ public class PaymentService {
         }
         if (pago.getStatus() != Payment.Status.duplicated) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Solo se puede registrar la devolucion de un pago duplicado");
+                    "Solo se puede registrar la devolución de un pago duplicado");
         }
         String ref = referencia == null ? "" : referencia.strip();
         if (ref.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolucion en la pasarela");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolución en la pasarela");
         }
         if (ref.length() > MAX_REFERENCIA) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "La referencia de la devolucion tiene mas de " + MAX_REFERENCIA + " caracteres");
+                    "La referencia de la devolución tiene más de " + MAX_REFERENCIA + " caracteres");
         }
         pago.setStatus(Payment.Status.refunded);
         payments.save(pago);
@@ -589,7 +589,7 @@ public class PaymentService {
      */
     public List<PaymentResponse> devueltos(JwtPrincipal user) {
         if (user == null || user.rut() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesion");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesión");
         }
         List<Payment> devueltos;
         if (user.isCreditor()) {
@@ -722,13 +722,13 @@ public class PaymentService {
     public void avisoDeKhipu(String cuerpo, String firma, String paymentId) {
         if (!firmaDeKhipu.valida(firma, cuerpo)) {
             log.info("firewall domain=PAYMENTS rule=KHIPU_SIGNATURE outcome=denied status=401");
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma de Khipu invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma de Khipu inválida");
         }
         if (paymentId == null || paymentId.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice que pago es");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice qué pago es");
         }
         Payment pago = payments.findByGatewayAndGatewayTxnId(Payment.Gateway.khipu, paymentId.trim())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Khipu aviso un pago que no existe"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Khipu avisó un pago que no existe"));
         conciliar(pago);
     }
 
@@ -954,7 +954,7 @@ public class PaymentService {
         if (!anulado && !mismo(sesion, sesionWebpay(pago))) {
             log.warn("Vuelta de Webpay por tiempo para el pago {} con una sesion que no es la suya: no se aplica",
                     pago.getId());
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Webpay no dijo que pago era");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Webpay no dijo qué pago era");
         }
         if (pago.getStatus() == Payment.Status.created) {
             fallido(pago, null);
@@ -1223,18 +1223,18 @@ public class PaymentService {
     /** El pago de Webpay de ese token, con su fila bloqueada: la vuelta y la consulta no se cruzan. */
     private Payment porToken(String token) {
         return payments.paraCerrarPorToken(Payment.Gateway.webpay, token.trim())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvio un pago que no existe"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvió un pago que no existe"));
     }
 
     private Payment porOrden(String ordenDeCompra) {
         Long id = idDeLaOrden(ordenDeCompra);
         if (id == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Webpay no dijo que pago era");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Webpay no dijo qué pago era");
         }
         Payment pago = payments.paraCerrar(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvio un pago que no existe"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvió un pago que no existe"));
         if (pago.getGateway() != Payment.Gateway.webpay) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvio un pago que no existe");
+            throw new ApiException(HttpStatus.NOT_FOUND, "Webpay devolvió un pago que no existe");
         }
         return pago;
     }
@@ -1283,7 +1283,7 @@ public class PaymentService {
     public PaymentResponse webhook(WebhookRequest aviso, String signatureHeader) {
         Long id = aviso.pago();
         if (id == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice que pago es");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice qué pago es");
         }
         Payment pago = buscar(id);
 
@@ -1297,7 +1297,7 @@ public class PaymentService {
             //  alguien mandando avisos falsos es algo que hay que poder ver.
             eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.failed, PaymentEvent.Source.webhook)
                     .conFirma(false));
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma criptografica invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma criptográfica inválida");
         }
         if (cobraDeVerdad(pago)) {
             throw new ApiException(HttpStatus.CONFLICT, "Este pago lo confirma " + nombre(pago));
@@ -1405,7 +1405,7 @@ public class PaymentService {
     private void exigirFirma(Payment pago, String sig) {
         if (!verifier.matches(sig, String.valueOf(pago.getId()),
                 pago.getAmount().toPlainString(), String.valueOf(pago.getDebtId()))) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma de checkout invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma de checkout inválida");
         }
     }
 

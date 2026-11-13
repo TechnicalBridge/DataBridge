@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 public record VerifyRequest(
         @Schema(example = "3f0c8d1e-6a2b-4c55-9e7a-1b2c3d4e5f60")
         @NotBlank(message = "Al enlace le falta el token")
-        @Size(max = 100, message = "Enlace invalido o vencido")
+        @Size(max = 100, message = "Enlace inválido o vencido")
         String token
 ) {
 }

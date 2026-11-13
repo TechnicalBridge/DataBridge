@@ -57,11 +57,11 @@ public class AccesoService {
     @Transactional(noRollbackFor = ApiException.class)
     public CodigoEnviadoResponse enviarCodigo(JwtPrincipal user, Long debtId) {
         if (user == null || !user.isCreditor()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "El codigo lo envia el acreedor, no el deudor");
+            throw new ApiException(HttpStatus.FORBIDDEN, "El código lo envía el acreedor, no el deudor");
         }
         Debt deuda = debts.requireVisible(user, debtId);
         if (deuda.getStatus() == Debt.Status.withdrawn || deuda.getStatus() == Debt.Status.paid) {
-            throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya no esta en cobranza");
+            throw new ApiException(HttpStatus.CONFLICT, "Esa deuda ya no está en cobranza");
         }
         //  La empresa que la cobra esta suspendida (#152): al deudor no se le escribe. Puede verla
         //  otra empresa que siga activa, como el acreedor cuando la suspendida es su agencia.
@@ -72,15 +72,15 @@ public class AccesoService {
         Debtor deudor = deuda.getDebtor();
         if (deudor.getEmail() == null || deudor.getEmail().isBlank()) {
             throw new ApiException(HttpStatus.CONFLICT,
-                    "El deudor no tiene correo registrado, y el envio por WhatsApp aun no esta conectado");
+                    "El deudor no tiene correo registrado y el envío por WhatsApp aún no está conectado");
         }
         if (!horario.permiteAhora()) {
             throw new ApiException(HttpStatus.CONFLICT, "La ley solo deja escribirle a un deudor "
-                    + HorarioDeContacto.REGLA + ". Intentalo dentro de ese horario");
+                    + HorarioDeContacto.REGLA + ". Inténtalo dentro de ese horario");
         }
         if (!limite.permite(deudor, Instant.now())) {
-            throw new ApiException(HttpStatus.CONFLICT, "Ya se le escribio lo que permite la ley: dos veces por "
-                    + "semana y con dos dias entre una y otra. Intentalo en unos dias");
+            throw new ApiException(HttpStatus.CONFLICT, "Ya se le escribió lo que permite la ley: dos veces por "
+                    + "semana y con dos días entre una y otra. Inténtalo en unos días");
         }
 
         AuthClient.CodigoEmitido emitido;

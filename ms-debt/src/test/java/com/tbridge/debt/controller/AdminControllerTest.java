@@ -193,7 +193,7 @@ class AdminControllerTest {
         mvc.perform(post(EMPRESAS).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rut\":\"76086428-5\",\"razonSocial\":\" \",\"tipo\":\"agencia\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Falta la razon social"));
+                .andExpect(jsonPath("$.error").value("Falta la razón social"));
         mvc.perform(post(EMPRESAS).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rut\":\"76086428-5\",\"razonSocial\":\"Empresa Test SpA\",\"tipo\":\"admin\"}"))
                 .andExpect(status().isBadRequest())

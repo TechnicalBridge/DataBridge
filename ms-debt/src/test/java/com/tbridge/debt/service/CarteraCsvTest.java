@@ -102,7 +102,7 @@ class CarteraCsvTest {
                 + "CTR-1;registrar;;16482337-7;persona;Felipe;felipe@correo.cl;;CLP;Arriendo;;Julio;;520000;2026-07-05\n";
         CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
                 () -> CarteraCsv.leer(csv.getBytes(StandardCharsets.UTF_8), LOTE));
-        assertTrue(fallo.getMessage().startsWith("Fila 3: la deuda CTR-1 esta al dia en la fila 2"),
+        assertTrue(fallo.getMessage().startsWith("Fila 3: la deuda CTR-1 está al día en la fila 2"),
                 fallo.getMessage());
     }
 

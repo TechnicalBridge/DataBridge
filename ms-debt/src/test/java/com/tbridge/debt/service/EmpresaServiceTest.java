@@ -238,7 +238,7 @@ class EmpresaServiceTest {
                 new NuevaEmpresaRequest("76086428-9", "Empresa Test SpA", null, "agencia"), ADMIN));
 
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
-        assertTrue(error.getMessage().contains("digito verificador"));
+        assertEquals("El RUT no es válido: revisa el dígito verificador", error.getMessage());
         verify(organizations, never()).saveAndFlush(any());
         verify(bitacora, never()).save(any());
     }

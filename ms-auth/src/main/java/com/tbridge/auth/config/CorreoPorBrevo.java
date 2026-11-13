@@ -132,18 +132,18 @@ public class CorreoPorBrevo implements JavaMailSender {
         try {
             respuesta = http.send(pedido, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new MailSendException("Brevo no respondio: "
+            throw new MailSendException("Brevo no respondió: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new MailSendException("Se interrumpio el envio a Brevo", e);
+            throw new MailSendException("Se interrumpió el envío a Brevo", e);
         }
         int estado = respuesta.statusCode();
         if (estado / 100 == 2) {
             return;
         }
         String[] error = error(respuesta.body());
-        String texto = "Brevo respondio " + estado + (error[0] == null ? "" : " (" + error[0] + ")") + ": "
+        String texto = "Brevo respondió " + estado + (error[0] == null ? "" : " (" + error[0] + ")") + ": "
                 + UNA_IP.matcher(error[1]).replaceAll("<IP>");
         if (estado == 400 && "invalid_parameter".equals(error[0]) && DEL_DESTINATARIO.matcher(error[1]).find()) {
             throw new MailParseException(texto);
@@ -161,7 +161,7 @@ public class CorreoPorBrevo implements JavaMailSender {
                 para.add(destinatario(destinatario.toString()));
             }
         } catch (MessagingException e) {
-            throw new MailParseException("La direccion del destinatario no es valida", e);
+            throw new MailParseException("La dirección del destinatario no es válida", e);
         }
         try {
             String[] versiones = new String[2];
@@ -242,7 +242,7 @@ public class CorreoPorBrevo implements JavaMailSender {
         } catch (MessagingException e) {
             //  Se informa abajo, igual que un remitente que falta.
         }
-        throw new MailSendException("El remitente (MAIL_FROM) no es una direccion valida");
+        throw new MailSendException("El remitente (MAIL_FROM) no es una dirección válida");
     }
 
     /**
@@ -254,7 +254,7 @@ public class CorreoPorBrevo implements JavaMailSender {
         try {
             return new InternetAddress(de == null ? "" : de, true);
         } catch (AddressException e) {
-            throw new MailSendException("El remitente (MAIL_FROM) no es una direccion valida");
+            throw new MailSendException("El remitente (MAIL_FROM) no es una dirección válida");
         }
     }
 
@@ -262,7 +262,7 @@ public class CorreoPorBrevo implements JavaMailSender {
         try {
             return new InternetAddress(para, true).getAddress();
         } catch (AddressException e) {
-            throw new MailParseException("La direccion del destinatario no es valida", e);
+            throw new MailParseException("La dirección del destinatario no es válida", e);
         }
     }
 

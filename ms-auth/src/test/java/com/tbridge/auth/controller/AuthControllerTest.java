@@ -157,19 +157,19 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rut\":\"16482337-7\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Falta el codigo"));
+                .andExpect(jsonPath("$.error").value("Falta el código"));
     }
 
     @Test
     void un_codigo_equivocado_responde_el_401_del_servicio() throws Exception {
         when(auth.entrarConCodigo(any(), any(), any()))
-                .thenThrow(new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT"));
+                .thenThrow(new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT"));
 
         mvc.perform(post("/api/auth/acceso")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rut\":\"16482337-7\",\"codigo\":\"ZZZZZZ\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("El codigo no corresponde a ese RUT"));
+                .andExpect(jsonPath("$.error").value("El código no corresponde a ese RUT"));
     }
 
     @Test
@@ -178,7 +178,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"correo\":\"no-es-un-correo\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Correo no valido"));
+                .andExpect(jsonPath("$.error").value("Correo no válido"));
 
         when(auth.pedirEnlace(eq(null), eq("camila.reyes@apofyx.cl"), any()))
                 .thenReturn(new EnlaceResponse(true, "Si tus datos estan registrados, te llegara un enlace de acceso.", 15));
@@ -193,7 +193,7 @@ class AuthControllerTest {
     void renovar_sin_cookie_es_401() throws Exception {
         mvc.perform(post("/api/auth/refresh"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("No hay una sesion que renovar"));
+                .andExpect(jsonPath("$.error").value("No hay una sesión que renovar"));
     }
 
     @Test

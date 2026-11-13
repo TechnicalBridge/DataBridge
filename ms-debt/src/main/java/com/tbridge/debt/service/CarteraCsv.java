@@ -61,11 +61,11 @@ public final class CarteraCsv {
     public static ObjectNode leer(byte[] archivo, Lote lote) {
         List<List<String>> filas = filas(new String(archivo, StandardCharsets.UTF_8));
         if (filas.isEmpty()) {
-            throw invalido("El archivo esta vacio");
+            throw invalido("El archivo está vacío");
         }
         Map<String, Integer> indice = encabezado(filas.get(0));
         if (filas.size() - 1 > MAX_FILAS) {
-            throw invalido("El archivo tiene mas de " + MAX_FILAS + " filas: dividelo en varios lotes");
+            throw invalido("El archivo tiene más de " + MAX_FILAS + " filas: divídelo en varios lotes");
         }
 
         Map<String, ObjectNode> deudas = new LinkedHashMap<>();
@@ -114,10 +114,10 @@ public final class CarteraCsv {
                     continue;
                 }
             } else if (alDia.contains(id)) {
-                throw invalido("Fila " + numero + ": la deuda " + id + " esta al dia en la fila "
+                throw invalido("Fila " + numero + ": la deuda " + id + " está al día en la fila "
                         + primeraFila.get(id) + " (sin cargos) y no puede traer cargos en otra");
             } else if (!conCargo) {
-                throw invalido("Fila " + numero + ": la deuda " + id + " no trae el cargo. Un cliente al dia "
+                throw invalido("Fila " + numero + ": la deuda " + id + " no trae el cargo. Un cliente al día "
                         + "va en una sola fila, sin columnas de cargo");
             } else if (!deuda.has("cargos")) {
                 throw invalido("Fila " + numero + ": la deuda " + id + " se retira en la fila "
@@ -209,7 +209,7 @@ public final class CarteraCsv {
             }
         } catch (NumberFormatException | ArithmeticException e) {
             throw invalido("Fila " + numero + ": el monto '" + celda(fila, indice, "cargo_monto")
-                    + "' no es un numero. Sin separador de miles: 520000, o 38,5 en UF");
+                    + "' no es un número. Sin separador de miles: 520000, o 38,5 en UF");
         }
         cargo.put("fecha_vencimiento", celda(fila, indice, "cargo_vencimiento"));
         return cargo;

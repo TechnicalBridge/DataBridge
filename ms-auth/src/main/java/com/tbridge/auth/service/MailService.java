@@ -399,7 +399,7 @@ public class MailService {
             return llego.map(destino -> resultado(true, para, destino, null))
                     .orElseGet(() -> resultado(false, para, null,
                             "El modo de prueba no dejo salir este correo: " + para
-                                    + " no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A"));
+                                    + " no está en CORREO_SOLO_A y no hay CORREO_DESVIAR_A"));
         } catch (Exception e) {
             return resultado(false, para, null, motivo(e));
         }
@@ -567,13 +567,13 @@ public class MailService {
             de = new InternetAddress(remitente, true);
             responder = responderA == null ? null : InternetAddress.parse(responderA, true);
         } catch (AddressException e) {
-            throw new MailSendException("MAIL_FROM o MAIL_REPLY_TO no es una direccion valida: " + e.getMessage());
+            throw new MailSendException("MAIL_FROM o MAIL_REPLY_TO no es una dirección válida: " + e.getMessage());
         }
         InternetAddress para;
         try {
             para = new InternetAddress(destino.a(), true);
         } catch (AddressException e) {
-            throw new MailParseException("La direccion del destinatario no es valida", e);
+            throw new MailParseException("La dirección del destinatario no es válida", e);
         }
         try {
             MimeMessage mensaje = servidor.createMimeMessage();

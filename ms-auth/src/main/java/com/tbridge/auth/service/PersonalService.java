@@ -127,13 +127,13 @@ public class PersonalService {
         DeudasClient.Empresa empresa = deudas.empresa(rut).orElseThrow(() -> new ApiException(
                 HttpStatus.NOT_FOUND, "No hay ninguna empresa con ese RUT"));
         if (!empresa.activa()) {
-            throw new ApiException(HttpStatus.CONFLICT, "Esa empresa esta suspendida: no se le agregan personas");
+            throw new ApiException(HttpStatus.CONFLICT, "Esa empresa está suspendida: no se le agregan personas");
         }
         personal.findByEmailIgnoreCase(direccion).ifPresent(existente -> {
             throw new ApiException(HttpStatus.CONFLICT, existente.esAdmin()
                     ? "Ese correo es de un admin de DataBridge, y un admin no es de ninguna empresa"
                     : rut.equals(existente.getOrgRut())
-                            ? "Esa persona ya esta en esta empresa"
+                            ? "Esa persona ya está en esta empresa"
                             : "Ese correo ya es de una persona de otra empresa");
         });
 
@@ -176,7 +176,7 @@ public class PersonalService {
         StaffUser persona = buscar(id);
         if (String.valueOf(persona.getId()).equals(admin.id())) {
             throw new ApiException(HttpStatus.CONFLICT,
-                    "No puedes quitarte el acceso a ti mismo: pidele a otro admin que lo haga");
+                    "No puedes quitarte el acceso a ti mismo: pídele a otro admin que lo haga");
         }
         if (!persona.habilitado()) {
             return PersonaResponse.from(persona);
@@ -246,13 +246,13 @@ public class PersonalService {
     private static String rutValido(String crudo) {
         String rut = Rut.normalizar(crudo);
         if (!Rut.esValido(rut)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no valido");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no válido");
         }
         return rut;
     }
 
     private static String correoValido(String crudo) {
         return Correo.normalizar(crudo).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
-                "Ese correo no es valido: revisa que este completo, como nombre@empresa.cl"));
+                "Ese correo no es válido: revisa que esté completo, como nombre@empresa.cl"));
     }
 }

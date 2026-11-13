@@ -91,7 +91,7 @@ class ModoDePruebaTest {
 
     @Test
     void dice_en_que_modo_esta_con_palabras_de_una_persona() {
-        assertEquals("sin modo de prueba: se le escribe a cualquier direccion", new ModoDePrueba("", "").descripcion());
+        assertEquals("sin modo de prueba: se le escribe a cualquier dirección", new ModoDePrueba("", "").descripcion());
         assertEquals("modo de prueba: directo solo a equipo@gmail.com, @empresa-prueba.cl; lo demas se desvia a desvio@gmail.com",
                 new ModoDePrueba("equipo@gmail.com,@empresa-prueba.cl", "desvio@gmail.com").descripcion());
         assertEquals("modo de prueba: directo solo a equipo@gmail.com; lo demas no sale",

@@ -86,7 +86,7 @@ class AccesoServiceTest {
         ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
 
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
-        assertTrue(error.getMessage().startsWith("Ya se le escribio lo que permite la ley"), error.getMessage());
+        assertTrue(error.getMessage().startsWith("Ya se le escribió lo que permite la ley"), error.getMessage());
         verify(auth, never()).emitirCodigo(any());
         verify(contactos, never()).save(any());
     }
@@ -114,7 +114,7 @@ class AccesoServiceTest {
         ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
 
         assertEquals(HttpStatus.BAD_GATEWAY, error.getStatus());
-        assertEquals("No se pudo enviar el correo: el servidor rechazo la direccion (550 User unknown)",
+        assertEquals("No se pudo enviar el correo: el servidor rechazó la dirección (550 User unknown)",
                 error.getMessage());
         assertEquals(1, deudor.getEmailRejections());
         verify(contactos, never()).save(any());

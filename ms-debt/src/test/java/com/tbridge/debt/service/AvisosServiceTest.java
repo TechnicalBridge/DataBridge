@@ -175,6 +175,6 @@ class AvisosServiceTest {
     void la_direccion_sin_ruta_ni_parametros() {
         assertEquals("https://apofyx.cl", AvisosService.direccion("https://apofyx.cl/api/eventos?token=x"));
         assertEquals("http://localhost:8000", AvisosService.direccion("http://localhost:8000/x"));
-        assertEquals("(direccion no valida)", AvisosService.direccion("no es una url"));
+        assertEquals("(dirección no válida)", AvisosService.direccion("no es una url"));
     }
 }

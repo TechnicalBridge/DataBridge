@@ -11,7 +11,7 @@ public final class JwtAuthenticationFailureHandler implements AuthenticationFail
     @Override public void onAuthenticationFailure(HttpServletRequest request,HttpServletResponse response,
             AuthenticationException failure) throws IOException {
         boolean unavailable=failure instanceof AuthenticationServiceException;
-        write(response,unavailable?503:401,unavailable?"Verificacion de sesion temporalmente no disponible":"Token invalido o caducado");
+        write(response,unavailable?503:401,unavailable?"Verificación de sesión temporalmente no disponible":"Token inválido o caducado");
     }
     public static void write(HttpServletResponse response,int status,String message) throws IOException {
         response.setStatus(status);

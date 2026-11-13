@@ -194,7 +194,7 @@ class PaymentControllerTest {
         mvc.perform(post("/api/payments/checkout").header("Authorization", deudor())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"gateway\":\"webpay\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Indica que deuda quieres pagar"));
+                .andExpect(jsonPath("$.error").value("Indica qué deuda quieres pagar"));
         mvc.perform(post("/api/payments/checkout").header("Authorization", deudor())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"debtId\":3,\"gateway\":\"paypal\"}"))
                 .andExpect(status().isBadRequest())
@@ -226,7 +226,7 @@ class PaymentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"debtId\":3,\"installmentId\":[12,13],\"gateway\":\"webpay\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("La peticion trae un campo que no existe: 'installmentId'"));
+                .andExpect(jsonPath("$.error").value("La petición trae un campo que no existe: 'installmentId'"));
         verify(payments, never()).checkout(any(), any());
     }
 
@@ -254,12 +254,12 @@ class PaymentControllerTest {
     void la_pagina_de_la_pasarela_no_pide_sesion_sino_la_firma() throws Exception {
         when(payments.publicGet(41L, "firma")).thenReturn(pago());
         when(payments.publicGet(eq(41L), eq("otra"))).thenThrow(
-                new ApiException(HttpStatus.UNAUTHORIZED, "Firma de checkout invalida"));
+                new ApiException(HttpStatus.UNAUTHORIZED, "Firma de checkout inválida"));
 
         mvc.perform(get("/api/payments/public/41").param("sig", "firma")).andExpect(status().isOk());
         mvc.perform(get("/api/payments/public/41").param("sig", "otra")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/payments/public/41")).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Falta el parametro 'sig'"));
+                .andExpect(jsonPath("$.error").value("Falta el parámetro 'sig'"));
     }
 
     @Test
@@ -333,13 +333,13 @@ class PaymentControllerTest {
 
     @Test
     void un_aviso_de_khipu_con_firma_mala_es_401() throws Exception {
-        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.UNAUTHORIZED, "Firma de Khipu invalida"))
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.UNAUTHORIZED, "Firma de Khipu inválida"))
                 .when(payments).avisoDeKhipu(any(), any(), any());
 
         mvc.perform(post("/api/payments/public/khipu/aviso").header("x-khipu-signature", "t=1,s=mala")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"payment_id\":\"x\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Firma de Khipu invalida"));
+                .andExpect(jsonPath("$.error").value("Firma de Khipu inválida"));
     }
 
     @Test

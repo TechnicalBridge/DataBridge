@@ -139,7 +139,7 @@ public class WebpayClient {
                     .body(WebpayCreateResponse.class);
 
             if (response == null || response.token() == null || response.url() == null) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no devolvio la transaccion");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no devolvió la transacción");
             }
             return response;
         } catch (HttpClientErrorException e) {
@@ -184,15 +184,15 @@ public class WebpayClient {
                     .retrieve()
                     .body(WebpayCommitResponse.class);
             if (response == null) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no respondio");
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no respondió");
             }
             return response;
         } catch (HttpClientErrorException e) {
             log.error("Transbank no dejo {} la transaccion ({}): {}", que, e.getStatusCode(), e.getResponseBodyAsString());
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no confirmo la transaccion");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no confirmó la transacción");
         } catch (RestClientException e) {
             log.error("No fue posible {} la transaccion con Transbank Webpay: {}", que, e.getMessage());
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no confirmo la transaccion");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no confirmó la transacción");
         }
     }
 }

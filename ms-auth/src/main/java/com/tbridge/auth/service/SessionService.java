@@ -94,13 +94,13 @@ public class SessionService {
         if (actual.rotada()) {
             if (Duration.between(actual.getRotatedAt(), ahora).compareTo(GRACIA) < 0) {
                 throw new ApiException(HttpStatus.CONFLICT,
-                        "La sesion se acaba de renovar en otra pestana. Reintenta.");
+                        "La sesión se acaba de renovar en otra pestaña. Reintenta.");
             }
             //  Alguien mas tiene esta llave: el dueno legitimo ya la habia
             //  cambiado por otra. Se corta todo, a los dos.
             sesiones.revocarFamilia(actual.getFamilyId(), ahora);
             throw new ApiException(HttpStatus.UNAUTHORIZED,
-                    "La sesion se cerro por seguridad. Vuelve a entrar.");
+                    "La sesión se cerró por seguridad. Vuelve a entrar.");
         }
         if (actual.vencida(ahora)) {
             throw invalida();
@@ -165,7 +165,7 @@ public class SessionService {
      * le diria a quien prueba llaves cual de sus intentos estuvo cerca.
      */
     private static ApiException invalida() {
-        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no es valida. Vuelve a entrar.");
+        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no es válida. Vuelve a entrar.");
     }
 
     static String huella(String valor) {

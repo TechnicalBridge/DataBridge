@@ -80,7 +80,7 @@ public class CampanaService {
 
     private Campaign buscar(Organization empresa, String idExterno) {
         return campanas.findByAgencyAndExternalId(empresa, idExterno)
-                .orElseThrow(() -> new CarteraInvalida("campana_desconocida", "Esa campana no es de tu empresa", 404));
+                .orElseThrow(() -> new CarteraInvalida("campana_desconocida", "Esa campaña no es de tu empresa", 404));
     }
 
     /** CMP-20261008-K7Q2: el dia y cuatro letras al azar, sin las que se confunden (0, O, 1, I). */

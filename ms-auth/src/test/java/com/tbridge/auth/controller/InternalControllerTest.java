@@ -54,7 +54,7 @@ class InternalControllerTest {
         mvc.perform(post("/internal/correo/prueba").param("para", "equipo@gmail")
                         .header("X-Internal-Key", "clave-interna-de-prueba"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Esa direccion no es un correo valido"));
+                .andExpect(jsonPath("$.error").value("Esa dirección no es un correo válido"));
 
         verify(correo, never()).probar(any());
     }

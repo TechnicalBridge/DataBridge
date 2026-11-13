@@ -68,7 +68,7 @@ public class AuthClient {
                     cuerpo != null && "direccion".equals(cuerpo.causa()));
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "No se pudo emitir el codigo: el servicio de acceso no responde");
+                    "No se pudo emitir el código: el servicio de acceso no responde");
         }
     }
 

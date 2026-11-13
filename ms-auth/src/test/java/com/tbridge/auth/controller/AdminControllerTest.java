@@ -186,7 +186,7 @@ class AdminControllerTest {
     void un_resultado_que_no_existe_responde_400_sin_consultar() throws Exception {
         mvc.perform(get(ACCESOS).param("resultado", "cualquiera").header("Authorization", admin()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("El parametro 'resultado' no tiene el formato esperado"));
+                .andExpect(jsonPath("$.error").value("El parámetro 'resultado' no tiene el formato esperado"));
         verifyNoInteractions(accesos);
     }
 

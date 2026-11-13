@@ -71,7 +71,9 @@ class CampanaControllerTest {
     @Test
     void sin_sesion_o_como_deudor_no_se_ven_ni_se_cambian() throws Exception {
         mvc.perform(get("/api/debts/campanas")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/debts/campanas").header("Authorization", deudor())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/debts/campanas").header("Authorization", deudor()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Las campañas son de las empresas"));
         mvc.perform(post("/api/debts/campanas/APX-CMP-8/estado").header("Authorization", deudor())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"pausada\"}"))
                 .andExpect(status().isForbidden());

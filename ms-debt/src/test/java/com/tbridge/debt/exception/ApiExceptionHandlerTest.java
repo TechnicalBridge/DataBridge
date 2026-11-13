@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,6 +42,9 @@ class ApiExceptionHandlerTest {
 
         @GetMapping("/parametro")
         String parametro(@RequestParam Long id) { return "ok"; }
+
+        @PostMapping("/archivo")
+        String archivo() { throw new MaxUploadSizeExceededException(1); }
 
         @GetMapping("/roto")
         String roto() { throw new IllegalStateException("detalle interno que no debe salir"); }
@@ -80,22 +84,29 @@ class ApiExceptionHandlerTest {
                 .build();
         estricto.perform(post("/validar").contentType(MediaType.APPLICATION_JSON).content("{\"rut\":\"1-9\",\"otro\":2}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("La peticion trae un campo que no existe: 'otro'"));
+                .andExpect(jsonPath("$.error").value("La petición trae un campo que no existe: 'otro'"));
     }
 
     @Test
     void un_parametro_con_otro_formato_o_ausente_es_400() throws Exception {
         mvc.perform(get("/parametro").param("id", "abc"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("El parametro 'id' no tiene el formato esperado"));
+                .andExpect(jsonPath("$.error").value("El parámetro 'id' no tiene el formato esperado"));
         mvc.perform(get("/parametro"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Falta el parametro 'id'"));
+                .andExpect(jsonPath("$.error").value("Falta el parámetro 'id'"));
     }
 
     @Test
     void un_metodo_que_no_corresponde_es_405() throws Exception {
         mvc.perform(post("/negocio")).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void un_archivo_demasiado_grande_es_413_con_su_mensaje() throws Exception {
+        mvc.perform(post("/archivo"))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.error").value("El archivo pasa del tamaño máximo permitido"));
     }
 
     @Test

@@ -48,7 +48,7 @@ public class InternalController {
     @ApiResponse(responseCode = "200", description = "Valor guardado")
     @ApiResponse(responseCode = "400", description = "Falta el dia o el valor, o no es positivo",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+    @ApiResponse(responseCode = "401", description = "Clave interna inválida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public UfResponse cargarAMano(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
@@ -62,7 +62,7 @@ public class InternalController {
     @Operation(summary = "Cargar ahora la UF desde el Banco Central",
             description = "Sin esperar la carga de las 9:30. Pide de una semana atras a cuarenta dias adelante.")
     @ApiResponse(responseCode = "200", description = "Cuantos dias se cargaron, o por que no se pudo")
-    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+    @ApiResponse(responseCode = "401", description = "Clave interna inválida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public UfCargaResponse cargarAhora(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave) {
@@ -72,7 +72,7 @@ public class InternalController {
 
     private void exigirClave(String clave) {
         if (clave == null || !clave.equals(internalKey)) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna inválida");
         }
     }
 }

@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 @Schema(description = "Para quien es la clave y un nombre para reconocerla")
 public record EmitirClaveRequest(
         @Schema(example = "77305118-6")
-        @NotBlank(message = "Falta el RUT de la organizacion")
+        @NotBlank(message = "Falta el RUT de la organización")
         String rut,
 
         @Schema(example = "Reenvio de cartera APOFYX", nullable = true)

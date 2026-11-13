@@ -14,8 +14,8 @@ public record NuevaEmpresaRequest(
         String rut,
 
         @Schema(example = "Empresa Test SpA")
-        @NotBlank(message = "Falta la razon social")
-        @Size(max = 160, message = "La razon social puede tener hasta 160 caracteres")
+        @NotBlank(message = "Falta la razón social")
+        @Size(max = 160, message = "La razón social puede tener hasta 160 caracteres")
         String razonSocial,
 
         @Schema(description = "El nombre con que se la conoce. Sin el, se usa la razon social",

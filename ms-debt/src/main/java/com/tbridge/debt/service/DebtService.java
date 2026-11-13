@@ -134,7 +134,7 @@ public class DebtService {
     public Organization organizacionDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {
             throw new ApiException(HttpStatus.FORBIDDEN,
-                    "El token no dice de que empresa eres: no se puede mostrar una cartera");
+                    "El token no dice de qué empresa eres: no se puede mostrar una cartera");
         }
         Organization org = organizations.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
@@ -171,7 +171,7 @@ public class DebtService {
     /** El deudor detras del token, por RUT: es lo unico que trae su sesion. */
     Debtor deudorDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no identifica al deudor");
         }
         return debtors.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay deudas a tu nombre"));
@@ -342,7 +342,7 @@ public class DebtService {
         Debt deuda = debts.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         if (user == null) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesion invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesión inválida");
         }
         if (user.isCreditor()) {
             if (!opera(organizacionDe(user), deuda)) {
@@ -398,17 +398,17 @@ public class DebtService {
     @Transactional
     public DebtDetailResponse applyRepact(JwtPrincipal user, Long id, int months) {
         if (user != null && user.isCreditor()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "La repactacion la acepta el deudor");
+            throw new ApiException(HttpStatus.FORBIDDEN, "La repactación la acepta el deudor");
         }
         Debt deuda = requireVisible(user, id);
         if (deuda.getStatus() == Debt.Status.paid) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya esta pagada");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya está pagada");
         }
         if (deuda.getStatus() == Debt.Status.withdrawn) {
-            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiro esta deuda de la cobranza");
+            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiró esta deuda de la cobranza");
         }
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se repacta mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se repacta mientras tanto");
         }
         if (deuda.congelada()) {
             throw new ApiException(HttpStatus.CONFLICT,
@@ -502,7 +502,7 @@ public class DebtService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se puede pagar mientras tanto");
         }
         //  Mientras la empresa que la cobra esta suspendida, tampoco (#152).
         if (deuda.congelada()) {
@@ -559,7 +559,7 @@ public class DebtService {
         if (!cuota.getDebt().getId().equals(deuda.getId())) {
             return new ApiException(HttpStatus.BAD_REQUEST, "Esa cuota no es de esa deuda");
         }
-        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no esta pendiente");
+        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no está pendiente");
     }
 
     /**
@@ -777,7 +777,7 @@ public class DebtService {
                 //  El tope es el de la campana hoy; nunca menos que el toque que ya salio.
                 int tope = Math.max(contacto.getTouchNumber(),
                         Math.min(campana.getAttempts(), ContactoService.cadencia(campana, json).size()));
-                yield "campana " + campana.getName() + ", toque " + contacto.getTouchNumber() + " de " + tope;
+                yield "campaña " + campana.getName() + ", toque " + contacto.getTouchNumber() + " de " + tope;
             }
             case reminder -> "recordatorio de la cuota que vence el " + contacto.getInstallment().getDueDate();
             case invitation, resend -> contacto.getDestination();

@@ -109,7 +109,7 @@ class CorreoPorBrevoTest {
 
         MailParseException fallo = assertThrows(MailParseException.class, () -> brevo.send(mensaje("felipe.rojas@correo.cl")));
 
-        assertEquals("Brevo respondio 400 (invalid_parameter): email is not valid in to", fallo.getMessage());
+        assertEquals("Brevo respondió 400 (invalid_parameter): email is not valid in to", fallo.getMessage());
     }
 
     @Test
@@ -128,7 +128,7 @@ class CorreoPorBrevoTest {
             CorreoPorBrevo brevo = respondiendo(Integer.parseInt(caso[0]), caso[1]);
 
             MailSendException fallo = assertThrows(MailSendException.class, () -> brevo.send(mensaje("felipe.rojas@correo.cl")));
-            assertTrue(fallo.getMessage().startsWith("Brevo respondio " + caso[0]), fallo.getMessage());
+            assertTrue(fallo.getMessage().startsWith("Brevo respondió " + caso[0]), fallo.getMessage());
             assertFalse(fallo.getMessage().contains(CLAVE), caso[0]);
             apagar();
         }
@@ -142,7 +142,7 @@ class CorreoPorBrevoTest {
 
         MailSendException fallo = assertThrows(MailSendException.class, () -> brevo.send(mensaje("felipe.rojas@correo.cl")));
 
-        assertTrue(fallo.getMessage().startsWith("Brevo respondio 401 (unauthorized): We have detected you are using "
+        assertTrue(fallo.getMessage().startsWith("Brevo respondió 401 (unauthorized): We have detected you are using "
                 + "an unrecognised IP address <IP>."), fallo.getMessage());
         assertFalse(fallo.getMessage().contains("203.0.113.45"));
         assertTrue(fallo.getMessage().contains("https://app.brevo.com/security/authorised_ips"), "el enlace sigue entero");
@@ -164,7 +164,7 @@ class CorreoPorBrevoTest {
 
         MailSendException fallo = assertThrows(MailSendException.class, () -> brevo.send(mensaje("felipe.rojas@correo.cl")));
 
-        assertTrue(fallo.getMessage().startsWith("Brevo no respondio"), fallo.getMessage());
+        assertTrue(fallo.getMessage().startsWith("Brevo no respondió"), fallo.getMessage());
     }
 
     @Test

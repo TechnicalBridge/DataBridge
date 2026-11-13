@@ -44,7 +44,7 @@ public class ApiKeyService {
     public ClaveEmitidaResponse emitirPara(String rutCrudo, String nombre) {
         String rut = Rut.normalizar(rutCrudo);
         Organization organizacion = organizations.findByRut(rut).orElseThrow(() -> new ApiException(
-                HttpStatus.NOT_FOUND, "No hay ninguna organizacion con RUT " + rut));
+                HttpStatus.NOT_FOUND, "No hay ninguna organización con RUT " + rut));
         return emitir(organizacion, nombre);
     }
 
@@ -62,7 +62,7 @@ public class ApiKeyService {
     public ClaveResponse revocar(Organization organizacion, Long id) {
         ApiKey clave = claves.findById(id)
                 .filter(c -> c.getOrganization().getId().equals(organizacion.getId()))
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Esa clave no es de tu organizacion"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Esa clave no es de tu organización"));
         if (clave.getRevokedAt() == null) {
             clave.setRevokedAt(Instant.now());
             claves.save(clave);
@@ -112,6 +112,6 @@ public class ApiKeyService {
     }
 
     private static CarteraInvalida noAutorizado() {
-        return new CarteraInvalida("no_autorizado", "Clave de API invalida", 401);
+        return new CarteraInvalida("no_autorizado", "Clave de API inválida", 401);
     }
 }

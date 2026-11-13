@@ -12,7 +12,7 @@ public record DisputaRequest(
         String motivo,
         @Schema(description = "Lo que el deudor quiera explicar. Solo lo ve la empresa que cobra", nullable = true,
                 example = "Pague agosto en la oficina el 10 de septiembre")
-        @Size(max = 500, message = "La explicacion puede tener hasta 500 caracteres")
+        @Size(max = 500, message = "La explicación puede tener hasta 500 caracteres")
         String detalle
 ) {
 }

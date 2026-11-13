@@ -71,7 +71,7 @@ public class BancoCentralClient {
                 .timeout(Duration.ofSeconds(20)).GET().build();
         HttpResponse<String> respuesta = http.send(peticion, HttpResponse.BodyHandlers.ofString());
         if (respuesta.statusCode() != 200) {
-            throw new IOException("El Banco Central respondio HTTP " + respuesta.statusCode());
+            throw new IOException("El Banco Central respondió HTTP " + respuesta.statusCode());
         }
         return leer(respuesta.body(), json);
     }
@@ -88,7 +88,7 @@ public class BancoCentralClient {
         JsonNode raiz = json.readTree(cuerpo);
         int codigo = raiz.path("Codigo").asInt(-1);
         if (codigo != 0) {
-            throw new IOException("El Banco Central respondio codigo " + codigo + ": "
+            throw new IOException("El Banco Central respondió código " + codigo + ": "
                     + raiz.path("Descripcion").asText("sin descripcion"));
         }
         List<UfValue> valores = new ArrayList<>();

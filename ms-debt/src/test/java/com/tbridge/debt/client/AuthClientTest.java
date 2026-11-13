@@ -67,7 +67,7 @@ class AuthClientTest {
 
         assertTrue(fallo.deLaDireccion());
         assertEquals(HttpStatus.BAD_GATEWAY, fallo.getStatus());
-        assertEquals("el servidor rechazo la direccion (550 5.1.1 <fe**********@correo.cl>: Recipient address "
+        assertEquals("el servidor rechazó la dirección (550 5.1.1 <fe**********@correo.cl>: Recipient address "
                 + "rejected)", fallo.motivo(), "la direccion va tapada, como en todo el portal");
         assertEquals("No se pudo enviar el correo: " + fallo.motivo(), fallo.getMessage());
     }

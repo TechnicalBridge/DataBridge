@@ -62,7 +62,7 @@ public class InternalController {
     @ApiResponse(responseCode = "200", description = "Codigo emitido y, si iba por correo, entregado al servidor")
     @ApiResponse(responseCode = "400", description = "RUT no valido",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+    @ApiResponse(responseCode = "401", description = "Clave interna inválida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "502", description = "El correo no salio: lo que dijo el servidor, y de quien es la culpa",
             content = @Content(schema = @Schema(implementation = CorreoNoEnviadoResponse.class)))
@@ -100,7 +100,7 @@ public class InternalController {
     @ApiResponse(responseCode = "200", description = "Como le fue: `enviado` dice si salio")
     @ApiResponse(responseCode = "400", description = "La direccion no es un correo valido",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+    @ApiResponse(responseCode = "401", description = "Clave interna inválida",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public PruebaDeCorreoResponse probarCorreo(
             @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
@@ -112,13 +112,13 @@ public class InternalController {
         //  "cuenta alias@gmail.com". Un correo no lleva espacios, asi que se devuelven.
         String escrita = para == null ? "" : para.strip().replace(' ', '+');
         String destino = Correo.normalizar(escrita).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
-                "Esa direccion no es un correo valido"));
+                "Esa dirección no es un correo válido"));
         return correo.probar(destino);
     }
 
     private void exigirClave(String clave) {
         if (clave == null || !clave.equals(internalKey)) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna inválida");
         }
     }
 }

@@ -128,7 +128,7 @@ public class AuthService {
         codigos.save(registro);
 
         return new CodigoEmitidoResponse(codigo, rut, canales, registro.getExpiresAt(),
-                "Entra a " + publicUrl + " y escribe tu RUT y el codigo");
+                "Entra a " + publicUrl + " y escribe tu RUT y el código");
     }
 
     /**
@@ -176,22 +176,22 @@ public class AuthService {
         //  fueran distintos, se podria averiguar que RUT tienen deuda.
         if (registro == null || registro.getConsumedAt() != null) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
         }
         if (registro.getAttempts() >= registro.getMaxAttempts()) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.exhausted, ipHash);
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Demasiados intentos con ese codigo. Pide uno nuevo.");
+                    "Demasiados intentos con ese código. Pide uno nuevo.");
         }
         if (Instant.now().isAfter(registro.getExpiresAt())) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.expired, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo expiro. Pide uno nuevo.");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código expiró. Pide uno nuevo.");
         }
         if (!Hash.igualesEnTiempoConstante(registro.getCodeHash(), huella(rut, codigo))) {
             registro.fallo();
             codigos.save(registro);
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
         }
 
         //  De un solo uso: consumirlo es parte de entrar.
@@ -326,7 +326,7 @@ public class AuthService {
         if (enlace == null || !enlace.isLinkEnabled() || !enlace.vigente()) {
             anotar(enlace == null ? null : enlace.getDebtorRut(),
                     AccessLog.Method.magic_link, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace invalido o vencido");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace inválido o vencido");
         }
         return abrirSesionDePedido(enlace, AccessLog.Method.magic_link, ipHash);
     }
@@ -387,7 +387,7 @@ public class AuthService {
         StaffUser staff = personal.findByEmailIgnoreCase(renovada.email()).orElse(null);
         if (staff == null || !staff.habilitado() || rolDeSesion(staff) != renovada.role()) {
             sesiones.revocarFamilia(renovada.familia());
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no esta habilitado");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no está habilitado");
         }
         //  La gente de una empresa suspendida pierde la sesion en cuanto vence su JWT (#152).
         if (!staff.esAdmin() && sinEmpresaActiva(staff)) {
@@ -473,7 +473,7 @@ public class AuthService {
     static String normalizarRut(String crudo) {
         String rut = Rut.normalizar(crudo);
         if (!Rut.esValido(rut)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no valido");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no válido");
         }
         return rut;
     }
@@ -504,7 +504,7 @@ public class AuthService {
     }
 
     private static String correoValido(String email) {
-        return Correo.normalizar(email).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Correo no valido"));
+        return Correo.normalizar(email).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Correo no válido"));
     }
 
     private static String normalizarCodigo(String codigo) {

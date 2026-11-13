@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 public record ResolucionDisputaRequest(
         @Schema(description = "reanudar (la deuda corresponde y vuelve a cobranza) o retirar (no corresponde: sale "
                 + "de la cobranza con el motivo disputa_resuelta)", example = "reanudar")
-        @NotBlank(message = "Elige como se resuelve")
+        @NotBlank(message = "Elige cómo se resuelve")
         String resultado,
         @Schema(description = "Una nota para el registro", nullable = true, example = "El pago de agosto no aparece")
         @Size(max = 500, message = "La nota puede tener hasta 500 caracteres")
