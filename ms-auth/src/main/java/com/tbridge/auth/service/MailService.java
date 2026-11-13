@@ -1,5 +1,6 @@
 package com.tbridge.auth.service;
 
+import com.tbridge.auth.dto.response.EstadoCorreoResponse;
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import com.tbridge.auth.exception.CorreoNoSalio;
 import com.tbridge.auth.service.PlantillasDeCorreo.Carta;
@@ -236,6 +237,14 @@ public class MailService {
                 ? "una dirección o dominio recibe" : cuantos + " direcciones o dominios reciben")
                 + " directo, y lo demás " + (modo.desvia() ? "va al buzón de desvío" + hastaPorDia() : "no sale");
         return new ComoSalen(por, variables, enModo, remitenteTapado());
+    }
+
+    /** Como esta saliendo el correo y cuanto cupo de desvio queda hoy, sin llaves ni direcciones completas. */
+    public EstadoCorreoResponse estadoDelCorreo() {
+        String proveedor = !conServidor ? "ninguno" : porBrevo ? "brevo" : alBuzonDePrueba ? "buzon-de-prueba" : "smtp";
+        return new EstadoCorreoResponse(proveedor, comoSalen().por(), conServidor, modo.activo(),
+                modo.cuantosPermitidos(), modo.desvia(), topeDeDesvio.maximo(), topeDeDesvio.usadosHoy(),
+                remitenteTapado());
     }
 
     /** El tope del desvio, que gasta el cupo del proveedor: {@code " (hasta 100 por día)"}. */

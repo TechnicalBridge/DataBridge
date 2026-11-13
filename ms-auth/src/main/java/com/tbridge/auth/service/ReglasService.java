@@ -1,5 +1,6 @@
 package com.tbridge.auth.service;
 
+import com.tbridge.auth.dto.response.EstadoCorreoResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.dto.response.ReglasResponse.Grupo;
 import com.tbridge.auth.dto.response.ReglasResponse.Regla;
@@ -52,6 +53,10 @@ public class ReglasService {
                 Regla.de("Modo de prueba", como.modo(), "CORREO_SOLO_A · CORREO_DESVIAR_A"),
                 Regla.de("Quién los firma", como.remitente(), "MAIL_FROM · MAIL_FROM_NAME")));
         return new ReglasResponse("ms-auth", List.of(acceso, correos));
+    }
+
+    public EstadoCorreoResponse estadoDelCorreo() {
+        return correo.estadoDelCorreo();
     }
 
     /** 24 horas; 168 horas son 7 días. */

@@ -1,5 +1,6 @@
 package com.tbridge.auth.service;
 
+import com.tbridge.auth.dto.response.EstadoCorreoResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.dto.response.ReglasResponse.Regla;
 import org.junit.jupiter.api.Test;
@@ -8,6 +9,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,5 +84,35 @@ class ReglasServiceTest {
         assertEquals("BREVO_API_KEY · SMTP_HOST", regla(
                 new ReglasService(24, 15, 24, 168, 15, correo("", "", "", "", "", "")).reglas(),
                 "Por dónde salen").variable());
+    }
+
+    @Test
+    void el_estado_del_correo_dice_el_proveedor_y_el_cupo_sin_llaves_ni_direcciones() {
+        MailService brevo = correo("", "", CLAVE_DE_BREVO, "deudores.prueba@gmail.com", "", "");
+        EstadoCorreoResponse estado = new ReglasService(24, 15, 24, 168, 15, brevo).estadoDelCorreo();
+
+        assertEquals("brevo", estado.proveedor());
+        assertTrue(estado.configurado());
+        assertTrue(estado.modoDePrueba());
+        assertEquals(1, estado.direccionesPermitidas());
+        assertEquals(100, estado.cupoMaximoPorDia());
+        assertEquals(0, estado.cupoUsadoHoy());
+        assertFalse(estado.toString().contains(CLAVE_DE_BREVO), "la clave de Brevo");
+        assertFalse(estado.toString().contains("deudores.prueba"), "las direcciones solo se cuentan");
+        assertFalse(estado.toString().contains("databridge.equipo@gmail.com"), "ni la cuenta que manda");
+    }
+
+    @Test
+    void el_estado_distingue_smtp_buzon_de_prueba_y_sin_servidor() {
+        assertEquals("smtp", correoEstado("smtp.gmail.com", CONTRASENA, "").proveedor());
+        assertEquals("buzon-de-prueba", correoEstado("mailpit", "", "mailpit:1025").proveedor());
+        EstadoCorreoResponse ninguno = correoEstado("", "", "");
+        assertEquals("ninguno", ninguno.proveedor());
+        assertFalse(ninguno.configurado());
+        assertFalse(ninguno.modoDePrueba());
+    }
+
+    private static EstadoCorreoResponse correoEstado(String host, String clave, String buzon) {
+        return new ReglasService(24, 15, 24, 168, 15, correo(host, clave, "", "", "", buzon)).estadoDelCorreo();
     }
 }

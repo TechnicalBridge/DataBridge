@@ -12,6 +12,7 @@ import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.service.BitacoraDeAccesos;
 import com.tbridge.auth.service.PersonalService;
+import com.tbridge.auth.dto.response.EstadoCorreoResponse;
 import com.tbridge.auth.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -90,6 +91,23 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$.servicio").value("ms-auth"));
         mvc.perform(get("/api/admin/auth/reglas").header("Authorization", empresa()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void el_estado_del_correo_lo_ve_el_admin_y_ni_una_empresa_ni_un_deudor() throws Exception {
+        when(reglas.estadoDelCorreo()).thenReturn(new EstadoCorreoResponse("brevo", "Por la API de Brevo", true, true,
+                2, true, 100, 7, "DataBridge <da***@gmail.com>"));
+
+        mvc.perform(get("/api/admin/auth/correo").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proveedor").value("brevo"))
+                .andExpect(jsonPath("$.cupoMaximoPorDia").value(100))
+                .andExpect(jsonPath("$.cupoUsadoHoy").value(7));
+        mvc.perform(get("/api/admin/auth/correo").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/auth/correo").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/auth/correo")).andExpect(status().isUnauthorized());
     }
 
     @Test

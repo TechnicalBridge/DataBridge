@@ -44,6 +44,12 @@ final class TopeDeDesvio {
         return true;
     }
 
+    /** Cuantos desvios se tomaron hoy, en hora de Chile. */
+    synchronized int usadosHoy() {
+        LocalDate hoy = reloj.instant().atZone(CHILE).toLocalDate();
+        return hoy.equals(dia) ? usados : 0;
+    }
+
     int maximo() {
         return maximo;
     }

@@ -5,6 +5,7 @@ import com.tbridge.auth.dto.request.NuevaPersonaRequest;
 import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
+import com.tbridge.auth.dto.response.EstadoCorreoResponse;
 import com.tbridge.auth.dto.response.EstadoResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
@@ -90,6 +91,15 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
     public ReglasResponse reglas() {
         return reglas.reglas();
+    }
+
+    @GetMapping("/correo")
+    @Operation(summary = "Como esta saliendo el correo",
+            description = "El proveedor en uso, si el modo de prueba esta activo y a cuantas direcciones deja recibir, "
+                    + "y el cupo de desvios usado hoy frente al tope. Sin llaves ni direcciones completas.")
+    @ApiResponse(responseCode = "200", description = "El estado del correo")
+    public EstadoCorreoResponse correo() {
+        return reglas.estadoDelCorreo();
     }
 
     // ------------------------------------------------------------------
