@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, operacionDePagos, reintentarAviso, reintentarAvisoDePago,
-  reintentarDestino,
+  SERVICIOS, avisosAEmpresas, cargarUf, correosFallidos, estadoDe, estadoDelCorreo, operacionDePagos,
+  reintentarAviso, reintentarAvisoDePago, reintentarDestino,
 } from "../api/admin";
-import { fecha, fechaHora, hoyEnChile } from "../utils/formato";
+import { fecha, fechaHora, hoyEnChile, rutLegible } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
@@ -12,6 +12,14 @@ const DESPUES_DEL_DESPACHADOR_MS = 17000;
 const ESTADO_AVISO = {
   pending: { texto: "En cola", clase: "badge-wait" },
   failed: { texto: "Fallido", clase: "badge-peligro" },
+};
+
+/** El proveedor del estado del correo, como se le dice a una persona. */
+const PROVEEDOR_DE_CORREO = {
+  brevo: "Brevo",
+  smtp: "SMTP",
+  "buzon-de-prueba": "Buzón de prueba",
+  ninguno: "Sin servidor",
 };
 
 const QUE_SE_HIZO = {
@@ -62,6 +70,8 @@ export default function AdminOperacion() {
   const [estados, setEstados] = useState({});
   const [avisos, setAvisos] = useState(null);
   const [pagos, setPagos] = useState(null);
+  const [correo, setCorreo] = useState(null);
+  const [fallidos, setFallidos] = useState(null);
   const [vuelta, setVuelta] = useState(0);
   const [mensaje, setMensaje] = useState("");
   const [ocupado, setOcupado] = useState("");
@@ -76,6 +86,8 @@ export default function AdminOperacion() {
     });
     avisosAEmpresas().then(setAvisos).catch(() => setAvisos("caido"));
     operacionDePagos().then(setPagos).catch(() => setPagos("caido"));
+    estadoDelCorreo().then(setCorreo).catch(() => setCorreo("caido"));
+    correosFallidos().then(setFallidos).catch(() => setFallidos("caido"));
   }, [vuelta]);
 
   useEffect(() => () => clearTimeout(espera.current), []);
@@ -150,7 +162,86 @@ export default function AdminOperacion() {
         </section>
       </div>
 
-      <section className="card bloque aparece" style={{ "--i": 3 }} aria-labelledby="op-avisos">
+      <section className="card bloque aparece" style={{ "--i": 3 }} aria-labelledby="op-correo">
+        <h2 id="op-correo">Correo</h2>
+        <p className="hint" style={{ marginTop: 0 }}>
+          Por dónde salen los correos, cuánto cupo queda hoy y a quiénes no les está llegando.
+          Sin llaves ni las direcciones del modo de prueba.
+        </p>
+
+        <h3 className="lista-grupo">Estado del envío</h3>
+        {correo === "caido" ? <Caido servicio="ms-auth" que="el estado del correo" /> : !correo ? (
+          <p className="hint">Consultando…</p>
+        ) : (
+          <>
+            <div className="cifras-revision">
+              <div className={`cifra${correo.configurado ? "" : " rechazo"}`}>
+                <b>{PROVEEDOR_DE_CORREO[correo.proveedor] || correo.proveedor}</b>
+                <span>{correo.descripcion}</span>
+              </div>
+              <div className={`cifra${correo.modoDePrueba ? "" : " rechazo"}`}>
+                <b>{correo.modoDePrueba ? "Sí" : "No"}</b>
+                <span>
+                  modo de prueba{correo.modoDePrueba
+                    ? ` · ${correo.direccionesPermitidas} ${correo.direccionesPermitidas === 1 ? "dirección o dominio" : "direcciones o dominios"} permitidos`
+                    : " · se le escribe a cualquier dirección"}
+                </span>
+              </div>
+              <div className={`cifra${correo.cupoMaximoPorDia && correo.cupoUsadoHoy >= correo.cupoMaximoPorDia ? " rechazo" : ""}`}>
+                <b>{correo.cupoMaximoPorDia ? `${correo.cupoUsadoHoy} / ${correo.cupoMaximoPorDia}` : correo.cupoUsadoHoy}</b>
+                <span>desvíos usados hoy{correo.cupoMaximoPorDia ? "" : " · sin tope"}</span>
+              </div>
+            </div>
+            <p className="hint" style={{ marginTop: 0 }}>
+              Firma {correo.remitente}. {correo.desvia
+                ? "Lo que no va a una dirección permitida se desvía a un buzón."
+                : "No hay buzón de desvío: lo que no va a una dirección permitida no sale."}
+            </p>
+          </>
+        )}
+
+        <h3 className="lista-grupo">Correos que no salieron</h3>
+        {fallidos === "caido" ? <Caido servicio="ms-debt" que="los correos fallidos" /> : !fallidos ? (
+          <p className="hint">Consultando…</p>
+        ) : fallidos.total === 0 ? (
+          <div className="empty">Todos los correos a deudores salieron.</div>
+        ) : (
+          <div className="tabla-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">Deudor</th>
+                  <th scope="col">Empresa</th>
+                  <th scope="col">Último rechazo</th>
+                  <th scope="col">Motivo</th>
+                  <th scope="col" className="num">Rechazos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fallidos.deudores.map((d) => (
+                  <tr key={d.rut}>
+                    <td>
+                      <b>{d.nombre}</b>
+                      <span className="sub">{rutLegible(d.rut)} · {d.email}</span>
+                    </td>
+                    <td>{d.empresas.length ? d.empresas.join(", ") : "—"}</td>
+                    <td>{fechaHora(d.cuando)}</td>
+                    <td>
+                      <span className={`badge ${d.conProblemas ? "badge-peligro" : "badge-wait"}`}>
+                        {d.conProblemas ? "Dejó de escribirse solo" : "Se reintenta"}
+                      </span>
+                      <span className="error-de-aviso">{d.motivo}</span>
+                    </td>
+                    <td className="num">{d.rechazos}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card bloque aparece" style={{ "--i": 4 }} aria-labelledby="op-avisos">
         <h2 id="op-avisos">Avisos a las empresas</h2>
         {avisos === "caido" ? <Caido servicio="ms-debt" que="los avisos a las empresas" /> : !avisos ? (
           <p className="hint">Consultando…</p>
@@ -205,7 +296,7 @@ export default function AdminOperacion() {
       </section>
 
       <div className="grid-2">
-        <section className="card aparece" style={{ "--i": 4 }} aria-labelledby="op-uf">
+        <section className="card aparece" style={{ "--i": 5 }} aria-labelledby="op-uf">
           <h2 id="op-uf">UF de hoy</h2>
           {pagos === "caido" ? <Caido servicio="ms-payments" que="la UF" /> : !pagos ? (
             <p className="hint">Consultando…</p>
@@ -235,7 +326,7 @@ export default function AdminOperacion() {
           )}
         </section>
 
-        <section className="card aparece" style={{ "--i": 5 }} aria-labelledby="op-hecho">
+        <section className="card aparece" style={{ "--i": 6 }} aria-labelledby="op-hecho">
           <h2 id="op-hecho">Lo último que se hizo con los pagos</h2>
           {pagos === "caido" ? <Caido servicio="ms-payments" que="las acciones con los pagos" /> : !pagos ? (
             <p className="hint">Consultando…</p>

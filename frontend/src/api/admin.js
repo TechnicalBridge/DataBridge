@@ -21,6 +21,9 @@ export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 /** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
 export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
 
+/** Como esta saliendo el correo (ms-auth, #437): proveedor, modo de prueba y cupo de desvio de hoy. */
+export const estadoDelCorreo = () => pedir("/admin/auth/correo");
+
 // ---- Las empresas (ms-debt) ----------------------------------------------------
 
 /** Todas las empresas, con los totales de su cartera. Ningun dato de un deudor. */
@@ -98,6 +101,9 @@ export async function accesos({ desde, hasta, metodo, resultado, pagina = 0, por
 export const accesosDeHoy = () => pedir("/admin/auth/accesos/hoy");
 
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
+
+/** Los deudores a los que no les sale el correo (ms-debt, #437): empresa, motivo y fecha. */
+export const correosFallidos = () => pedir("/admin/debt/correos-fallidos");
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */
 export const avisosAEmpresas = () => pedir("/admin/debt/avisos");
