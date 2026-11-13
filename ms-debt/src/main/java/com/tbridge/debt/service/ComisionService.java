@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * Lo que cada empresa le paga a DataBridge (#200), segun el {@link ModeloDeNegocio}.
  *
- * <p><b>G es lo recuperado por la empresa en un mes calendario</b> (hora de
+ * <p><b>G es lo ingresado por pagos en un mes calendario</b> (hora de
  * Chile), en pesos: la suma de los pagos abonados a las deudas que ella cargo,
  * de todas sus campanas. Un pago en UF cuenta por los pesos que cobro la
  * pasarela. Un pago duplicado, fallido o anulado no suma, porque nunca se abono.

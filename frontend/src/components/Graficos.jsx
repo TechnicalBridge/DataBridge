@@ -94,7 +94,7 @@ export function RecuperadoPorDia({ resumen }) {
     <div className="card">
       <div className="card-cab">
         <div>
-          <h2>Recuperado por día</h2>
+          <h2>Ingresado por día</h2>
           {monedas.length ? <span className="sub">{dinero(total, moneda)} en los últimos 30 días</span> : null}
         </div>
         {monedas.length > 1 ? (
@@ -117,7 +117,7 @@ export function RecuperadoPorDia({ resumen }) {
               <XAxis dataKey="dia" stroke={c.texto} tick={{ fontSize: 10 }} interval={4} />
               <YAxis stroke={c.texto} tick={{ fontSize: 11 }} width={78} tickFormatter={(v) => montoCorto(v, moneda)} />
               <Tooltip {...tooltip} cursor={{ fill: c.grilla, opacity: 0.5 }}
-                       formatter={(v) => [dinero(v, moneda), "Recuperado"]} />
+                       formatter={(v) => [dinero(v, moneda), "Ingresado por pagos"]} />
               <Bar dataKey="monto" fill={c.barra} radius={[6, 6, 0, 0]} animationDuration={900} />
             </BarChart>
           </ResponsiveContainer>

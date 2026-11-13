@@ -120,7 +120,7 @@ public class AdminController {
 
     @GetMapping("/comisiones")
     @Operation(summary = "Lo que DataBridge le cobra a cada empresa en un mes",
-            description = "El modelo de negocio (#200), por empresa usuaria: lo recuperado en el mes en pesos (G), "
+            description = "El modelo de negocio (#200), por empresa usuaria: pagos aplicados en el mes en pesos (G), "
                     + "el porcentaje de su tramo y la comision P(G) = G * p(G). La paga quien cargo la deuda: la "
                     + "agencia, o el acreedor que cobra directo; un pago nunca se cuenta dos veces.")
     @ApiResponse(responseCode = "200", description = "Cada empresa con pagos en el mes, y el total")

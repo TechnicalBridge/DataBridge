@@ -67,18 +67,18 @@ public class AnalyticsService {
 
         for (Debt deuda : cartera) {
             BigDecimal saldo = servicio.saldo(deuda);
-            BigDecimal pagado = deuda.getOriginalAmount().subtract(saldo);
+            BigDecimal capitalRecuperado = deuda.getOriginalAmount().subtract(saldo);
             String moneda = deuda.getCurrency().name();
 
             BigDecimal[] acumulado = porMoneda.computeIfAbsent(moneda,
                     k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
             acumulado[0] = acumulado[0].add(saldo);
-            acumulado[1] = acumulado[1].add(pagado);
+            acumulado[1] = acumulado[1].add(capitalRecuperado);
 
             //  Para una agencia que cobra a varios acreedores: cuanto queda y
             //  cuanto se recupero de cada uno, por moneda.
             porAcreedor.merge(deuda.getCreditor().getRut() + "|" + moneda,
-                    new ResumenResponse.PorAcreedor(deuda.getCreditor().getTradeName(), moneda, saldo, pagado),
+                    new ResumenResponse.PorAcreedor(deuda.getCreditor().getTradeName(), moneda, saldo, capitalRecuperado),
                     (antes, esta) -> antes.sumar(esta.saldo(), esta.recuperado()));
 
             switch (deuda.getStatus()) {

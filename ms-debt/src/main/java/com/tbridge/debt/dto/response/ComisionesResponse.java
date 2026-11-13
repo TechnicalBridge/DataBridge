@@ -11,14 +11,14 @@ import java.util.List;
 public record ComisionesResponse(
         @Schema(description = "El mes, como su primer día", example = "2026-10-01") LocalDate mes,
         @Schema(description = "Cada empresa con pagos en el mes, de la que más paga a la que menos") List<Empresa> empresas,
-        @Schema(description = "Lo recuperado por todas, en pesos", example = "3200000") long recuperado,
+        @Schema(description = "Total de pagos aplicados de todas las empresas, en pesos", example = "3200000") long recuperado,
         @Schema(description = "Lo que DataBridge cobra en total, en pesos", example = "296000") long comision
 ) {
 
     public record Empresa(
             @Schema(example = "77305118-6") String rut,
             @Schema(example = "APOFYX") String nombre,
-            @Schema(description = "G, en pesos", example = "1420000") long recuperado,
+            @Schema(description = "G: pagos aplicados de la empresa, en pesos", example = "1420000") long recuperado,
             @Schema(example = "4") int pagos,
             @Schema(description = "p(G)", example = "10") BigDecimal porcentaje,
             @Schema(description = "P(G), en pesos", example = "142000") long comision,
