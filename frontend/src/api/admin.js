@@ -115,6 +115,12 @@ export const operacionDePagos = () => pedir("/admin/payments/operacion");
 /** Vuelve a poner en cola un aviso de pago a ms-debt. */
 export const reintentarAvisoDePago = (id) => pedir(`/admin/payments/avisos/${id}/reintentar`, { method: "POST" });
 
+/**
+ * Libera un cobro abierto hace mas de una hora (#453): ms-payments le pregunta antes a la pasarela. Responde como
+ * quedo: expired (la cuota se puede volver a pagar) o paid (la pasarela ya lo habia cobrado).
+ */
+export const liberarCobro = (id) => pedir(`/admin/payments/cobros/${id}/liberar`, { method: "POST" });
+
 /** Carga a mano la UF de un dia: queda como la de ese dia, y se anota quien la cargo. */
 export const cargarUf = (dia, valor) => pedir("/admin/payments/uf", { method: "POST", body: { dia, valor } });
 

@@ -8,7 +8,7 @@ DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su p
 | --- | --- | --- | --- | --- |
 | [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
 | [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal |
-| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
+| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel · `V7` liberar cobro |
 
 ![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
 
@@ -516,7 +516,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "aviso_reintentado o uf_cargada"
+        varchar(40) action "aviso_reintentado, uf_cargada o cobro_liberado"
         varchar(254) subject "opcional · el aviso de qué pago, o el día y el valor de la UF"
         datetime occurred_at
     }
@@ -541,7 +541,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
-| `admin_log` | `ck_admin_log_action` | `(action in ('aviso_reintentado','uf_cargada'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('aviso_reintentado','uf_cargada','cobro_liberado'))` |
 | `debt_notifications` | `ck_debt_notification_status` | `(status in ('pending','delivered','failed'))` |
 | `payment_events` | `ck_payment_event_source` | `(source in ('portal','webhook','manual'))` |
 | `payment_events` | `ck_payment_event_type` | `(type in ('created','authorized','paid','failed','expired','refunded','duplicated'))` |
