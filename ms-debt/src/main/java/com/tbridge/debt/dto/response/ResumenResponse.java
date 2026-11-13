@@ -27,21 +27,21 @@ public record ResumenResponse(
         Map<String, List<PuntoDiario>> recuperadoPorDia
 ) {
 
-    @Schema(description = "Saldo y capital recuperado en una moneda")
+    @Schema(description = "Saldo y diferencia con el monto original en una moneda")
     public record PorMoneda(
             @Schema(example = "CLP") String moneda,
             @Schema(example = "1040000") BigDecimal saldo,
-            @Schema(description = "Capital original menos saldo pendiente", example = "410000") BigDecimal recuperado,
-            @Schema(description = "Capital recuperado como porcentaje del capital original", example = "28.3") BigDecimal tasaRecuperacion
+            @Schema(description = "Monto original menos saldo pendiente. Las cuotas pendientes pueden incluir intereses de convenio", example = "410000") BigDecimal recuperado,
+            @Schema(description = "Diferencia con el monto original como porcentaje de ese monto", example = "28.3") BigDecimal tasaRecuperacion
     ) {
     }
 
-    @Schema(description = "Saldo y capital recuperado de un acreedor, en una moneda")
+    @Schema(description = "Saldo y diferencia con el monto original de un acreedor, en una moneda")
     public record PorAcreedor(
             @Schema(example = "Patrimonio Inmuebles") String acreedor,
             @Schema(example = "CLP") String moneda,
             @Schema(example = "1040000") BigDecimal saldo,
-            @Schema(description = "Capital original menos saldo pendiente", example = "410000") BigDecimal recuperado
+            @Schema(description = "Monto original menos saldo pendiente. Las cuotas pendientes pueden incluir intereses de convenio", example = "410000") BigDecimal recuperado
     ) {
         public PorAcreedor sumar(BigDecimal otroSaldo, BigDecimal otroRecuperado) {
             return new PorAcreedor(acreedor, moneda, saldo.add(otroSaldo), recuperado.add(otroRecuperado));

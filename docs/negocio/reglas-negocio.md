@@ -5,9 +5,10 @@ campaña dentro de lo que permite la ley.
 
 ### Las cifras de cartera
 
-- **Capital recuperado** es el capital original menos el saldo pendiente. La tasa divide esa
-  diferencia por el capital original. En un convenio vigente, el saldo pendiente suma las cuotas
-  pendientes, que pueden incluir intereses.
+- **Diferencia con el monto original** resta el saldo pendiente al monto original de la cartera.
+  El porcentaje expresa esa diferencia respecto del monto original. El saldo suma las cuotas
+  pendientes, que pueden incluir intereses de convenio. Por eso la diferencia puede ser negativa
+  y no mide cuánto capital se ha pagado.
 - **Ingresado por día** suma los pagos aplicados (`payment_applied`) de los últimos 30 días en la
   moneda de cada pago. Los montos pueden incluir intereses de mora o de convenio.
 

@@ -95,11 +95,17 @@ class ReglasServiceTest {
     void el_modelo_de_negocio_muestra_sus_cuatro_tramos() {
         var negocio = reglas.grupos().stream().filter(g -> g.nombre().equals("Modelo de negocio")).findFirst().orElseThrow();
         assertEquals(4, negocio.reglas().size());
-        assertEquals("Si se recupera más de $0 y hasta $1.000.000", negocio.reglas().get(0).que());
-        assertEquals("6 % de lo recuperado en el mes", negocio.reglas().get(0).valor());
-        assertEquals("Si se recupera más de $10.000.000", negocio.reglas().get(3).que());
-        assertEquals("15 % de lo recuperado en el mes", negocio.reglas().get(3).valor());
-        assertNull(negocio.reglas().get(0).variable(), "es el modelo del equipo: no sale de una variable");
+        String[] tramos = {"$0 y hasta $1.000.000", "$1.000.000 y hasta $5.000.000",
+                "$5.000.000 y hasta $10.000.000", "$10.000.000"};
+        int[] porcentajes = {6, 10, 12, 15};
+        for (int i = 0; i < tramos.length; i++) {
+            var regla = negocio.reglas().get(i);
+            assertEquals("Si el total ingresado por pagos supera " + tramos[i], regla.que());
+            assertEquals(porcentajes[i] + " % del total ingresado por pagos en el mes", regla.valor());
+            assertEquals("P(G) = G × p(G) / 100, con p(G) expresado como 6, 10, 12 o 15. "
+                    + "La paga quien cargó la deuda", regla.nota());
+            assertNull(regla.variable(), "es el modelo del equipo: no sale de una variable");
+        }
     }
 
     @Test

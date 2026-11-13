@@ -56,7 +56,7 @@ public class AnalyticsController {
 
     @GetMapping("/api/analytics/summary")
     @Operation(summary = "El resumen de mi cartera",
-            description = "Saldo y capital recuperado de la cartera por moneda y por acreedor, "
+            description = "Saldo y diferencia con el monto original por moneda y por acreedor, "
                     + "y pagos aplicados por día y moneda en los últimos 30 días.")
     @ApiResponse(responseCode = "200", description = "El resumen")
     @ApiResponse(responseCode = "403", description = "Quien pregunta no es una empresa registrada",

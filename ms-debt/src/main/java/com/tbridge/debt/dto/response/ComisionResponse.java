@@ -29,7 +29,7 @@ public record ComisionResponse(
     public record PorCampana(
             @Schema(example = "CMP-20261015-KHJL") String idExterno,
             @Schema(example = "Arriendos octubre") String nombre,
-            @Schema(example = "1050000") long recuperado,
+            @Schema(description = "Total de pagos aplicados en la campaña, en pesos", example = "1050000") long recuperado,
             @Schema(example = "3") int pagos
     ) {
     }
