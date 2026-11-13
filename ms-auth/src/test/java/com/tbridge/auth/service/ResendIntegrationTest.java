@@ -178,7 +178,7 @@ class ResendIntegrationTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints = {400, 401, 403, 429, 503})
+    @org.junit.jupiter.params.provider.ValueSource(ints = {400, 401, 403, 422, 429, 503})
     void clasifica_rechazos_sin_reintentar_ni_usar_otro_proveedor(int http) {
         estado.set(http);
         contexto().run(app -> {

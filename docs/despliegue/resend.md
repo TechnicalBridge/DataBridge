@@ -15,6 +15,8 @@ el contrato interno de envío que usa `ms-debt`.
    `MAIL_FROM` del dominio verificado, por ejemplo `noreply@example.com`.
    Puedes configurar `MAIL_FROM_NAME` y `MAIL_REPLY_TO`. `RESEND_URL` usa por
    defecto el endpoint completo `https://api.resend.com/emails`.
+   El destinatario puede usar Gmail. El remitente debe seguir usando el
+   dominio autorizado en Resend.
 3. Registra `https://<portal>/api/webhooks/resend` en Resend y guarda el secreto
    de firma como `RESEND_WEBHOOK_SECRET`. El gateway enruta únicamente el POST
    de esa ruta y `ms-auth` valida la firma Svix antes de leer el JSON.
@@ -27,6 +29,12 @@ del SMTP institucional. Recrea `ms-auth` para aplicar el cambio. Resend ofrece
 también SMTP. En desarrollo se puede seleccionar `MAIL_TRANSPORT=mailpit`.
 Con `MAIL_TRANSPORT` vacío se conserva la precedencia de main: Brevo con clave,
 SMTP con host, luego Mailpit si se configuró el buzón.
+
+Para pruebas locales, selecciona Mailpit y consulta el buzón en
+`http://localhost:8025` con los puertos predeterminados de Compose.
+Para restringir destinatarios, configura `CORREO_SOLO_A` y, si necesitas
+redirigir mensajes, `CORREO_DESVIAR_A`. Los dominios reservados van a Mailpit
+si hay un buzón de prueba configurado.
 
 ## Entrega y diagnóstico
 
@@ -53,6 +61,8 @@ la única migración ausente es `R__resend_delivery_events.sql`, respalda la bas
 ejecuta `flyway repair` con la misma configuración de migraciones y vuelve a
 arrancar. V9 conserva las tablas y los datos existentes. Al integrar #402,
 reconcilia el orden de las migraciones antes de aplicarlas en una base compartida.
+#402 también usa V9 para `otp_identity_locks` y añade telemetría común en V10.
+La numeración final y la consolidación de tablas quedan pendientes de #402.
 
 ## Prueba manual de OTP y latencia
 
