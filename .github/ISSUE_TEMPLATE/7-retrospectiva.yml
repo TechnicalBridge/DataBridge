@@ -23,10 +23,10 @@ body:
     attributes:
       label: Participaron
       options:
-        - label: "Flavio Henríquez (Product Owner)"
+        - label: "Pedro Campos (Product Owner)"
         - label: "Martín Gutiérrez (Scrum Master)"
         - label: "Esteban Maino (Desarrollador fullstack y Project Coordinator)"
-        - label: "Pedro Campos (Desarrollador fullstack y QA Tester)"
+        - label: "Flavio Henríquez (Desarrollador fullstack y QA Tester)"
   - type: textarea
     id: bien
     attributes:
