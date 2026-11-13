@@ -5,6 +5,7 @@ import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.CorreosFallidosResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
@@ -12,6 +13,7 @@ import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.ComisionService;
+import com.tbridge.debt.service.CorreosFallidosService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
 import com.tbridge.debt.service.ReglasService;
@@ -64,13 +66,15 @@ public class AdminController {
     private final ReglasService reglas;
     private final ComisionService comisiones;
     private final AvisosService avisos;
+    private final CorreosFallidosService correosFallidos;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos) {
+                           AvisosService avisos, CorreosFallidosService correosFallidos) {
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
         this.avisos = avisos;
+        this.correosFallidos = correosFallidos;
     }
 
     // ------------------------------------------------------------------
@@ -146,6 +150,16 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "Las reglas, por grupo")
     public ReglasResponse reglas() {
         return reglas.reglas(LocalDate.now(HorarioDeContacto.CHILE));
+    }
+
+    @GetMapping("/correos-fallidos")
+    @Operation(summary = "Los deudores a los que no les sale el correo",
+            description = "Los que tienen un correo fallido o rechazado, el mas reciente primero: sus empresas, "
+                    + "el motivo con la direccion tapada, la fecha del ultimo rechazo y cuantos rechazos seguidos "
+                    + "lleva la direccion. Sin llaves ni direcciones del modo de prueba.")
+    @ApiResponse(responseCode = "200", description = "Los correos fallidos")
+    public CorreosFallidosResponse correosFallidos() {
+        return correosFallidos.conCorreoFallido();
     }
 
     @GetMapping("/empresas")

@@ -5,11 +5,13 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
+import com.tbridge.debt.dto.response.CorreosFallidosResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.AvisosService;
+import com.tbridge.debt.service.CorreosFallidosService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,7 @@ class AdminControllerTest {
     @MockitoBean private ReglasService reglas;
     @MockitoBean private ComisionService comisiones;
     @MockitoBean private AvisosService avisos;
+    @MockitoBean private CorreosFallidosService correosFallidos;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -270,6 +273,41 @@ class AdminControllerTest {
                 .andExpect(status().isForbidden());
         mvc.perform(post(EMPRESAS + "/77305118-6/reactivar").header("Authorization", deudor()))
                 .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------------------------
+    //  Los correos fallidos (#437)
+    // ------------------------------------------------------------------
+
+    @Test
+    void el_admin_ve_los_correos_fallidos_con_sus_empresas_motivo_y_fecha() throws Exception {
+        when(correosFallidos.conCorreoFallido()).thenReturn(new CorreosFallidosResponse(1, List.of(
+                new CorreosFallidosResponse.Deudor("16482337-7", "Felipe Rojas", "felipe.rojas@correo.cl",
+                        List.of("APOFYX"), Instant.parse("2026-11-13T12:00:00Z"),
+                        "el servidor rechazo la direccion (550 5.1.1 User unknown)", 3, true))));
+
+        mvc.perform(get("/api/admin/debt/correos-fallidos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.deudores[0].rut").value("16482337-7"))
+                .andExpect(jsonPath("$.deudores[0].nombre").value("Felipe Rojas"))
+                .andExpect(jsonPath("$.deudores[0].email").value("felipe.rojas@correo.cl"))
+                .andExpect(jsonPath("$.deudores[0].empresas[0]").value("APOFYX"))
+                .andExpect(jsonPath("$.deudores[0].cuando").value("2026-11-13T12:00:00Z"))
+                .andExpect(jsonPath("$.deudores[0].motivo").value(
+                        "el servidor rechazo la direccion (550 5.1.1 User unknown)"))
+                .andExpect(jsonPath("$.deudores[0].rechazos").value(3))
+                .andExpect(jsonPath("$.deudores[0].conProblemas").value(true));
+    }
+
+    @Test
+    void ni_una_empresa_ni_un_deudor_ven_los_correos_fallidos() throws Exception {
+        for (String sesion : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/correos-fallidos").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/api/admin/debt/correos-fallidos")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(correosFallidos);
     }
 
     // ------------------------------------------------------------------

@@ -79,4 +79,13 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     List<Debt> findByLastBatch(Batch lote);
 
     Optional<Debt> findByCreditorAndExternalId(Organization creditor, String externalId);
+
+    /**
+     * Las empresas a las que debe cada deudor de la lista, para los correos
+     * fallidos del panel (#437). Solo el nombre: no trae la deuda.
+     */
+    @Query("select new com.tbridge.debt.repository.EmpresaDelDeudor(d.debtor.id, d.creditor.tradeName) "
+            + "from Debt d where d.debtor.id in :deudores "
+            + "group by d.debtor.id, d.creditor.tradeName order by d.creditor.tradeName")
+    List<EmpresaDelDeudor> empresasDeDeudores(@Param("deudores") Collection<Long> deudores);
 }
