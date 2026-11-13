@@ -27,7 +27,7 @@
 - [6. Metodología de trabajo del equipo](#6-metodología-de-trabajo-del-equipo)
   - [Marco de trabajo: Scrumban](#marco-de-trabajo-scrumban)
   - [Prácticas DevOps y aseguramiento de calidad](#prácticas-devops-y-aseguramiento-de-calidad)
-  - [Pruebas automatizadas (1.350 pruebas Java)](#pruebas-automatizadas-1350-pruebas-java)
+  - [Pruebas automatizadas (1.362 pruebas Java)](#pruebas-automatizadas-1362-pruebas-java)
 - [7. Arquitectura de la solución](#7-arquitectura-de-la-solución)
   - [Descripción de la arquitectura](#descripción-de-la-arquitectura)
   - [Diagrama general de componentes y comunicación](#diagrama-general-de-componentes-y-comunicación)
@@ -218,9 +218,9 @@ El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de *
 | **Infraestructura como Código (IaC)** | Docker Compose orquestando 11 contenedores con perfiles `app` y `carga`, más `docker-compose.prod.yml`. | Despliegue determinista y replicable idéntico en local y producción. |
 | **Evolución de Base de Datos** | Flyway ejecutando migraciones SQL ordenadas y versionadas. | Eliminación de desfases entre esquemas de base de datos y validación al inicio (`ddl-auto: validate`). |
 
-### Pruebas automatizadas (1.350 pruebas Java)
+### Pruebas automatizadas (1.362 pruebas Java)
 
-El proyecto cuenta con **1.350 pruebas automatizadas en Java**, medidas con JDK 25 mediante los reportes XML de Maven Surefire sobre `main` (commit `93d5a14`), que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
+El proyecto cuenta con **1.362 pruebas automatizadas en Java**, medidas con JDK 25 mediante los reportes XML de Maven Surefire sobre `main` (commit `f60c5c2`), que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
 
 ```powershell
 # Ejecutar las pruebas de un servicio específico:
@@ -232,12 +232,12 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 | Módulo / Servicio | Cantidad de pruebas | Tipos de pruebas cubiertas | Herramientas / Frameworks |
 | :--- | :---: | :--- | :--- |
-| **ms-debt** | **538** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
-| **ms-auth** | **322** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
-| **ms-payments** | **300** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-debt** | **540** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-auth** | **326** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
+| **ms-payments** | **303** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
 | **ms-ai** | **164** | Cliente LLM, motor local de fallback (`MotorLocal`), aislamiento de sesión y contexto | JUnit 5, Mockito, MockMvc |
-| **gateway** | **26** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
-| **Total suite Java** | **1.350 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
+| **gateway** | **29** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
+| **Total suite Java** | **1.362 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
 
 > **Nota sobre el portal:** El frontend no posee suite de pruebas unitarias automatizadas (`.test.jsx`); su verificación se realiza en CI mediante compilación estricta (`npm ci` y `npm run build`), control de tipos y revisión manual en navegador. Para detalles adicionales sobre ejecución y cobertura de pruebas, consultar [docs/pruebas/README.md](docs/pruebas/README.md).
 
