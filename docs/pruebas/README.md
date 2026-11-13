@@ -22,15 +22,15 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1.359 pruebas**, todas en Java y sin fallos (con JDK 25 y `clean test` en cada servicio, contando los XML de Surefire sobre `main` `f60c5c2`, 12 de noviembre de 2026):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 25 |
-| `ms-auth` | 319 |
-| `ms-debt` | 532 |
-| `ms-payments` | 281 |
-| `ms-ai` | 163 |
+| `gateway` | 29 |
+| `ms-auth` | 322 |
+| `ms-debt` | 541 |
+| `ms-payments` | 303 |
+| `ms-ai` | 164 |
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
