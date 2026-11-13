@@ -204,6 +204,10 @@ services:
       SMTP_SSL:        ${SMTP_SSL:-false}
       SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
       #  Con una clave de Brevo, los correos salen por su API y no por SMTP.
+      MAIL_TRANSPORT:  ${MAIL_TRANSPORT:-}
+      RESEND_API_KEY:  ${RESEND_API_KEY:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      RESEND_URL:      ${RESEND_URL:-https://api.resend.com/emails}
       BREVO_API_KEY:   ${BREVO_API_KEY:-}
       BREVO_URL:       ${BREVO_URL:-https://api.brevo.com/v3/smtp/email}
       CORREO_BUZON_DE_PRUEBA: mailpit:1025

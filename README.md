@@ -117,7 +117,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 | **Khipu (API v3)** | Cobro directo vía transferencia electrónica bancaria. | Simulación automática sin credenciales configuradas. |
 | **Mercado Pago (Checkout Pro)** | Cobros con billetera digital y tarjetas. | Simulación automática sin token configurado. |
 | **Banco Central de Chile (`si3.bcentral.cl`)** | Obtención en línea del valor diario oficial de la UF. | Carga estática manual de UF en base de datos. |
-| **Brevo API / Servidores SMTP** | Despacho de correos electrónicos transaccionales. | Buzón de correo local Mailpit (http://localhost:8025). |
+| **Resend API / Brevo API / Servidores SMTP** | Despacho de correos electrónicos transaccionales. Selecciona Resend con `MAIL_TRANSPORT=resend`. [Guía de configuración de Resend](docs/despliegue/resend.md). | Buzón de correo local Mailpit (http://localhost:8025). |
 | **Groq / Google Gemini** | Modelos de lenguaje natural para el asistente de deudas. | Motor local de reglas (`MotorLocal`) sin requerir API keys. |
 
 ---
@@ -252,7 +252,7 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 1. **Perímetro y Puerta de Entrada Única**:
    El cliente web interactúa exclusivamente con el servidor **nginx** del portal (en puerto `8080`), el cual delega las peticiones `/api` al **API Gateway** (**Spring Cloud Gateway**). El gateway centraliza las directivas CORS, aplica políticas de limitación de tasa (*rate limiting*) mediante **Bucket4j** y enruta el tráfico hacia los microservicios internos. Ningún servicio backend expone puertos directamente hacia redes no confiables.
 2. **Microservicios de Backend Desacoplados (Java 25 / Spring Boot 3.5)**:
-   - **`ms-auth`**: Autenticación sin contraseñas, emisión y rotación de tokens JWT firmados con **ES256 (ECDSA P-256)**, publicación del conjunto de claves públicas en `/.well-known/jwks.json` y despacho de correos transaccionales (Brevo/SMTP).
+   - **`ms-auth`**: Autenticación sin contraseñas, emisión y rotación de tokens JWT firmados con **ES256 (ECDSA P-256)**, publicación del conjunto de claves públicas en `/.well-known/jwks.json` y despacho de correos transaccionales (Resend, Brevo o SMTP).
    - **`ms-debt`**: Gestión integral de la cartera: organizaciones, deudas, cargos, convenios de repactación en cuotas con cálculo de CAE, ejecución legal de contactos en campañas, atención de reclamos y generación de certificados PDF.
    - **`ms-payments`**: Pasarela de pagos unificada (Webpay Plus, Khipu y Mercado Pago). Valida montos directamente con `ms-debt` (evitando manipulación en el cliente), consulta el valor de la UF al **Banco Central de Chile** y realiza conciliación idempotente servidor a servidor.
    - **`ms-ai`**: Asistente conversacional de solo lectura que consulta las deudas en `ms-debt` utilizando el token JWT del deudor autenticado, integrándose con modelos LLM externos (Groq/Gemini) o resolviendo con su motor de reglas local.
