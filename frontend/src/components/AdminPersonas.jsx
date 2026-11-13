@@ -117,19 +117,53 @@ const QUE_SE_HIZO = {
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
 };
 
-/** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero. */
+/** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero, con paginacion (#383). */
 export function Historial({ acciones }) {
-  if (acciones.length === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+  const [paginaGuardada, setPagina] = useState(0);
+  const porPagina = 10;
+  const total = acciones?.length ?? 0;
+  const paginas = Math.ceil(total / porPagina);
+  const pagina = Math.min(paginaGuardada, Math.max(0, paginas - 1));
+
+  if (pagina !== paginaGuardada) setPagina(pagina);
+
+  if (total === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+
+  const visibles = acciones.slice(pagina * porPagina, (pagina + 1) * porPagina);
+
   return (
-    <div className="lista">
-      {acciones.map((a, i) => (
-        <div className="fila" key={`${a.accion}-${a.cuando}-${i}`}>
-          <div className="fila-que">
-            <b>{(QUE_SE_HIZO[a.accion] || (() => a.accion))(a)}</b>
-            <span>{a.quien} · {fechaHora(a.cuando)}</span>
+    <div>
+      <div className="lista">
+        {visibles.map((a, i) => (
+          <div className="fila" key={`${a.accion}-${a.cuando}-${i}`}>
+            <div className="fila-que">
+              <b>{(QUE_SE_HIZO[a.accion] || (() => a.accion))(a)}</b>
+              <span>{a.quien} · {fechaHora(a.cuando)}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {paginas > 1 ? (
+        <nav className="paginas" aria-label="Páginas del historial" style={{ marginTop: "1rem" }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={pagina === 0}
+            onClick={() => setPagina((p) => p - 1)}
+          >
+            Anteriores
+          </button>
+          <span className="hint">Página {pagina + 1} de {paginas} ({acciones.length} registros)</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={pagina >= paginas - 1}
+            onClick={() => setPagina((p) => p + 1)}
+          >
+            Siguientes
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }
