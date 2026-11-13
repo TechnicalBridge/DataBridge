@@ -84,7 +84,7 @@ public class ReglasService {
                                 : "Si se recupera más de $" + pesos.format(t.desde()) + " y hasta $"
                                         + pesos.format(t.hasta()),
                         t.porcentaje().stripTrailingZeros().toPlainString() + " % de lo recuperado en el mes",
-                        "P(G) = G · p(G), sobre todo lo recuperado. La paga quien cargó la deuda"))
+                        t.porcentaje().stripTrailingZeros().toPlainString() + " % de todo lo recuperado en el mes; lo paga quien cargó la deuda"))
                 .toList());
         return new ReglasResponse("ms-debt", List.of(cobranza, contacto, negocio));
     }

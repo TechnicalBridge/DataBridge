@@ -97,8 +97,10 @@ class ReglasServiceTest {
         assertEquals(4, negocio.reglas().size());
         assertEquals("Si se recupera más de $0 y hasta $1.000.000", negocio.reglas().get(0).que());
         assertEquals("6 % de lo recuperado en el mes", negocio.reglas().get(0).valor());
+        assertEquals("6 % de todo lo recuperado en el mes; lo paga quien cargó la deuda", negocio.reglas().get(0).nota());
         assertEquals("Si se recupera más de $10.000.000", negocio.reglas().get(3).que());
         assertEquals("15 % de lo recuperado en el mes", negocio.reglas().get(3).valor());
+        assertEquals("15 % de todo lo recuperado en el mes; lo paga quien cargó la deuda", negocio.reglas().get(3).nota());
         assertNull(negocio.reglas().get(0).variable(), "es el modelo del equipo: no sale de una variable");
     }
 

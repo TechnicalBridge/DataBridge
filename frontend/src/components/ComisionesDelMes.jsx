@@ -49,8 +49,8 @@ export default function ComisionesDelMes() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Empresa</th><th scope="col" className="num">Recuperado (G)</th>
-                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión (P)</th>
+                <th scope="col">Empresa</th><th scope="col" className="num">Recuperado en el mes</th>
+                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión</th>
               </tr>
             </thead>
             <tbody>
