@@ -17,7 +17,7 @@ es la entrada: qué hace DataBridge, cómo se levanta y su arquitectura. Desde a
 | [`cartera`](cartera/README.md) | Cómo probar la carga de la cartera, y la demo que viene incluida | Quien prueba |
 | [`demo`](demo/recorrido-demostracion.md) | Recorrido guiado de demostración con datos de prueba para deudores y empresas | Quien evalúa o demuestra |
 | [`rendimiento`](rendimiento/README.md) | Las pruebas de carga con k6 y lo que encontraron. Los scripts están en [`performance-tests/`](../performance-tests/) | Quien opera |
-| [`metodologia`](metodologia/plan-kanban.md) | El [plan de trabajo Kanban](metodologia/plan-kanban.md), en qué se apartó el proyecto y el [estado de avance del proyecto](metodologia/estado-proyecto.md) | El equipo y quien evalúa |
+| [`metodologia`](metodologia/plan-kanban.md) | El [plan de trabajo Kanban](metodologia/plan-kanban.md), en qué se apartó el proyecto el [estado de avance del proyecto](metodologia/estado-proyecto.md) y la [rama de respaldo](metodologia/rama-respaldo.md) | El equipo y quien evalúa |
 
 ## Cómo se escribe aquí
 
