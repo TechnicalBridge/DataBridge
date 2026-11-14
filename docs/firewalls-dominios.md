@@ -4,7 +4,7 @@ Base auditada: 69204dd647a45dd0042115a1203faf141c1374cd. Matriz previa a impleme
 
 | Dominio / control | Estado inicial | Evidencia | Riesgo de duplicar |
 | --- | --- | --- | --- |
-| Auth: cuota IP y proxies | EXISTE | gateway RateLimitFilter / ClienteReal; nginx sobrescribe X-Forwarded-For | Alto |
+| Auth: cuota IP y proxies | EXISTE | gateway RateLimitFilter / ClienteReal (lee X-Forwarded-For de derecha a izquierda e ignora X-Real-IP); nginx sobrescribe X-Forwarded-For | Alto |
 | Auth: intentos por código y expiración | EXISTE | AuthService, AccessCode, MagicLink, SessionService; bloqueo de filas | Alto |
 | Auth: identificador transversal y bloqueo progresivo configurable | PARCIAL | límite por código; nuevo código reinicia sus intentos; no cuota transversal de solicitudes por identidad | Gap real |
 | Debt: JWT / API key / clave interna | EXISTE | SecurityConfig, ApiKeyService, IntegracionController, InternalController | Alto |
@@ -18,7 +18,7 @@ Base auditada: 69204dd647a45dd0042115a1203faf141c1374cd. Matriz previa a impleme
 
 Los firewalls son capas lógicas: gateway y controles del servicio propietario. No son un WAF ni máquinas nuevas. No se duplican JWT ES256/JWKS, firmas oficiales, idempotencia, JPA ni aislamiento existente.
 
-Refresh/logout conservan cuota general (120/min por IP); acceso/codigo/enlace/verify usan cuota auth (10/min por IP). OPTIONS no consume cuota. El gateway solo cree X-Forwarded-For de TRUSTED_PROXIES y nginx lo sobrescribe. CORS conserva orígenes explícitos.
+Refresh/logout conservan cuota general (120/min por IP); acceso/codigo/enlace/verify usan cuota auth (10/min por IP). OPTIONS no consume cuota. El gateway solo cree X-Forwarded-For de TRUSTED_PROXIES, la lee de derecha a izquierda descartando proxies confiables (sin leer X-Real-IP) y nginx lo sobrescribe. CORS conserva orígenes explícitos.
 
 Webpay confirma el token contra Transbank; no se inventa una firma para su callback. Khipu valida HMAC de timestamp+cuerpo y consulta estado remoto; no exige frescura, pues repetir un aviso no crea otro abono. Mercado Pago consulta el proveedor; retornos propios llevan firma. La pasarela simulada usa HMAC propio, separado de los proveedores reales. Las reglas criptográficas permanecen en ms-payments.
 
