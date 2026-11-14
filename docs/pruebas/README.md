@@ -16,8 +16,10 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Ninguna necesita base de datos ni internet**, así que corren en segundos en cualquier
-equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local.
+código. **Las unitarias y de capa web no necesitan base de datos ni internet**, así que corren en
+segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un
+servidor HTTP local. Las de rendimiento son la excepción: apuntan a un servicio vivo y se corren a
+mano.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
@@ -31,6 +33,20 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 | `ms-debt` | 532 |
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
+
+La simulación de rendimiento de ms-payments (`PerformTestMsPayments`, Gatling) vive en
+`ms-payments/src/test/java/com/tbridge/payments/rendimiento/` y se corre a mano con el sistema
+arriba. La guía completa está en [`docs/rendimiento`](../rendimiento/README.md).
+
+```powershell
+docker compose --profile app up -d --wait
+.\mvnw.cmd -f ms-payments\pom.xml gatling:test "-Dgatling.simulationClass=com.tbridge.payments.rendimiento.PerformTestMsPayments" -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
+```
+
+Con el portal como único puerto publicado, la simulación entra por `localhost:8080`; sin token
+solo consulta `/actuator/health`, que no pasa por el portal, así que para ese caso hay que apuntar
+a `ms-payments` directo (`-DbaseUrl=http://localhost:8084`). Los reportes quedan en
+`ms-payments/target/gatling/<simulacion-fecha>/index.html`.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -101,7 +117,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](../eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
-| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](../rendimiento/README.md)) |
+| **De rendimiento** (Gatling + k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros. La suite modular y las k6 por servicio viven en `performance-tests/k6/` (solo con las pasarelas simuladas cuando corresponde); la simulación de ms-payments corre con Maven. Se corren a mano, con el sistema arriba ([`docs/rendimiento`](../rendimiento/README.md)) |
 
 </details>
 

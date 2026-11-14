@@ -455,7 +455,7 @@ services:
       AI_URI:       http://ms-ai:8085
       MAIL_URI:     http://mailpit:8025
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
-      #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
+      #  Los mismos cupos que tenga el gateway, para que auth-limit.js compruebe
       #  contra el numero real y no contra uno escrito a mano.
       DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}

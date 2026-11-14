@@ -7,7 +7,8 @@
 
 La suite anterior tiene nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
 como entra a la red de Docker Compose puede medir el camino completo —nginx → gateway → servicio →
-MySQL— o pegarle directo a un servicio para aislarlo.
+MySQL— o pegarle directo a un servicio para aislarlo. Además, ms-payments tiene una simulación de
+**Gatling** que se corre con el Maven Wrapper.
 
 | Servicio | Escenario | Qué mide |
 | --- | --- | --- |
@@ -23,6 +24,23 @@ MySQL— o pegarle directo a un servicio para aislarlo.
 
 La configuración compartida —rutas, sesiones y escalones— vive en
 [`config/options.js`](../../performance-tests/k6/config/options.js).
+
+## Gatling: ms-payments
+
+Además de las k6, ms-payments tiene una simulación de **Gatling**
+([`PerformTestMsPayments.java`](../../ms-payments/src/test/java/com/tbridge/payments/rendimiento/PerformTestMsPayments.java)).
+Mide `GET /api/payments`; si no recibe token, solo consulta `/actuator/health`.
+
+```powershell
+# Con la pila de Compose, el portal es el único puerto publicado. Pasa un JWT de deudor:
+.\mvnw.cmd -f ms-payments\pom.xml gatling:test `
+  "-Dgatling.simulationClass=com.tbridge.payments.rendimiento.PerformTestMsPayments" `
+  -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
+```
+
+Sin token, apunta a la URL directa de ms-payments (por omisión,
+`http://localhost:8084`). La tasa, la rampa y la duración se ajustan con `-Dtasa`, `-Drampa` y
+`-Dduracion`; los reportes quedan en `ms-payments/target/gatling/<simulacion-fecha>/index.html`.
 
 ## Antes de correrlas
 
