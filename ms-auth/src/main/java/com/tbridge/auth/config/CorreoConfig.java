@@ -1,43 +1,58 @@
 package com.tbridge.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
+import com.tbridge.auth.service.ResendDeliveryTelemetry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 
-/**
- * Por donde salen los correos.
- *
- * <p>Con {@code BREVO_API_KEY}, por la API de Brevo ({@link CorreoPorBrevo}).
- * Sin ella, como siempre: Spring Boot arma el de SMTP si hay
- * {@code spring.mail.host}, y lo arma solo cuando no hay otro, asi que nunca
- * conviven los dos.
- */
 @Configuration
 public class CorreoConfig {
-
     @Bean
-    @Conditional(ConClaveDeBrevo.class)
-    JavaMailSender correoPorBrevo(@Value("${app.mail.brevo.url}") String url,
-                              @Value("${app.mail.brevo.api-key}") String clave,
-                              @Value("${app.mail.timeout-ms:10000}") long espera,
-                              ObjectMapper json) {
-        return new CorreoPorBrevo(url, clave.strip(), Duration.ofMillis(espera), json);
+    @Conditional(BrevoActivo.class)
+    JavaMailSender correoPorBrevo(Environment env, ObjectMapper json) {
+        return new CorreoPorBrevo(env.getRequiredProperty("app.mail.brevo.url"),
+                clave(env, "brevo", "BREVO_API_KEY"), espera(env), json);
     }
 
-    /** Una clave vacia es lo mismo que no tenerla: es como queda el .env de quien no usa Brevo. */
-    static class ConClaveDeBrevo implements Condition {
+    @Bean
+    @Conditional(ResendActivo.class)
+    JavaMailSender correoPorResend(Environment env, ObjectMapper json, ResendDeliveryTelemetry telemetria) {
+        String clave = clave(env, "resend", "RESEND_API_KEY");
+        return new CorreoPorResend(env.getProperty("app.mail.resend.url", "https://api.resend.com/emails"),
+                clave, espera(env), json, telemetria);
+    }
+
+    private static String clave(Environment env, String proveedor, String variable) {
+        String clave = env.getProperty("app.mail." + proveedor + ".api-key", "").strip();
+        if (clave.isEmpty()) {
+            throw new IllegalArgumentException("MAIL_TRANSPORT=" + proveedor + " requiere " + variable);
+        }
+        return clave;
+    }
+
+    private static Duration espera(Environment env) {
+        return Duration.ofMillis(env.getProperty("app.mail.timeout-ms", Long.class, 10000L));
+    }
+
+    static class BrevoActivo implements Condition {
         @Override
         public boolean matches(ConditionContext contexto, AnnotatedTypeMetadata metadatos) {
-            return StringUtils.hasText(contexto.getEnvironment().getProperty("app.mail.brevo.api-key"));
+            return TransporteCorreo.seleccionar(contexto.getEnvironment()).equals("brevo");
+        }
+    }
+
+    static class ResendActivo implements Condition {
+        @Override
+        public boolean matches(ConditionContext contexto, AnnotatedTypeMetadata metadatos) {
+            return TransporteCorreo.seleccionar(contexto.getEnvironment()).equals("resend");
         }
     }
 }
