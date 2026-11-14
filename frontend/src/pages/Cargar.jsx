@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cargarCartera, descargarPlantillaExcel, opcionesDeCarga, revisarCartera } from "../api/deudas";
-import { dinero } from "../utils/formato";
+import { dinero, paraBuscar } from "../utils/formato";
 import { descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
 import FormCampana from "../components/FormCampana";
 import Cargando from "../components/Cargando";
@@ -43,7 +43,9 @@ export default function Cargar() {
     setOpciones(o);
     const buscada = elegir || campana;
     const suyo = o.acreedores?.find((a) => a.campanas?.some((c) => c.idExterno === buscada));
-    setAcreedor((actual) => suyo?.rut || actual || o.acreedores?.[0]?.rut || "");
+    //  Por omision, uno al que se le puede cargar: a uno suspendido no (#296).
+    const primero = o.acreedores?.find((a) => !a.suspendido) || o.acreedores?.[0];
+    setAcreedor((actual) => suyo?.rut || actual || primero?.rut || "");
     if (elegir) setCampana(elegir);
     return { o, suyo };
   }
@@ -53,8 +55,8 @@ export default function Cargar() {
     leerOpciones()
       .then(({ suyo }) => {
         const pedida = suyo?.campanas?.find((c) => c.idExterno === campana);
-        if (pedida && pedida.estado !== "terminada") setPaso(1);
-        //  Una que no existe, o que ya terminó, no queda elegida.
+        if (pedida && pedida.estado !== "terminada" && !suyo.suspendido) setPaso(1);
+        //  Una que no existe, que ya terminó o de un acreedor suspendido, no queda elegida.
         else setCampana("");
       })
       .catch((err) => setError(err.message));
@@ -206,6 +208,12 @@ function PasoCampana({
 }) {
   const acreedores = opciones?.acreedores || [];
   const pausada = disponibles.find((c) => c.idExterno === campana)?.estado === "pausada";
+  const [buscar, setBuscar] = useState("");
+  //  Sin fijarse en tildes, mayusculas, puntos ni guiones, como en la cartera (#414). La que esta marcada se ve
+  //  aunque no calce, para no perderla de vista: Seguir la usa igual.
+  const texto = paraBuscar(buscar);
+  const mostradas = disponibles.filter((c) => !texto || c.idExterno === campana
+    || [c.nombre, c.idExterno].some((v) => paraBuscar(v).includes(texto)));
   if (acreedores.length === 0) {
     return (
       <div className="empty">
@@ -221,12 +229,20 @@ function PasoCampana({
         <div className="field">
           <label htmlFor="acreedor">Acreedor</label>
           <select id="acreedor" value={acreedor} onChange={(e) => setAcreedor(e.target.value)}>
-            {acreedores.map((a) => <option key={a.rut} value={a.rut}>{a.nombre}</option>)}
+            {acreedores.map((a) => (
+              <option key={a.rut} value={a.rut}>{a.nombre}{a.suspendido ? " (suspendida)" : ""}</option>
+            ))}
           </select>
         </div>
       ) : null}
 
-      {creando ? (
+      {elegido?.suspendido ? (
+        //  Lo suyo esta congelado (#152): no se le carga cartera (#296).
+        <div className="notice" role="status">
+          <b>{elegido.nombre}</b> está suspendida en DataBridge: mientras lo esté, no se le carga cartera. Lo que
+          ya está cargado queda en pausa hasta que la reactiven.
+        </div>
+      ) : creando ? (
         <>
           <p className="hint" style={{ marginTop: 0 }}>
             La campaña dice cuándo y cuántas veces se contacta a cada deudor. Después la puedes cambiar en
@@ -240,20 +256,31 @@ function PasoCampana({
           {disponibles.length === 0 ? (
             <p className="hint" style={{ marginTop: 0 }}>Todavía no hay campañas en curso para {elegido?.nombre}. Crea la primera.</p>
           ) : (
-            <fieldset className="opciones-campana">
-              <legend className="sr-only">Campañas</legend>
-              {disponibles.map((c) => (
-                <label key={c.idExterno} className={`opcion${campana === c.idExterno ? " on" : ""}`}>
-                  <input type="radio" name="campana" value={c.idExterno} checked={campana === c.idExterno}
-                         onChange={() => setCampana(c.idExterno)} />
-                  <span>
-                    <b>{c.nombre}</b>
-                    <span className="mono">{c.idExterno}</span>
-                  </span>
-                  {c.estado === "pausada" ? <span className="badge badge-warn">Pausada</span> : null}
-                </label>
-              ))}
-            </fieldset>
+            <>
+              {disponibles.length > 1 ? (
+                <input className="buscador buscador-campanas" type="search" value={buscar}
+                       placeholder="Buscar por nombre o ID" aria-label="Buscar campaña"
+                       onChange={(e) => setBuscar(e.target.value)} />
+              ) : null}
+              {mostradas.length === 0 ? (
+                <div className="empty">Ninguna campaña calza con la búsqueda.</div>
+              ) : (
+                <fieldset className="opciones-campana">
+                  <legend className="sr-only">Campañas</legend>
+                  {mostradas.map((c) => (
+                    <label key={c.idExterno} className={`opcion${campana === c.idExterno ? " on" : ""}`}>
+                      <input type="radio" name="campana" value={c.idExterno} checked={campana === c.idExterno}
+                             onChange={() => setCampana(c.idExterno)} />
+                      <span>
+                        <b>{c.nombre}</b>
+                        <span className="mono">{c.idExterno}</span>
+                      </span>
+                      {c.estado === "pausada" ? <span className="badge badge-warn">Pausada</span> : null}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+            </>
           )}
           {pausada ? (
             <p className="hint">

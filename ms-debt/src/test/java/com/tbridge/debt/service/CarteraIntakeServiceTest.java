@@ -552,6 +552,47 @@ class CarteraIntakeServiceTest {
     }
 
     // ------------------------------------------------------------------
+    //  El acreedor suspendido (#296, decidido en #293)
+    // ------------------------------------------------------------------
+
+    @Test
+    void a_un_acreedor_suspendido_no_se_le_carga_cartera_y_no_se_guarda_nada() throws Exception {
+        Organization apofyx = new Organization();
+        apofyx.setId(2L);
+        apofyx.setRut("77305118-6");
+        apofyx.setTradeName("APOFYX");
+        apofyx.setKind(Organization.Kind.agency);
+        patrimonio.setStatus(Organization.Status.suspended);
+        JsonNode payload = cartera(cargo("Arriendo agosto", "2026-08", "2026-08-05"));
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
+                () -> servicio.recibir(apofyx, payload, Batch.Source.file));
+
+        assertEquals("acreedor_suspendido", fallo.getCodigo());
+        assertEquals(409, fallo.getStatus());
+        assertEquals("Patrimonio Inmuebles está suspendida en DataBridge: mientras lo esté, no se le carga cartera. "
+                + "Lo que ya está cargado queda en pausa", fallo.getMessage());
+        //  Antes que el mandato: lo que la agencia tiene que saber es que el acreedor esta suspendido.
+        verify(mandates, never()).findByAgencyAndCreditorAndStatus(any(), any(), any());
+        verify(batches, never()).save(any());
+        verify(debts, never()).save(any());
+    }
+
+    @Test
+    void una_empresa_suspendida_tampoco_carga_lo_suyo() throws Exception {
+        patrimonio.setStatus(Organization.Status.suspended);
+        JsonNode payload = cartera(cargo("Arriendo agosto", "2026-08", "2026-08-05"));
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class,
+                () -> servicio.recibir(patrimonio, payload, Batch.Source.file));
+
+        assertEquals("acreedor_suspendido", fallo.getCodigo());
+        assertEquals("Tu empresa está suspendida en DataBridge: mientras lo esté, no se carga cartera",
+                fallo.getMessage());
+        verify(debts, never()).save(any());
+    }
+
+    // ------------------------------------------------------------------
     //  El correo del deudor (#66)
     // ------------------------------------------------------------------
 

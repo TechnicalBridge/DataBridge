@@ -113,6 +113,14 @@ export function porMoneda(filas, campo) {
   return Object.entries(totales);
 }
 
+/**
+ * Un texto listo para buscar: sin tildes, sin mayusculas y sin puntos, guiones
+ * ni espacios, asi un RUT o un nombre se encuentran escritos de cualquier forma
+ * (#280, #299).
+ */
+export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  .replace(/[.\-\s]/g, "");
+
 /** Hoy en Chile, como 2026-09-24. */
 export const hoyEnChile = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Santiago" });
 
@@ -147,3 +155,15 @@ export const ESTADO_DEUDA = {
   withdrawn: "Retirada",
   disputed: "En revisión",
 };
+
+/** El mes de hoy, en Chile, como 2026-10: lo que pide la API y lo que usa el selector. */
+export function mesDeHoy() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" })
+    .format(new Date()).slice(0, 7);
+}
+
+/** 2026-10-01 -> "octubre de 2026" */
+export function mesEnPalabras(fecha) {
+  const [ano, mes] = String(fecha).split("-").map(Number);
+  return new Date(ano, mes - 1, 1).toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+}

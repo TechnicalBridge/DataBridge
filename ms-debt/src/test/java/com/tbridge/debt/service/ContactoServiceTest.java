@@ -21,7 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -30,6 +32,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -274,5 +277,15 @@ class ContactoServiceTest {
 
         deuda.getCreditor().setStatus(Organization.Status.active);
         assertEquals(1, el(6, 11).enviados(), "reactivada, sale el toque que esperaba");
+    }
+
+    @Test
+    void la_pasada_programada_corre_en_una_transaccion() throws Exception {
+        //  #338: pasar() llama a contactar() dentro de la misma clase, sin pasar por el proxy de Spring, asi
+        //  que la transaccion tiene que venir de la propia tarea programada. Se le pregunta a Spring lo mismo
+        //  que se pregunta al correrla.
+        Method pasar = ContactoService.class.getMethod("pasar");
+        assertNotNull(new AnnotationTransactionAttributeSource().getTransactionAttribute(pasar, ContactoService.class),
+                "sin transaccion, Debt.congelada() no alcanza a leer la empresa y la pasada se cae");
     }
 }

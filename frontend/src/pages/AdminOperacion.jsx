@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, operacionDePagos, reintentarAviso, reintentarAvisoDePago,
-  reintentarDestino,
+  SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, liberarCobro, operacionDePagos, reintentarAviso,
+  reintentarAvisoDePago, reintentarDestino,
 } from "../api/admin";
-import { fecha, fechaHora, hoyEnChile } from "../utils/formato";
+import { dinero, fecha, fechaHora, hoyEnChile } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
@@ -14,8 +14,12 @@ const ESTADO_AVISO = {
   failed: { texto: "Fallido", clase: "badge-peligro" },
 };
 
+const PASARELA = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
+
 const QUE_SE_HIZO = {
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
+  //  ms-payments lo guarda como "el cobro 2488 de mercadopago" (#453).
+  cobro_liberado: (a) => `Liberó ${a.sobre.replace(/ de (\w+)$/, (_, p) => ` de ${PASARELA[p] ?? p}`)}`,
   //  ms-payments lo guarda como "2026-01-06: 39700.55".
   uf_cargada: (a) => {
     const [dia, valor] = a.sobre.split(": ");
@@ -27,6 +31,29 @@ const QUE_SE_HIZO = {
 const conCortes = (tipo) => tipo.split(".").flatMap((parte, i) => (i ? [".", <wbr key={i} />, parte] : [parte]));
 
 const ufLegible = (valor) => Number(valor).toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Con mas de estos avisos, el detalle va plegado y arriba queda el resumen por motivo (#299). */
+const AVISOS_A_LA_VISTA = 5;
+
+/**
+ * Por que no llego un aviso, en palabras. El despachador guarda el mensaje de
+ * la excepcion, o su nombre si no trae mensaje ("ConnectException"), o
+ * "HTTP 503: ..." si la empresa respondio con un error.
+ */
+function motivoEnPalabras(error) {
+  if (!error) return "Sin detalle del error";
+  const http = /^HTTP (\d{3})/.exec(error);
+  if (http) {
+    const codigo = Number(http[1]);
+    if (codigo >= 500) return `Su dirección respondió con un error (HTTP ${codigo})`;
+    if (codigo >= 400) return `Su dirección lo rechazó (HTTP ${codigo})`;
+    return `Su dirección respondió HTTP ${codigo}`;
+  }
+  if (/connect|refused|unresolved|unknownhost|no route|unreachable/i.test(error)) return "Su dirección no respondió";
+  if (/timed? ?out/i.test(error)) return "Su dirección tardó demasiado en responder";
+  if (/ssl|certificate|pkix|handshake/i.test(error)) return "Falló la conexión segura con su dirección";
+  return "Otro error";
+}
 
 /**
  * La operacion de DataBridge (#139): si cada servicio responde, los avisos que
@@ -67,6 +94,26 @@ export default function AdminOperacion() {
       setVuelta((v) => v + 1);
       clearTimeout(espera.current);
       espera.current = setTimeout(() => setVuelta((v) => v + 1), DESPUES_DEL_DESPACHADOR_MS);
+    } catch (e) {
+      setMensaje(e.message);
+    } finally {
+      setOcupado("");
+    }
+  }
+
+  /** Libera un cobro trabado (#453), despues de confirmarlo, y dice como quedo. */
+  async function liberar(c) {
+    const pregunta = `¿Liberar el cobro ${c.id} de ${PASARELA[c.pasarela] ?? c.pasarela}? Antes se le pregunta a la `
+      + "pasarela: si ya lo cobró, queda pagado. Si no, queda vencido y la cuota se puede volver a pagar.";
+    if (!window.confirm(pregunta)) return;
+    setOcupado(`c${c.id}`);
+    setMensaje("");
+    try {
+      const r = await liberarCobro(c.id);
+      setMensaje(r.estado === "paid"
+        ? `La pasarela ya había cobrado el cobro ${c.id}: quedó registrado como pagado.`
+        : `El cobro ${c.id} quedó liberado: la cuota se puede volver a pagar. Si la pasarela lo aprueba después, se registra igual.`);
+      setVuelta((v) => v + 1);
     } catch (e) {
       setMensaje(e.message);
     } finally {
@@ -124,6 +171,27 @@ export default function AdminOperacion() {
           <p className="hint">
             Un pago abierto espera que la pasarela lo confirme; algunos están en verificación.
           </p>
+          {pagos && pagos !== "caido" && pagos.cobrosAbiertos?.length ? (
+            <>
+              <h3 className="lista-grupo">Abiertos hace más de una hora</h3>
+              <div className="lista">
+                {pagos.cobrosAbiertos.map((c) => (
+                  <div className="fila" key={c.id}>
+                    <div className="fila-que">
+                      <b>Cobro {c.id} · {PASARELA[c.pasarela] ?? c.pasarela}</b>
+                      <span>Deuda {c.deuda} · {dinero(c.montoClp)} · desde {fechaHora(c.abierto)}</span>
+                    </div>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={!!ocupado} onClick={() => liberar(c)}>
+                      {ocupado === `c${c.id}` ? "Liberando…" : "Liberar"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="hint">
+                Liberar un cobro trabado (por ejemplo, uno de Mercado Pago en verificación) deja volver a pagar la cuota.
+              </p>
+            </>
+          ) : null}
         </section>
       </div>
 
@@ -153,7 +221,7 @@ export default function AdminOperacion() {
                   ) : null}
                 </div>
               </div>
-              <TablaAvisos
+              <AvisosAgrupados
                 avisos={d.avisos}
                 primeraColumna={(a) => <><code>{conCortes(a.tipo)}</code><span className="sub">{fechaHora(a.ocurrio)}</span></>}
                 titulo="Qué y cuándo"
@@ -170,7 +238,7 @@ export default function AdminOperacion() {
           : pagos.avisos.lista.length === 0 ? (
             <div className="empty">ms-debt recibió todos los avisos de pago.</div>
           ) : (
-            <TablaAvisos
+            <AvisosAgrupados
               avisos={pagos.avisos.lista}
               primeraColumna={(a) => <>Pago {a.pago}</>}
               titulo="Pago"
@@ -234,6 +302,43 @@ export default function AdminOperacion() {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * Los avisos de un destino. Pocos, a la vista. Muchos, primero cuantos fallaron
+ * por cada motivo, en palabras, y el detalle plegado: veinte filas con el mismo
+ * error no dicen mas que una linea (#299). El error tal cual va junto al motivo,
+ * para quien tenga que arreglarlo.
+ */
+function AvisosAgrupados(props) {
+  const { avisos } = props;
+  if (avisos.length <= AVISOS_A_LA_VISTA) return <TablaAvisos {...props} />;
+  const motivos = new Map();
+  for (const a of avisos.filter((x) => x.estado === "failed")) {
+    const motivo = motivoEnPalabras(a.ultimoError);
+    const grupo = motivos.get(motivo) || { cuantos: 0, errores: new Set() };
+    grupo.cuantos += 1;
+    if (a.ultimoError) grupo.errores.add(a.ultimoError);
+    motivos.set(motivo, grupo);
+  }
+  return (
+    <>
+      {motivos.size ? (
+        <ul className="motivos-de-avisos">
+          {[...motivos].map(([motivo, { cuantos, errores }]) => (
+            <li key={motivo}>
+              <b>{cuantos === 1 ? "1 aviso no llegó" : `${cuantos} avisos no llegaron`}:</b> {motivo.charAt(0).toLowerCase() + motivo.slice(1)}.
+              {errores.size ? <span className="error-de-aviso">{[...errores].slice(0, 2).join(" · ")}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <details className="detalle-avisos">
+        <summary>Ver los {avisos.length} avisos</summary>
+        <TablaAvisos {...props} />
+      </details>
+    </>
   );
 }
 
