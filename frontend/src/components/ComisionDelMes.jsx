@@ -1,18 +1,6 @@
 import { useEffect, useState } from "react";
 import { comisionDelMes } from "../api/analitica";
-import { dinero, porcentaje } from "../utils/formato";
-
-/** El mes de hoy, en Chile, como 2026-10: lo que pide la API y lo que usa el selector. */
-export function mesDeHoy() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" })
-    .format(new Date()).slice(0, 7);
-}
-
-/** 2026-10-01 -> "octubre de 2026" */
-export function mesEnPalabras(fecha) {
-  const [ano, mes] = String(fecha).split("-").map(Number);
-  return new Date(ano, mes - 1, 1).toLocaleDateString("es-CL", { month: "long", year: "numeric" });
-}
+import { dinero, porcentaje, mesDeHoy, mesEnPalabras } from "../utils/formato";
 
 /** "Más de $1.000.000 y hasta $5.000.000" */
 function tramo(t) {

@@ -248,11 +248,35 @@ class PaymentServiceTest {
     }
 
     @Test
+    void un_aviso_con_pasarela_distinta_a_la_del_pago_se_rechaza_con_bad_request() {
+        Payment pago = pagoAbierto();
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", firmaDe(pago)), null));
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertTrue(error.getMessage().contains("no corresponde a la pasarela"));
+    }
+
+    @Test
+    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_y_queda_anotado() {
+        Payment pago = pagoAbierto();
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> servicio.webhook(Payment.Gateway.khipu, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
+        verify(eventos).save(libro.capture());
+        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
+        assertFalse(libro.getValue().getSignatureOk());
+    }
+
+    @Test
     void un_aviso_con_firma_falsa_no_se_aplica_pero_queda_anotado() {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
-                () -> servicio.webhook(new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
+                () -> servicio.webhook(Payment.Gateway.webpay, new WebhookRequest(41L, null, "wp-1", "firma-falsa"), null));
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
@@ -1321,6 +1345,73 @@ class PaymentServiceTest {
         assertEquals(Payment.Status.created, pago.getStatus(), "Mercado Pago todavia lo puede aprobar");
     }
 
+    // ------------------------------------------------------------------
+    //  El admin libera un cobro trabado (#453)
+    // ------------------------------------------------------------------
+
+    private Payment trabadoEnMercadoPago() {
+        Payment pago = abiertoEnMercadoPago();
+        pago.setCreatedAt(Instant.now().minus(java.time.Duration.ofHours(9)));
+        when(payments.paraCerrar(41L)).thenReturn(Optional.of(pago));
+        return pago;
+    }
+
+    @Test
+    void liberar_vence_un_cobro_de_mercadopago_en_proceso_con_origen_manual() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("in_process"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("in_process", "410000", "41"));
+
+        assertEquals(Payment.Status.expired, servicio.liberar(41L).getStatus());
+
+        verify(eventos).save(argThat(e -> e.getType() == PaymentEvent.Type.expired
+                && e.getSource() == PaymentEvent.Source.manual));
+        verify(avisos, never()).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void liberar_no_vence_lo_que_la_pasarela_ya_cobro_queda_pagado() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
+
+        assertEquals(Payment.Status.paid, servicio.liberar(41L).getStatus());
+
+        verify(avisos).save(any(DebtNotification.class));
+        verify(eventos, never()).save(argThat(e -> e.getType() == PaymentEvent.Type.expired));
+    }
+
+    @Test
+    void liberar_un_cobro_de_menos_de_una_hora_se_rechaza_sin_preguntarle_a_la_pasarela() {
+        Payment pago = trabadoEnMercadoPago();
+        pago.setCreatedAt(Instant.now().minus(java.time.Duration.ofMinutes(20)));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(mercadopago, never()).consultarPreferencia(any());
+    }
+
+    @Test
+    void liberar_un_cobro_que_ya_no_esta_abierto_se_rechaza() {
+        trabadoEnMercadoPago().setStatus(Payment.Status.expired);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void liberar_un_cobro_que_no_existe_es_404() {
+        when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(99L));
+
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
+    }
+
     @Test
     void un_vencido_que_mercadopago_aprueba_despues_se_registra() {
         Payment pago = abiertoEnMercadoPago();
@@ -1550,7 +1641,7 @@ class PaymentServiceTest {
         ApiException desdeLaPagina = assertThrows(ApiException.class, () -> servicio.confirmPublic(41L, firma));
         assertEquals(HttpStatus.CONFLICT, desdeLaPagina.getStatus());
         ApiException desdeElAviso = assertThrows(ApiException.class,
-                () -> servicio.webhook(new WebhookRequest(41L, null, "wp-1", firma), null));
+                () -> servicio.webhook(Payment.Gateway.webpay, new WebhookRequest(41L, null, "wp-1", firma), null));
         assertEquals(HttpStatus.CONFLICT, desdeElAviso.getStatus());
         assertEquals(Payment.Status.expired, pago.getStatus());
         verify(avisos, never()).save(any());

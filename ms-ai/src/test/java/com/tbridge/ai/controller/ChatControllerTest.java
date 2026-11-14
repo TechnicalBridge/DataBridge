@@ -47,7 +47,7 @@ class ChatControllerTest {
 
     @Test
     void con_sesion_responde_con_la_forma_que_lee_el_portal() throws Exception {
-        when(asistente.responder(any(), eq(bearer))).thenReturn(
+        when(asistente.responder(any(), eq(bearer), eq("16482337-7"))).thenReturn(
                 new Respuesta("Hola, soy el asistente.", "local-nlp", 2, new Animo("neutral", 0)));
 
         mvc.perform(post("/api/ai/chat").header("Authorization", bearer)

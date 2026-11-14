@@ -40,7 +40,7 @@ export default function Magic() {
     <div className="auth-panel" style={{ minHeight: "100vh" }}>
       <TemaToggle flotante />
       <div className="auth-card">
-        <h2>Enlace de acceso</h2>
+        <h1>Enlace de acceso</h1>
         <p className={fallo ? "error" : "esperando"} style={fallo ? undefined : { justifyContent: "flex-start" }}>
           {fallo ? null : <span className="girando" />}
           {mensaje}

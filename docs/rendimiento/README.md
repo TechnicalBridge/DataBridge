@@ -1,6 +1,11 @@
 # Pruebas de rendimiento
 
-Nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
+> **Suite modular (13 escenarios):** el humo y las doce pruebas de #331 viven en
+> `performance-tests/k6/scenarios/` y se documentan en [suite-k6.md](suite-k6.md).
+> Las secciones de abajo son la suite anterior por servicio, con sus corridas
+> históricas.
+
+La suite anterior tiene nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
 como entra a la red de Docker Compose puede medir el camino completo —nginx → gateway → servicio →
 MySQL— o pegarle directo a un servicio para aislarlo.
 

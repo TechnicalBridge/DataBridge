@@ -18,12 +18,35 @@ public record OperacionResponse(
         Uf uf,
         Avisos avisos,
         @Schema(description = "Lo ultimo que se hizo desde el panel con los pagos, lo mas reciente primero (hasta 20)")
-        List<Accion> acciones
+        List<Accion> acciones,
+        @Schema(description = "Los cobros abiertos hace mas de una hora, el mas antiguo primero (hasta 50): los que "
+                + "el admin puede liberar (#453)")
+        List<CobroAbierto> cobrosAbiertos
 ) {
+
+    @Schema(name = "CobroAbierto", description = "Un cobro que sigue abierto hace mas de una hora, sin datos del deudor")
+    public record CobroAbierto(
+            @Schema(example = "2488") Long id,
+            @Schema(allowableValues = {"mercadopago", "khipu", "webpay"}, example = "mercadopago") String pasarela,
+            @Schema(description = "La deuda que paga", example = "1309") Long deuda,
+            @Schema(description = "Lo que se cobra, en pesos", example = "173395") Long montoClp,
+            @Schema(description = "Cuando se abrio") Instant abierto
+    ) {
+    }
+
+    @Schema(name = "CobroLiberado", description = "Como quedo un cobro despues de liberarlo")
+    public record CobroLiberado(
+            @Schema(example = "2488") Long id,
+            @Schema(allowableValues = {"mercadopago", "khipu", "webpay"}, example = "mercadopago") String pasarela,
+            @Schema(description = "expired: quedo vencido y la cuota se puede volver a pagar; paid: la pasarela ya lo "
+                    + "habia cobrado y quedo pagado", allowableValues = {"expired", "paid"}, example = "expired")
+            String estado
+    ) {
+    }
 
     @Schema(name = "AccionSobreLosPagos", description = "Algo que un admin hizo desde el panel con los pagos")
     public record Accion(
-            @Schema(allowableValues = {"aviso_reintentado", "uf_cargada"}, example = "uf_cargada") String accion,
+            @Schema(allowableValues = {"aviso_reintentado", "uf_cargada", "cobro_liberado"}, example = "uf_cargada") String accion,
             @Schema(description = "Sobre que", example = "2026-10-27: 40123.45") String sobre,
             @Schema(description = "El admin que lo hizo", example = "admin@databridge.cl") String quien,
             Instant cuando

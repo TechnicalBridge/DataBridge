@@ -20,7 +20,7 @@ import java.util.Map;
  * con {@code BREVO_API_KEY}, el buzon de prueba no se usa.
  *
  * <p>Sin las dos cosas (ms-auth corriendo con Maven, sin nada configurado) no
- * se manda nada: los codigos y los enlaces quedan en el log.
+ * se entregan correos.
  *
  * <p>Corre antes de que arranque el contexto, y lo unico que hace es dejar
  * escritas las propiedades {@code spring.mail.*} del buzon de prueba: el resto
@@ -33,21 +33,25 @@ public class BuzonDePrueba implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment entorno, SpringApplication aplicacion) {
-        String servidor = entorno.getProperty("spring.mail.host", "");
+        String modo = TransporteCorreo.seleccionar(entorno);
+        if (modo.equals("smtp") && !TransporteCorreo.tiene(entorno, "spring.mail.host")) {
+            throw new IllegalArgumentException("MAIL_TRANSPORT=smtp requiere SMTP_HOST");
+        }
+        if (!modo.equals("mailpit")) return;
         String buzon = entorno.getProperty("app.mail.buzon-de-prueba", "");
-        String brevo = entorno.getProperty("app.mail.brevo.api-key", "");
-        //  Con Brevo los correos salen por su API: el buzon de prueba no se usa.
-        if (!servidor.isBlank() || buzon.isBlank() || !brevo.isBlank()) {
-            return;
+        if (buzon.isBlank()) {
+            throw new IllegalArgumentException("MAIL_TRANSPORT=mailpit requiere CORREO_BUZON_DE_PRUEBA");
         }
         String[] partes = buzon.trim().split(":", 2);
         Map<String, Object> delBuzon = new LinkedHashMap<>();
+        delBuzon.put("app.mail.transport", "mailpit");
         delBuzon.put("spring.mail.host", partes[0]);
         delBuzon.put("spring.mail.port", partes.length > 1 && !partes[1].isBlank() ? partes[1] : PUERTO_POR_OMISION);
         delBuzon.put("spring.mail.username", "");
         delBuzon.put("spring.mail.password", "");
         delBuzon.put("spring.mail.properties.mail.smtp.auth", "false");
         delBuzon.put("spring.mail.properties.mail.smtp.starttls.enable", "false");
+        delBuzon.put("spring.mail.properties.mail.smtp.starttls.required", "false");
         delBuzon.put("spring.mail.properties.mail.smtp.ssl.enable", "false");
         entorno.getPropertySources().addFirst(new MapPropertySource(FUENTE, delBuzon));
     }
