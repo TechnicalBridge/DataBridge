@@ -989,6 +989,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .asistente li.hecho { color: var(--ink-2); }
 .asistente li.hecho::before { content: "\2713"; border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
 .opciones-campana { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+/* El buscador va sobre las campañas, con el ancho de ellas (#414). */
+.buscador-campanas { display: block; width: 100%; max-width: none; margin-bottom: 10px; }
 .opcion {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
   padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper);
