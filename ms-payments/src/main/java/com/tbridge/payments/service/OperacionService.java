@@ -28,9 +28,10 @@ import java.util.List;
 
 /**
  * La operacion de los pagos, para la pantalla *Operacion* del panel (#139):
- * cuantos pagos esperan, la UF de hoy, los avisos a ms-debt sin entregar, y las
- * dos cosas que el admin puede hacer desde ahi, que quedan anotadas con quien
- * las hizo: volver a poner en cola un aviso, y cargar a mano la UF de un dia.
+ * cuantos pagos esperan, la UF de hoy, los avisos a ms-debt sin entregar, los
+ * cobros abiertos hace mas de una hora, y las tres cosas que el admin puede hacer
+ * desde ahi, que quedan anotadas con quien las hizo: volver a poner en cola un
+ * aviso, cargar a mano la UF de un dia y liberar un cobro trabado (#453).
  */
 @Service
 public class OperacionService {
@@ -45,22 +46,25 @@ public class OperacionService {
     private final UfValueRepository ufs;
     private final UfService uf;
     private final AdminLogRepository bitacora;
+    private final PaymentService cobros;
     private final Clock reloj;
 
     @Autowired
     public OperacionService(PaymentRepository pagos, PaymentEventRepository eventos, DebtNotificationRepository avisos,
-                            UfValueRepository ufs, UfService uf, AdminLogRepository bitacora) {
-        this(pagos, eventos, avisos, ufs, uf, bitacora, Clock.systemUTC());
+                            UfValueRepository ufs, UfService uf, AdminLogRepository bitacora, PaymentService cobros) {
+        this(pagos, eventos, avisos, ufs, uf, bitacora, cobros, Clock.systemUTC());
     }
 
     OperacionService(PaymentRepository pagos, PaymentEventRepository eventos, DebtNotificationRepository avisos,
-                     UfValueRepository ufs, UfService uf, AdminLogRepository bitacora, Clock reloj) {
+                     UfValueRepository ufs, UfService uf, AdminLogRepository bitacora, PaymentService cobros,
+                     Clock reloj) {
         this.pagos = pagos;
         this.eventos = eventos;
         this.avisos = avisos;
         this.ufs = ufs;
         this.uf = uf;
         this.bitacora = bitacora;
+        this.cobros = cobros;
         this.reloj = reloj;
     }
 
@@ -88,7 +92,12 @@ public class OperacionService {
                         r.getOccurredAt()))
                 .toList();
 
-        return new OperacionResponse(totales, ufDeHoy, sinEntregar, acciones);
+        List<OperacionResponse.CobroAbierto> abiertos = pagos.findTop50ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+                        Payment.Status.created, ahora.minus(PaymentService.LIBERAR_DESDE)).stream()
+                .map(p -> new OperacionResponse.CobroAbierto(p.getId(), p.getGateway().name(), p.getDebtId(),
+                        p.getAmountClp(), p.getCreatedAt()))
+                .toList();
+        return new OperacionResponse(totales, ufDeHoy, sinEntregar, acciones, abiertos);
     }
 
     /** Vuelve a poner en cola un aviso de pago sin entregar, y anota quien lo hizo. */
@@ -103,6 +112,21 @@ public class OperacionService {
         avisos.save(aviso);
         bitacora.save(AdminLog.de(admin, AdminLog.Action.aviso_reintentado, "el aviso del pago " + aviso.getPaymentId()));
         return aviso(aviso);
+    }
+
+    /**
+     * Libera un cobro abierto hace mas de una hora (#453): antes se le pregunta a
+     * la pasarela, y si ya lo cobro queda pagado. Si no, queda vencido y la cuota
+     * se puede volver a pagar. Solo lo que se libero se anota con quien lo hizo.
+     */
+    @Transactional
+    public OperacionResponse.CobroLiberado liberarCobro(Long id, String admin) {
+        Payment pago = cobros.liberar(id);
+        if (pago.getStatus() == Payment.Status.expired) {
+            bitacora.save(AdminLog.de(admin, AdminLog.Action.cobro_liberado,
+                    "el cobro " + pago.getId() + " de " + pago.getGateway().name()));
+        }
+        return new OperacionResponse.CobroLiberado(pago.getId(), pago.getGateway().name(), pago.getStatus().name());
     }
 
     /**

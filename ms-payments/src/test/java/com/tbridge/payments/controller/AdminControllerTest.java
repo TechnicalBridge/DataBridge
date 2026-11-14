@@ -113,7 +113,9 @@ class AdminControllerTest {
                 new OperacionResponse.Pagos(3, 1, 4, 1),
                 new OperacionResponse.Uf(LocalDate.parse("2026-10-27"), false, null, null),
                 new OperacionResponse.Avisos(0, 1, List.of(new OperacionResponse.Aviso(3L, 58L, "failed", 6, null,
-                        "Connection refused"))), List.of()));
+                        "Connection refused"))), List.of(),
+                List.of(new OperacionResponse.CobroAbierto(2488L, "mercadopago", 1309L, 173395L,
+                        java.time.Instant.parse("2026-11-13T04:34:02Z")))));
 
         mvc.perform(get("/api/admin/payments/operacion").header("Authorization", admin()))
                 .andExpect(status().isOk())
@@ -121,7 +123,20 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$.pagos.duplicados").value(1))
                 .andExpect(jsonPath("$.uf.cargada").value(false))
                 .andExpect(jsonPath("$.avisos.lista[0].pago").value(58))
-                .andExpect(jsonPath("$.avisos.lista[0].ultimoError").value("Connection refused"));
+                .andExpect(jsonPath("$.avisos.lista[0].ultimoError").value("Connection refused"))
+                .andExpect(jsonPath("$.cobrosAbiertos[0].id").value(2488))
+                .andExpect(jsonPath("$.cobrosAbiertos[0].pasarela").value("mercadopago"));
+    }
+
+    @Test
+    void liberar_un_cobro_anota_al_admin_de_la_sesion_y_dice_como_quedo() throws Exception {
+        when(operacion.liberarCobro(2488L, "admin@databridge.cl"))
+                .thenReturn(new OperacionResponse.CobroLiberado(2488L, "mercadopago", "expired"));
+
+        mvc.perform(post("/api/admin/payments/cobros/2488/liberar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("expired"));
+        verify(operacion).liberarCobro(2488L, "admin@databridge.cl");
     }
 
     @Test
@@ -157,6 +172,8 @@ class AdminControllerTest {
             mvc.perform(get("/api/admin/payments/operacion").header("Authorization", sesion))
                     .andExpect(status().isForbidden());
             mvc.perform(post("/api/admin/payments/avisos/3/reintentar").header("Authorization", sesion))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post("/api/admin/payments/cobros/2488/liberar").header("Authorization", sesion))
                     .andExpect(status().isForbidden());
             mvc.perform(post("/api/admin/payments/uf").header("Authorization", sesion)
                             .contentType(MediaType.APPLICATION_JSON).content("{\"dia\":\"2026-10-27\",\"valor\":\"1\"}"))

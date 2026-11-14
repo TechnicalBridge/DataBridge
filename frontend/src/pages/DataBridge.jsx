@@ -2,21 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { comisionDelMes, resumenDeCartera } from "../api/analitica";
 import { enviarCodigo as pedirCodigo, listarDeudas, listarEnRiesgo, resolverDisputa } from "../api/deudas";
-import { dinero, ESTADO_DEUDA, fecha, MOTIVOS_DISPUTA, porcentaje, rutLegible, totalDeLaDeuda } from "../utils/formato";
+import {
+  dinero, ESTADO_DEUDA, fecha, mesDeHoy, MOTIVOS_DISPUTA, paraBuscar, porcentaje, rutLegible, totalDeLaDeuda,
+} from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import BarraEstado, { etapaDe } from "../components/BarraEstado";
 import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
-import { mesDeHoy } from "../components/ComisionDelMes";
+import Paginas, { dePagina } from "../components/Paginas";
 
 /** De a cuantas deudas se ve la cartera (#280). */
 const POR_PAGINA = 20;
 
 const FILTROS = ["todas", "open", "repacted", "disputed", "paid", "withdrawn"];
-
-/** Para buscar: sin tildes, sin mayusculas y sin puntos ni guiones, asi un RUT se encuentra escrito de cualquier forma. */
-const simple = (texto) => String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-  .replace(/[.\-\s]/g, "");
 
 /**
  * El portal de la empresa que cobra con DataBridge.
@@ -89,19 +87,17 @@ export default function DataBridge() {
 
   //  La busqueda va primero: los filtros cuentan sobre lo que se busco, y la pagina sobre lo filtrado (#280).
   const buscadas = useMemo(() => {
-    const texto = simple(buscar);
+    const texto = paraBuscar(buscar);
     if (!texto) return deudas;
     return deudas.filter((d) => [d.deudor, d.deudorRut, d.externalId, d.concepto, d.acreedor]
-      .some((campo) => simple(campo).includes(texto)));
+      .some((campo) => paraBuscar(campo).includes(texto)));
   }, [deudas, buscar]);
   const cuantas = useMemo(() => Object.fromEntries(FILTROS.map((f) => [f,
     f === "todas" ? buscadas.length : buscadas.filter((d) => d.estado === f).length])), [buscadas]);
   //  El grafico cuenta toda la cartera, sin la busqueda.
   const porEstado = useMemo(() => deudas.reduce((c, d) => ({ ...c, [d.estado]: (c[d.estado] || 0) + 1 }), {}), [deudas]);
   const visibles = buscadas.filter((d) => filtro === "todas" || d.estado === filtro);
-  const paginas = Math.max(1, Math.ceil(visibles.length / POR_PAGINA));
-  const enPagina = Math.min(pagina, paginas - 1);
-  const deEstaPagina = visibles.slice(enPagina * POR_PAGINA, (enPagina + 1) * POR_PAGINA);
+  const { enPagina, filas: deEstaPagina } = dePagina(visibles, pagina, POR_PAGINA);
 
   function filtrar(f) {
     setFiltro(f);
@@ -287,21 +283,8 @@ export default function DataBridge() {
             </table>
           </div>
         )}
-        {visibles.length > POR_PAGINA ? (
-          <nav className="paginas" aria-label="Páginas de la cartera">
-            <button type="button" className="btn btn-ghost btn-sm" disabled={enPagina === 0}
-                    onClick={() => setPagina(enPagina - 1)}>
-              Anteriores
-            </button>
-            <span className="hint" aria-live="polite">
-              {enPagina * POR_PAGINA + 1}–{Math.min((enPagina + 1) * POR_PAGINA, visibles.length)} de {visibles.length}
-            </span>
-            <button type="button" className="btn btn-ghost btn-sm" disabled={enPagina + 1 >= paginas}
-                    onClick={() => setPagina(enPagina + 1)}>
-              Siguientes
-            </button>
-          </nav>
-        ) : null}
+        <Paginas total={visibles.length} porPagina={POR_PAGINA} pagina={enPagina} alCambiar={setPagina}
+                 etiqueta="Páginas de la cartera" />
         <p className="hint">
           Al entrar su deuda, al deudor le llega solo su código de acceso. Con el botón se le reenvía. El código
           va a su correo y no se muestra aquí: quien lo viera podría entrar en su lugar.
