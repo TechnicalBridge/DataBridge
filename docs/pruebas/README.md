@@ -35,8 +35,8 @@ mano.
 | `ms-ai` | 163 |
 
 La simulación de rendimiento de ms-payments (`PerformTestMsPayments`, Gatling) vive en
-`ms-payments/src/test/java/.../rendimiento/` y se corre a mano con el sistema arriba. La guía
-completa está en [`docs/rendimiento`](../rendimiento/README.md).
+`ms-payments/src/test/java/com/tbridge/payments/rendimiento/` y se corre a mano con el sistema
+arriba. La guía completa está en [`docs/rendimiento`](../rendimiento/README.md).
 
 ```powershell
 docker compose --profile app up -d --wait
