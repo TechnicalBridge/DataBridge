@@ -2499,6 +2499,7 @@ classDiagram
             <<enumeration>>
             aviso_reintentado
             uf_cargada
+            cobro_liberado
         }
     }
     namespace events {

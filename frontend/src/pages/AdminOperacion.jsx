@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, operacionDePagos, reintentarAviso, reintentarAvisoDePago,
-  reintentarDestino,
+  SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, liberarCobro, operacionDePagos, reintentarAviso,
+  reintentarAvisoDePago, reintentarDestino,
 } from "../api/admin";
-import { fecha, fechaHora, hoyEnChile } from "../utils/formato";
+import { dinero, fecha, fechaHora, hoyEnChile } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
@@ -14,8 +14,12 @@ const ESTADO_AVISO = {
   failed: { texto: "Fallido", clase: "badge-peligro" },
 };
 
+const PASARELA = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
+
 const QUE_SE_HIZO = {
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
+  //  ms-payments lo guarda como "el cobro 2488 de mercadopago" (#453).
+  cobro_liberado: (a) => `Liberó ${a.sobre.replace(/ de (\w+)$/, (_, p) => ` de ${PASARELA[p] ?? p}`)}`,
   //  ms-payments lo guarda como "2026-01-06: 39700.55".
   uf_cargada: (a) => {
     const [dia, valor] = a.sobre.split(": ");
@@ -97,6 +101,26 @@ export default function AdminOperacion() {
     }
   }
 
+  /** Libera un cobro trabado (#453), despues de confirmarlo, y dice como quedo. */
+  async function liberar(c) {
+    const pregunta = `¿Liberar el cobro ${c.id} de ${PASARELA[c.pasarela] ?? c.pasarela}? Antes se le pregunta a la `
+      + "pasarela: si ya lo cobró, queda pagado. Si no, queda vencido y la cuota se puede volver a pagar.";
+    if (!window.confirm(pregunta)) return;
+    setOcupado(`c${c.id}`);
+    setMensaje("");
+    try {
+      const r = await liberarCobro(c.id);
+      setMensaje(r.estado === "paid"
+        ? `La pasarela ya había cobrado el cobro ${c.id}: quedó registrado como pagado.`
+        : `El cobro ${c.id} quedó liberado: la cuota se puede volver a pagar. Si la pasarela lo aprueba después, se registra igual.`);
+      setVuelta((v) => v + 1);
+    } catch (e) {
+      setMensaje(e.message);
+    } finally {
+      setOcupado("");
+    }
+  }
+
   return (
     <div>
       <header className="topbar aparece">
@@ -147,6 +171,27 @@ export default function AdminOperacion() {
           <p className="hint">
             Un pago abierto espera que la pasarela lo confirme; algunos están en verificación.
           </p>
+          {pagos && pagos !== "caido" && pagos.cobrosAbiertos?.length ? (
+            <>
+              <h3 className="lista-grupo">Abiertos hace más de una hora</h3>
+              <div className="lista">
+                {pagos.cobrosAbiertos.map((c) => (
+                  <div className="fila" key={c.id}>
+                    <div className="fila-que">
+                      <b>Cobro {c.id} · {PASARELA[c.pasarela] ?? c.pasarela}</b>
+                      <span>Deuda {c.deuda} · {dinero(c.montoClp)} · desde {fechaHora(c.abierto)}</span>
+                    </div>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={!!ocupado} onClick={() => liberar(c)}>
+                      {ocupado === `c${c.id}` ? "Liberando…" : "Liberar"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="hint">
+                Liberar un cobro trabado (por ejemplo, uno de Mercado Pago en verificación) deja volver a pagar la cuota.
+              </p>
+            </>
+          ) : null}
         </section>
       </div>
 
