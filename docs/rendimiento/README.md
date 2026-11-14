@@ -7,8 +7,8 @@
 
 La suite anterior tiene nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
 como entra a la red de Docker Compose puede medir el camino completo —nginx → gateway → servicio →
-MySQL— o pegarle directo a un servicio para aislarlo. Además, ms-payments tiene una simulación de
-**Gatling** que se corre con el Maven Wrapper.
+MySQL— o pegarle directo a un servicio para aislarlo. Las pruebas de rendimiento
+se ejecutan con **k6**; Maven queda para las pruebas Java del proyecto.
 
 | Servicio | Escenario | Qué mide |
 | --- | --- | --- |
@@ -25,22 +25,36 @@ MySQL— o pegarle directo a un servicio para aislarlo. Además, ms-payments tie
 La configuración compartida —rutas, sesiones y escalones— vive en
 [`config/options.js`](../../performance-tests/k6/config/options.js).
 
-## Gatling: ms-payments
-
-Además de las k6, ms-payments tiene una simulación de **Gatling**
-([`PerformTestMsPayments.java`](../../ms-payments/src/test/java/com/tbridge/payments/rendimiento/PerformTestMsPayments.java)).
-Mide `GET /api/payments`; si no recibe token, solo consulta `/actuator/health`.
+## Cómo correr las pruebas y visualizar resultados
 
 ```powershell
-# Con la pila de Compose, el portal es el único puerto publicado. Pasa un JWT de deudor:
-.\mvnw.cmd -f ms-payments\pom.xml gatling:test `
-  "-Dgatling.simulationClass=com.tbridge.payments.rendimiento.PerformTestMsPayments" `
-  -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
+# Preparar la pila local con datos de demo.
+$env:DEMO_DATOS = 'true'
+docker compose --profile app up -d --wait
+
+# Suite completa sobre el proyecto Compose activo (Python 3.9+).
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge
+
+# Abrir únicamente los informes existentes.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
 ```
 
-Sin token, apunta a la URL directa de ms-payments (por omisión,
-`http://localhost:8084`). La tasa, la rampa y la duración se ajustan con `-Dtasa`, `-Drampa` y
-`-Dduracion`; los reportes quedan en `ms-payments/target/gatling/<simulacion-fecha>/index.html`.
+La suite completa aumenta temporalmente los cupos, recrea gateway y ms-auth,
+ejecuta los escenarios en serie, restaura su configuración y después llama a
+`scripts/generar-evidencias.py` para abrir los HTML en
+<http://127.0.0.1:8766/evidencias/index.html>. Los HTML son una presentación propia
+de los JSON reales de k6. Los resultados fallidos se conservan como fallidos.
+Indica el nombre real de Compose en `-Proyecto` y no ejecutes corridas simultáneas.
+La suite requiere datos de demo existentes y no modifica deudas mediante repactaciones.
+
+Los escenarios individuales con `run.ps1 -Levantar` no restauran los cupos
+automáticamente. Consulta [la suite modular](suite-k6.md) para requisitos,
+duraciones, restauración y opciones del visor.
+
+**No medir `/actuator/health` a través del portal:** puede devolver el HTML de nginx
+con HTTP 200, no la salud de ms-payments. Los escenarios k6 por servicio usan la
+red interna de Compose; los puertos internos, como `8084`, no están publicados
+en el host.
 
 ## Antes de correrlas
 

@@ -34,19 +34,44 @@ mano.
 | `ms-payments` | 281 |
 | `ms-ai` | 163 |
 
-La simulación de rendimiento de ms-payments (`PerformTestMsPayments`, Gatling) vive en
-`ms-payments/src/test/java/com/tbridge/payments/rendimiento/` y se corre a mano con el sistema
-arriba. La guía completa está en [`docs/rendimiento`](../rendimiento/README.md).
+### Cómo ejecutar las pruebas de rendimiento
+
+Se usa **k6** desde Docker, con la suite modular y los escenarios por servicio de
+`performance-tests/k6/`. Hace falta Docker Desktop y una pila local con datos de
+demo, JWT y Mailpit configurados. No apuntar a producción. La guía completa está en
+[`docs/rendimiento`](../rendimiento/README.md).
 
 ```powershell
-docker compose --profile app up -d --wait
-.\mvnw.cmd -f ms-payments\pom.xml gatling:test "-Dgatling.simulationClass=com.tbridge.payments.rendimiento.PerformTestMsPayments" -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
+# Humo: levanta la demo local y prepara los cupos.
+.\performance-tests\k6\scripts\run.ps1 smoke -Levantar -SinIa -SoloLectura
+
+# Un escenario de carga, con los cupos de la corrida anterior aún activos.
+.\performance-tests\k6\scripts\run.ps1 load -SinIa -SoloLectura
+
+# Restaurar los cupos antes de otra corrida.
+Remove-Item Env:\RATE_GLOBAL_CAPACITY, Env:\RATE_AUTH_CAPACITY, Env:\AUTH_IDENTIFIER_LIMIT_CAPACITY -ErrorAction SilentlyContinue
+docker compose --profile app up -d --no-deps --wait gateway ms-auth
+
+# Suite completa, restauración de cupos, generación HTML y visor local.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge
+
+# Solo ver los informes existentes (requiere Python 3.9+).
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
 ```
 
-Con el portal como único puerto publicado, la simulación entra por `localhost:8080`; sin token
-solo consulta `/actuator/health`, que no pasa por el portal, así que para ese caso hay que apuntar
-a `ms-payments` directo (`-DbaseUrl=http://localhost:8084`). Los reportes quedan en
-`ms-payments/target/gatling/<simulacion-fecha>/index.html`.
+La suite completa recrea gateway y ms-auth para subir temporalmente sus cupos y
+restaura sus variables originales antes de abrir el visor. Indica con `-Proyecto`
+el nombre real del proyecto Compose activo. No ejecutarla en paralelo con otra
+corrida. Requiere Python 3.9+; los escenarios individuales no necesitan Python.
+El envoltorio `run.ps1 -Levantar` no restaura los cupos por sí solo: sigue la
+[guía de restauración](../rendimiento/suite-k6.md#antes-de-correrla) al terminar
+si solo ejecutas escenarios individuales.
+
+Los JSON y resúmenes quedan en `performance-tests/k6/reports/`; los HTML derivados,
+en `reports/evidencias/`. El visor escucha únicamente en
+<http://127.0.0.1:8766/evidencias/index.html>. Recargar incorpora las pruebas que
+vayan terminando; `Ctrl+C` detiene el servidor. No modifica métricas ni umbrales.
+Ver [los 13 escenarios y sus criterios](../rendimiento/suite-k6.md).
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -117,7 +142,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](../eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
-| **De rendimiento** (Gatling + k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros. La suite modular y las k6 por servicio viven en `performance-tests/k6/` (solo con las pasarelas simuladas cuando corresponde); la simulación de ms-payments corre con Maven. Se corren a mano, con el sistema arriba ([`docs/rendimiento`](../rendimiento/README.md)) |
+| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta la aplicación. La suite modular y los escenarios por servicio viven en `performance-tests/k6/` (solo con las pasarelas simuladas cuando corresponde). Se ejecutan con la pila local levantada y permiten generar informes HTML y visualizarlos localmente ([`docs/rendimiento`](../rendimiento/README.md)) |
 
 </details>
 
