@@ -27,7 +27,7 @@ export default function EnRiesgo() {
     setAvisos((a) => ({ ...a, [c.deudaId]: { enviando: true } }));
     try {
       const r = await enviarCodigo(c.deudaId);
-      setAvisos((a) => ({ ...a, [c.deudaId]: { ok: `Enviado a ${r.destino}` } }));
+      setAvisos((a) => ({ ...a, [c.deudaId]: { ok: r.estado === "QUEUED" ? `Solicitud aceptada para ${r.destino}` : `Enviado a ${r.destino}` } }));
     } catch (err) {
       setAvisos((a) => ({ ...a, [c.deudaId]: { error: err.message } }));
     }

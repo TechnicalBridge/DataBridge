@@ -22,6 +22,10 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
     @Query("select c.occurredAt from Contact c where c.debt.debtor = :deudor and c.occurredAt > :desde")
     List<Instant> cuandoSeLeEscribio(@Param("deudor") Debtor deudor, @Param("desde") Instant desde);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Contact c where c.debt.debtor = :deudor and c.occurredAt > :desde")
+    List<Contact> historiaParaLimite(@Param("deudor") Debtor deudor, @Param("desde") Instant desde);
+
     /** Cuantos toques de la campana lleva cada una de esas deudas. Las que no llevan ninguno no vienen. */
     @Query("select new com.tbridge.debt.repository.ToquesHechos(c.debt.id, count(c)) "
             + "from Contact c where c.campaign = :campana and c.debt in :deudas group by c.debt.id")

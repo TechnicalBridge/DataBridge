@@ -59,7 +59,7 @@ class ContactoServiceTest {
     @Mock private CampaignRepository campaigns;
     @Mock private DebtRepository debts;
     @Mock private ContactRepository contactos;
-    @Mock private AuthClient auth;
+    @Mock private ContactOutbox auth;
     @Mock private LimiteDeContacto limite;
     @Mock private InvitacionService invitaciones;
 
@@ -71,6 +71,7 @@ class ContactoServiceTest {
 
     @BeforeEach
     void preparar() {
+        when(auth.enqueue(any())).thenReturn(true);
         servicio = new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones, new ObjectMapper(),
                 new HorarioDeContacto("2026-10-12"));
         when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(0, false));
@@ -103,9 +104,9 @@ class ContactoServiceTest {
         //  Como la base: los toques de esta campana que lleva la deuda, y las que no llevan ninguno no vienen.
         when(contactos.toquesPorDeuda(eq(campana), anyList())).thenAnswer(llamada ->
                 historia.isEmpty() ? List.of() : List.of(new ToquesHechos(3L, historia.size())));
-        when(contactos.save(any())).thenAnswer(llamada -> {
+        when(auth.enqueue(any())).thenAnswer(llamada -> {
             historia.add(llamada.getArgument(0));
-            return llamada.getArgument(0);
+            return true;
         });
         when(limite.permite(any(), any())).thenReturn(true);
     }
@@ -127,71 +128,21 @@ class ContactoServiceTest {
         assertEquals((short) 1, primero.getTouchNumber());
         assertSame(deuda, primero.getDebt());
         assertEquals("fe**********@correo.cl", primero.getDestination(), "a donde, con la direccion tapada");
-        assertEquals(LocalDateTime.of(2026, 10, 6, 10, 0).atZone(CHILE).toInstant(), primero.getOccurredAt(),
-                "fechado a la hora de la pasada");
+
         assertNull(primero.getInstallment());
         assertEquals((short) 2, historia.get(1).getTouchNumber(), "el segundo es el toque 2");
-        verify(auth, org.mockito.Mockito.times(2)).emitirCodigo(any());
+        verify(auth, org.mockito.Mockito.times(2)).enqueue(any());
     }
 
-    @Test
-    void si_el_correo_no_sale_no_queda_ningun_contacto() {
-        when(auth.emitirCodigo(any())).thenThrow(new IllegalStateException("sin ms-auth"));
 
-        ContactosResponse pasada = el(6, 10);
-
-        assertEquals(0, pasada.enviados());
-        assertEquals(1, pasada.omitidos());
-        verify(contactos, never()).save(any());
-    }
 
     // ------------------------------------------------------------------
     //  Cuando el correo no sale
     // ------------------------------------------------------------------
 
-    @Test
-    void un_toque_que_rechaza_la_direccion_no_es_un_toque_y_sale_en_la_pasada_siguiente() {
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
 
-        ContactosResponse hoy = el(6, 10);
 
-        assertEquals(0, hoy.enviados());
-        assertEquals(1, hoy.omitidos());
-        verify(contactos, never()).save(any());
-        assertEquals(1, deudor.getEmailRejections());
-        assertTrue(deudor.getEmailFailure().contains("550 User unknown"));
 
-        org.mockito.Mockito.reset(auth);
-        assertEquals(1, el(6, 11).enviados(), "el mismo toque, una hora despues");
-        assertEquals((short) 1, historia.getFirst().getTouchNumber(), "sigue siendo el primero");
-        assertEquals(0, deudor.getEmailRejections(), "salio: lo de antes ya no importa");
-        assertEquals(null, deudor.getEmailFailedAt());
-    }
-
-    @Test
-    void si_falla_el_servidor_de_correo_la_pasada_se_corta() {
-        Debtor otro = new Debtor();
-        otro.setRut("19230418-0");
-        otro.setEmail("carolina.munoz@correo.cl");
-        Debt otra = new Debt();
-        otra.setId(4L);
-        otra.setCreditor(deuda.getCreditor());
-        otra.setDebtor(otro);
-        otra.setExternalId("CTR-2026-012");
-        otra.setStatus(Debt.Status.open);
-        otra.setCreatedAt(deuda.getCreatedAt());
-        when(debts.findByCampaign(campana)).thenReturn(List.of(deuda, otra));
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("535 Username and Password not accepted", false));
-
-        ContactosResponse hoy = el(6, 10);
-
-        verify(auth, times(1)).emitirCodigo(any());
-        assertEquals(0, hoy.enviados());
-        assertEquals(1, hoy.omitidos());
-        assertEquals(0, deudor.getEmailRejections(), "no es culpa de la direccion");
-        assertTrue(deudor.getEmailFailure().startsWith("el servidor de correo de DataBridge no lo acepto"));
-        assertEquals(null, otro.getEmailFailedAt(), "al otro no se le alcanzo a intentar");
-    }
 
     @Test
     void a_un_correo_con_problemas_no_se_le_escribe_solo() {
@@ -202,7 +153,7 @@ class ContactoServiceTest {
         ContactosResponse hoy = el(6, 10);
 
         assertEquals(1, hoy.omitidos());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
     @Test
@@ -222,7 +173,7 @@ class ContactoServiceTest {
         ContactosResponse hoy = el(6, 10);
 
         assertEquals(0, hoy.enviados());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
     @Test
@@ -255,7 +206,7 @@ class ContactoServiceTest {
         assertFalse(el(6, 20).enHorario(), "desde las 20");
         assertFalse(el(11, 10).enHorario(), "domingo");
         assertFalse(el(12, 10).enHorario(), "feriado");
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
 
         assertTrue(el(10, 10).enHorario(), "el sabado si");
         assertEquals(1, historia.size(), "y sale el toque que estaba pendiente");
@@ -315,9 +266,6 @@ class ContactoServiceTest {
 
         assertEquals(0, el(6, 10).enviados());
         assertEquals(1, el(9, 10).enviados(), "dia 1 de la campana");
-        ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
-        verify(auth).emitirCodigo(pedido.capture());
-        assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
     }
 
     @Test

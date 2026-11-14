@@ -44,11 +44,12 @@ class AccesoServiceTest {
     @Test
     void la_empresa_no_puede_reenviar_el_codigo_fuera_del_horario_de_la_ley() {
         DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
+        ContactOutbox auth = mock(ContactOutbox.class);
+        when(auth.enqueue(any())).thenReturn(true);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
         HorarioDeContacto deNoche = mock(HorarioDeContacto.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, deNoche);
+        AccesoService servicio = new AccesoService(debts, auth, limite, deNoche);
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Debtor deudor = new Debtor();
         deudor.setEmail("felipe.rojas@correo.cl");
@@ -63,17 +64,18 @@ class AccesoServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
         assertTrue(error.getMessage().contains("de lunes a sabado, de 8:00 a 20:00"), error.getMessage());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
     @Test
     void la_empresa_no_puede_reenviar_mas_de_lo_que_deja_la_ley() {
         DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
+        ContactOutbox auth = mock(ContactOutbox.class);
+        when(auth.enqueue(any())).thenReturn(true);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
+        AccesoService servicio = new AccesoService(debts, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Debtor deudor = new Debtor();
         deudor.setEmail("felipe.rojas@correo.cl");
@@ -87,45 +89,19 @@ class AccesoServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
         assertTrue(error.getMessage().startsWith("Ya se le escribio lo que permite la ley"), error.getMessage());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
-    @Test
-    void si_el_correo_no_sale_la_empresa_lo_ve_en_el_momento_y_queda_en_el_deudor() {
-        DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
-        LimiteDeContacto limite = mock(LimiteDeContacto.class);
-        ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
-        JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
-        Organization patrimonio = new Organization();
-        patrimonio.setTradeName("Patrimonio Inmuebles");
-        Debtor deudor = new Debtor();
-        deudor.setEmail("felipe.rojas@correo.cl");
-        Debt deuda = new Debt();
-        deuda.setDebtor(deudor);
-        deuda.setCreditor(patrimonio);
-        deuda.setStatus(Debt.Status.open);
-        when(debts.requireVisible(empresa, 3L)).thenReturn(deuda);
-        when(limite.permite(any(), any())).thenReturn(true);
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
 
-        ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
-
-        assertEquals(HttpStatus.BAD_GATEWAY, error.getStatus());
-        assertEquals("No se pudo enviar el correo: el servidor rechazo la direccion (550 User unknown)",
-                error.getMessage());
-        assertEquals(1, deudor.getEmailRejections());
-        verify(contactos, never()).save(any());
-    }
 
     @Test
     void la_empresa_puede_insistir_aunque_la_direccion_tenga_problemas_y_si_sale_vuelve_a_cero() {
         DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
+        ContactOutbox auth = mock(ContactOutbox.class);
+        when(auth.enqueue(any())).thenReturn(true);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
-        AccesoService servicio = new AccesoService(debts, mock(ContactRepository.class), auth, limite, enHorario());
+        AccesoService servicio = new AccesoService(debts, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -143,17 +119,18 @@ class AccesoServiceTest {
 
         servicio.enviarCodigo(empresa, 3L);
 
-        assertEquals(false, deudor.correoConProblemas());
-        assertNull(deudor.getEmailFailedAt());
+        assertEquals(true, deudor.correoConProblemas(), "encolar no confirma aceptacion");
+        org.junit.jupiter.api.Assertions.assertNotNull(deudor.getEmailFailedAt());
     }
 
     @Test
     void el_codigo_que_reenvia_la_empresa_queda_como_un_contacto_suyo() {
         DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
+        ContactOutbox auth = mock(ContactOutbox.class);
+        when(auth.enqueue(any())).thenReturn(true);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
+        AccesoService servicio = new AccesoService(debts, auth, limite, enHorario());
         JwtPrincipal empresa = new JwtPrincipal("1", "camila.reyes@apofyx.cl", "CREDITOR", "Camila", "77305118-6");
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -171,7 +148,8 @@ class AccesoServiceTest {
 
         assertEquals("fe**********@correo.cl", respuesta.destino());
         ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
-        verify(contactos).save(contacto.capture());
+        verify(auth).enqueue(contacto.capture());
+        verify(contactos, never()).save(any());
         assertEquals(Contact.Kind.resend, contacto.getValue().getKind());
         assertTrue(contacto.getValue().deLaEmpresa());
         assertSame(deuda, contacto.getValue().getDebt());
@@ -181,10 +159,11 @@ class AccesoServiceTest {
     @Test
     void si_la_agencia_que_la_cobra_esta_suspendida_el_acreedor_no_puede_reenviarle_el_codigo() {
         DebtService debts = mock(DebtService.class);
-        AuthClient auth = mock(AuthClient.class);
+        ContactOutbox auth = mock(ContactOutbox.class);
+        when(auth.enqueue(any())).thenReturn(true);
         LimiteDeContacto limite = mock(LimiteDeContacto.class);
         ContactRepository contactos = mock(ContactRepository.class);
-        AccesoService servicio = new AccesoService(debts, contactos, auth, limite, enHorario());
+        AccesoService servicio = new AccesoService(debts, auth, limite, enHorario());
         JwtPrincipal acreedor = new JwtPrincipal("2", "ana@patrimonio.cl", "CREDITOR", "Ana", "76418902-7");
         Organization patrimonio = new Organization();
         Organization apofyx = new Organization();
@@ -206,11 +185,11 @@ class AccesoServiceTest {
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
         assertEquals("La empresa que cobra esta deuda está suspendida: por ahora no se le escribe al deudor",
                 error.getMessage());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
 
         apofyx.setStatus(Organization.Status.active);
         servicio.enviarCodigo(acreedor, 3L);
-        verify(auth).emitirCodigo(any());
+        verify(auth).enqueue(any());
     }
 }

@@ -20,6 +20,7 @@ class CorreoConfigTest {
             .withConfiguration(AutoConfigurations.of(MailSenderAutoConfiguration.class))
             .withUserConfiguration(CorreoConfig.class)
             .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withBean(com.tbridge.auth.service.BrevoTelemetry.class, () -> org.mockito.Mockito.mock(com.tbridge.auth.service.BrevoTelemetry.class))
             .withPropertyValues("app.mail.brevo.url=https://api.brevo.com/v3/smtp/email");
 
     @Test

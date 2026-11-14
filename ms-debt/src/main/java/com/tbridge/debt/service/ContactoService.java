@@ -2,8 +2,6 @@ package com.tbridge.debt.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tbridge.debt.client.AuthClient;
-import com.tbridge.debt.client.CorreoNoSalio;
 import com.tbridge.debt.dto.response.ContactosResponse;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
@@ -31,30 +29,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * La campana, ejecutada: APOFYX decide la estrategia (canales, intentos,
- * cadencia y fechas) y DataBridge la cumple.
- *
- * <p>Cada toque es el mismo correo de la invitacion: un codigo para entrar al
- * portal, sin el monto ni un enlace. El toque {@code k} de una deuda sale el
- * dia {@code entrada + cadencia[k]}, donde la entrada es cuando la deuda llego
- * a DataBridge (o el inicio de la campana, si empezo despues). Sale mientras:
- *
- * <ul>
- *   <li>la campana este en curso, entre su inicio y su fin, y contacte por correo;</li>
- *   <li>la deuda siga abierta: si se paga, se repacta, se reclama o se retira,
- *       la campana la deja. El convenio tiene sus propios recordatorios;</li>
- *   <li>no se hayan hecho todos los intentos;</li>
- *   <li>la ley lo permita: dentro de {@link HorarioDeContacto} y no mas de lo
- *       que deja {@link LimiteDeContacto}. Un toque que la ley no deja hoy sale
- *       en la proxima pasada en que si.</li>
- * </ul>
- *
- * <p>Un toque cuyo correo no sale no es un toque: queda el motivo en el
- * deudor y se intenta de nuevo en la pasada siguiente. Si la culpa es del
- * servidor de correo, la pasada se corta ahi, en vez de esperarlo una vez por
- * deuda. Antes de las campanas, cada pasada invita a las deudas que todavia
- * no recibieron ningun correo ({@link InvitacionService#invitarPendientes}).
+/** Ejecuta la cadencia de las campanas existentes y persiste sus intenciones.
+ * No crea otra estrategia de campanas. El trabajador revalida habilitacion,
+ * horario y limites; solo despues de la aceptacion crea Contact.toque.
+ * Los contadores legacy de la pasada indican trabajos encolados, no delivered.
  */
 @Service
 public class ContactoService {
@@ -68,19 +46,19 @@ public class ContactoService {
     private final CampaignRepository campaigns;
     private final DebtRepository debts;
     private final ContactRepository contactos;
-    private final AuthClient auth;
+    private final ContactOutbox outbox;
     private final LimiteDeContacto limite;
     private final InvitacionService invitaciones;
     private final ObjectMapper json;
     private final HorarioDeContacto horario;
 
     public ContactoService(CampaignRepository campaigns, DebtRepository debts, ContactRepository contactos,
-                           AuthClient auth, LimiteDeContacto limite, InvitacionService invitaciones, ObjectMapper json,
+                           ContactOutbox outbox, LimiteDeContacto limite, InvitacionService invitaciones, ObjectMapper json,
                            HorarioDeContacto horario) {
         this.campaigns = campaigns;
         this.debts = debts;
         this.contactos = contactos;
-        this.auth = auth;
+        this.outbox = outbox;
         this.limite = limite;
         this.invitaciones = invitaciones;
         this.json = json;
@@ -95,7 +73,7 @@ public class ContactoService {
     public void pasar() {
         ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
         if (hecho.enviados() + hecho.invitados() > 0) {
-            log.info("Campanas: {} toque(s) enviados, {} pendientes; {} invitacion(es) pendientes que salieron",
+            log.info("Campanas: {} toque(s) encolados, {} pendientes; {} invitacion(es) encoladas",
                     hecho.enviados(), hecho.omitidos(), hecho.invitados());
         }
     }
@@ -166,29 +144,9 @@ public class ContactoService {
                     omitidos++;
                     continue;
                 }
-                try {
-                    auth.emitirCodigo(new AuthClient.PedidoDeCodigo(deudor.getRut(), List.of("correo"),
-                            deudor.getEmail(), deuda.getCreditor().getTradeName(), deuda.getExternalId()));
-                } catch (CorreoNoSalio noSalio) {
-                    deudor.correoNoSalio(noSalio.motivo(), noSalio.deLaDireccion(), cuando);
-                    omitidos++;
-                    if (!noSalio.deLaDireccion()) {
-                        //  El servidor de correo no esta aceptando: con las demas deudas
-                        //  seria esperarlo una vez por cada una. Salen en la proxima pasada.
-                        log.warn("Campanas: la pasada se corta, el correo no sale: {}", noSalio.motivo());
-                        return new ContactosResponse(enviados, omitidos, true, invitados);
-                    }
-                    fallaron.add(deudor);
-                    continue;
-                } catch (RuntimeException e) {
-                    log.warn("No salio el toque {} de la deuda {}: {}", toque + 1, deuda.getId(), e.getMessage());
-                    omitidos++;
-                    continue;
-                }
-                contactos.save(Contact.toque(deuda, campana, toque + 1, AccesoService.enmascarar(deudor.getEmail()))
-                        .el(cuando));
-                deudor.correoSalio();
-                enviados++;
+                if (outbox.enqueue(Contact.toque(deuda, campana, toque + 1,
+                        AccesoService.enmascarar(deudor.getEmail())))) enviados++;
+                else omitidos++;
             }
         }
         return new ContactosResponse(enviados, omitidos, true, invitados);

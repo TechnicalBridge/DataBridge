@@ -27,6 +27,7 @@ public class RutasConfig {
                               @Value("${app.servicios.payments}") String payments,
                               @Value("${app.servicios.ai}") String ai) {
         return rutas.routes()
+                .route("brevo-webhook", r -> r.path("/api/webhooks/brevo").and().method("POST").uri(auth))
                 .route("ms-auth", r -> r.path("/api/auth/**", "/api/me").uri(auth))
                 //  /api/v1 es el contrato de integracion: los sistemas de las
                 //  agencias entran por la misma puerta que el portal.

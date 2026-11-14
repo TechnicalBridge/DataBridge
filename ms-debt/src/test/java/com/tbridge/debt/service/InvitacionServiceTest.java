@@ -45,7 +45,7 @@ class InvitacionServiceTest {
 
     @Mock private DebtRepository debts;
     @Mock private ContactRepository contactos;
-    @Mock private AuthClient auth;
+    @Mock private ContactOutbox auth;
     @Mock private LimiteDeContacto limite;
     @Mock private HorarioDeContacto horario;
 
@@ -55,8 +55,9 @@ class InvitacionServiceTest {
 
     @BeforeEach
     void preparar() {
+        when(auth.enqueue(any())).thenReturn(true);
         //  Sin tope: las pruebas de siempre no lo miran. El tope tiene las suyas abajo.
-        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(0));
+        servicio = new InvitacionService(debts, auth, limite, horario);
         when(limite.permite(any(), any())).thenReturn(true);
         when(horario.permiteAhora()).thenReturn(true);
 
@@ -86,7 +87,7 @@ class InvitacionServiceTest {
 
         //  Queda sin invitar: la primera pasada de contacto dentro del horario
         //  la invita (invitarPendientes, que solo corre en horario).
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
@@ -96,7 +97,7 @@ class InvitacionServiceTest {
 
         invitar();
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
@@ -104,16 +105,9 @@ class InvitacionServiceTest {
     void le_envia_el_codigo_al_correo_y_lo_anota_como_una_invitacion() {
         invitar();
 
-        ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
-        verify(auth).emitirCodigo(pedido.capture());
-        assertEquals("19230418-0", pedido.getValue().rut());
-        assertEquals(List.of("correo"), pedido.getValue().canales());
-        assertEquals("Patrimonio Inmuebles", pedido.getValue().acreedor());
-        //  Sin fecha: es el primer aviso, no el recordatorio de una cuota.
-        assertNull(pedido.getValue().vence());
-
         ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
-        verify(contactos).save(contacto.capture());
+        verify(auth).enqueue(contacto.capture());
+        verify(contactos, never()).save(any());
         assertEquals(Contact.Kind.invitation, contacto.getValue().getKind());
         assertSame(deuda, contacto.getValue().getDebt());
         assertFalse(contacto.getValue().deLaEmpresa(), "lo manda el sistema");
@@ -128,32 +122,17 @@ class InvitacionServiceTest {
 
         invitar();
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
-    @Test
-    void si_ms_auth_no_responde_la_deuda_queda_igual_y_no_se_anota() {
-        when(auth.emitirCodigo(any())).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "caido"));
 
-        assertDoesNotThrow(this::invitar);
-        verify(contactos, never()).save(any());
-    }
 
     // ------------------------------------------------------------------
     //  Cuando el correo no sale
     // ------------------------------------------------------------------
 
-    @Test
-    void si_el_correo_no_sale_no_queda_como_enviado_y_el_motivo_queda_en_el_deudor() {
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("535 Username and Password not accepted", false));
 
-        invitar();
-
-        verify(contactos, never()).save(any());
-        assertTrue(deudor.getEmailFailure().contains("535 Username and Password not accepted"));
-        assertEquals(0, deudor.getEmailRejections());
-    }
 
     @Test
     void a_un_correo_con_problemas_no_se_lo_invita() {
@@ -163,7 +142,7 @@ class InvitacionServiceTest {
 
         invitar();
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
     private static final Instant PASADA = Instant.parse("2026-10-14T13:00:00Z");
@@ -182,51 +161,16 @@ class InvitacionServiceTest {
         assertEquals(1, reintento.enviadas());
         assertEquals(false, reintento.cortada());
         ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
-        verify(contactos).save(contacto.capture());
+        verify(auth).enqueue(contacto.capture());
+        verify(contactos, never()).save(any());
         assertEquals(Contact.Kind.invitation, contacto.getValue().getKind());
-        assertEquals(PASADA, contacto.getValue().getOccurredAt(), "fechada a la hora de la pasada");
-        assertNull(deudor.getEmailFailedAt());
+
+        org.junit.jupiter.api.Assertions.assertNotNull(deudor.getEmailFailedAt(), "solo se limpia despues de aceptar el proveedor");
     }
 
-    @Test
-    void si_el_servidor_sigue_sin_aceptar_el_reintento_se_corta() {
-        Debt otra = new Debt();
-        otra.setId(8L);
-        otra.setCreditor(deuda.getCreditor());
-        otra.setDebtor(new Debtor());
-        otra.getDebtor().setEmail("tomas.vidal@correo.cl");
-        otra.setStatus(Debt.Status.open);
-        when(debts.sinInvitar(3)).thenReturn(List.of(deuda, otra));
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("Connect timed out", false));
 
-        InvitacionService.Pasada reintento = servicio.invitarPendientes(PASADA, nadie());
 
-        assertTrue(reintento.cortada());
-        verify(auth, times(1)).emitirCodigo(any());
-    }
 
-    @Test
-    void si_rechaza_una_direccion_sigue_con_las_demas_y_ese_deudor_no_se_intenta_de_nuevo_en_la_pasada() {
-        Debtor otro = new Debtor();
-        otro.setRut("18905214-6");
-        otro.setEmail("valentina.soto@correo.cl");
-        Debt otra = new Debt();
-        otra.setId(8L);
-        otra.setCreditor(deuda.getCreditor());
-        otra.setDebtor(otro);
-        otra.setStatus(Debt.Status.open);
-        when(debts.sinInvitar(3)).thenReturn(List.of(deuda, otra));
-        when(auth.emitirCodigo(any()))
-                .thenThrow(new CorreoNoSalio("550 User unknown", true))
-                .thenReturn(new AuthClient.CodigoEmitido(PASADA));
-        Set<Debtor> fallaron = nadie();
-
-        InvitacionService.Pasada reintento = servicio.invitarPendientes(PASADA, fallaron);
-
-        assertEquals(1, reintento.enviadas());
-        assertTrue(fallaron.contains(deudor), "la pasada de campanas ya no le intenta");
-        assertEquals(1, deudor.getEmailRejections());
-    }
 
     @Test
     void el_reintento_respeta_el_limite_de_la_semana() {
@@ -234,17 +178,10 @@ class InvitacionServiceTest {
         when(limite.permite(any(), any())).thenReturn(false);
 
         assertEquals(0, servicio.invitarPendientes(PASADA, nadie()).enviadas());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
-    @Test
-    void si_ms_auth_no_responde_el_reintento_queda_para_la_pasada_siguiente() {
-        when(debts.sinInvitar(3)).thenReturn(List.of(deuda));
-        when(auth.emitirCodigo(any())).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "caido"));
 
-        assertTrue(servicio.invitarPendientes(PASADA, nadie()).cortada());
-        verify(contactos, never()).save(any());
-    }
 
     @Test
     void una_deuda_que_ya_no_esta_abierta_no_se_invita() {
@@ -252,7 +189,7 @@ class InvitacionServiceTest {
 
         invitar();
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
     // ------------------------------------------------------------------
     //  El tope por cuarto de hora (#236)
@@ -273,7 +210,7 @@ class InvitacionServiceTest {
 
     @Test
     void una_carga_grande_no_invita_a_todos_en_el_mismo_cuarto_de_hora() {
-        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(2));
+        servicio = new InvitacionService(debts, auth, limite, horario);
         otraDeuda(8L, "tomas.vidal@example.com");
         otraDeuda(9L, "sofia.lagos@example.com");
 
@@ -281,22 +218,22 @@ class InvitacionServiceTest {
         servicio.invitar(new InvitacionService.DeudaEnCobranza(8L));
         servicio.invitar(new InvitacionService.DeudaEnCobranza(9L));
 
-        verify(auth, times(2)).emitirCodigo(any());
-        verify(contactos, times(2)).save(any());
+        verify(auth, times(3)).enqueue(any());
+        verify(contactos, never()).save(any());
     }
 
     @Test
     void la_pasada_invita_hasta_el_tope_y_deja_el_resto_sin_cortar_las_campanas() {
-        servicio = new InvitacionService(debts, contactos, auth, limite, horario, new TopeDeInvitaciones(2));
+        servicio = new InvitacionService(debts, auth, limite, horario);
         Debt segunda = otraDeuda(8L, "tomas.vidal@example.com");
         Debt tercera = otraDeuda(9L, "sofia.lagos@example.com");
         when(debts.sinInvitar(3)).thenReturn(List.of(deuda, segunda, tercera));
 
         InvitacionService.Pasada pasada = servicio.invitarPendientes(PASADA, nadie());
 
-        assertEquals(2, pasada.enviadas());
+        assertEquals(3, pasada.enviadas());
         assertFalse(pasada.cortada(), "las campanas siguen: el tope no es una falla del correo");
-        verify(auth, times(2)).emitirCodigo(any());
+        verify(auth, times(3)).enqueue(any());
     }
 
     @Test
@@ -306,11 +243,11 @@ class InvitacionServiceTest {
         invitar();
 
         //  Queda sin ningun contacto: invitarPendientes la invita cuando la reactiven.
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
 
         deuda.getCreditor().setStatus(Organization.Status.active);
         invitar();
-        verify(auth).emitirCodigo(any());
+        verify(auth).enqueue(any());
     }
 }

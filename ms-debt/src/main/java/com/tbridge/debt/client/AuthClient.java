@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -50,7 +51,11 @@ public class AuthClient {
 
     public AuthClient(@Value("${app.auth-url}") String authUrl,
                       @Value("${app.internal-key}") String internalKey) {
-        this.rest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).build();
+        org.springframework.http.client.SimpleClientHttpRequestFactory transport =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        transport.setConnectTimeout(java.time.Duration.ofSeconds(5));
+        transport.setReadTimeout(java.time.Duration.ofSeconds(20));
+        this.rest = RestClient.builder().requestFactory(transport).baseUrl(authUrl.replaceAll("/$", "")).build();
         this.internalKey = internalKey;
     }
 
@@ -66,10 +71,24 @@ public class AuthClient {
             CorreoNoEnviado cuerpo = leer(noSalio);
             throw new CorreoNoSalio(cuerpo == null ? null : cuerpo.error(),
                     cuerpo != null && "direccion".equals(cuerpo.causa()));
+        } catch (ResourceAccessException e) {
+            if (falloAntesDeEnviar(e)) throw new AuthNoContactado();
+            // Timeout de lectura o conexion cortada: no sabemos si ms-auth acepto.
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo emitir el codigo: el servicio de acceso no responde");
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo emitir el codigo: el servicio de acceso no responde");
         }
+    }
+
+    static boolean falloAntesDeEnviar(Throwable failure) {
+        java.util.Set<Throwable> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (Throwable cause = failure; cause != null && seen.add(cause); cause = cause.getCause()) {
+            if (cause instanceof java.net.ConnectException || cause instanceof java.net.UnknownHostException
+                    || cause instanceof java.net.NoRouteToHostException) return true;
+        }
+        return false;
     }
 
     private static CorreoNoEnviado leer(HttpServerErrorException respuesta) {

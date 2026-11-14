@@ -162,7 +162,7 @@ public class DebtController {
     @PostMapping("/{id}/codigo")
     @Operation(summary = "Hacerle llegar al deudor su codigo de acceso",
             description = "Solo la empresa. El codigo va al correo del deudor y no vuelve en la respuesta: quien lo viera podria entrar en su lugar.")
-    @ApiResponse(responseCode = "200", description = "A donde se mando")
+    @ApiResponse(responseCode = "200", description = "Solicitud persistida: estado QUEUED, enviado false. No confirma entrega")
     @ApiResponse(responseCode = "403", description = "Quien pide no es la empresa que opera la deuda",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda ya no esta en cobranza, o el deudor no tiene correo",

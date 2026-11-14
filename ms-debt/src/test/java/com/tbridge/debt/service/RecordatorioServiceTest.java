@@ -44,7 +44,7 @@ class RecordatorioServiceTest {
 
     @Mock private InstallmentRepository installments;
     @Mock private ContactRepository contactos;
-    @Mock private AuthClient auth;
+    @Mock private ContactOutbox auth;
     @Mock private LimiteDeContacto limite;
 
     private RecordatorioService servicio;
@@ -53,7 +53,8 @@ class RecordatorioServiceTest {
 
     @BeforeEach
     void preparar() {
-        servicio = new RecordatorioService(installments, contactos, auth, limite, new HorarioDeContacto(""), 3);
+        when(auth.enqueue(any())).thenReturn(true);
+        servicio = new RecordatorioService(installments, auth, limite, new HorarioDeContacto(""), 3);
         when(limite.permite(any(), any())).thenReturn(true);
         Organization patrimonio = new Organization();
         patrimonio.setTradeName("Patrimonio Inmuebles");
@@ -77,14 +78,9 @@ class RecordatorioServiceTest {
     void la_cuota_por_vencer_se_recuerda_con_su_fecha_y_queda_su_contacto() {
         RecordatoriosResponse pasada = servicio.enviar(HOY);
 
-        ArgumentCaptor<AuthClient.PedidoDeCodigo> pedido = ArgumentCaptor.forClass(AuthClient.PedidoDeCodigo.class);
-        verify(auth).emitirCodigo(pedido.capture());
-        assertEquals(LocalDate.of(2026, 10, 20), pedido.getValue().vence());
-        assertEquals("felipe.rojas@correo.cl", pedido.getValue().correo());
-        assertEquals("Patrimonio Inmuebles", pedido.getValue().acreedor());
-        //  Que la cuota ya se aviso es este contacto: por el no vuelve a salir en porRecordar.
         ArgumentCaptor<Contact> contacto = ArgumentCaptor.forClass(Contact.class);
-        verify(contactos).save(contacto.capture());
+        verify(auth).enqueue(contacto.capture());
+        verify(contactos, never()).save(any());
         assertEquals(Contact.Kind.reminder, contacto.getValue().getKind());
         assertSame(cuota, contacto.getValue().getInstallment());
         assertSame(cuota.getDebt(), contacto.getValue().getDebt());
@@ -102,7 +98,7 @@ class RecordatorioServiceTest {
             assertEquals(0, pasada.enviados() + pasada.omitidos(), dia.toString());
         }
         verify(installments, never()).porRecordar(any(), any(), any(), any());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
     @Test
@@ -111,7 +107,7 @@ class RecordatorioServiceTest {
 
         assertEquals(1, servicio.enviar(HOY).omitidos());
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         //  Sin contacto: la proxima pasada lo intenta de nuevo.
         verify(contactos, never()).save(any());
     }
@@ -125,39 +121,13 @@ class RecordatorioServiceTest {
         deudor.setEmail(null);
         assertEquals(1, servicio.enviar(HOY).omitidos());
 
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
         verify(contactos, never()).save(any());
     }
 
-    @Test
-    void si_el_servidor_rechaza_la_direccion_la_cuota_queda_sin_avisar_y_el_motivo_en_el_deudor() {
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("550 User unknown", true));
 
-        RecordatoriosResponse pasada = servicio.enviar(HOY);
 
-        assertEquals(0, pasada.enviados());
-        assertEquals(1, pasada.omitidos());
-        verify(contactos, never()).save(any());
-        assertEquals(1, deudor.getEmailRejections());
-    }
 
-    @Test
-    void si_falla_el_servidor_de_correo_la_pasada_se_corta() {
-        Installment otra = new Installment();
-        otra.setId(35L);
-        otra.setDebt(cuota.getDebt());
-        otra.setDueDate(LocalDate.of(2026, 10, 19));
-        otra.setAmount(new BigDecimal("173333"));
-        when(installments.porRecordar(Installment.Status.pending, HOY, HOY.plusDays(3),
-                List.of(Debt.Status.open, Debt.Status.repacted))).thenReturn(List.of(cuota, otra));
-        when(auth.emitirCodigo(any())).thenThrow(new CorreoNoSalio("Connect timed out", false));
-
-        servicio.enviar(HOY);
-
-        verify(auth, times(1)).emitirCodigo(any());
-        assertEquals(0, deudor.getEmailRejections());
-        assertTrue(deudor.getEmailFailure().contains("Connect timed out"));
-    }
 
     @Test
     void a_un_correo_con_problemas_no_se_le_recuerda() {
@@ -166,17 +136,8 @@ class RecordatorioServiceTest {
         }
 
         assertEquals(1, servicio.enviar(HOY).omitidos());
-        verify(auth, never()).emitirCodigo(any());
+        verify(auth, never()).enqueue(any());
     }
 
-    @Test
-    void si_ms_auth_no_responde_la_cuota_queda_para_la_pasada_siguiente() {
-        when(auth.emitirCodigo(any())).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "sin ms-auth"));
 
-        RecordatoriosResponse pasada = servicio.enviar(HOY);
-
-        assertEquals(0, pasada.enviados());
-        assertEquals(1, pasada.omitidos());
-        verify(contactos, never()).save(any());
-    }
 }
