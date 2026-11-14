@@ -824,6 +824,50 @@ public class PaymentService {
         vencer(pago, PaymentEvent.Source.webhook);
     }
 
+    /** Cuanto tiene que llevar abierto un cobro para que el admin lo pueda liberar (#453). */
+    public static final Duration LIBERAR_DESDE = Duration.ofHours(1);
+
+    /**
+     * El admin libera un cobro abierto hace mas de una hora (#453): por ejemplo,
+     * uno de Mercado Pago "en proceso" que deja la cuota bloqueada por horas.
+     * Antes se le pregunta a la pasarela, y si ya se pago queda pagado y no se
+     * libera. Si sigue abierto, queda vencido con origen manual, y la revision
+     * de vencidos lo sigue mirando un dia: si la pasarela lo aprueba despues, se
+     * registra igual. Devuelve el cobro como quedo.
+     *
+     * <p>No lanza despues de preguntarle a la pasarela: si lo hiciera, se
+     * desharia tambien el pago que la pasarela acaba de confirmar.
+     */
+    @Transactional
+    public Payment liberar(Long id) {
+        Payment pago = payments.paraCerrar(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningún cobro con ese id"));
+        if (pago.getStatus() != Payment.Status.created) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ese cobro ya no está abierto");
+        }
+        if (pago.getCreatedAt() != null && pago.getCreatedAt().isAfter(Instant.now().minus(LIBERAR_DESDE))) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Ese cobro lleva menos de una hora abierto: el deudor todavía puede estar pagando");
+        }
+        switch (pago.getGateway()) {
+            case khipu -> {
+                if (khipu.real()) {
+                    conciliar(pago);
+                }
+            }
+            case mercadopago -> {
+                if (mercadopago.real()) {
+                    conciliarMercadoPago(pago);
+                }
+            }
+            case webpay -> conciliarWebpay(pago.getId());
+        }
+        if (pago.getStatus() == Payment.Status.created) {
+            vencer(pago, PaymentEvent.Source.manual);
+        }
+        return pago;
+    }
+
     private void vencer(Payment pago, PaymentEvent.Source origen) {
         pago.setStatus(Payment.Status.expired);
         payments.save(pago);
@@ -1280,7 +1324,7 @@ public class PaymentService {
      * unico (gateway, gateway_txn_id) por si el codigo se equivoca.
      */
     @Transactional
-    public PaymentResponse webhook(WebhookRequest aviso, String signatureHeader) {
+    public PaymentResponse webhook(Payment.Gateway gateway, WebhookRequest aviso, String signatureHeader) {
         Long id = aviso.pago();
         if (id == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "El aviso no dice que pago es");
@@ -1298,6 +1342,10 @@ public class PaymentService {
             eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.failed, PaymentEvent.Source.webhook)
                     .conFirma(false));
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma criptografica invalida");
+        }
+        if (gateway != null && pago.getGateway() != null && pago.getGateway() != gateway) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "El pago " + id + " no corresponde a la pasarela " + gateway);
         }
         if (cobraDeVerdad(pago)) {
             throw new ApiException(HttpStatus.CONFLICT, "Este pago lo confirma " + nombre(pago));
