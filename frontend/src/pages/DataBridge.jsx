@@ -3,13 +3,12 @@ import { Link } from "react-router-dom";
 import { comisionDelMes, resumenDeCartera } from "../api/analitica";
 import { enviarCodigo as pedirCodigo, listarDeudas, listarEnRiesgo, resolverDisputa } from "../api/deudas";
 import {
-  dinero, ESTADO_DEUDA, fecha, MOTIVOS_DISPUTA, paraBuscar, porcentaje, rutLegible, totalDeLaDeuda,
+  dinero, ESTADO_DEUDA, fecha, mesDeHoy, MOTIVOS_DISPUTA, paraBuscar, porcentaje, rutLegible, totalDeLaDeuda,
 } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import BarraEstado, { etapaDe } from "../components/BarraEstado";
 import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
 import { IconoAlerta, IconoDescargar } from "../components/Iconos";
-import { mesDeHoy } from "../components/ComisionDelMes";
 import Paginas, { dePagina } from "../components/Paginas";
 
 /** De a cuantas deudas se ve la cartera (#280). */

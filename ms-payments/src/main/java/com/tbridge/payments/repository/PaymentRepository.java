@@ -51,6 +51,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     /** Cuantos siguen en un estado desde antes de un instante: los abiertos que llevan rato. */
     long countByStatusAndCreatedAtBefore(Payment.Status status, Instant antes);
 
+    /** Los que siguen en un estado desde antes de un instante, el mas antiguo primero: los cobros trabados (#453). */
+    List<Payment> findTop50ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(Payment.Status status, Instant antes);
+
     /** Los pagos en un estado de varias deudas: los duplicados de una cartera. */
     List<Payment> findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status status, Collection<Long> debtIds);
 

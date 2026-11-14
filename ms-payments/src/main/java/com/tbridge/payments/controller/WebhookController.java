@@ -1,6 +1,8 @@
 package com.tbridge.payments.controller;
 
 import com.tbridge.payments.exception.ApiError;
+import com.tbridge.payments.exception.ApiException;
+import com.tbridge.payments.model.Payment;
 import com.tbridge.payments.dto.request.WebhookRequest;
 import com.tbridge.payments.dto.response.PaymentResponse;
 import com.tbridge.payments.service.PaymentService;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,6 +47,18 @@ public class WebhookController {
             @Parameter(description = "HMAC del pago") @RequestHeader(value = "X-Signature", required = false) String firma,
             @RequestBody WebhookRequest aviso
     ) {
-        return payments.webhook(aviso, firma);
+        Payment.Gateway pasarela = validarPasarela(gateway);
+        return payments.webhook(pasarela, aviso, firma);
+    }
+
+    private Payment.Gateway validarPasarela(String gateway) {
+        if (gateway == null || gateway.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Pasarela requerida");
+        }
+        try {
+            return Payment.Gateway.valueOf(gateway.trim().toLowerCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Pasarela no soportada: " + gateway);
+        }
     }
 }

@@ -24,7 +24,11 @@ class RutasConfigTest {
 
     /** El servicio al que llega esa ruta, o vacio si el gateway no la deja pasar. */
     private Optional<String> destino(String ruta) {
-        MockServerWebExchange pedido = MockServerWebExchange.from(MockServerHttpRequest.get(ruta));
+        return destino(MockServerHttpRequest.get(ruta));
+    }
+
+    private Optional<String> destino(MockServerHttpRequest.BaseBuilder<?> solicitud) {
+        MockServerWebExchange pedido = MockServerWebExchange.from(solicitud);
         return rutas.getRoutes()
                 .filterWhen(r -> Mono.from(r.getPredicate().apply(pedido)))
                 .next()
@@ -54,6 +58,13 @@ class RutasConfigTest {
         assertEquals(Optional.of("ms-debt.invalid"), destino("/api/v1/carteras"));
         assertEquals(Optional.of("ms-payments.invalid"), destino("/api/payments/checkout"));
         assertEquals(Optional.of("ms-ai.invalid"), destino("/api/ai/chat"));
+    }
+
+    @Test
+    void resend_solo_expone_el_post_del_webhook() {
+        assertEquals(Optional.of("ms-auth.invalid"), destino(MockServerHttpRequest.post("/api/webhooks/resend")));
+        assertEquals(Optional.empty(), destino("/api/webhooks/resend"));
+        assertEquals(Optional.empty(), destino(MockServerHttpRequest.post("/api/webhooks/otro")));
     }
 
     @Test

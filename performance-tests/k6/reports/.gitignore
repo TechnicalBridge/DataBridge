@@ -1,0 +1,4 @@
+#  Los reportes de cada corrida se escriben aqui. No se versionan: un JSON
+#  completo por corrida pesa y solo sirve para comparar en el momento.
+*
+!.gitignore

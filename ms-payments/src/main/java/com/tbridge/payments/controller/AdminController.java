@@ -76,6 +76,22 @@ public class AdminController {
         return operacion.reintentarAviso(id, admin.email());
     }
 
+    @PostMapping("/cobros/{id}/liberar")
+    @Operation(summary = "Liberar un cobro que sigue abierto hace mas de una hora",
+            description = "Para un cobro trabado, por ejemplo uno de Mercado Pago en proceso que deja la cuota "
+                    + "bloqueada por horas (#453). Antes se le pregunta a la pasarela: si ya lo cobro, queda pagado. "
+                    + "Si no, queda vencido y la cuota se puede volver a pagar; si la pasarela lo aprueba despues, "
+                    + "se registra igual. Queda anotado quien lo libero.")
+    @ApiResponse(responseCode = "200", description = "Como quedo el cobro: vencido, o pagado si la pasarela ya lo cobro")
+    @ApiResponse(responseCode = "404", description = "No hay ningun cobro con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "El cobro ya no esta abierto, o lleva menos de una hora",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public OperacionResponse.CobroLiberado liberarCobro(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
+        return operacion.liberarCobro(id, admin.email());
+    }
+
     @PostMapping("/uf")
     @Operation(summary = "Cargar a mano la UF de un dia",
             description = "Para cuando el Banco Central no la entrego. Queda como la UF de ese dia y es la que usan "
