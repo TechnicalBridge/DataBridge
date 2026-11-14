@@ -82,9 +82,7 @@ public class DebtController {
     @GetMapping("/{id}")
     @Operation(summary = "Una deuda completa", description = "Con sus cargos, sus cuotas y su historia.")
     @ApiResponse(responseCode = "200", description = "La deuda")
-    @ApiResponse(responseCode = "403", description = "No es de quien pregunta",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "404", description = "No existe",
+    @ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<DebtDetailResponse> one(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
                                                @PathVariable Long id) {

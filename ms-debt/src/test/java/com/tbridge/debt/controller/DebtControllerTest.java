@@ -50,6 +50,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class DebtControllerTest {
 
+    @Test
+    void seg_dat_007_respuesta_http_neutra_para_ids_correlativos() throws Exception {
+        for (long id : new long[]{40L, 41L}) {
+            when(debts.getFor(any(), eq(id))).thenThrow(
+                    new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+            mvc.perform(get("/api/debts/" + id).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+        }
+    }
+
     @TestConfiguration
     static class Proxy {
         @Bean

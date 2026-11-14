@@ -95,6 +95,34 @@ class PaymentServiceTest {
     }
 
     @Test
+    void seg_dat_007_pago_ajeno_e_inexistente_son_indistinguibles() {
+        Payment ajeno = new Payment();
+        ajeno.setId(40L);
+        ajeno.setDebtId(3L);
+        ajeno.setDebtorRut("otro");
+        ajeno.setCreditorRut("otra");
+        when(payments.findById(40L)).thenReturn(Optional.of(ajeno));
+        when(payments.paraCerrar(40L)).thenReturn(Optional.of(ajeno));
+        JwtPrincipal empresa = new JwtPrincipal("empresa", null, "CREDITOR", null, "empresa");
+        when(deudas.cartera("empresa")).thenReturn(List.of());
+        for (java.util.function.LongConsumer consulta : List.<java.util.function.LongConsumer>of(
+                id -> servicio.get(DEUDOR, id),
+                id -> servicio.get(empresa, id),
+                id -> servicio.cancelarIntento(DEUDOR, id),
+                id -> servicio.historia(DEUDOR, id),
+                id -> servicio.historia(empresa, id),
+                id -> servicio.registrarDevolucion(empresa, id, "ref"))) {
+            ApiException extranjero = assertThrows(ApiException.class, () -> consulta.accept(40L));
+            ApiException ausente = assertThrows(ApiException.class, () -> consulta.accept(41L));
+            assertEquals(HttpStatus.FORBIDDEN, extranjero.getStatus());
+            assertEquals(extranjero.getStatus(), ausente.getStatus());
+            assertEquals("No puedes ver este pago", extranjero.getMessage());
+            assertEquals(extranjero.getMessage(), ausente.getMessage());
+        }
+        verify(payments, never()).save(any());
+    }
+
+    @Test
     void el_monto_lo_pone_ms_debt_y_no_la_peticion() {
         when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
@@ -1678,10 +1706,10 @@ class PaymentServiceTest {
     }
 
     @Test
-    void cancelar_un_pago_que_no_existe_es_404() {
+    void cancelar_un_pago_que_no_existe_es_403_neutro() {
         when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.NOT_FOUND,
+        assertEquals(HttpStatus.FORBIDDEN,
                 assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 99L)).getStatus());
     }
 }
