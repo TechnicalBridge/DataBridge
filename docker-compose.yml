@@ -434,7 +434,7 @@ services:
   #  Perfil "carga": las pruebas de rendimiento.
   # ===========================================================================
   #  No levanta nada: se corre a demanda, una vez por escenario.
-  #      docker compose --profile carga run --rm k6 run /rendimiento/capacidad.js
+  #      docker compose --profile carga run --rm k6 run /performance-tests/k6/scenarios/load.js
   #
   #  Va dentro de la red de compose a proposito, para entrar por el portal
   #  igual que un navegador y poder pedirle un codigo a ms-auth por dentro.
@@ -444,7 +444,11 @@ services:
     image: grafana/k6:latest
     environment:
       PORTAL_URI:   http://portal:8080
+      GATEWAY_URI:  http://gateway:8082
       AUTH_URI:     http://ms-auth:8081
+      DEBT_URI:     http://ms-debt:8083
+      PAYMENTS_URI: http://ms-payments:8084
+      AI_URI:       http://ms-ai:8085
       MAIL_URI:     http://mailpit:8025
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
       #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
@@ -452,8 +456,34 @@ services:
       DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}
       RATE_GLOBAL_CAPACITY: ${RATE_GLOBAL_CAPACITY:-120}
+      #  Datos ficticios y sesiones de la suite modular. Todo se puede cambiar
+      #  desde el entorno; no hay credenciales escritas en los escenarios.
+      RUT_DEUDOR:       ${RUT_DEUDOR:-16482337-7}
+      CORREO_EMPRESA:   ${CORREO_EMPRESA:-camila.reyes@example.com}
+      RUT_EMPRESA:      ${RUT_EMPRESA:-76000000-0}
+      CAMPANA_ID:       ${CAMPANA_ID:-DEMO-PESOS}
+      DEUDA_EXTERNA:    ${DEUDA_EXTERNA:-DEMO-CONVENIO}
+      RUTS_CONCURRENCIA: ${RUTS_CONCURRENCIA:-16482337-7,17893456-2,76284519-9}
+      PERMITIR_ESCRITURAS: ${PERMITIR_ESCRITURAS:-false}
+      INCLUIR_IA:          ${INCLUIR_IA:-false}
+      VERIFICAR_PASARELAS: ${VERIFICAR_PASARELAS:-false}
+      MAX_VUS:             ${MAX_VUS:-20}
+      MAX_VUS_ESTRES:      ${MAX_VUS_ESTRES:-500}
+      TASA_API:            ${TASA_API:-20}
+      TASA_CARGA:          ${TASA_CARGA:-20}
+      TASA_RECUPERACION:   ${TASA_RECUPERACION:-10}
+      DURACION_CARGA:      ${DURACION_CARGA:-2m}
+      DURACION_ENDURANCE:  ${DURACION_ENDURANCE:-10m}
+      ITERACIONES_RESPUESTA: ${ITERACIONES_RESPUESTA:-10}
+      REPETICIONES_VOLUMEN:  ${REPETICIONES_VOLUMEN:-1}
+      NIVELES_ESCALABILIDAD: ${NIVELES_ESCALABILIDAD:-10,25,50}
+      TASAS_CAPACIDAD:       ${TASAS_CAPACIDAD:-50,100,200,400}
+      DATA_DIR:   /performance-tests/k6/data
+      REPORT_DIR: /performance-tests/k6/reports
     volumes:
-      - ./rendimiento:/rendimiento:ro
+      #  La suite entera, incluidos data/ y reports/. El informe de cada
+      #  corrida se escribe en reports/ del host.
+      - ./performance-tests/k6:/performance-tests/k6
 
 #  Ningun servicio de la aplicacion publica su puerto: al portal se entra por
 #  el 8080 y de ahi en adelante todo viaja por la red interna de Docker. El
