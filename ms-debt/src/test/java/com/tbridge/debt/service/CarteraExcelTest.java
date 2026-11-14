@@ -3,8 +3,16 @@ package com.tbridge.debt.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tbridge.debt.exception.CarteraInvalida;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -240,5 +248,79 @@ class CarteraExcelTest {
                 "Hoja Deudas, fila 6, columna Id de la deuda: la deuda AL-1 ya está en la fila 5. Una deuda al día "
                         + "va en una sola fila, sin meses"),
                 problemas);
+    }
+
+    @Test
+    void lee_el_valor_precalculado_de_una_formula_normal() throws IOException {
+        byte[] base = felipe()
+                .deuda("CTR-1", "16.482.337-7", "registrar", "CLP", "Arriendo",
+                        YearMonth.of(2026, 7), 175000, LocalDate.of(2026, 7, 5))
+                .deuda("CTR-1", "16.482.337-7", "registrar", "CLP", "Arriendo",
+                        YearMonth.of(2026, 8), 0, LocalDate.of(2026, 8, 5))
+                .bytes();
+        byte[] conFormula;
+        try (XSSFWorkbook libro = new XSSFWorkbook(new ByteArrayInputStream(base));
+             ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
+            Cell monto = libro.getSheet(CarteraExcel.DEUDAS).getRow(2).getCell(6);
+            monto.setCellFormula("G2*2");
+            libro.getCreationHelper().createFormulaEvaluator().evaluateFormulaCell(monto);
+            assertEquals(CellType.FORMULA, monto.getCellType());
+            libro.write(salida);
+            conFormula = salida.toByteArray();
+        }
+
+        JsonNode cartera = CarteraExcel.leer(conFormula, LOTE);
+        assertEquals(350000L, cartera.at("/deudas/0/cargos/1/monto").asLong());
+    }
+
+    @Test
+    void lee_valores_cacheados_con_enlaces_externos_y_funciones_desconocidas_sin_evaluar() throws IOException {
+        byte[] base = felipe()
+                .deuda("CTR-1", "16.482.337-7", "registrar", "CLP", "Arriendo",
+                        YearMonth.of(2026, 7), 350000, LocalDate.of(2026, 7, 5))
+                .bytes();
+        byte[] conFormulas;
+        try (XSSFWorkbook libro = new XSSFWorkbook(new ByteArrayInputStream(base));
+             ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
+            Cell nombre = libro.getSheet(CarteraExcel.DEUDORES).getRow(1).getCell(2);
+            nombre.setCellFormula("XLOOKUP(A2,B2:B5,C2:C5)");
+            nombre.setCellValue("Felipe Rojas Muñoz");
+            assertEquals(CellType.FORMULA, nombre.getCellType());
+
+            Cell monto = libro.getSheet(CarteraExcel.DEUDAS).getRow(1).getCell(6);
+            monto.setCellValue(350000);
+            ((XSSFCell) monto).getCTCell().addNewF().setStringValue("'[OtroLibro.xlsx]Deudas'!G2");
+            assertEquals(CellType.FORMULA, monto.getCellType());
+            assertEquals(CellType.NUMERIC, monto.getCachedFormulaResultType());
+
+            libro.write(salida);
+            conFormulas = salida.toByteArray();
+        }
+
+        JsonNode cartera = CarteraExcel.leer(conFormulas, LOTE);
+        assertEquals("Felipe Rojas Muñoz", cartera.at("/deudas/0/deudor/nombre").asText());
+        assertEquals(350000L, cartera.at("/deudas/0/cargos/0/monto").asLong());
+    }
+
+    @Test
+    void formula_sin_valor_cacheado_no_guarda_el_texto_de_la_formula() throws IOException {
+        byte[] base = felipe()
+                .deuda("CTR-1", "16.482.337-7", "registrar", "CLP", "Arriendo",
+                        YearMonth.of(2026, 7), 350000, LocalDate.of(2026, 7, 5))
+                .bytes();
+        byte[] sinCache;
+        try (XSSFWorkbook libro = new XSSFWorkbook(new ByteArrayInputStream(base));
+             ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
+            Row filaDeudor = libro.getSheet(CarteraExcel.DEUDORES).getRow(1);
+            filaDeudor.removeCell(filaDeudor.getCell(2));
+            Cell nombre = filaDeudor.createCell(2);
+            nombre.setCellFormula("CONCATENATE(A2,B2)");
+            libro.write(salida);
+            sinCache = salida.toByteArray();
+        }
+
+        CarteraInvalida fallo = assertThrows(CarteraInvalida.class, () -> CarteraExcel.leer(sinCache, LOTE));
+        assertEquals("La planilla tiene un problema: Hoja Deudores, fila 2, columna Nombre: falta el nombre",
+                fallo.getMessage());
     }
 }
