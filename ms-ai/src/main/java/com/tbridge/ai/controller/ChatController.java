@@ -50,6 +50,6 @@ public class ChatController {
                           @org.springframework.security.core.annotation.AuthenticationPrincipal com.tbridge.ai.security.JwtPrincipal principal,
                           org.springframework.security.core.Authentication authentication) {
         if (!principal.isDebtor()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para esto");
-        return asistente.responder(pregunta, "Bearer " + authentication.getCredentials());
+        return asistente.responder(pregunta, "Bearer " + authentication.getCredentials(), principal.rut());
     }
 }
