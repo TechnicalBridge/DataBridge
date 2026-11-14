@@ -18,6 +18,15 @@ class DeudasClientTest {
  void reply(int status,String body) { server.expect(requestTo("http://debt/api/debts")).andExpect(header("Authorization","Bearer ficticio")).andRespond(withStatus(HttpStatusCode.valueOf(status)).body(body).contentType(MediaType.APPLICATION_JSON)); }
  void fails(DeudasException.Categoria category) { assertEquals(category,assertThrows(DeudasException.class,()->client.deudasDelDeudor("Bearer ficticio")).categoria()); server.verify(); }
  @Test void forwards_and_projects_only_context() { reply(200,"{\"_embedded\":{\"debts\":["+DEBT+"]}}"); assertEquals(1,client.deudasDelDeudor("Bearer ficticio").size()); server.verify(); }
+ @Test void projects_creditor_rut_but_not_debtor_or_contact_data() {
+     String debt = DEBT.replace("}", ",\"acreedorRut\":\"76.000.000-0\",\"deudorRut\":\"19.230.418-0\",\"email\":\"deudor@example.com\"}");
+     reply(200,"{\"_embedded\":{\"debts\":["+debt+"]}}");
+     Map<String,Object> proyectada = client.deudasDelDeudor("Bearer ficticio").getFirst();
+     assertEquals("76.000.000-0", proyectada.get("acreedorRut"));
+     assertFalse(proyectada.containsKey("deudorRut"));
+     assertFalse(proyectada.containsKey("email"));
+     server.verify();
+ }
  @Test void empty_hal() { reply(200,"{\"_links\":{\"self\":{\"href\":\"/api/debts\"}}}"); assertEquals(List.of(),client.deudasDelDeudor("Bearer ficticio")); }
  @Test void explicit_empty() { reply(200,"{\"_embedded\":{\"debts\":[]}}"); assertEquals(List.of(),client.deudasDelDeudor("Bearer ficticio")); }
  @Test void unauthenticated() { reply(401,"TOKEN-MARKER-SECRET"); fails(NO_AUTENTICADO); }

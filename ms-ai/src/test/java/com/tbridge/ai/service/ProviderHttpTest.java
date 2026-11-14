@@ -79,7 +79,7 @@ class ProviderHttpTest {
         var llm = service(provider, Duration.ofSeconds(2));
         try {
             var debt = mock(DeudasClient.class); when(debt.deudasDelDeudor("Bearer ficticio")).thenReturn(MotorLocalTest.DEUDAS);
-            var answer = new AsistenteService(debt, llm).responder(new Pregunta(PROMPT, null), "Bearer ficticio");
+            var answer = new AsistenteService(debt, llm).responder(new Pregunta(PROMPT, null), "Bearer ficticio", "16482337-7");
             assertEquals(provider, answer.source()); assertEquals("Respuesta del stub", answer.reply());
             assertEquals(1, calls.get()); assertEquals("/compatible/v1/chat/completions", path.get());
             assertEquals("Bearer " + SECRET, auth.get());
@@ -101,7 +101,7 @@ class ProviderHttpTest {
         var llm = new LlmService(new LlmProperties(provider, endpoint, endpoint, Duration.ofSeconds(2)));
         try {
             var debt = mock(DeudasClient.class); when(debt.deudasDelDeudor("Bearer ficticio")).thenReturn(MotorLocalTest.DEUDAS);
-            var answer = new AsistenteService(debt, llm).responder(new Pregunta("cuanto debo", null), "Bearer ficticio");
+            var answer = new AsistenteService(debt, llm).responder(new Pregunta("cuanto debo", null), "Bearer ficticio", "16482337-7");
             assertEquals("local-nlp", answer.source()); assertFalse(llm.configurado()); assertEquals(0, calls.get());
             assertEquals(provider, new SaludController(llm).salud().provider());
         } finally { llm.destroy(); }
@@ -118,7 +118,7 @@ class ProviderHttpTest {
         var llm = service(provider, Duration.ofSeconds(2));
         try {
             var debt = mock(DeudasClient.class); when(debt.deudasDelDeudor("Bearer ficticio")).thenReturn(MotorLocalTest.DEUDAS);
-            var answer = new AsistenteService(debt, llm).responder(new Pregunta("cuanto debo", null), "Bearer ficticio");
+            var answer = new AsistenteService(debt, llm).responder(new Pregunta("cuanto debo", null), "Bearer ficticio", "16482337-7");
             assertEquals("local-nlp", answer.source()); assertEquals(1, calls.get());
             assertTrue(logs.list.stream().anyMatch(e -> e.getFormattedMessage().contains("category=" + category)));
         } finally { llm.destroy(); }
