@@ -1,160 +1,41 @@
 # Pruebas de rendimiento
 
-Escenarios de carga y estrés implementados en **Gatling Java DSL** y suites de comprobación rápida de SLA en **JUnit 5 con AssertJ** (`PerformTest*`). Se ejecutan directamente con el Maven Wrapper (`mvnw`), midiendo tanto a través del gateway como directamente sobre cada microservicio.
+Nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
+como entra a la red de Docker Compose puede medir el camino completo —nginx → gateway → servicio →
+MySQL— o pegarle directo a un servicio para aislarlo. Además, ms-payments tiene una simulación de
+**Gatling** que se corre con el Maven Wrapper.
 
-| Servicio | Clase Gatling / Prueba | Qué mide |
+| Servicio | Escenario | Qué mide |
 | --- | --- | --- |
-| gateway | `LoadSimulationGateway` / `PerformTestGateway` | Enrutar una petición a cada servicio, aislando el gateway |
-| ms-auth | `LoadSimulationMsAuth` / `PerformTestMsAuth` | Lecturas de sesión: `GET /api/me` y llaves públicas `jwks.json` |
-| ms-debt | `LoadSimulationMsDebt` / `PerformTestMsDebt` | Capacidad del deudor leyendo su deuda por escalones |
-| ms-debt | `StressSimulationMsDebt` | Estrés: cuánto aguanta la lista de deudas hasta saturar |
-| ms-payments | `LoadSimulationMsPayments` / `PerformTestMsPayments` | Concurrencia al abrir cobros con pasarelas simuladas |
-| ms-payments | `StressSimulationMsPayments` | Estrés: cuánto aguanta leer el historial de pagos |
-| ms-ai | `LoadSimulationMsAI` / `PerformTestMsAI` | Salud del asistente y concurrencia del chat (motor local) |
-| ms-ai | `StressSimulationMsAI` | Estrés del endpoint de salud y chat bajo sobrecarga |
+| gateway | [`gateway-load.js`](../../performance-tests/k6/gateway/gateway-load.js) | Enrutar una petición a cada servicio, sin nginx de por medio |
+| ms-auth | [`auth-load.js`](../../performance-tests/k6/ms-auth/auth-load.js) | Las lecturas de sesión: `GET /api/me` y las llaves públicas |
+| ms-auth | [`auth-limit.js`](../../performance-tests/k6/ms-auth/auth-limit.js) | Que los dos frenos contra la fuerza bruta corten donde dicen |
+| ms-debt | [`debt-load.js`](../../performance-tests/k6/ms-debt/debt-load.js) | Cómo lo siente una persona leyendo su deuda, por el camino completo |
+| ms-debt | [`debt-stress.js`](../../performance-tests/k6/ms-debt/debt-stress.js) | Cuánto aguanta la lista de deudas, y dónde empieza a doler |
+| ms-payments | [`payment-load.js`](../../performance-tests/k6/ms-payments/payment-load.js) | Cuánto aguanta abrir cobros, con las pasarelas simuladas |
+| ms-payments | [`payment-stress.js`](../../performance-tests/k6/ms-payments/payment-stress.js) | Cuánto aguanta leer el historial de pagos |
+| ms-ai | [`ai-load.js`](../../performance-tests/k6/ms-ai/ai-load.js) | La salud del asistente y el chat con una sesión de deudor |
+| portal | [`portal-load.js`](../../performance-tests/k6/portal/portal-load.js) | nginx sirviendo el index, los assets y las rutas de React |
 
-## Guía rápida: Ejecución en otro equipo (Paso a paso)
+La configuración compartida —rutas, sesiones y escalones— vive en
+[`config/options.js`](../../performance-tests/k6/config/options.js).
 
-Para correr las pruebas de rendimiento en una máquina nueva desde cero (Windows, Linux o macOS):
+## Gatling: ms-payments
 
-### 1. Preparar el entorno
+Además de las k6, ms-payments tiene una simulación de **Gatling**
+([`PerformTestMsPayments.java`](../../ms-payments/src/test/java/com/tbridge/payments/rendimiento/PerformTestMsPayments.java)).
+Mide `GET /api/payments`; si no recibe token, solo consulta `/actuator/health`.
 
-```bash
-# 1. Clonar el repositorio
-git clone <URL_DEL_REPOSITORIO>
-cd DataBridge
-
-# 2. Configurar variables de entorno y claves JWT
+```powershell
+# Con la pila de Compose, el portal es el único puerto publicado. Pasa un JWT de deudor:
+.\mvnw.cmd -f ms-payments\pom.xml gatling:test `
+  "-Dgatling.simulationClass=com.tbridge.payments.rendimiento.PerformTestMsPayments" `
+  -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
 ```
 
-* **En Windows (PowerShell):**
-  ```powershell
-  # Genera el archivo .env con secretos aleatorios y RATE_GLOBAL_CAPACITY=10000000
-  .\preparar-env.ps1
-  # Genera el par de claves criptográficas ES256 para JWT en .secrets/jwt/
-  .\scripts\generar-claves-jwt.ps1
-  ```
-
-* **En Linux / macOS (Bash):**
-  ```bash
-  cp .env.example .env
-  # Asegurar RATE_GLOBAL_CAPACITY=10000000 en .env para que el gateway no bloquee con 429
-  mkdir -p .secrets/jwt
-  openssl ecparam -name prime256v1 -genkey -noout -out .secrets/jwt/private.pem
-  openssl ec -in .secrets/jwt/private.pem -pubout -out .secrets/jwt/public.pem
-  chmod +x mvnw
-  ```
-
-### 2. Levantar los servicios en Docker
-
-```bash
-docker compose --profile app up -d --wait
-```
-
-> **Puerto del portal (8080):** En Docker, el único puerto expuesto al host es el **8080** (Nginx / Portal), el cual enruta internamente hacia el Gateway (`:8082`) y los microservicios. Todas las pruebas lanzadas desde la máquina anfitriona deben apuntar a `-DbaseUrl=http://localhost:8080`.
-
----
-
-### 3. Comprobación rápida de SLAs (JUnit 5 + AssertJ)
-
-Estas pruebas (`PerformTest*.java`) verifican en segundos que la latencia p95, el throughput y la tasa de error (0%) cumplan con el SLA pactado.
-
-#### Ejecutar todas las suites de rendimiento juntas:
-* **Windows (PowerShell/CMD):**
-  ```powershell
-  .\mvnw.cmd test -Dtest="PerformTest*" -DbaseUrl=http://localhost:8080
-  ```
-* **Linux / macOS:**
-  ```bash
-  ./mvnw test -Dtest="PerformTest*" -DbaseUrl=http://localhost:8080
-  ```
-
-#### O ejecutar por módulo individual:
-| Módulo | Comando en Windows | Comando en Linux / macOS |
-|---|---|---|
-| **gateway** | `.\mvnw.cmd -f gateway/pom.xml test -Dtest=PerformTestGateway -DbaseUrl=http://localhost:8080` | `./mvnw -f gateway/pom.xml test -Dtest=PerformTestGateway -DbaseUrl=http://localhost:8080` |
-| **ms-ai** | `.\mvnw.cmd -f ms-ai/pom.xml test -Dtest=PerformTestMsAI -DbaseUrl=http://localhost:8080` | `./mvnw -f ms-ai/pom.xml test -Dtest=PerformTestMsAI -DbaseUrl=http://localhost:8080` |
-| **ms-auth** | `.\mvnw.cmd -f ms-auth/pom.xml test -Dtest=PerformTestMsAuth -DbaseUrl=http://localhost:8080` | `./mvnw -f ms-auth/pom.xml test -Dtest=PerformTestMsAuth -DbaseUrl=http://localhost:8080` |
-| **ms-debt** | `.\mvnw.cmd -f ms-debt/pom.xml test -Dtest=PerformTestMsDebt -DbaseUrl=http://localhost:8080` | `./mvnw -f ms-debt/pom.xml test -Dtest=PerformTestMsDebt -DbaseUrl=http://localhost:8080` |
-| **ms-payments** | `.\mvnw.cmd -f ms-payments/pom.xml test -Dtest=PerformTestMsPayments -DbaseUrl=http://localhost:8080` | `./mvnw -f ms-payments/pom.xml test -Dtest=PerformTestMsPayments -DbaseUrl=http://localhost:8080` |
-
----
-
-### 4. Simulaciones de carga y estrés con Gatling
-
-Las simulaciones de Gatling generan tráfico concurrente y reportes HTML completos con histogramas de percentiles.
-
-> Gatling 3.16 necesita Netty 4.2 y Spring Boot 3.5 fija 4.1. El perfil `rendimiento`
-> (`-Prendimiento`) sube Netty solo mientras corren las simulaciones; la aplicación sigue con 4.1.
-
-#### Prueba de humo rápida (verificación en ~15 segundos):
-Para comprobar que Gatling funciona sin esperar la simulación completa de varios minutos, pasa parámetros reducidos:
-* **Windows:**
-  ```powershell
-  .\mvnw.cmd -f gateway/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway" -DbaseUrl=http://localhost:8080 -Drampa=2 -Dduracion=3 -DusuariosMax=10
-  ```
-* **Linux / macOS:**
-  ```bash
-  ./mvnw -f gateway/pom.xml -Prendimiento gatling:test -Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway -DbaseUrl=http://localhost:8080 -Drampa=2 -Dduracion=3 -DusuariosMax=10
-  ```
-
-#### Simulación de carga completa (Load):
-* **Windows:**
-  ```powershell
-  .\mvnw.cmd -f gateway/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway" -DbaseUrl=http://localhost:8080
-  ```
-* **Linux / macOS:**
-  ```bash
-  ./mvnw -f gateway/pom.xml -Prendimiento gatling:test -Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway -DbaseUrl=http://localhost:8080
-  ```
-
-#### Catálogo de simulaciones Gatling disponibles:
-
-| Módulo | Simulación de Carga (`Load`) | Simulación de Estrés (`Stress`) | Picos (`Spike`) | Resistencia (`Soak`) |
-|---|---|---|---|---|
-| **gateway** | `com.tbridge.gateway.throughput.LoadSimulationGateway` | `com.tbridge.gateway.throughput.StressSimulationGateway` | `com.tbridge.gateway.throughput.SpikeSimulationGateway` | `com.tbridge.gateway.throughput.SoakSimulationGateway` |
-| **ms-ai** | `com.tbridge.ai.throughput.LoadSimulationMsAI` | `com.tbridge.ai.throughput.StressSimulationMsAI` | `com.tbridge.ai.throughput.SpikeSimulationMsAI` | `com.tbridge.ai.throughput.SoakSimulationMsAI` |
-| **ms-auth** | `com.tbridge.auth.throughput.LoadSimulationMsAuth` | — | — | — |
-| **ms-debt** | `com.tbridge.debt.throughput.LoadSimulationMsDebt` | `com.tbridge.debt.throughput.StressSimulationMsDebt` | `com.tbridge.debt.throughput.SpikeSimulationMsDebt` | `com.tbridge.debt.throughput.SoakSimulationMsDebt` |
-| **ms-payments**| `com.tbridge.payments.throughput.LoadSimulationMsPayments` | `com.tbridge.payments.throughput.StressSimulationMsPayments` | `com.tbridge.payments.throughput.SpikeSimulationMsPayments` | `com.tbridge.payments.throughput.SoakSimulationMsPayments` |
-
-> Los reportes interactivos se generan automáticamente en: `<modulo>/target/gatling/<simulacion-fecha>/index.html`.
-
----
-
-### 5. Ejecución interactiva desde Neovim (Neotest)
-
-Si utilizas el editor Neovim con la configuración del proyecto:
-1. Abre Neovim en la raíz del repositorio (`nvim .`).
-2. Presiona **`tp`** (o **`<leader>tp`**) para abrir el panel resumen exclusivo de pruebas de rendimiento.
-3. Desplázate con `j`/`k` sobre cualquier archivo o método de prueba y presiona **`r`** para ejecutarlo. Neotest inyectará automáticamente `-DbaseUrl=http://localhost:8080` y mostrará los resultados en vivo.
-4. Para volver al resumen general con las 1207 pruebas unitarias, presiona **`<leader>ts`**.
-
----
-
-### 6. Ejecución con Token de Deudor (Rutas protegidas)
-
-Por defecto, si no se proporciona un token, las pruebas ejecutan las **rutas públicas** (`/api/ai/salud`). Para medir rutas protegidas por JWT (`/api/me`, `/api/debts`, `/api/payments`):
-
-1. Solicita un código de acceso para un deudor de prueba en el portal:
-   ```bash
-   curl -X POST http://localhost:8080/api/auth/codigo -H "Content-Type: application/json" -d '{"identificador":"11.111.111-1"}'
-   ```
-2. Revisa el código de 6 caracteres en el buzón local de Mailpit: `http://localhost:8025`.
-3. Canjea el código por un JWT:
-   ```bash
-   curl -X POST http://localhost:8080/api/auth/acceso -H "Content-Type: application/json" -d '{"identificador":"11.111.111-1","codigo":"<CODIGO>"}'
-   ```
-4. Pasa el token obtenido en la línea de comando:
-   ```bash
-   # JUnit:
-   ./mvnw -f gateway/pom.xml test -Dtest=PerformTestGateway -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
-
-   # Gatling:
-   ./mvnw -f gateway/pom.xml -Prendimiento gatling:test -Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway -DbaseUrl=http://localhost:8080 -Dtoken="<TOKEN_JWT>"
-   ```
-
----
+Sin token, apunta a la URL directa de ms-payments (por omisión,
+`http://localhost:8084`). La tasa, la rampa y la duración se ajustan con `-Dtasa`, `-Drampa` y
+`-Dduracion`; los reportes quedan en `ms-payments/target/gatling/<simulacion-fecha>/index.html`.
 
 ## Antes de correrlas
 
@@ -193,14 +74,10 @@ docker compose --profile app up -d gateway
 
 ## Gateway
 
-### Enrutamiento: Gatling y JUnit / AssertJ
+### Enrutamiento: `gateway-load.js`
 
 ```powershell
-# Simulación de carga sostenida con Gatling:
-.\mvnw.cmd -f gateway/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.gateway.throughput.LoadSimulationGateway"
-
-# Comprobación rápida de SLA con AssertJ / Surefire:
-.\mvnw.cmd -f gateway/pom.xml test -Dtest=PerformTestGateway -DbaseUrl=http://localhost:8082
+docker compose --profile carga run --rm k6 run /performance-tests/k6/gateway/gateway-load.js
 ```
 
 Una petición a cada familia de rutas, con la misma sesión de deudor, para ver si alguna se queda
@@ -238,14 +115,10 @@ sostenido.
 
 ## ms-auth
 
-### Lecturas de sesión: Gatling y JUnit / AssertJ
+### Lecturas de sesión: `auth-load.js`
 
 ```powershell
-# Simulación de carga sostenida con Gatling:
-.\mvnw.cmd -f ms-auth/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.auth.throughput.LoadSimulationMsAuth"
-
-# Comprobación rápida de SLA con AssertJ / Surefire:
-.\mvnw.cmd -f ms-auth/pom.xml test -Dtest=PerformTestMsAuth -DbaseUrl=http://localhost:8081
+docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-auth/auth-load.js
 ```
 
 | Ruta | Qué cuesta |
@@ -327,14 +200,10 @@ reglas tienen además sus pruebas unitarias en `gateway/src/test`.
 
 ## ms-debt
 
-### Capacidad: Gatling y JUnit / AssertJ
+### Capacidad: `debt-load.js`
 
 ```powershell
-# Simulación de carga sostenida con Gatling:
-.\mvnw.cmd -f ms-debt/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.debt.throughput.LoadSimulationMsDebt"
-
-# Comprobación rápida de SLA con AssertJ / Surefire:
-.\mvnw.cmd -f ms-debt/pom.xml test -Dtest=PerformTestMsDebt -DbaseUrl=http://localhost:8083
+docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-debt/debt-load.js
 ```
 
 Sube por escalones —5, 20, 50 y 100 usuarios simultáneos, medio minuto sostenido en cada uno—
@@ -414,11 +283,10 @@ El resto de la diferencia con el 23-09 es de la máquina, no del código: ese d�
 completo medía menos que hoy el servicio solo con el código anterior. Por eso una comparación de
 rendimiento se hace lado a lado y no contra un número de otro día.
 
-### Estrés: Gatling
+### Estrés: `debt-stress.js`
 
 ```powershell
-# Simulación de estrés hacia el límite con Gatling:
-.\mvnw.cmd -f ms-debt/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.debt.throughput.StressSimulationMsDebt"
+docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-debt/debt-stress.js
 ```
 
 La prueba de capacidad no alcanza a mostrar el techo: con las pausas de una persona, cien
@@ -485,11 +353,7 @@ simuladas y el límite subido, solo en esa terminal:
 $env:TRANSBANK_ENVIRONMENT = "SIMULADA"; $env:KHIPU_LLAVE = ""; $env:MERCADOPAGO_ACCESS_TOKEN = ""
 $env:RATE_GLOBAL_CAPACITY = "10000000"
 docker compose --profile app up -d --wait ms-payments gateway
-# Simulación de carga sostenida con Gatling:
-.\mvnw.cmd -f ms-payments/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.payments.throughput.LoadSimulationMsPayments"
-
-# O comprobación rápida de SLA con AssertJ / Surefire:
-.\mvnw.cmd -f ms-payments/pom.xml test -Dtest=PerformTestMsPayments -DbaseUrl=http://localhost:8084
+docker compose --profile carga run --rm -e RUT_DEUDOR=<un deudor de prueba> k6 run /performance-tests/k6/ms-payments/payment-load.js
 ```
 
 Con `-e MAX_VUS=100` el último escalón llega a cien deudores. No confirma los cobros (pagarlos
@@ -511,11 +375,10 @@ docker compose --profile app up -d --wait ms-payments gateway
 Abrir un cobro cuesta unos 25 ms y no crece con la carga: el tiempo de un pago de verdad está en
 la pasarela, no en DataBridge. El limitador no intervino en ninguna de las dos.
 
-### Leer el historial: Gatling
+### Leer el historial: `payment-stress.js`
 
 ```powershell
-# Simulación de estrés hacia el límite con Gatling:
-.\mvnw.cmd -f ms-payments/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.payments.throughput.StressSimulationMsPayments"
+docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-payments/payment-stress.js
 ```
 
 La otra mitad de ms-payments: el historial que el portal pide cada vez que alguien entra a *Mis
@@ -541,17 +404,10 @@ que el camino normal sigue siendo barato; lo que crece es la cola cuando la máq
 
 ## ms-ai
 
-### El asistente: Gatling y JUnit / AssertJ
+### El asistente: `ai-load.js`
 
 ```powershell
-# Simulación de carga sostenida con Gatling:
-.\mvnw.cmd -f ms-ai/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.ai.throughput.LoadSimulationMsAI"
-
-# Comprobación rápida de SLA con AssertJ / Surefire:
-.\mvnw.cmd -f ms-ai/pom.xml test -Dtest=PerformTestMsAI -DbaseUrl=http://localhost:8085
-
-# Simulación de estrés con Gatling:
-.\mvnw.cmd -f ms-ai/pom.xml -Prendimiento gatling:test "-Dgatling.simulationClass=com.tbridge.ai.throughput.StressSimulationMsAI"
+docker compose --profile carga run --rm k6 run /performance-tests/k6/ms-ai/ai-load.js
 ```
 
 | Ruta | Qué cuesta |

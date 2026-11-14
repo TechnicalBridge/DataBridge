@@ -99,6 +99,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 | **Asistente Inteligente** | SDK oficial OpenAI para Java (`openai-java`) | Consultas LLM compatibles con Groq y Gemini, con fallback automático a motor de reglas local (`MotorLocal`). |
 | **Documentación & Hipermedios** | springdoc-openapi (Swagger) · Spring HATEOAS | Documentación interactiva OpenAPI 3 y enlaces hipermedia en respuestas REST. |
 | **Plantillas y Correo** | Jakarta Mail · Thymeleaf | Renderizado de correos transaccionales en HTML responsivo y texto plano. |
+| **Pruebas** | JUnit 5 · Mockito · MockMvc · AssertJ · Gatling · k6 | Unitarias, de la capa web y de rendimiento; las de rendimiento se corren a mano con el sistema arriba. |
 
 ### Base de datos
 
