@@ -4,8 +4,12 @@ import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +46,7 @@ class IntegracionControladoresTest extends BaseIntegracionMySql {
     // ------------------------------------------------------------------
 
     @Test
-    void las_migraciones_se_aplican_sobre_un_mysql_vacio() {
+    void las_migraciones_se_aplican_sobre_un_mysql_vacio() throws IOException {
         Integer tablas = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema = DATABASE()
@@ -51,12 +55,20 @@ class IntegracionControladoresTest extends BaseIntegracionMySql {
                 """, Integer.class);
         assertThat(tablas).isEqualTo(7);
 
+        //  Cuantas son y cual es la ultima sale de las migraciones que trae el servicio, no de un numero fijo:
+        //  asi la prueba no se rompe con cada migracion nueva (la V9 de Resend la rompio).
+        Resource[] migraciones = new PathMatchingResourcePatternResolver()
+                .getResources("classpath:db/migration/V*__*.sql");
+        int ultima = Arrays.stream(migraciones)
+                .map(Resource::getFilename)
+                .mapToInt(nombre -> Integer.parseInt(nombre.substring(1, nombre.indexOf("__"))))
+                .max().orElseThrow();
         Integer aplicadas = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class);
-        assertThat(aplicadas).isEqualTo(8);
+        assertThat(aplicadas).isEqualTo(migraciones.length);
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1", String.class))
-                .isEqualTo("8");
+                .isEqualTo(String.valueOf(ultima));
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0", Integer.class)).isZero();
     }
