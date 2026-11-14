@@ -151,15 +151,15 @@ export default function DataBridge() {
           </small>
         </div>
         <div className="card stat aparece" style={{ "--i": 3 }}>
-          <span>Recuperado</span>
+          <span>Diferencia con el monto original</span>
           <b className="totales">
             {(resumen?.porMoneda || []).map((m) => (
               <span key={m.moneda}>{dinero(m.recuperado, m.moneda)}</span>
             ))}
           </b>
-          <small>{(resumen?.porMoneda || []).map((m) => `${porcentaje(m.tasaRecuperacion)} en ${m.moneda === "UF" ? "UF" : "pesos"}`).join(", ")}</small>
+          <small>{(resumen?.porMoneda || []).map((m) => `${porcentaje(m.tasaRecuperacion)} del monto original en ${m.moneda === "UF" ? "UF" : "pesos"}`).join(", ")}</small>
           <small>
-            Lo que pagas a DataBridge: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
+            Comisión sobre pagos del mes: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
           </small>
         </div>
       </section>

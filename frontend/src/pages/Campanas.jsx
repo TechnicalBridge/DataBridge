@@ -159,7 +159,7 @@ export default function Campanas() {
                       {comision ? (
                         <span>
                           <b className="num">{dinero(comision.porCampana.find((p) => p.idExterno === c.idExterno)?.recuperado || 0)}</b>{" "}
-                          recuperado en {mesEnPalabras(comision.mes).split(" de ")[0]}
+                          ingresado por pagos en {mesEnPalabras(comision.mes).split(" de ")[0]}
                         </span>
                       ) : null}
                     </div>

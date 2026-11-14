@@ -53,7 +53,7 @@ export default function ComisionDelMes({ onDatos }) {
       {datos ? (
         <>
           <div className="cifras-revision" aria-live="polite">
-            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>Recuperado en {mesEnPalabras(datos.mes)}</span></div>
+            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>Ingresado por pagos en {mesEnPalabras(datos.mes)}</span></div>
             <div className="cifra"><b>{datos.recuperado ? porcentaje(datos.porcentaje) : "—"}</b><span>Tu porcentaje</span></div>
             <div className="cifra"><b>{dinero(datos.comision)}</b><span>Lo que pagas a DataBridge</span></div>
             <div className="cifra entran"><b>{dinero(datos.paraLaEmpresa)}</b><span>Lo que queda para tu empresa</span></div>
@@ -66,8 +66,8 @@ export default function ComisionDelMes({ onDatos }) {
           ) : null}
           <div className="tabla-scroll">
             <table className="table tramos">
-              <caption className="hint">Los tramos del modelo, sobre todo lo recuperado en el mes</caption>
-              <thead><tr><th scope="col">Lo recuperado en el mes</th><th scope="col">Porcentaje</th></tr></thead>
+              <caption className="hint">El porcentaje del tramo se aplica al total de pagos del mes</caption>
+              <thead><tr><th scope="col">Ingresado por pagos en el mes</th><th scope="col">Porcentaje</th></tr></thead>
               <tbody>
                 {datos.tramos.map((t) => (
                   <tr key={t.desde} className={t.vigente ? "vigente" : ""} aria-current={t.vigente ? "true" : undefined}>

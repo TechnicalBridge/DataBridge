@@ -41,7 +41,7 @@ public class AnalyticsController {
 
     @GetMapping("/api/analytics/comision")
     @Operation(summary = "Lo que mi empresa le paga a DataBridge en un mes",
-            description = "El modelo de negocio (#200): G es lo recuperado en el mes, en pesos, de las deudas que "
+            description = "El modelo de negocio (#200): G es el total de pagos aplicados en el mes, en pesos, de las deudas que "
                     + "cargo la empresa; p(G) es 6, 10, 12 o 15 % segun el tramo; la comision es P(G) = G * p(G) y "
                     + "a la empresa le queda G - P(G). Con lo de cada campana; el tramo lo decide el total del mes.")
     @ApiResponse(responseCode = "200", description = "La comision del mes")
@@ -56,7 +56,8 @@ public class AnalyticsController {
 
     @GetMapping("/api/analytics/summary")
     @Operation(summary = "El resumen de mi cartera",
-            description = "Solo la empresa, y solo de su cartera: saldo y recuperado por moneda y por acreedor, y lo recuperado cada dia del ultimo mes.")
+            description = "Saldo y diferencia con el monto original por moneda y por acreedor, "
+                    + "y pagos aplicados por día y moneda en los últimos 30 días.")
     @ApiResponse(responseCode = "200", description = "El resumen")
     @ApiResponse(responseCode = "403", description = "Quien pregunta no es una empresa registrada",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
