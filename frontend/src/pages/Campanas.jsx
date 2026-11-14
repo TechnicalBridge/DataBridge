@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { cambiarEstadoCampana, listarCampanas } from "../api/campanas";
 import { opcionesDeCarga } from "../api/deudas";
-import { fecha } from "../utils/formato";
+import { dinero, fecha, mesEnPalabras } from "../utils/formato";
 import Cargando from "../components/Cargando";
-import ComisionDelMes, { mesEnPalabras } from "../components/ComisionDelMes";
-import { dinero } from "../utils/formato";
+import ComisionDelMes from "../components/ComisionDelMes";
 import FormCampana, { TRAMOS } from "../components/FormCampana";
 import Mandatos from "../components/Mandatos";
 
