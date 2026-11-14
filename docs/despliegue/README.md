@@ -117,6 +117,8 @@ no se debe borrar su volumen para intentar activar esta siembra.
 
 ## 5. El correo, las pasarelas y el DNS
 
+Producción admite un relay institucional o propio con `MAIL_TRANSPORT=smtp`, sin `BREVO_API_KEY`. Configurar `SMTP_*` en el servidor; Mailpit queda desactivado en el override de producción. Brevo sigue disponible con `MAIL_TRANSPORT=brevo`. Ver [operación SMTP, TLS y DNS](../operacion/smtp.md).
+
 **Las claves del correo, de las pasarelas y del asistente** se copian del `.env` del equipo al del servidor, sin que se vean en
 la pantalla:
 
@@ -168,7 +170,7 @@ cada push a `main` se despliega solo.
 
 - `https://technicalbridge.site` abre el portal, con el candado; `www.technicalbridge.site` redirige.
 - `https://technicalbridge.site/swagger-ui.html` muestra la documentación.
-- El correo de prueba sale por Brevo:
+- El correo de prueba sale por el transporte seleccionado (SMTP o Brevo):
 
   ```bash
   docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T ms-auth \

@@ -131,14 +131,14 @@ public class MailService {
         this.responderA = StringUtils.hasText(responderA) ? responderA.strip() : null;
         this.portal = publicUrl.strip().replaceFirst("^https?://", "").replaceAll("/$", "");
         this.logo = direccionDelLogo(publicUrl);
-        this.porBrevo = this.mailSender != null && StringUtils.hasText(claveDeBrevo);
+        this.porBrevo = this.mailSender instanceof com.tbridge.auth.config.CorreoPorBrevo;
         this.conServidor = this.mailSender != null && (porBrevo || StringUtils.hasText(host));
         this.servidor = porBrevo ? "Brevo (API)" : conServidor ? host.strip() + ":" + puerto : null;
         this.clave = clave;
         this.claveDeBrevo = claveDeBrevo;
         this.modo = new ModoDePrueba(soloA, desviarA);
         this.alBuzonDePrueba = conServidor && !porBrevo && StringUtils.hasText(buzonDePrueba)
-                && buzonDePrueba.strip().startsWith(host.strip());
+                && buzonDePrueba.strip().split(":", 2)[0].equals(host.strip());
         //  Con un proveedor real, el buzon de prueba (si lo hay) recibe lo de los dominios reservados.
         boolean hayBuzonAparte = conServidor && !alBuzonDePrueba && StringUtils.hasText(buzonDePrueba);
         this.direccionDelBuzon = hayBuzonAparte ? buzonDePrueba.strip() : null;
@@ -527,11 +527,41 @@ public class MailService {
                     + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
             return Optional.empty();
         }
-        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos)));
+        MimeMessage mensaje = armar(mailSender, destino.get(), escribir(plantilla, datos));
+        long inicio = System.nanoTime();
+        String resultado = "rejected";
+        String categoria = "none";
+        try {
+            mailSender.send(mensaje);
+            resultado = "accepted";
+        } catch (org.springframework.mail.MailException fallo) {
+            categoria = categoriaDeTransporte(fallo);
+            throw fallo;
+        } finally {
+            log.info("mail_acceptance transport={} outcome={} duration_ms={} error_category={}",
+                    porBrevo ? "brevo" : alBuzonDePrueba ? "mailpit" : "smtp", resultado,
+                    (System.nanoTime() - inicio) / 1_000_000, categoria);
+        }
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
         }
         return Optional.of(destino.get().a());
+    }
+
+    /** Categorías sin mensajes del servidor, destinatarios ni credenciales. No decide reintentos. */
+    static String categoriaDeTransporte(Throwable fallo) {
+        for (Throwable causa : cadena(fallo)) {
+            if (causa instanceof java.net.SocketTimeoutException) return "timeout";
+            if (causa instanceof jakarta.mail.AuthenticationFailedException
+                    || causa instanceof org.springframework.mail.MailAuthenticationException) return "auth_failure";
+            if (causa instanceof javax.net.ssl.SSLException
+                    || causa instanceof MessagingException && causa.getMessage() != null
+                    && causa.getMessage().contains("STARTTLS")) return "tls_failure";
+            if (causa instanceof java.net.ConnectException) return "connection_refused";
+            if (causa instanceof org.eclipse.angus.mail.smtp.SMTPAddressFailedException) return "recipient_rejected";
+            if (causa instanceof jakarta.mail.SendFailedException) return "recipient_rejected";
+        }
+        return "server_unavailable";
     }
 
     /** Escribe el correo con su plantilla, con el logo del encabezado que llevan todos. */

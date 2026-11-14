@@ -151,6 +151,8 @@ class MailServiceTest {
 
     /** Con una clave de Brevo, sin SMTP_HOST, y el buzon de prueba que anuncia el compose. */
     private MailService porBrevo(String soloA, String desviarA) {
+        smtp = org.mockito.Mockito.mock(com.tbridge.auth.config.CorreoPorBrevo.class);
+        armarEnMemoria();
         when(proveedor.getIfAvailable()).thenReturn(smtp);
         return new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/", "", 587, "", "DataBridge", "",
                 soloA, desviarA, "mailpit:1025", CLAVE_DE_BREVO);
@@ -623,6 +625,8 @@ class MailServiceTest {
 
     /** Por Brevo, con o sin el buzon de prueba (en el servidor no hay), el modo de prueba y el tope que se pida. */
     private MailService porBrevo(String soloA, String desviarA, boolean conBuzon, int tope, Clock reloj) {
+        smtp = org.mockito.Mockito.mock(com.tbridge.auth.config.CorreoPorBrevo.class);
+        armarEnMemoria();
         when(proveedor.getIfAvailable()).thenReturn(smtp);
         return new MailService(proveedor, "equipo@gmail.com", "http://localhost:8080/", "", 587, "", "DataBridge", "",
                 soloA, desviarA, conBuzon ? "mailpit:1025" : "", CLAVE_DE_BREVO, tope, conBuzon ? buzon : null, reloj);
@@ -677,4 +681,16 @@ class MailServiceTest {
         servicio.enviarCodigo("sofia.lagos@correo.cl", "EEEEEE", "Patrimonio Inmuebles");
         verify(smtp, times(4)).send(any(MimeMessage.class));
     }
-}
+    @Test
+    void categorias_smtp_recorren_excepciones_por_mensaje_sin_publicar_su_contenido() {
+        assertEquals("timeout", MailService.categoriaDeTransporte(new MailSendException("fallo",
+                new java.net.SocketTimeoutException())));
+        assertEquals("auth_failure", MailService.categoriaDeTransporte(new MailAuthenticationException("fallo")));
+        assertEquals("tls_failure", MailService.categoriaDeTransporte(new MailSendException("fallo",
+                new MessagingException("STARTTLS is required but host does not support STARTTLS"))));
+        assertEquals("connection_refused", MailService.categoriaDeTransporte(new MailSendException("fallo",
+                new java.net.ConnectException())));
+        assertEquals("recipient_rejected", MailService.categoriaDeTransporte(new MailSendException(
+                java.util.Map.of(new Object(), new SendFailedException("fixture-only")))));
+        assertEquals("server_unavailable", MailService.categoriaDeTransporte(new MailSendException("fixture-only")));
+    }}

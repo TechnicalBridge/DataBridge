@@ -195,6 +195,7 @@ services:
       #  Sin SMTP_HOST en el .env, los correos van al buzon de prueba de mas
       #  abajo y no a nadie de verdad: el resto de SMTP_* se ignora. Con
       #  SMTP_HOST van a ese servidor (Gmail, o un proveedor de correo).
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-}
       SMTP_HOST:       ${SMTP_HOST:-}
       SMTP_PORT:       ${SMTP_PORT:-587}
       SMTP_USER:       ${SMTP_USER:-}
@@ -203,7 +204,7 @@ services:
       SMTP_STARTTLS:   ${SMTP_STARTTLS:-true}
       SMTP_SSL:        ${SMTP_SSL:-false}
       SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
-      #  Con una clave de Brevo, los correos salen por su API y no por SMTP.
+      #  Brevo es opcional: MAIL_TRANSPORT=brevo, o automático sin SMTP_HOST.
       BREVO_API_KEY:   ${BREVO_API_KEY:-}
       BREVO_URL:       ${BREVO_URL:-https://api.brevo.com/v3/smtp/email}
       CORREO_BUZON_DE_PRUEBA: mailpit:1025

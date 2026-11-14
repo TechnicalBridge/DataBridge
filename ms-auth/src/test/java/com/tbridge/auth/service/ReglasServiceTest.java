@@ -21,7 +21,7 @@ class ReglasServiceTest {
     private static MailService correo(String host, String clave, String brevo, String soloA, String desviarA,
                                       String buzon) {
         ObjectProvider<JavaMailSender> proveedor = mock(ObjectProvider.class);
-        when(proveedor.getIfAvailable()).thenReturn(mock(JavaMailSender.class));
+        when(proveedor.getIfAvailable()).thenReturn(brevo.isBlank() ? mock(JavaMailSender.class) : mock(com.tbridge.auth.config.CorreoPorBrevo.class));
         return new MailService(proveedor, "databridge.equipo@gmail.com", "http://localhost:8080", host, 587, clave,
                 "DataBridge", "", soloA, desviarA, buzon, brevo);
     }
@@ -83,4 +83,15 @@ class ReglasServiceTest {
                 new ReglasService(24, 15, 24, 168, 15, correo("", "", "", "", "", "")).reglas(),
                 "Por dónde salen").variable());
     }
-}
+    @Test
+    void una_clave_antigua_no_cambia_el_diagnostico_del_sender_smtp() {
+        ObjectProvider<JavaMailSender> proveedor = mock(ObjectProvider.class);
+        when(proveedor.getIfAvailable()).thenReturn(mock(JavaMailSender.class));
+        MailService smtp = new MailService(proveedor, "sender@example.com", "http://portal.example.test",
+                "smtp.example.test", 587, CONTRASENA, "DataBridge", "", "", "", "", CLAVE_DE_BREVO);
+        String reglas = new ReglasService(24, 15, 24, 168, 15, smtp).reglas().toString();
+        org.junit.jupiter.api.Assertions.assertTrue(reglas.contains("SMTP smtp.example.test:587"));
+        assertFalse(reglas.contains(CONTRASENA));
+        assertFalse(reglas.contains(CLAVE_DE_BREVO));
+        assertFalse(reglas.contains("Por la API de Brevo"));
+    }}
