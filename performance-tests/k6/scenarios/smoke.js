@@ -12,11 +12,12 @@
 // =============================================================================
 import http from 'k6/http';
 import { fail } from 'k6';
-import { DATA_DIR, INCLUIR_IA, PORTAL, exigirEntornoDePruebas } from '../config/env.js';
+import { DATA_DIR, INCLUIR_IA, PORTAL, VERIFICAR_PASARELAS, exigirEntornoDePruebas } from '../config/env.js';
 import { opciones } from '../config/scenarios.js';
 import { sesionDeudor, sesionEmpresaObligatoria } from '../modules/auth.js';
 import { campanaDisponible, plantilla, revisar, TIPO_CSV, TIPO_XLSX } from '../modules/cartera.js';
 import { datosDeDeudas, recorridoCompleto } from '../modules/journey.js';
+import { PASARELAS, abrirCobro, esSimulado } from '../modules/payments.js';
 import { medir } from '../utils/http.js';
 import { es2xx, esOpcionesCartera, esRevisionCartera } from '../utils/checks.js';
 import { resumen } from '../utils/summary.js';
@@ -44,6 +45,17 @@ export default function (datos) {
   });
 
   recorridoCompleto(datos, 'smoke', { pausa: 0, incluirHistorial: true });
+
+  if (VERIFICAR_PASARELAS) {
+    //  Un cobro por pasarela: comprueba que la pagina sea la simulada de
+    //  DataBridge y no la de Transbank, Khipu o Mercado Pago. No confirma el
+    //  pago; los cobros quedan abiertos en la base local.
+    for (const pasarela of PASARELAS) {
+      medir(`smoke_pasarela_${pasarela}`,
+        abrirCobro(datos.deudor, datos.deuda.id, pasarela),
+        { valida: esSimulado });
+    }
+  }
 
   medir('smoke_cartera_opciones',
     http.get(`${PORTAL}/api/debts/cartera/opciones`, {
