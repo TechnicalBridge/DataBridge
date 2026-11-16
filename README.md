@@ -275,54 +275,17 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ---
 
-### Diagrama de secuencia del flujo principal
+### Diagrama de secuencia del flujo principal Deudor (Pago)
 
-
-```mermaid
-sequenceDiagram
-    actor D as Deudor
-    participant P as Portal (React)
-    participant Y as ms-payments
-    participant M as ms-debt
-    participant K as Pasarela (Khipu / Webpay/ Mercado Pago)
-    participant R as RabbitMQ
-    participant B as Banco Central (UF)
-
-    Note over D,P: 1. Autenticación y selección de deuda
-    D->>P: Ingresa RUT y código temporal
-    P-->>D: Retorna sesión con JWT firmado en ES256
-    D->>P: Selecciona deuda o cuotas y presiona "Pagar"
-
-    Note over P,Y: 2. Apertura del cobro
-    P->>Y: POST /api/payments/checkout
-    alt Deuda expresada en UF
-        Y->>B: Consulta UF oficial del día (si3.bcentral.cl)
-        B-->>Y: Retorna valor UF en pesos (CLP)
-    end
-    Y->>M: GET /internal/debts/{id} (con X-Internal-Key)
-    M-->>Y: Monto oficial verificado (capital + mora − descuento)
-    Y->>K: Inicia transacción con la pasarela seleccionada
-    K-->>Y: URL de redirección y token de pago
-    Y-->>P: Redirige al deudor a la pasarela
-
-    Note over D,K: 3. Ejecución del pago
-    D->>K: Realiza el pago en el entorno seguro de la pasarela
-    K-->>D: Retorna al portal tras finalizar
-
-    Note over P,Y: 4. Verificación y conciliación servidor a servidor
-    P->>Y: Solicita confirmación del estado del pago
-    Y->>K: Verifica transacción de servidor a servidor
-    K-->>Y: Estado aprobado y detalles de transacción
-    Y-->>P: "Pago aprobado" (comprobante generado)
-
-    Note over Y,M: 5. Desacoplamiento asíncrono
-    Y->>R: Publica evento "pago.confirmado"
-    R->>M: Entrega evento a ms-debt
-    M->>M: Aplica abono en cuotas y salda deuda si saldo = 0
-```
+![Diagrama de Casos de Uso](docs/diagramas/img/Secuencia_pago.png)
 
 ---
 
+# Diagrama de secuencia del flujo principal Empresa (Carga de Cartera)
+
+![Diagrama de Casos de Uso](docs/diagramas/img/Secuencia_pago.png)
+
+---
 ### Diagrama de casos de uso
 
 ![Diagrama de Casos de Uso](docs/diagramas/img/casos-de-uso.png)
