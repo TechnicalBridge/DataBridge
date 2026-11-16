@@ -27,12 +27,13 @@
 - [6. Metodología de trabajo del equipo](#6-metodología-de-trabajo-del-equipo)
   - [Marco de trabajo: Scrumban](#marco-de-trabajo-scrumban)
   - [Prácticas DevOps y aseguramiento de calidad](#prácticas-devops-y-aseguramiento-de-calidad)
-  - [Pruebas automatizadas (1.350 pruebas Java)](#pruebas-automatizadas-1350-pruebas-java)
+  - [Pruebas automatizadas (1.512 pruebas Java)](#pruebas-automatizadas-1512-pruebas-java)
 - [7. Arquitectura de la solución](#7-arquitectura-de-la-solución)
   - [Descripción de la arquitectura](#descripción-de-la-arquitectura)
   - [Diagrama general de componentes y comunicación](#diagrama-general-de-componentes-y-comunicación)
   - [Diagrama de despliegue físico](#diagrama-de-despliegue-físico)
-  - [Diagrama de secuencia del flujo principal](#diagrama-de-secuencia-del-flujo-principal)
+  - [Diagrama de secuencia del flujo principal Deudor (Pago)](#diagrama-de-secuencia-del-flujo-principal-deudor-pago)
+  - [Diagrama de secuencia del flujo principal Empresa (Carga de Cartera)](#diagrama-de-secuencia-del-flujo-principal-empresa-carga-de-cartera)
   - [Diagrama de casos de uso](#diagrama-de-casos-de-uso)
   - [Diagramas entidad-relación (ER)](#diagramas-entidad-relación-er)
   - [Detalle de arquitectura en vistas 4+1](#detalle-de-arquitectura-en-vistas-41)
@@ -218,9 +219,9 @@ El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de *
 | **Infraestructura como Código (IaC)** | Docker Compose orquestando 11 contenedores con perfiles `app` y `carga`, más `docker-compose.prod.yml`. | Despliegue determinista y replicable idéntico en local y producción. |
 | **Evolución de Base de Datos** | Flyway ejecutando migraciones SQL ordenadas y versionadas. | Eliminación de desfases entre esquemas de base de datos y validación al inicio (`ddl-auto: validate`). |
 
-### Pruebas automatizadas (1.350 pruebas Java)
+### Pruebas automatizadas (1.512 pruebas Java)
 
-El proyecto cuenta con **1.350 pruebas automatizadas en Java**, medidas con JDK 25 mediante los reportes XML de Maven Surefire sobre `main` (commit `93d5a14`), que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
+El proyecto cuenta con **1.512 pruebas automatizadas en Java**, medidas con JDK 25 mediante los reportes XML de Maven Surefire sobre `main` (commit `83ff151`), que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
 
 ```powershell
 # Ejecutar las pruebas de un servicio específico:
@@ -232,12 +233,12 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 | Módulo / Servicio | Cantidad de pruebas | Tipos de pruebas cubiertas | Herramientas / Frameworks |
 | :--- | :---: | :--- | :--- |
-| **ms-debt** | **538** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
-| **ms-auth** | **322** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
-| **ms-payments** | **300** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
-| **ms-ai** | **164** | Cliente LLM, motor local de fallback (`MotorLocal`), aislamiento de sesión y contexto | JUnit 5, Mockito, MockMvc |
-| **gateway** | **26** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
-| **Total suite Java** | **1.350 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
+| **ms-debt** | **547** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-auth** | **374** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
+| **ms-payments** | **312** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-ai** | **225** | Cliente LLM, motor local de fallback (`MotorLocal`), aislamiento de sesión y contexto | JUnit 5, Mockito, MockMvc |
+| **gateway** | **54** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
+| **Total suite Java** | **1.512 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
 
 > **Nota sobre el portal:** El frontend no posee suite de pruebas unitarias automatizadas (`.test.jsx`); su verificación se realiza en CI mediante compilación estricta (`npm ci` y `npm run build`), control de tipos y revisión manual en navegador. Para detalles adicionales sobre ejecución y cobertura de pruebas, consultar [docs/pruebas/README.md](docs/pruebas/README.md).
 
@@ -275,54 +276,17 @@ DataBridge está estructurado bajo una **arquitectura de microservicios orientad
 
 ---
 
-### Diagrama de secuencia del flujo principal
+### Diagrama de secuencia del flujo principal Deudor (Pago)
 
-
-```mermaid
-sequenceDiagram
-    actor D as Deudor
-    participant P as Portal (React)
-    participant Y as ms-payments
-    participant M as ms-debt
-    participant K as Pasarela (Khipu / Webpay/ Mercado Pago)
-    participant R as RabbitMQ
-    participant B as Banco Central (UF)
-
-    Note over D,P: 1. Autenticación y selección de deuda
-    D->>P: Ingresa RUT y código temporal
-    P-->>D: Retorna sesión con JWT firmado en ES256
-    D->>P: Selecciona deuda o cuotas y presiona "Pagar"
-
-    Note over P,Y: 2. Apertura del cobro
-    P->>Y: POST /api/payments/checkout
-    alt Deuda expresada en UF
-        Y->>B: Consulta UF oficial del día (si3.bcentral.cl)
-        B-->>Y: Retorna valor UF en pesos (CLP)
-    end
-    Y->>M: GET /internal/debts/{id} (con X-Internal-Key)
-    M-->>Y: Monto oficial verificado (capital + mora − descuento)
-    Y->>K: Inicia transacción con la pasarela seleccionada
-    K-->>Y: URL de redirección y token de pago
-    Y-->>P: Redirige al deudor a la pasarela
-
-    Note over D,K: 3. Ejecución del pago
-    D->>K: Realiza el pago en el entorno seguro de la pasarela
-    K-->>D: Retorna al portal tras finalizar
-
-    Note over P,Y: 4. Verificación y conciliación servidor a servidor
-    P->>Y: Solicita confirmación del estado del pago
-    Y->>K: Verifica transacción de servidor a servidor
-    K-->>Y: Estado aprobado y detalles de transacción
-    Y-->>P: "Pago aprobado" (comprobante generado)
-
-    Note over Y,M: 5. Desacoplamiento asíncrono
-    Y->>R: Publica evento "pago.confirmado"
-    R->>M: Entrega evento a ms-debt
-    M->>M: Aplica abono en cuotas y salda deuda si saldo = 0
-```
+![Diagrama de secuencia de pago](docs/diagramas/img/secuencia-pago.png)
 
 ---
 
+### Diagrama de secuencia del flujo principal Empresa (Carga de Cartera)
+
+![Diagrama de secuencia de carga de cartera](docs/diagramas/img/Secuencia_cartera.png)
+
+---
 ### Diagrama de casos de uso
 
 ![Diagrama de Casos de Uso](docs/diagramas/img/casos-de-uso.png)
@@ -350,7 +314,7 @@ La documentación técnica complementaria y archivos fuente del modelo 4+1 se en
 | :--- | :--- | :--- |
 | **Escenarios (+1)** | Casos de uso de cada actor (Deudor, Empresa, Admin, Sistemas y Reloj) y detalle de endpoints. | [docs/diagramas/casos-de-uso.md](docs/diagramas/casos-de-uso.md)<br>[Diagrama](docs/diagramas/img/casos-de-uso.png) |
 | **Vista Lógica** | Diagramas Entidad-Relación de las tres bases (`tb_auth`, `tb_debt`, `tb_payments`), clases y máquinas de estados. | [docs/diagramas/entidad-relacion.md](docs/diagramas/entidad-relacion.md)<br>[Diagramas ER](docs/diagramas/img/) |
-| **Vista de Procesos** | Secuencias de interacción y flujos de negocio BPMN. | [docs/diagramas/secuencia.md](docs/diagramas/secuencia.md)<br>[Diagrama de secuencia](docs/diagramas/img/secuencia-pago.png) |
+| **Vista de Procesos** | Secuencias de interacción y flujos de negocio BPMN. | [docs/diagramas/secuencia.md](docs/diagramas/secuencia.md)<br>[Diagrama secuencia pago](docs/diagramas/img/secuencia-pago.png)<br>[Diagrama secuencia cartera](docs/diagramas/img/Secuencia_cartera.png) |
 | **Vista de Desarrollo** | Componentes por paquetes, HATEOAS, DTOs y frontend. | [docs/diagramas/componentes.md](docs/diagramas/componentes.md)<br>[Diagrama de componentes](docs/diagramas/img/componentes.png) |
 | **Vista Física** | Topología de despliegue Docker, orden de arranque y puertos. | [docs/diagramas/despliegue.md](docs/diagramas/despliegue.md)<br>[Diagrama de despliegue](docs/diagramas/img/despliegue.png) |
 
