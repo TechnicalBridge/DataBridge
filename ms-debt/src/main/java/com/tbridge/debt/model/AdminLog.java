@@ -17,7 +17,8 @@ public class AdminLog {
 
     //  aviso_reintentado: un aviso a una empresa que se volvio a poner en cola (#139).
     //  empresa_suspendida y empresa_reactivada: el admin le corto o le devolvio todo a la empresa (#152).
-    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada }
+    //  deudor_consultado: el admin abrio la ficha de un deudor, que muestra sus datos personales (#434).
+    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,0 +1,19 @@
+# El mismo sitio que deploy/Caddyfile, sin la redireccion de www (#468). Para
+# un nombre que no tiene www, como el gratis de Azure
+# (databridge.brazilsouth.cloudapp.azure.com): con el otro, Caddy intentaria
+# sacar un certificado para un www que no existe, y fallaria una y otra vez.
+# Se elige con CADDYFILE=./deploy/Caddyfile.sin-www en el .env del servidor
+# (lo pone preparar-servidor.sh). Lo que cambie en un archivo, va en los dos.
+
+{$DOMINIO} {
+	encode zstd gzip
+	reverse_proxy portal:8080 {
+		# nginx toma de aqui la IP del visitante: el limite de peticiones del
+		# gateway cuenta por IP, y sin esto todos serian una sola, la de Caddy.
+		header_up X-Real-IP {remote_host}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

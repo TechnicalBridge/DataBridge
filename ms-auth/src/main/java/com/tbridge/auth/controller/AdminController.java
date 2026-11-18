@@ -7,6 +7,7 @@ import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.BitacoraResponse;
 import com.tbridge.auth.dto.response.EstadoResponse;
+import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiError;
@@ -248,6 +249,18 @@ public class AdminController {
                 Math.max(encontrados.getTotalPages() - 1, 0), tamano, "last"));
         return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(tamano, encontrados.getNumber(),
                 encontrados.getTotalElements(), encontrados.getTotalPages()), enlaces);
+    }
+
+    @GetMapping("/deudores/{rut}/accesos")
+    @Operation(summary = "Los pedidos de codigo y los intentos de entrar de un deudor, para su ficha",
+            description = "Los ultimos 50, lo mas reciente primero: si se le envio el codigo o el enlace, si "
+                    + "entro o si se le rechazo. Nunca el codigo, su huella ni la IP. La ficha la abre ms-debt, "
+                    + "que la anota en la bitacora del panel (#434).")
+    @ApiResponse(responseCode = "200", description = "Sus pedidos e intentos; vacio si no tiene")
+    @ApiResponse(responseCode = "400", description = "El RUT no es valido",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public List<IngresoDeDeudorResponse> accesosDeDeudor(@PathVariable String rut) {
+        return accesos.deUnDeudor(rut);
     }
 
     @GetMapping("/accesos/hoy")

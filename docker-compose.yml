@@ -151,8 +151,10 @@ services:
     depends_on:
       db-auth: { condition: service_healthy }
     volumes:
+      #  Relativa a esta carpeta, sirve en cualquier computador (#469). Si no
+      #  existe, Docker no arranca ms-auth: ver docs/seguridad/jwt.md.
       - type: bind
-        source: ${JWT_KEY_DIRECTORY:?Falta JWT_KEY_DIRECTORY (ver docs/seguridad/jwt.md)}
+        source: ${JWT_KEY_DIRECTORY:-./.secrets/jwt}
         target: /run/secrets/jwt
         read_only: true
         bind: { create_host_path: false }
