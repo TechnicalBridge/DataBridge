@@ -81,9 +81,10 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMINIO: ${DOMINIO:?Falta DOMINIO en el .env (por ejemplo, technicalbridge.site)}
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en el .env (por ejemplo, databridge.brazilsouth.cloudapp.azure.com)}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      #  Sin www con un nombre como el de Azure: CADDYFILE=./deploy/Caddyfile.sin-www (#468).
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
       #  Los certificados: si se pierden, Let's Encrypt limita cuantos se piden.
       - caddy_data:/data
       - caddy_config:/config
