@@ -21,6 +21,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -149,5 +150,19 @@ class BitacoraDeAccesosTest {
         assertEquals(7, hoy.enviados());
         assertEquals(6, hoy.porResultado().size(), "trae todos los resultados, tambien los que no hubo");
         assertEquals(0L, hoy.porResultado().get("exhausted"));
+    }
+
+    @Test
+    void los_ingresos_de_un_deudor_se_buscan_por_su_rut_normalizado_y_sin_la_ip() {
+        when(repositorio.findTop50ByDebtorRutOrderByOccurredAtDescIdDesc("16482337-7"))
+                .thenReturn(List.of(AccessLog.de("16482337-7", AccessLog.Method.code, AccessLog.Outcome.granted,
+                        "huella-de-la-ip")));
+
+        var ingresos = bitacora.deUnDeudor("16.482.337-7");
+
+        assertEquals(1, ingresos.size());
+        assertEquals(AccessLog.Outcome.granted, ingresos.getFirst().resultado());
+        assertFalse(ingresos.getFirst().toString().contains("huella-de-la-ip"));
+        assertThrows(ApiException.class, () -> bitacora.deUnDeudor("16482337-1"));
     }
 }

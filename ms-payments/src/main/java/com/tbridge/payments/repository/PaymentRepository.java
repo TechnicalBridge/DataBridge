@@ -17,6 +17,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     /** Lo que ve un deudor: lo suyo, por RUT. */
     List<Payment> findByDebtorRutOrderByCreatedAtDesc(String debtorRut);
 
+    /** Los ultimos 100 de un deudor: su ficha en el panel (#434). */
+    List<Payment> findTop100ByDebtorRutOrderByCreatedAtDesc(String debtorRut);
+
     /** El pago de una pasarela por su id de transaccion (en Khipu, el payment_id). */
     Optional<Payment> findByGatewayAndGatewayTxnId(Payment.Gateway gateway, String gatewayTxnId);
 
