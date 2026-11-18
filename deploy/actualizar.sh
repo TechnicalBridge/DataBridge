@@ -20,6 +20,10 @@ set -euo pipefail
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app)
 IMAGEN=ghcr.io/technicalbridge/databridge
 ANTERIOR="$HOME/.databridge-version-anterior"
+#  Uno a la vez: al prender la maquina corre el servicio de arranque, y alguien
+#  puede lanzar Desplegar justo entonces. El segundo espera a que termine el
+#  primero (#482).
+CANDADO="$HOME/.databridge-actualizar.lock"
 
 levantar() {  # levantar VERSION
   export VERSION="$1"
@@ -27,6 +31,11 @@ levantar() {  # levantar VERSION
 }
 
 main() {
+  exec 9>"$CANDADO"
+  if ! flock -n 9; then
+    echo "== Otra actualizacion esta corriendo: se espera a que termine"
+    flock 9
+  fi
   cd /opt/databridge
   local actual destino anotar=true
   actual=$(git rev-parse HEAD)

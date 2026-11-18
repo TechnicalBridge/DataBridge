@@ -228,16 +228,21 @@ cada merge a `main` se despliega solo.
 | Actualizar | Baja las imágenes del commit y levanta todo con `--wait`. Si algo no queda sano, vuelve solo a la versión que estaba y el workflow falla. |
 | Prueba de humo | Desde GitHub, por HTTPS, servicio por servicio: el portal (`/`, `200` con su página), ms-auth (`/api/me`), ms-debt (`/api/debts`) y ms-payments (`/api/payments`), que sin sesión responden su propio `401` en JSON (caídos, el gateway da `500`), y ms-ai (`/api/ai/salud`, `200`). No basta mirar el estado: nginx responde `200` con su página a cualquier ruta que no conoce. Si algo falla, vuelve a la versión anterior (`actualizar.sh --volver`) y el workflow falla. |
 
-**Al prender la máquina**, el servicio `databridge-actualizar` (systemd, lo instala
-[`preparar-servidor.sh`](../../deploy/preparar-servidor.sh)) corre `actualizar.sh` sin versión: busca el commit más nuevo
-de `main` que ya tenga sus imágenes publicadas y, si es distinto del que corre, lo despliega con el mismo respaldo y la
-misma vuelta atrás. Un cambio solo de documentación no compila imágenes, así que se salta.
+**Al prender la máquina**, quien sea que la prenda (cualquiera del equipo, por el portal de Azure o con el interruptor
+del paso 8), el servicio `databridge-actualizar` (systemd, lo instala
+[`preparar-servidor.sh`](../../deploy/preparar-servidor.sh)) baja `main` y corre su `actualizar.sh` sin versión. Corre el
+de `main` y no el de la versión que estaba desplegada, igual que el workflow (#482): así se pone al día aunque esa
+versión sea anterior al despliegue continuo. Busca el commit más nuevo de `main` que ya tenga sus imágenes publicadas y,
+si es distinto del que corre, lo despliega con el mismo respaldo y la misma vuelta atrás. Un cambio solo de
+documentación no compila imágenes, así que se salta. No hace falta lanzar *Desplegar* a mano ni tener `gh`; si
+alguien lo lanza justo al prenderla, `actualizar.sh` no deja correr dos a la vez y el segundo espera al primero.
 
-Para eso las seis imágenes de GHCR tienen que ser **públicas**: el servidor las baja sin token. No traen secretos, solo
-el código compilado, que ya es público en el repositorio. Se cambia una vez por imagen, en
+Para eso las seis imágenes de GHCR son **públicas** (desde el 18 de noviembre): el servidor las baja sin token. No traen
+secretos, solo el código compilado, que ya es público en el repositorio. Si alguna vez se crea otra, se cambia en
 **github.com/orgs/TechnicalBridge/packages > `databridge-<servicio>` > *Package settings* > *Change visibility* >
-*Public***. Mientras sigan privadas, el despliegue desde GitHub funciona igual (entra con su token), pero el servidor no
-se pone al día solo al prender.
+*Public***; antes, un dueño de la organización tiene que permitir paquetes públicos en *Settings > Packages*. Si una
+imagen queda privada, el despliegue desde GitHub funciona igual (entra con su token), pero el servidor no se pone al
+día solo al prender.
 
 Para hacerlo a mano en el servidor, como `databridge` (`sudo -iu databridge`):
 
@@ -245,6 +250,7 @@ Para hacerlo a mano en el servidor, como `databridge` (`sudo -iu databridge`):
 bash /opt/databridge/deploy/actualizar.sh            # la última versión de main con imágenes
 bash /opt/databridge/deploy/actualizar.sh <commit>   # una versión en particular
 bash /opt/databridge/deploy/actualizar.sh --volver   # la versión que corría antes del último despliegue
+sudo systemctl start databridge-actualizar           # lo mismo que al arrancar, con el script de main
 journalctl -u databridge-actualizar                  # qué hizo al arrancar
 ```
 
@@ -296,8 +302,9 @@ máquina y solo cobra el disco y la IP. Apagarla desde adentro (`sudo shutdown`)
   al prenderla espera a que el sitio responda.
 - **Lo mismo a mano:** `az vm start -g rg-databridge -n vm-databridge` y
   `az vm deallocate -g rg-databridge -n vm-databridge`, o *Iniciar* y *Detener* en el portal de Azure.
-- **Al prenderla**, Docker levanta solo los contenedores (`restart: unless-stopped`) y el servicio
-  `databridge-actualizar` la pone al día con `main` (paso 6). En 2 a 3 minutos el sitio responde.
+- **Al prenderla**, sea quien sea, Docker levanta solo los contenedores (`restart: unless-stopped`) y el servicio
+  `databridge-actualizar` la pone al día con `main` (paso 6). En 2 a 3 minutos el sitio responde; si hubo merges
+  mientras estaba apagada, unos minutos más, porque respalda las bases y baja las imágenes nuevas.
 - **Mientras está apagada**, los merges a `main` igual publican sus imágenes y el despliegue queda omitido.
 
 ## 9. Al terminar: apagarlo
