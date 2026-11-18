@@ -27,7 +27,7 @@
 - [6. Metodología de trabajo del equipo](#6-metodología-de-trabajo-del-equipo)
   - [Marco de trabajo: Scrumban](#marco-de-trabajo-scrumban)
   - [Prácticas DevOps y aseguramiento de calidad](#prácticas-devops-y-aseguramiento-de-calidad)
-  - [Pruebas automatizadas (1.522 pruebas Java)](#pruebas-automatizadas-1522-pruebas-java)
+  - [Pruebas automatizadas (1.512 pruebas Java)](#pruebas-automatizadas-1512-pruebas-java)
 - [7. Arquitectura de la solución](#7-arquitectura-de-la-solución)
   - [Descripción de la arquitectura](#descripción-de-la-arquitectura)
   - [Diagrama general de componentes y comunicación](#diagrama-general-de-componentes-y-comunicación)
@@ -114,6 +114,8 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 | Servicio / Proveedor | Propósito | Alternativa / Modo local |
 | :--- | :--- | :--- |
 | **Docker & Docker Compose** | Orquestación local con perfiles `app` y `carga`, y archivo `docker-compose.prod.yml` para producción. | Despliegue en contenedores locales aislados. |
+| **Microsoft Azure (Azure for Students)** | Máquina virtual Ubuntu 24.04 (`Standard_D2s_v4`, Brazil South) donde corre la demo con `docker-compose.prod.yml` y Caddy (HTTPS de Let's Encrypt); se prende y se apaga con `deploy/azure/servidor.ps1`. [Guía del servidor](docs/despliegue/README.md). | Docker Compose en el equipo local. |
+| **GitHub Actions · GHCR** | Integración continua de cada servicio y despliegue continuo: cada merge a `main` compila las seis imágenes, las publica en GHCR y actualiza el servidor, con prueba de humo y vuelta atrás. | `deploy/actualizar.sh` a mano en el servidor. |
 | **Transbank (Webpay Plus REST v1.2)** | Pagos con tarjeta de débito, crédito y prepago. | Modo simulación local (`TRANSBANK_ENVIRONMENT=SIMULADA`). |
 | **Khipu (API v3)** | Cobro directo vía transferencia electrónica bancaria. | Simulación automática sin credenciales configuradas. |
 | **Mercado Pago (Checkout Pro)** | Cobros con billetera digital y tarjetas. | Simulación automática sin token configurado. |
@@ -219,9 +221,9 @@ El equipo adopta **Scrumban**, combinando la estructura de gobierno y roles de *
 | **Infraestructura como Código (IaC)** | Docker Compose orquestando 11 contenedores con perfiles `app` y `carga`, más `docker-compose.prod.yml`. | Despliegue determinista y replicable idéntico en local y producción. |
 | **Evolución de Base de Datos** | Flyway ejecutando migraciones SQL ordenadas y versionadas. | Eliminación de desfases entre esquemas de base de datos y validación al inicio (`ddl-auto: validate`). |
 
-### Pruebas automatizadas (1.522 pruebas Java)
+### Pruebas automatizadas (1.512 pruebas Java)
 
-El proyecto cuenta con **1.522 pruebas automatizadas en Java**, ejecutadas con `clean` para #443 y contadas mediante los reportes XML de Maven Surefire, que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
+El proyecto cuenta con **1.512 pruebas automatizadas en Java**, medidas con JDK 25 mediante los reportes XML de Maven Surefire sobre `main` (commit `83ff151`), que se ejecutan sin fallos en los flujos de CI de GitHub Actions:
 
 ```powershell
 # Ejecutar las pruebas de un servicio específico:
@@ -233,12 +235,12 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 
 | Módulo / Servicio | Cantidad de pruebas | Tipos de pruebas cubiertas | Herramientas / Frameworks |
 | :--- | :---: | :--- | :--- |
-| **ms-debt** | **550** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
-| **ms-auth** | **378** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
-| **ms-payments** | **315** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-debt** | **547** | Reglas de negocio CAE, contratos, mandatos, campañas, outbox y reportes | JUnit 5, Mockito, AssertJ, MockMvc |
+| **ms-auth** | **374** | Autenticación passwordless, firma/validación ES256, JWKS, rate limiting y auditoría | JUnit 5, Mockito, spring-security-oauth2-jose, MockMvc |
+| **ms-payments** | **312** | Pasarelas (Webpay, Khipu, Mercado Pago), conciliación, cálculo UF y eventos RabbitMQ | JUnit 5, Mockito, AssertJ, MockMvc |
 | **ms-ai** | **225** | Cliente LLM, motor local de fallback (`MotorLocal`), aislamiento de sesión y contexto | JUnit 5, Mockito, MockMvc |
 | **gateway** | **54** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
-| **Total suite Java** | **1.522 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
+| **Total suite Java** | **1.512 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
 
 > **Nota sobre el portal:** El frontend no posee suite de pruebas unitarias automatizadas (`.test.jsx`); su verificación se realiza en CI mediante compilación estricta (`npm ci` y `npm run build`), control de tipos y revisión manual en navegador. Para detalles adicionales sobre ejecución y cobertura de pruebas, consultar [docs/pruebas/README.md](docs/pruebas/README.md).
 

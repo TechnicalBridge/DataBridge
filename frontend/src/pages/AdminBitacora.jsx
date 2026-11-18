@@ -141,6 +141,12 @@ export default function AdminBitacora() {
           No respondió {datos.sinServicio.map((s) => SERVICIOS[s]).join(", ")}. Se muestra lo que entregaron los demás servicios.
         </div>
       ) : null}
+      {datos?.limitados?.length ? (
+        <div className="aviso bloque aparece" role="status" style={{ "--i": 2 }}>
+          Se muestran los 500 registros más recientes de {datos.limitados.map((s) => SERVICIOS[s]).join(", ")}.
+          Aplica filtros para consultar los anteriores.
+        </div>
+      ) : null}
       {error ? <div className="error bloque" role="alert">{error}</div> : null}
 
       <section className="card aparece" style={{ "--i": 3 }} aria-labelledby="lista-bitacora">
@@ -156,7 +162,7 @@ export default function AdminBitacora() {
           <div className="empty">{hayFiltros ? "No hay acciones con estos filtros." : "Todavía no hay acciones administrativas."}</div>
         ) : (
           <>
-            <div className="tabla-scroll">
+            <div className="tabla-scroll bitacora-escritorio">
               <table className="table tabla-bitacora" style={{ opacity: cargando ? 0.65 : 1 }} aria-busy={cargando}>
                 <thead><tr><th>Cuándo</th><th>Quién</th><th>Qué hizo</th><th>Sobre qué</th></tr></thead>
                 <tbody>
@@ -173,6 +179,19 @@ export default function AdminBitacora() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="bitacora-movil" style={{ opacity: cargando ? 0.65 : 1 }} aria-busy={cargando}>
+              {paginada.filas.map((fila) => (
+                <article className="bitacora-tarjeta" key={`${fila.servicio}-${fila.id}`}>
+                  <div className="bitacora-cab">
+                    <b>{fechaHora(fila.cuando)}</b>
+                    <span className="sub">{SERVICIOS[fila.servicio] || fila.servicio}</span>
+                  </div>
+                  <span className="sub correo-bitacora">{fila.quien}</span>
+                  <div><span className="badge badge-muted">{ACCIONES[fila.accion] || fila.accion}</span></div>
+                  <Sobre fila={fila} />
+                </article>
+              ))}
             </div>
             <Paginas total={lista.length} porPagina={POR_PAGINA} pagina={paginada.enPagina}
                      alCambiar={setPagina} etiqueta="Páginas de la bitácora" />

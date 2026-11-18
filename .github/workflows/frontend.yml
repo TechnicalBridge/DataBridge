@@ -68,14 +68,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
-      # Vite es una herramienta de desarrollo y no entra en el bundle desplegado.
-      # Se bloquean vulnerabilidades altas en producción y críticas en todo el árbol.
-      # GHSA-fc5q-39xc-vjpf afecta hoy a todas las versiones publicadas de picomatch:
-      # https://github.com/advisories/GHSA-fc5q-39xc-vjpf
       - name: Dependencias vulnerables
-        run: |
-          npm audit --omit=dev --audit-level=high
-          npm audit --include=dev --audit-level=critical
+        run: npm audit --audit-level=high
 
   #  El check que exige main: pasa si las pruebas pasaron o si no tocaban.
   resultado:
