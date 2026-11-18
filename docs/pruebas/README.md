@@ -104,7 +104,13 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De las reglas del panel** | Cada regla dice cuánto vale y de qué variable sale, o que la fija la ley; cómo entran los deudores; el horario apagado para probar, a gritos; y los feriados, los mismos que usan las campañas |
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](../eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
-| **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
+| **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que bloquea vulnerabilidades altas de producción y críticas en todo el árbol; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
+
+Las dependencias de desarrollo se mantienen bajo auditoría, pero una vulnerabilidad alta sin
+versión corregida no bloquea el despliegue si no forma parte del bundle. Es el caso temporal de
+[`picomatch` GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf),
+dependencia transitiva de Vite: el advisory no publica todavía una versión corregida. Una
+vulnerabilidad crítica de desarrollo sí bloquea el workflow.
 | **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](../rendimiento/README.md)) |
 
 </details>
