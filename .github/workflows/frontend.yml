@@ -2,8 +2,9 @@
 #  frontend — el portal del deudor y de la empresa (React)
 # =============================================================================
 #  Prueba solo si cambio su carpeta. Compila el portal y revisa sus
-#  dependencias: rompe ante algo de severidad alta o critica. Lo moderado lo
-#  revisa Dependabot con un pull request, sin bloquear a todo el equipo.
+#  dependencias: lo que se publica no puede llevar nada alto ni critico, y las
+#  de desarrollo nada critico. Lo moderado lo revisa Dependabot con un pull
+#  request, sin bloquear a todo el equipo.
 # =============================================================================
 name: frontend
 
@@ -68,8 +69,15 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+      #  Lo que se sirve al usuario no puede llevar nada alto: se audita sin las
+      #  dependencias de desarrollo. Entre ellas, Vite arrastra picomatch, que
+      #  interpreta globs al compilar y no viaja al navegador; su version mas
+      #  reciente sigue afectada y aun no hay parche (GHSA-fc5q-39xc-vjpf), asi
+      #  que esa mitad se vigila en critico y Dependabot propone el resto.
       - name: Dependencias vulnerables
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=critical
 
   #  El check que exige main: pasa si las pruebas pasaron o si no tocaban.
   resultado:
