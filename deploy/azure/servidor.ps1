@@ -29,9 +29,19 @@ if ($LASTEXITCODE -ne 0) {
     if ($LASTEXITCODE -ne 0) { Write-Host 'No se pudo entrar a Azure.' -ForegroundColor Red; Esperar-Tecla; exit 1 }
 }
 
-$nombre = & $az vm show -d -g $Grupo -n $Maquina --query fqdns -o tsv --only-show-errors
+#  Quien entra con acceso del equipo suele tener por omision su propia
+#  suscripcion de estudiante: se busca la que tiene el grupo.
+$sub = & $az account list --query "[].id" -o tsv --only-show-errors |
+    Where-Object { (& $az group exists -n $Grupo --subscription $_ --only-show-errors) -eq 'true' } |
+    Select-Object -First 1
+if (-not $sub) {
+    Write-Host "Ninguna de tus suscripciones tiene el grupo $Grupo. Pide acceso a quien es dueno de la maquina." -ForegroundColor Red
+    Esperar-Tecla; exit 1
+}
+
+$nombre = & $az vm show -d -g $Grupo -n $Maquina --subscription $sub --query fqdns -o tsv --only-show-errors
 $sitio = if ($nombre) { "https://$nombre" } else { '' }
-$estado = & $az vm get-instance-view -g $Grupo -n $Maquina --query "instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus | [0]" -o tsv --only-show-errors
+$estado = & $az vm get-instance-view -g $Grupo -n $Maquina --subscription $sub --query "instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus | [0]" -o tsv --only-show-errors
 Write-Host ''
 Write-Host '  DataBridge en Azure' -ForegroundColor Cyan
 if ($sitio) { Write-Host "  $sitio" }
@@ -42,7 +52,7 @@ if ($estado -eq 'VM running') {
     $r = Read-Host 'El servidor esta PRENDIDO. Apagarlo para que no gaste? (s/n)'
     if ($r -notmatch '^[sS]') { Write-Host 'No se hizo nada.'; Esperar-Tecla; exit 0 }
     Write-Host 'Apagando (desasignando)... toma 1 a 2 minutos.'
-    & $az vm deallocate -g $Grupo -n $Maquina --only-show-errors -o none
+    & $az vm deallocate -g $Grupo -n $Maquina --subscription $sub --only-show-errors -o none
     if ($LASTEXITCODE -eq 0) { Write-Host 'Listo: servidor APAGADO.' -ForegroundColor Green }
     else { Write-Host 'Azure respondio con un error al apagar.' -ForegroundColor Red }
     Esperar-Tecla; exit 0
@@ -53,7 +63,7 @@ if ($estado -match 'deallocat|stopped') {
     if ($r -notmatch '^[sS]') { Write-Host 'No se hizo nada.'; Esperar-Tecla; exit 0 }
     Write-Host 'Prendiendo... toma 1 a 2 minutos; DataBridge tarda otros 2 a 3 en levantar,'
     Write-Host 'y si hubo cambios en main mientras estaba apagado, se actualiza solo.'
-    & $az vm start -g $Grupo -n $Maquina --only-show-errors -o none
+    & $az vm start -g $Grupo -n $Maquina --subscription $sub --only-show-errors -o none
     if ($LASTEXITCODE -ne 0) { Write-Host 'Azure respondio con un error al prender.' -ForegroundColor Red; Esperar-Tecla; exit 1 }
     $ok = $false
     if ($sitio) {

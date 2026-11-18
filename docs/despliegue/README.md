@@ -88,9 +88,13 @@ DataBridge usa unos 2,5 GB de memoria con todo corriendo; la máquina tiene 8 GB
    fija). Si se cambia la etiqueta DNS de la IP, hay que cambiar también `DOMINIO`, `PUBLIC_URL`, `CORS_ORIGINS` y
    `KHIPU_URL_AVISOS` en el `.env` del servidor, y `DESPLIEGUE_HOST`, `DESPLIEGUE_DOMINIO` y
    `DESPLIEGUE_KNOWN_HOSTS` en GitHub (paso 6).
-7. **El acceso del equipo**, en la máquina > *Control de acceso (IAM)* > *Agregar asignación de roles*:
-   *Colaborador de la máquina virtual* (prender, apagar y cambiarla), o un rol a medida con solo `read`, `start`,
-   `deallocate` y `restart`. Todo lo que se prenda se descuenta del crédito de la cuenta dueña.
+7. **El acceso del equipo:** el rol *Colaborador* (*Contributor*) en el grupo `rg-databridge`, con el correo de Duoc
+   de cada uno. Así gestionan la máquina, la red, el disco y la IP, pero no dan permisos a otros ni tocan el resto de
+   la suscripción. Desde aquí:
+   `az role assignment create --assignee <correo> --role Contributor --scope /subscriptions/<id>/resourceGroups/rg-databridge`,
+   o en el portal, en el grupo > *Control de acceso (IAM)* > *Agregar asignación de roles*. Todo lo que se prenda o se
+   agrande se descuenta del crédito de la cuenta dueña. El interruptor (paso 8) encuentra solo la suscripción que
+   tiene el grupo, aunque la cuenta tenga la suya propia por omisión.
 
 ## 2. Entrar al servidor
 
