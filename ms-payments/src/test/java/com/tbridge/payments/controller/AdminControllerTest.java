@@ -2,10 +2,13 @@ package com.tbridge.payments.controller;
 
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.OperacionResponse;
+import com.tbridge.payments.dto.response.PagoDeDeudorResponse;
 import com.tbridge.payments.dto.response.ReglasResponse;
 import com.tbridge.payments.dto.response.UfResponse;
+import com.tbridge.payments.model.Payment;
 import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.service.OperacionService;
+import com.tbridge.payments.service.PagosDelDeudorService;
 import com.tbridge.payments.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,10 +20,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -42,6 +47,7 @@ class AdminControllerTest {
     @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private OperacionService operacion;
+    @MockitoBean private PagosDelDeudorService pagosDelDeudor;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -180,5 +186,24 @@ class AdminControllerTest {
                     .andExpect(status().isForbidden());
         }
         verifyNoInteractions(operacion);
+    }
+
+    @Test
+    void los_pagos_de_un_deudor_los_ve_solo_el_admin() throws Exception {
+        when(pagosDelDeudor.pagos("16482337-7")).thenReturn(List.of(new PagoDeDeudorResponse(2494L, 15L,
+                "76418902-7", Payment.Gateway.webpay, Payment.Status.paid, new BigDecimal("125000"),
+                Payment.Currency.CLP, 125000L, 1, Instant.parse("2026-11-13T15:00:00Z"),
+                Instant.parse("2026-11-13T15:02:00Z"))));
+
+        mvc.perform(get("/api/admin/payments/deudores/16482337-7/pagos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].pasarela").value("webpay"))
+                .andExpect(jsonPath("$[0].cuotas").value(1));
+        mvc.perform(get("/api/admin/payments/deudores/16482337-7/pagos").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/payments/deudores/16482337-7/pagos").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/payments/deudores/16482337-7/pagos")).andExpect(status().isUnauthorized());
+        verify(pagosDelDeudor, times(1)).pagos(any());
     }
 }

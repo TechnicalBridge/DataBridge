@@ -1006,6 +1006,7 @@ classDiagram
             aviso_reintentado
             empresa_suspendida
             empresa_reactivada
+            deudor_consultado
         }
     }
     Organization ..> Organization_Kind

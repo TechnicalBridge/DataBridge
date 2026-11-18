@@ -5,13 +5,16 @@ import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
+import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.ComisionService;
+import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
 import com.tbridge.debt.service.ReglasService;
@@ -23,10 +26,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.IanaLinkRelations;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,7 +53,8 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
  * <p>Todo lo que cuelga de {@code /api/admin} es solo para el admin de
  * DataBridge: lo exige {@code SecurityConfig}, no cada metodo, para que un
  * endpoint nuevo no pueda quedar abierto por olvido. El panel muestra totales
- * por empresa, nunca los datos de un deudor.
+ * por empresa; los datos de un deudor, solo en su ficha, que se abre a
+ * proposito y queda en la bitacora del panel (#434).
  */
 @RestController
 @RequestMapping("/api/admin/debt")
@@ -64,9 +70,11 @@ public class AdminController {
     private final ReglasService reglas;
     private final ComisionService comisiones;
     private final AvisosService avisos;
+    private final DeudoresAdminService deudores;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos) {
+                           AvisosService avisos, DeudoresAdminService deudores) {
+        this.deudores = deudores;
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
@@ -221,6 +229,40 @@ public class AdminController {
     public CollectionModel<AccionResponse> historial(@PathVariable String rut) {
         return CollectionModel.of(empresas.historial(rut),
                 linkTo(AdminController.class).slash("empresas").slash(rut).slash("historial").withSelfRel());
+    }
+
+    @GetMapping("/deudores")
+    @Operation(summary = "Buscar a un deudor en todas las empresas",
+            description = "Por el RUT (con o sin puntos y guion), un pedazo del nombre o del correo, o la referencia "
+                    + "de una de sus deudas, sin importar tildes ni mayusculas. Al menos 3 letras o numeros. Va en "
+                    + "`_embedded.deudores`, por nombre y con paginas (`pagina`, `porPagina`, hasta 50). Buscar no "
+                    + "queda en la bitacora; abrir una ficha si.")
+    @ApiResponse(responseCode = "200", description = "Los que calzan")
+    @ApiResponse(responseCode = "400", description = "Menos de 3 letras o numeros, o una pagina negativa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PagedModel<DeudorEncontradoResponse> buscarDeudores(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int porPagina) {
+        Page<DeudorEncontradoResponse> encontrados = deudores.buscar(q, pagina, porPagina);
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
+                encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
+    }
+
+    @GetMapping("/deudores/{rut}")
+    @Operation(summary = "La ficha de un deudor",
+            description = "Sus datos, sus deudas en todas las empresas (con saldo, campana y quien la cobra), si su "
+                    + "correo llega y los ultimos correos que se le enviaron. Sus pagos los da ms-payments y sus "
+                    + "ingresos ms-auth. Abrirla queda en la bitacora del panel como `deudor_consultado`.")
+    @ApiResponse(responseCode = "200", description = "La ficha")
+    @ApiResponse(responseCode = "400", description = "El RUT no es valido",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No hay ningun deudor con ese RUT",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public FichaDeudorResponse fichaDeDeudor(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable String rut) {
+        return deudores.ficha(rut, admin.email());
     }
 
     private static EntityModel<EmpresaResponse> conEnlaces(EmpresaResponse empresa) {

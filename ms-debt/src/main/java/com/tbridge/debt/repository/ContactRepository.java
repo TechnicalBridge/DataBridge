@@ -38,4 +38,8 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
     /** Los de una deuda, para su historia, con la campana y la cuota de cada uno. */
     @EntityGraph(attributePaths = {"campaign", "installment"})
     List<Contact> findByDebtOrderByOccurredAtAsc(Debt debt);
+
+    /** Los ultimos 50 correos a un deudor, en todas sus deudas: la ficha del panel (#434). */
+    @EntityGraph(attributePaths = {"debt", "debt.creditor", "campaign"})
+    List<Contact> findTop50ByDebtDebtorOrderByOccurredAtDesc(Debtor deudor);
 }
