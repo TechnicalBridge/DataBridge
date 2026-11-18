@@ -51,14 +51,14 @@ DataBridge usa unos 2,5 GB de memoria con todo corriendo; la máquina tiene 8 GB
 ## 1. Crear la máquina en Azure
 
 1. **Activar el crédito:** en [portal.azure.com](https://portal.azure.com), con la cuenta `@duocuc.cl`, **Azure for
-   Students → Inicio**. Queda una suscripción «Azure for Students».
+   Students > Inicio**. Queda una suscripción *Azure for Students*.
 2. **Azure CLI**, en PowerShell: `winget install -e --id Microsoft.AzureCLI`, y en una PowerShell nueva, `az login`.
 3. **La región: Brasil Sur.** Hay dos políticas, y la máquina tiene que cumplir las dos:
 
    | Política | Regiones que permite |
    | --- | --- |
    | Azure for Students | Chile Central, Brasil Sur, Canadá Central, Nueva Zelanda Norte, Sudáfrica Norte |
-   | Duoc («Ubicaciones permitidas») | Brasil Sur y Sudeste, varias de EE. UU. |
+   | Duoc (*Ubicaciones permitidas*) | Brasil Sur y Sudeste, varias de EE. UU. |
 
 4. **El tamaño: D2s_v4.** En Brasil Sur, la suscripción de estudiante no tiene cuota para las familias B ni D v7
    (`az vm create` responde `QuotaExceeded`); la familia D v4 sí. Para ver la cuota: `az vm list-usage -l brazilsouth`.
@@ -88,8 +88,8 @@ DataBridge usa unos 2,5 GB de memoria con todo corriendo; la máquina tiene 8 GB
    fija). Si se cambia la etiqueta DNS de la IP, hay que cambiar también `DOMINIO`, `PUBLIC_URL`, `CORS_ORIGINS` y
    `KHIPU_URL_AVISOS` en el `.env` del servidor, y `DESPLIEGUE_HOST`, `DESPLIEGUE_DOMINIO` y
    `DESPLIEGUE_KNOWN_HOSTS` en GitHub (paso 6).
-7. **El acceso del equipo**, en la máquina → *Control de acceso (IAM)* → *Agregar asignación de roles*:
-   «Colaborador de la máquina virtual» (prender, apagar y cambiarla), o un rol a medida con solo `read`, `start`,
+7. **El acceso del equipo**, en la máquina > *Control de acceso (IAM)* > *Agregar asignación de roles*:
+   *Colaborador de la máquina virtual* (prender, apagar y cambiarla), o un rol a medida con solo `read`, `start`,
    `deallocate` y `restart`. Todo lo que se prenda se descuenta del crédito de la cuenta dueña.
 
 ## 2. Entrar al servidor
@@ -106,7 +106,7 @@ llave con
 `preparar-servidor.sh` apaga después la entrada con clave.
 
 Para que otra persona entre, se agrega su llave pública a `~/.ssh/authorized_keys` de `azureuser`, o en el portal
-con *Restablecer contraseña* → *Agregar clave pública SSH*. **No se elige ahí la opción de contraseña:** Azure le pone
+con *Restablecer contraseña* > *Agregar clave pública SSH*. **No se elige ahí la opción de contraseña:** Azure le pone
 contraseña a `azureuser` y enciende la entrada con contraseña en el SSH, que está abierto a internet (pasó el 18 de
 noviembre, y a los minutos ya había bots probando). `00-databridge.conf` la deja apagada igual, pero si se usó, se
 bloquea con `sudo passwd -l azureuser` (`sudo` no la pide).
@@ -197,21 +197,21 @@ el DNS apunta al servidor, y lo renueva solo.
 
 ## 6. Encender el despliegue automático
 
-En GitHub, **Settings → Environments → New environment → `produccion`**, y ahí:
+En GitHub, **Settings > Environments > New environment > `produccion`**, y ahí:
 
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
 | Secreto | `DESPLIEGUE_LLAVE` | La llave **privada** del paso 3 (`databridge_despliegue`, el archivo sin `.pub`) |
 | Secreto | `DESPLIEGUE_KNOWN_HOSTS` | La huella del servidor: `ssh-keyscan databridge.brazilsouth.cloudapp.azure.com` |
 
-Y en **Settings → Secrets and variables → Actions → Variables**, del repositorio:
+Y en **Settings > Secrets and variables > Actions > Variables**, del repositorio:
 
 | Variable | Valor |
 | --- | --- |
 | `DESPLIEGUE_HOST` | `databridge.brazilsouth.cloudapp.azure.com`. **Esta es la que enciende el despliegue** |
 | `DESPLIEGUE_DOMINIO` | `databridge.brazilsouth.cloudapp.azure.com` |
 
-El primer despliegue se lanza en **Actions → Desplegar → Run workflow**, con *Solo compilar* sin marcar. Desde ahí,
+El primer despliegue se lanza en **Actions > Desplegar > Run workflow**, con *Solo compilar* sin marcar. Desde ahí,
 cada merge a `main` se despliega solo.
 
 ### Qué pasa en cada merge a `main`
@@ -231,7 +231,7 @@ misma vuelta atrás. Un cambio solo de documentación no compila imágenes, así
 
 Para eso las seis imágenes de GHCR tienen que ser **públicas**: el servidor las baja sin token. No traen secretos, solo
 el código compilado, que ya es público en el repositorio. Se cambia una vez por imagen, en
-**github.com/orgs/TechnicalBridge/packages → `databridge-<servicio>` → *Package settings* → *Change visibility* →
+**github.com/orgs/TechnicalBridge/packages > `databridge-<servicio>` > *Package settings* > *Change visibility* >
 *Public***. Mientras sigan privadas, el despliegue desde GitHub funciona igual (entra con su token), pero el servidor no
 se pone al día solo al prender.
 
