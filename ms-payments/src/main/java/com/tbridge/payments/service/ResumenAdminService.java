@@ -4,6 +4,7 @@ import com.tbridge.payments.dto.response.ResumenAdminResponse;
 import com.tbridge.payments.model.Payment;
 import com.tbridge.payments.repository.ConteoPorPasarela;
 import com.tbridge.payments.repository.PaymentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class ResumenAdminService {
     private final PaymentRepository pagos;
     private final Clock reloj;
 
+    @Autowired
     public ResumenAdminService(PaymentRepository pagos) {
         this(pagos, Clock.systemUTC());
     }

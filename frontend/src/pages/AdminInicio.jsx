@@ -3,12 +3,8 @@ import { Link } from "react-router-dom";
 import { SERVICIOS, estadoDe, resumenDeDeudas, resumenDePagos } from "../api/admin";
 import { useAuth } from "../store/authStore";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
-import { dinero } from "../utils/formato";
+import { dinero, ESTADO_DEUDA } from "../utils/formato";
 
-const ESTADOS_DEUDA = {
-  open: "Abiertas", repacted: "En convenio", paid: "Pagadas",
-  withdrawn: "Retiradas", disputed: "Disputadas",
-};
 const PASARELAS = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
 const numero = (n) => Number(n).toLocaleString("es-CL");
 
@@ -67,7 +63,7 @@ export default function AdminInicio() {
           <h2>Deudas por estado</h2>
           <Cifra dato={cifras.debt} render={(r) => (
             <div className="admin-cifra-lista">
-              {Object.entries(ESTADOS_DEUDA).map(([estado, etiqueta]) => (
+              {Object.entries(ESTADO_DEUDA).map(([estado, etiqueta]) => (
                 <Link key={estado} to="/admin/campanas" className="admin-cifra-enlace">
                   {etiqueta}: {numero(r.deudasPorEstado[estado] ?? 0)}
                 </Link>

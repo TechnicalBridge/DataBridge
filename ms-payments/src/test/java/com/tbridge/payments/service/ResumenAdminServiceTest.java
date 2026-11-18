@@ -4,6 +4,7 @@ import com.tbridge.payments.model.Payment;
 import com.tbridge.payments.repository.ConteoPorPasarela;
 import com.tbridge.payments.repository.PaymentRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -15,6 +16,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ResumenAdminServiceTest {
+    @Test
+    void arranca_como_servicio_spring_con_repositorio() {
+        new ApplicationContextRunner()
+                .withBean(PaymentRepository.class, () -> mock(PaymentRepository.class))
+                .withUserConfiguration(ResumenAdminService.class)
+                .run(context -> {
+                    org.junit.jupiter.api.Assertions.assertNull(context.getStartupFailure());
+                    org.junit.jupiter.api.Assertions.assertNotNull(context.getBean(ResumenAdminService.class));
+                });
+    }
+
     @Test
     void usa_dias_chilenos_y_muestra_ceros_para_pasarelas_sin_pagos() {
         var pagos = mock(PaymentRepository.class);
