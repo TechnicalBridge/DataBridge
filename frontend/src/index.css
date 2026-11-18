@@ -684,6 +684,14 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .filtros-accesos .field { min-width: 150px; flex: 1 1 150px; max-width: 220px; }
 .filtros-accesos > .btn { margin-bottom: 14px; }
 .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.reclamos-lista { display: grid; }
+.reclamo-admin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.reclamo-admin > div { min-width: 0; overflow-wrap: anywhere; }
+.reclamo-admin b { display: block; }
+.reclamo-texto { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .reclamo-admin { grid-template-columns: 1fr; }
+}
 /* Deudores del panel (#434): el buscador y la ficha. Dos columnas, para que en el telefono se vea todo sin deslizar. */
 .buscar-deudor { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end; }
 .buscar-deudor .field { flex: 1 1 260px; }

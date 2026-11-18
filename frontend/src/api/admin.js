@@ -21,6 +21,10 @@ export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 /** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
 export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
 
+/** Reclamos abiertos de toda la plataforma y los resueltos en un período chileno. */
+export const reclamosAdmin = (desde, hasta) =>
+  pedir("/admin/debt/reclamos", { params: { ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}) } });
+
 // ---- Las empresas (ms-debt) ----------------------------------------------------
 
 /** Todas las empresas, con los totales de su cartera. Ningun dato de un deudor. */

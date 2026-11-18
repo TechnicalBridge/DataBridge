@@ -10,6 +10,7 @@ import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
+import com.tbridge.debt.dto.response.ReclamosAdminResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
@@ -18,6 +19,7 @@ import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
 import com.tbridge.debt.service.ReglasService;
+import com.tbridge.debt.service.ReclamosAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -71,14 +73,26 @@ public class AdminController {
     private final ComisionService comisiones;
     private final AvisosService avisos;
     private final DeudoresAdminService deudores;
+    private final ReclamosAdminService reclamos;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos, DeudoresAdminService deudores) {
+                            AvisosService avisos, DeudoresAdminService deudores, ReclamosAdminService reclamos) {
         this.deudores = deudores;
+        this.reclamos = reclamos;
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
         this.avisos = avisos;
+    }
+
+    @GetMapping("/reclamos")
+    @Operation(summary = "Los reclamos de todas las empresas",
+            description = "Abiertos del más antiguo al más nuevo; resueltos en el período inclusive, en horario de Chile. "
+                    + "Sin período, resueltos desde el primero del mes hasta hoy. Solo administradores.")
+    public ReclamosAdminResponse reclamos(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        return reclamos.consultar(desde, hasta);
     }
 
     // ------------------------------------------------------------------

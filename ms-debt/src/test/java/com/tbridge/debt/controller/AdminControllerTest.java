@@ -9,6 +9,7 @@ import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
+import com.tbridge.debt.dto.response.ReclamosAdminResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.security.JwtTestIssuer;
@@ -16,6 +17,7 @@ import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReglasService;
+import com.tbridge.debt.service.ReclamosAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -66,6 +68,24 @@ class AdminControllerTest {
     @MockitoBean private ComisionService comisiones;
     @MockitoBean private AvisosService avisos;
     @MockitoBean private DeudoresAdminService deudoresAdmin;
+    @MockitoBean private ReclamosAdminService reclamos;
+
+    @Test
+    void reclamos_solo_admin_y_periodo_inclusivo() throws Exception {
+        when(reclamos.consultar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 18)))
+                .thenReturn(new ReclamosAdminResponse(List.of(
+                        new ReclamosAdminResponse.Reclamo(7L, "c-1", "APOFYX", "ya_pagada", "<b>texto</b>",
+                                Instant.parse("2026-11-15T12:00:00Z"), 3, null, null, null)), List.of()));
+        String ruta = "/api/admin/debt/reclamos?desde=2026-11-01&hasta=2026-11-18";
+        mvc.perform(get(ruta).header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.abiertos[0].detalle").value("<b>texto</b>"))
+                .andExpect(jsonPath("$.abiertos[0].diasSinRespuesta").value(3));
+        mvc.perform(get(ruta).header("Authorization", empresa())).andExpect(status().isForbidden());
+        mvc.perform(get(ruta).header("Authorization", deudor())).andExpect(status().isForbidden());
+        mvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+        verify(reclamos).consultar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 18));
+    }
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);

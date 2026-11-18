@@ -5,6 +5,7 @@ import {
 } from "../api/admin";
 import { dinero, fecha, fechaHora, hoyEnChile } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
+import { Link } from "react-router-dom";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
 const DESPUES_DEL_DESPACHADOR_MS = 17000;
@@ -131,6 +132,7 @@ export default function AdminOperacion() {
             Sin datos de ningún deudor.
           </p>
         </div>
+        <Link to="/admin/reclamos" className="btn btn-ghost btn-sm">Ver reclamos</Link>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setVuelta((v) => v + 1)}>
           Actualizar
         </button>
