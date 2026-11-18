@@ -92,7 +92,7 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `JWT_KEY_DIRECTORY` | obligatoria | Ruta absoluta a PKCS#8/SPKI y publicas de rotacion, montada solo en auth |
+| `JWT_KEY_DIRECTORY` | `./.secrets/jwt` | La carpeta con la pareja PKCS#8/SPKI y las públicas de rotación, montada solo en auth. En Docker sirve la ruta relativa; fuera de Docker hace falta la absoluta ([`docs/seguridad/jwt.md`](../seguridad/jwt.md)) |
 | `AUTH_JWKS_URI` | local con Maven, interna en Compose | JWKS publico de auth para verificar ES256 |
 | `INTERNAL_KEY` | el `.env` | Autentica las llamadas entre servicios |
 | `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Se cambia sin perderlos, como dice [Cambiar `CIFRADO_LLAVE`](#cambiar-cifrado_llave) |
