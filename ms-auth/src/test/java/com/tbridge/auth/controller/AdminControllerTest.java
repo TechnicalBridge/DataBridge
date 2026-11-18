@@ -3,6 +3,7 @@ package com.tbridge.auth.controller;
 import com.tbridge.auth.config.SecurityConfig;
 import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
+import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -356,5 +358,21 @@ class AdminControllerTest {
         mvc.perform(get("/api/admin/auth/admins/historial").header("Authorization", admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$._embedded").doesNotExist());
+    }
+
+    @Test
+    void los_ingresos_de_un_deudor_los_ve_solo_el_admin() throws Exception {
+        when(accesos.deUnDeudor("16482337-7")).thenReturn(List.of(new IngresoDeDeudorResponse(
+                AccessLog.Method.code, AccessLog.Outcome.sent, Instant.parse("2026-11-13T15:00:00Z"))));
+
+        mvc.perform(get("/api/admin/auth/deudores/16482337-7/accesos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].resultado").value("sent"));
+        mvc.perform(get("/api/admin/auth/deudores/16482337-7/accesos").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/auth/deudores/16482337-7/accesos").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/auth/deudores/16482337-7/accesos")).andExpect(status().isUnauthorized());
+        verify(accesos, times(1)).deUnDeudor(any());
     }
 }

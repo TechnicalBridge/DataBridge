@@ -23,6 +23,8 @@ import AdminEmpresa from "./pages/AdminEmpresa";
 import AdminEquipo from "./pages/AdminEquipo";
 import AdminReglas from "./pages/AdminReglas";
 import AdminAccesos from "./pages/AdminAccesos";
+import AdminDeudores from "./pages/AdminDeudores";
+import AdminDeudor from "./pages/AdminDeudor";
 import AdminOperacion from "./pages/AdminOperacion";
 import AdminCampanas from "./pages/AdminCampanas";
 
@@ -127,6 +129,8 @@ export default function App() {
         <Route path="empresas" element={<AdminEmpresas />} />
         <Route path="campanas" element={<AdminCampanas />} />
         <Route path="empresas/:rut" element={<AdminEmpresa />} />
+        <Route path="deudores" element={<AdminDeudores />} />
+        <Route path="deudores/:rut" element={<AdminDeudor />} />
         <Route path="equipo" element={<AdminEquipo />} />
         <Route path="operacion" element={<AdminOperacion />} />
         <Route path="accesos" element={<AdminAccesos />} />

@@ -38,5 +38,13 @@ if ($env:OS -ne 'Windows_NT') {
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron restringir permisos de las claves.' }
 }
 Write-Host 'Pareja P-256 creada (PKCS#8 / SPKI). No se mostro material criptografico.'
-Write-Host ('Configura JWT_KEY_DIRECTORY=' + $destino.Replace('\', '/'))
+#  En Docker sirve la ruta relativa a la raiz del repositorio, y el .env queda
+#  igual en cualquier computador (#469); fuera de Docker hace falta la absoluta.
+$raiz = (Resolve-Path -LiteralPath (Split-Path $PSScriptRoot -Parent)).Path.TrimEnd('\', '/')
+if ($destino.StartsWith($raiz + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host ('En Docker: JWT_KEY_DIRECTORY=./' + $destino.Substring($raiz.Length + 1).Replace('\', '/'))
+    Write-Host ('Fuera de Docker (spring-boot:run): JWT_KEY_DIRECTORY=' + $destino.Replace('\', '/'))
+} else {
+    Write-Host ('Configura JWT_KEY_DIRECTORY=' + $destino.Replace('\', '/'))
+}
 Write-Host 'Docker Linux: concede lectura controlada al UID 10001 de auth; ver docs/seguridad/jwt.md.'

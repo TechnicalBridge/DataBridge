@@ -138,7 +138,7 @@ export default function AdminInicio() {
             clientes entran al portal de pago con su RUT y su código.
           </p>
           <p className="hint">
-            Desde aquí no se ven los datos de ningún deudor.
+            Los datos de un deudor se ven solo en su ficha, en Deudores, y abrirla queda en la bitácora.
           </p>
           <div className="acciones-fila">
             <Link className="btn btn-primary btn-sm" to="/admin/empresas">Ver las empresas</Link>

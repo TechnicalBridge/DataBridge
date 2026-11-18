@@ -4,12 +4,14 @@ import com.tbridge.payments.config.OpenApiConfig;
 import com.tbridge.payments.dto.request.UfManualRequest;
 import com.tbridge.payments.dto.response.EstadoResponse;
 import com.tbridge.payments.dto.response.OperacionResponse;
+import com.tbridge.payments.dto.response.PagoDeDeudorResponse;
 import com.tbridge.payments.dto.response.ReglasResponse;
 import com.tbridge.payments.dto.response.ResumenAdminResponse;
 import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.service.OperacionService;
+import com.tbridge.payments.service.PagosDelDeudorService;
 import com.tbridge.payments.service.ReglasService;
 import com.tbridge.payments.service.ResumenAdminService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Lo que el panel de administracion de DataBridge le pide a ms-payments.
  *
@@ -45,8 +49,11 @@ public class AdminController {
     private final ReglasService reglas;
     private final OperacionService operacion;
     private final ResumenAdminService resumen;
+    private final PagosDelDeudorService pagosDelDeudor;
 
-    public AdminController(ReglasService reglas, OperacionService operacion, ResumenAdminService resumen) {
+    public AdminController(ReglasService reglas, OperacionService operacion,
+                           ResumenAdminService resumen, PagosDelDeudorService pagosDelDeudor) {
+        this.pagosDelDeudor = pagosDelDeudor;
         this.reglas = reglas;
         this.operacion = operacion;
         this.resumen = resumen;
@@ -101,6 +108,18 @@ public class AdminController {
     public OperacionResponse.CobroLiberado liberarCobro(
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
         return operacion.liberarCobro(id, admin.email());
+    }
+
+    @GetMapping("/deudores/{rut}/pagos")
+    @Operation(summary = "Los pagos de un deudor, para su ficha",
+            description = "Los ultimos 100, el mas reciente primero, en todas las empresas: pasarela, estado, monto "
+                    + "y cuotas. Sin ids ni tokens de la pasarela. La ficha la abre ms-debt, que la anota en la "
+                    + "bitacora del panel (#434).")
+    @ApiResponse(responseCode = "200", description = "Sus pagos; vacio si no tiene")
+    @ApiResponse(responseCode = "400", description = "El RUT no es valido",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public List<PagoDeDeudorResponse> pagosDeDeudor(@PathVariable String rut) {
+        return pagosDelDeudor.pagos(rut);
     }
 
     @PostMapping("/uf")

@@ -61,6 +61,11 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
 
     List<Debt> findByDebtorOrderByUpdatedAtDesc(Debtor debtor);
 
+    /** Cuantas deudas tiene cada deudor con cada acreedor: la lista de la busqueda del panel (#434). */
+    @Query("select new com.tbridge.debt.repository.DeudasDelDeudor(d.debtor.id, d.creditor.tradeName, count(d)) "
+            + "from Debt d where d.debtor in :deudores group by d.debtor.id, d.creditor.tradeName")
+    List<DeudasDelDeudor> porDeudorYAcreedor(@Param("deudores") Collection<Debtor> deudores);
+
     List<Debt> findByCampaign(Campaign campaign);
 
     /**

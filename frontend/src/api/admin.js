@@ -102,6 +102,27 @@ export async function accesos({ desde, hasta, metodo, resultado, pagina = 0, por
 /** Los totales de hoy, en Chile: cuantos entraron, cuantos rechazos y cuantos pedidos salieron. */
 export const accesosDeHoy = () => pedir("/admin/auth/accesos/hoy");
 
+// ---- Los deudores (ms-debt, ms-payments y ms-auth, #434) -------------------------
+
+/**
+ * Buscar a un deudor en todas las empresas, por RUT, nombre, correo o la
+ * referencia de una deuda (al menos 3 letras o numeros). Una pagina: las filas
+ * y la pagina (number, totalPages, totalElements). Buscar no queda en la bitacora.
+ */
+export async function buscarDeudores(q, pagina = 0, porPagina = 20) {
+  const data = await pedir("/admin/debt/deudores", { params: { q, pagina, porPagina } });
+  return { filas: embebidos(data, "deudores"), pagina: data.page };
+}
+
+/** La ficha de un deudor: sus datos, sus deudas y sus correos. Abrirla queda en la bitacora del panel. */
+export const fichaDeDeudor = (rut) => pedir(`/admin/debt/deudores/${encodeURIComponent(rut)}`);
+
+/** Sus pagos, de ms-payments, aparte: si ese servicio no responde, la ficha se ve igual. */
+export const pagosDeDeudor = (rut) => pedir(`/admin/payments/deudores/${encodeURIComponent(rut)}/pagos`);
+
+/** Sus pedidos de codigo e intentos de entrar, de ms-auth. Nunca el codigo ni la IP. */
+export const accesosDeDeudor = (rut) => pedir(`/admin/auth/deudores/${encodeURIComponent(rut)}/accesos`);
+
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */

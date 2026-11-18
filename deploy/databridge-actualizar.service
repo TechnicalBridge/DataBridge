@@ -1,0 +1,26 @@
+#  Al prender la maquina, pone el servidor al dia con main (#470): si hubo
+#  merges mientras estaba apagada, baja esa version y la levanta. No importa
+#  quien la prendio ni como (el portal de Azure, deploy/azure/servidor.ps1).
+#  Lo instala deploy/preparar-servidor.sh.
+#
+#  Corre el actualizar.sh de main, no el de la version desplegada, igual que
+#  el workflow Desplegar (#482): asi sirve aunque esa version sea anterior al
+#  despliegue continuo, y siempre con el ultimo script. Va en otro archivo que
+#  el del workflow, y actualizar.sh no deja correr dos a la vez.
+[Unit]
+Description=DataBridge: ponerse al dia con main al arrancar
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=databridge
+Group=databridge
+Environment=HOME=/home/databridge
+WorkingDirectory=/opt/databridge
+ExecStart=/usr/bin/bash -c 'git fetch -q origin main && git show origin/main:deploy/actualizar.sh > /tmp/databridge-actualizar-al-arrancar.sh && exec /usr/bin/bash /tmp/databridge-actualizar-al-arrancar.sh'
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target
