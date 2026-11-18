@@ -9,7 +9,7 @@
 #  El primer argumento es el dominio; el segundo, la llave publica con que
 #  GitHub Actions entra a desplegar. Deja:
 #    - Docker y su plugin de compose, de los repositorios de Docker;
-#    - el firewall abierto solo en 22, 80 y 443, y fail2ban;
+#    - el firewall abierto solo en 22, 80 y 443, el SSH solo con llave y fail2ban;
 #    - las actualizaciones de seguridad automaticas, y 2 GB de swap;
 #    - un usuario `databridge`, sin clave y sin root, que es el que despliega;
 #    - el repositorio en /opt/databridge, un .env con claves nuevas al azar y
@@ -34,8 +34,18 @@ apt-get update -q
 apt-get install -y -q ca-certificates curl git ufw unattended-upgrades openssl fail2ban
 dpkg-reconfigure -f noninteractive unattended-upgrades
 #  El SSH queda abierto para que GitHub Actions despliegue (#468): solo con llave,
-#  y fail2ban corta a quien insista.
+#  y fail2ban corta a quien insista. El archivo va primero (00) porque en sshd
+#  gana la primera linea que se lee, y cloud-init o "Restablecer contrasena" del
+#  portal de Azure escriben PasswordAuthentication yes en otro.
 systemctl enable --now fail2ban
+cat > /etc/ssh/sshd_config.d/00-databridge.conf <<'SSHD'
+# DataBridge (#468): solo con llave. Ver deploy/preparar-servidor.sh.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+SSHD
+chmod 644 /etc/ssh/sshd_config.d/00-databridge.conf
+sshd -t && systemctl reload ssh
 
 echo "== Docker, desde sus repositorios"
 if ! command -v docker >/dev/null; then

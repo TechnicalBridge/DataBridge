@@ -81,7 +81,8 @@ DataBridge usa unos 2,5 GB de memoria con todo corriendo; la máquina tiene 8 GB
    ```
 
    El 22 queda abierto a internet porque GitHub Actions despliega por SSH desde direcciones que cambian. Solo entra
-   quien tenga una de las llaves: Ubuntu de Azure no acepta contraseñas, y `preparar-servidor.sh` suma fail2ban.
+   quien tenga una de las llaves: `preparar-servidor.sh` apaga la entrada con contraseña
+   (`/etc/ssh/sshd_config.d/00-databridge.conf`) y suma fail2ban.
 
 6. **El nombre** queda en `databridge.brazilsouth.cloudapp.azure.com`, y no cambia al apagar y prender (la IP es
    fija). Si se cambia la etiqueta DNS de la IP, hay que cambiar también `DOMINIO`, `PUBLIC_URL`, `CORS_ORIGINS` y
@@ -99,10 +100,16 @@ En Azure la llave de administración queda puesta al crear la máquina:
 ssh -i $env:USERPROFILE\.ssh\databridge_vps azureuser@databridge.brazilsouth.cloudapp.azure.com
 ```
 
-`azureuser` tiene `sudo`; `root` no entra con clave. En otro proveedor que entregue la clave de `root`, la primera vez
-se deja la llave con
-`type $env:USERPROFILE\.ssh\databridge_vps.pub | ssh root@<IP> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"`, y
-después se apaga la entrada con clave (`PasswordAuthentication no` en `/etc/ssh/sshd_config`).
+`azureuser` tiene `sudo`; `root` no entra. En otro proveedor que entregue la clave de `root`, la primera vez se deja la
+llave con
+`type $env:USERPROFILE\.ssh\databridge_vps.pub | ssh root@<IP> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"`;
+`preparar-servidor.sh` apaga después la entrada con clave.
+
+Para que otra persona entre, se agrega su llave pública a `~/.ssh/authorized_keys` de `azureuser`, o en el portal
+con *Restablecer contraseña* → *Agregar clave pública SSH*. **No se elige ahí la opción de contraseña:** Azure le pone
+contraseña a `azureuser` y enciende la entrada con contraseña en el SSH, que está abierto a internet (pasó el 18 de
+noviembre, y a los minutos ya había bots probando). `00-databridge.conf` la deja apagada igual, pero si se usó, se
+bloquea con `sudo passwd -l azureuser` (`sudo` no la pide).
 
 ## 3. La llave con que GitHub despliega
 
@@ -126,7 +133,7 @@ curl -fsSL https://raw.githubusercontent.com/TechnicalBridge/DataBridge/main/dep
 [`preparar-servidor.sh`](../../deploy/preparar-servidor.sh) deja:
 
 - Docker y su plugin de compose;
-- el firewall del servidor abierto solo en 22, 80 y 443, y fail2ban vigilando el SSH;
+- el firewall del servidor abierto solo en 22, 80 y 443, el SSH solo con llave y fail2ban vigilándolo;
 - las actualizaciones de seguridad automáticas y 2 GB de swap;
 - el usuario `databridge`, que despliega;
 - el repositorio en `/opt/databridge`;
