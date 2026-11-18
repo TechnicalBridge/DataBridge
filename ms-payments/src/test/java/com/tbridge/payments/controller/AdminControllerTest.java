@@ -7,6 +7,8 @@ import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.service.OperacionService;
 import com.tbridge.payments.service.ReglasService;
+import com.tbridge.payments.service.ResumenAdminService;
+import com.tbridge.payments.dto.response.ResumenAdminResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -19,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -42,6 +45,21 @@ class AdminControllerTest {
     @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private OperacionService operacion;
+    @MockitoBean private ResumenAdminService resumen;
+
+    @Test
+    void resumen_solo_admin() throws Exception {
+        when(resumen.resumen()).thenReturn(new ResumenAdminResponse(LocalDate.of(2026, 11, 17),
+                Map.of("webpay", 3L), Map.of("webpay", 17L), 2));
+        mvc.perform(get("/api/admin/payments/resumen").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pagosHoy.webpay").value(3))
+                .andExpect(jsonPath("$.abiertosMasDeUnaHora").value(2));
+        mvc.perform(get("/api/admin/payments/resumen").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/payments/resumen").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);

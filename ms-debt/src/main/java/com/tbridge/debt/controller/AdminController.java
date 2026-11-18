@@ -5,9 +5,11 @@ import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.CampanaAdminResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
+import com.tbridge.debt.dto.response.ResumenAdminResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
@@ -15,6 +17,7 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
 import com.tbridge.debt.service.ReglasService;
+import com.tbridge.debt.service.ResumenAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 
@@ -64,13 +68,29 @@ public class AdminController {
     private final ReglasService reglas;
     private final ComisionService comisiones;
     private final AvisosService avisos;
+    private final ResumenAdminService resumen;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos) {
+                           AvisosService avisos, ResumenAdminService resumen) {
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
         this.avisos = avisos;
+        this.resumen = resumen;
+    }
+
+    @GetMapping("/resumen")
+    @Operation(summary = "Cifras globales de empresas, deudas y comisiones del mes en Chile")
+    @ApiResponse(responseCode = "200", description = "Totales de la plataforma")
+    public ResumenAdminResponse resumen() {
+        return resumen.resumen();
+    }
+
+    @GetMapping("/campanas")
+    @Operation(summary = "Campañas de la plataforma, con solo el número de deudas por campaña")
+    @ApiResponse(responseCode = "200", description = "Campañas sin datos de deudores")
+    public List<CampanaAdminResponse> campanas() {
+        return resumen.campanas();
     }
 
     // ------------------------------------------------------------------

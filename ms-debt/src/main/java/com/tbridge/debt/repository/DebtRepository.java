@@ -16,6 +16,10 @@ import java.util.Optional;
 
 public interface DebtRepository extends JpaRepository<Debt, Long> {
 
+    @Query("select new com.tbridge.debt.repository.ConteoPorEstado(d.status, count(d)) "
+            + "from Debt d group by d.status")
+    List<ConteoPorEstado> contarPorEstado();
+
     /** Las deudas de un mandato que siguen en gestion: las que se cobran aunque el mandato termine (#234). */
     long countByMandateAndStatusIn(Mandate mandate, Collection<Debt.Status> estados);
 

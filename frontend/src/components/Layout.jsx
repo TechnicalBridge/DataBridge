@@ -34,6 +34,7 @@ const EMPRESA = [
 const ADMIN = [
   { to: "/admin", label: "Inicio", corto: "Inicio", Icono: IconoPanel, end: true },
   { to: "/admin/empresas", label: "Empresas", corto: "Empresas", Icono: IconoEmpresa },
+  { to: "/admin/campanas", label: "Campañas", corto: "Campañas", Icono: IconoMegafono },
   { to: "/admin/operacion", label: "Operación", corto: "Operación", Icono: IconoAlerta },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },
@@ -136,7 +137,7 @@ export default function Layout({ variant }) {
 
       {/* El asistente responde sobre las deudas de quien pregunta: es solo del deudor. */}
       {variant === "debtor" ? <Chatbot /> : null}
-      <nav className="mobile-bar">
+      <nav className="mobile-bar" aria-label="Navegación principal">
         {links.map(({ to, corto, end, Icono }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
             <Icono size={20} />

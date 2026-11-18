@@ -5,11 +5,13 @@ import com.tbridge.payments.dto.request.UfManualRequest;
 import com.tbridge.payments.dto.response.EstadoResponse;
 import com.tbridge.payments.dto.response.OperacionResponse;
 import com.tbridge.payments.dto.response.ReglasResponse;
+import com.tbridge.payments.dto.response.ResumenAdminResponse;
 import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.service.OperacionService;
 import com.tbridge.payments.service.ReglasService;
+import com.tbridge.payments.service.ResumenAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -42,10 +44,19 @@ public class AdminController {
 
     private final ReglasService reglas;
     private final OperacionService operacion;
+    private final ResumenAdminService resumen;
 
-    public AdminController(ReglasService reglas, OperacionService operacion) {
+    public AdminController(ReglasService reglas, OperacionService operacion, ResumenAdminService resumen) {
         this.reglas = reglas;
         this.operacion = operacion;
+        this.resumen = resumen;
+    }
+
+    @GetMapping("/resumen")
+    @Operation(summary = "Pagos confirmados de hoy y del mes por pasarela, y cobros abiertos hace más de una hora")
+    @ApiResponse(responseCode = "200", description = "Totales de pagos en horario de Chile")
+    public ResumenAdminResponse resumen() {
+        return resumen.resumen();
     }
 
     // ------------------------------------------------------------------
