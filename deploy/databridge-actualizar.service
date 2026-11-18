@@ -1,0 +1,20 @@
+#  Al prender la maquina, pone el servidor al dia con main (#470): si hubo
+#  merges mientras estaba apagada, baja esa version y la levanta. Lo instala
+#  deploy/preparar-servidor.sh.
+[Unit]
+Description=DataBridge: ponerse al dia con main al arrancar
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=databridge
+Group=databridge
+Environment=HOME=/home/databridge
+WorkingDirectory=/opt/databridge
+ExecStart=/usr/bin/bash /opt/databridge/deploy/actualizar.sh
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

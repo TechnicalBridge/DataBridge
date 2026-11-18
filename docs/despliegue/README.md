@@ -164,6 +164,39 @@ Y en **Settings → Secrets and variables → Actions → Variables**, del repos
 El primer despliegue se lanza en **Actions → Desplegar → Run workflow**, con *Solo compilar* sin marcar. Desde ahí,
 cada push a `main` se despliega solo.
 
+### Qué pasa en cada merge a `main`
+
+| Paso | Qué hace |
+| --- | --- |
+| Imágenes | GitHub Actions compila las seis imágenes y las publica en GHCR con el commit como etiqueta, y también como `main`. Pasa aunque el servidor esté apagado. |
+| ¿Está prendido? | Si el servidor no responde por SSH, el despliegue queda **omitido**, con un aviso, y no en rojo. Al prender la máquina se pone al día solo (abajo). |
+| Respaldo | [`deploy/actualizar.sh`](../../deploy/actualizar.sh) respalda las tres bases antes de arrancar la versión nueva, porque las migraciones corren al arrancar. El respaldo queda en `/var/backups/databridge` con la versión en el nombre, por ejemplo `2026-11-18-0130-antes-de-1a2b3c4-tb_debt.sql.gz`. |
+| Actualizar | Baja las imágenes del commit y levanta todo con `--wait`. Si algo no queda sano, vuelve solo a la versión que estaba y el workflow falla. |
+| Prueba de humo | Desde GitHub, por HTTPS: el portal, `/.well-known/jwks.json` (gateway y ms-auth) y `/api/ai/salud` (ms-ai) tienen que responder `200`. Si no, vuelve a la versión anterior (`actualizar.sh --volver`) y el workflow falla. |
+
+**Al prender la máquina**, el servicio `databridge-actualizar` (systemd, lo instala
+[`preparar-servidor.sh`](../../deploy/preparar-servidor.sh)) corre `actualizar.sh` sin versión: busca el commit más nuevo
+de `main` que ya tenga sus imágenes publicadas y, si es distinto del que corre, lo despliega con el mismo respaldo y la
+misma vuelta atrás. Un cambio solo de documentación no compila imágenes, así que se salta.
+
+Para eso las seis imágenes de GHCR tienen que ser **públicas**: el servidor las baja sin token. No traen secretos, solo
+el código compilado, que ya es público en el repositorio. Se cambia una vez por imagen, en
+**github.com/orgs/TechnicalBridge/packages → `databridge-<servicio>` → *Package settings* → *Change visibility* →
+*Public***. Mientras sigan privadas, el despliegue desde GitHub funciona igual (entra con su token), pero el servidor no
+se pone al día solo al prender.
+
+Para hacerlo a mano en el servidor, como `databridge`:
+
+```bash
+bash /opt/databridge/deploy/actualizar.sh            # la última versión de main con imágenes
+bash /opt/databridge/deploy/actualizar.sh <commit>   # una versión en particular
+bash /opt/databridge/deploy/actualizar.sh --volver   # la versión que corría antes del último despliegue
+journalctl -u databridge-actualizar                  # qué hizo al arrancar
+```
+
+La vuelta atrás no deshace las migraciones: si una versión nueva cambió el esquema y hay que volver, se restaura el
+respaldo de ese despliegue (ver [`respaldar.sh`](../../deploy/respaldar.sh)).
+
 ## 7. Comprobar que funciona
 
 - `https://technicalbridge.site` abre el portal, con el candado; `www.technicalbridge.site` redirige.

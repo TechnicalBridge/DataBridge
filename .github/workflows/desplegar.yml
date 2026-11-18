@@ -86,7 +86,7 @@ jobs:
     needs: imagenes
     if: vars.DESPLIEGUE_HOST != '' && github.ref == 'refs/heads/main' && !(github.event_name == 'workflow_dispatch' && inputs.solo_compilar)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     environment:
       name: produccion
       url: https://${{ vars.DESPLIEGUE_DOMINIO }}
@@ -104,10 +104,32 @@ jobs:
           chmod 600 ~/.ssh/despliegue
           printf '%s\n' "$HUELLA" > ~/.ssh/known_hosts
 
-      #  El servidor baja el compose de este commit y sus imagenes, y se
-      #  actualiza. El token de GHCR viaja por la entrada estandar, no en la
-      #  linea de comandos, y solo vale mientras corre este job.
-      - name: Descargar las imagenes y actualizar
+      #  La maquina se prende y se apaga a mano para ahorrar credito (#470). Si
+      #  esta apagada, el despliegue queda omitido: las imagenes de este commit
+      #  ya estan publicadas, y al prenderla se pone al dia sola
+      #  (deploy/databridge-actualizar.service).
+      - name: Ver si el servidor esta prendido
+        id: servidor
+        env:
+          HOST: ${{ vars.DESPLIEGUE_HOST }}
+        run: |
+          if ssh -i ~/.ssh/despliegue -o BatchMode=yes -o ConnectTimeout=20 "databridge@$HOST" true; then
+            echo "prendido=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prendido=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Servidor apagado::Las imagenes de este commit quedaron publicadas. Al prender la maquina, el servidor se pone al dia solo."
+            {
+              echo "### El servidor está apagado"
+              echo "Las imágenes de este commit quedaron publicadas en GHCR. Al prender la máquina, el servidor se pone al día solo con \`deploy/actualizar.sh\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      #  deploy/actualizar.sh de este commit respalda las bases, baja las
+      #  imagenes y levanta; si no levanta, vuelve a la version anterior. El
+      #  token de GHCR viaja por la entrada estandar, no en la linea de
+      #  comandos, y solo vale mientras corre este job.
+      - name: Respaldar, descargar las imagenes y actualizar
+        if: steps.servidor.outputs.prendido == 'true'
         env:
           HOST: ${{ vars.DESPLIEGUE_HOST }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,13 +139,48 @@ jobs:
           printf '%s' "$TOKEN" | ssh -i ~/.ssh/despliegue -o BatchMode=yes "databridge@$HOST" "
             set -e
             cd /opt/databridge
-            git fetch -q origin main
-            git reset -q --hard $VERSION
             docker login ghcr.io -u $ACTOR --password-stdin >/dev/null
-            export VERSION=$VERSION
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app pull -q
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d --no-build --wait --wait-timeout 600
-            docker logout ghcr.io >/dev/null
-            docker image prune -f >/dev/null
+            trap 'docker logout ghcr.io >/dev/null' EXIT
+            git fetch -q origin main
+            git show $VERSION:deploy/actualizar.sh > /tmp/databridge-actualizar.sh
+            bash /tmp/databridge-actualizar.sh $VERSION
             docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app ps --format '{{.Service}}: {{.Status}}'
+          "
+
+      #  Que el sitio responda de verdad por HTTPS: el portal (nginx), el
+      #  gateway con ms-auth (las llaves publicas) y ms-ai.
+      - name: Prueba de humo
+        id: humo
+        if: steps.servidor.outputs.prendido == 'true'
+        env:
+          SITIO: https://${{ vars.DESPLIEGUE_DOMINIO }}
+        run: |
+          revisar() {
+            for _ in $(seq 1 12); do
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$SITIO$1")" = 200 ]; then
+                echo "ok: $1"
+                return 0
+              fi
+              sleep 10
+            done
+            echo "::error title=Prueba de humo::$1 no respondio 200"
+            return 1
+          }
+          revisar /
+          revisar /.well-known/jwks.json
+          revisar /api/ai/salud
+
+      - name: Volver a la version anterior
+        if: failure() && steps.humo.outcome == 'failure'
+        env:
+          HOST: ${{ vars.DESPLIEGUE_HOST }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$TOKEN" | ssh -i ~/.ssh/despliegue -o BatchMode=yes "databridge@$HOST" "
+            set -e
+            cd /opt/databridge
+            docker login ghcr.io -u $ACTOR --password-stdin >/dev/null
+            trap 'docker logout ghcr.io >/dev/null' EXIT
+            bash deploy/actualizar.sh --volver
           "

@@ -110,7 +110,14 @@ chmod 600 "$ENV"
 
 echo "== El respaldo de la base, cada madrugada"
 chmod +x "$CARPETA/deploy/respaldar.sh"
+#  Del usuario databridge: tambien respalda antes de cada despliegue (#470).
+install -d -m 700 -o databridge -g databridge /var/backups/databridge
 echo "30 4 * * * root $CARPETA/deploy/respaldar.sh" > /etc/cron.d/databridge-respaldo
+
+echo "== Ponerse al dia con main al prender la maquina"
+install -m 644 "$CARPETA/deploy/databridge-actualizar.service" /etc/systemd/system/databridge-actualizar.service
+systemctl daemon-reload
+systemctl enable databridge-actualizar.service >/dev/null
 
 cat <<FIN
 
