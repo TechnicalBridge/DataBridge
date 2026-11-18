@@ -114,6 +114,8 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 | Servicio / Proveedor | Propósito | Alternativa / Modo local |
 | :--- | :--- | :--- |
 | **Docker & Docker Compose** | Orquestación local con perfiles `app` y `carga`, y archivo `docker-compose.prod.yml` para producción. | Despliegue en contenedores locales aislados. |
+| **Microsoft Azure (Azure for Students)** | Máquina virtual Ubuntu 24.04 (`Standard_D2s_v4`, Brazil South) donde corre la demo con `docker-compose.prod.yml` y Caddy (HTTPS de Let's Encrypt); se prende y se apaga con `deploy/azure/servidor.ps1`. [Guía del servidor](docs/despliegue/README.md). | Docker Compose en el equipo local. |
+| **GitHub Actions · GHCR** | Integración continua de cada servicio y despliegue continuo: cada merge a `main` compila las seis imágenes, las publica en GHCR y actualiza el servidor, con prueba de humo y vuelta atrás. | `deploy/actualizar.sh` a mano en el servidor. |
 | **Transbank (Webpay Plus REST v1.2)** | Pagos con tarjeta de débito, crédito y prepago. | Modo simulación local (`TRANSBANK_ENVIRONMENT=SIMULADA`). |
 | **Khipu (API v3)** | Cobro directo vía transferencia electrónica bancaria. | Simulación automática sin credenciales configuradas. |
 | **Mercado Pago (Checkout Pro)** | Cobros con billetera digital y tarjetas. | Simulación automática sin token configurado. |
