@@ -215,7 +215,7 @@ cada merge a `main` se despliega solo.
 | ¿Está prendido? | Si el servidor no responde por SSH, el despliegue queda **omitido**, con un aviso, y no en rojo. Al prender la máquina se pone al día solo (abajo). |
 | Respaldo | [`deploy/actualizar.sh`](../../deploy/actualizar.sh) respalda las tres bases antes de arrancar la versión nueva, porque las migraciones corren al arrancar. El respaldo queda en `/var/backups/databridge` con la versión en el nombre, por ejemplo `2026-11-18-0130-antes-de-1a2b3c4-tb_debt.sql.gz`. |
 | Actualizar | Baja las imágenes del commit y levanta todo con `--wait`. Si algo no queda sano, vuelve solo a la versión que estaba y el workflow falla. |
-| Prueba de humo | Desde GitHub, por HTTPS: el portal, `/.well-known/jwks.json` (gateway y ms-auth) y `/api/ai/salud` (ms-ai) tienen que responder `200`. Si no, vuelve a la versión anterior (`actualizar.sh --volver`) y el workflow falla. |
+| Prueba de humo | Desde GitHub, por HTTPS, servicio por servicio: el portal (`/`, `200` con su página), ms-auth (`/api/me`), ms-debt (`/api/debts`) y ms-payments (`/api/payments`), que sin sesión responden su propio `401` en JSON (caídos, el gateway da `500`), y ms-ai (`/api/ai/salud`, `200`). No basta mirar el estado: nginx responde `200` con su página a cualquier ruta que no conoce. Si algo falla, vuelve a la versión anterior (`actualizar.sh --volver`) y el workflow falla. |
 
 **Al prender la máquina**, el servicio `databridge-actualizar` (systemd, lo instala
 [`preparar-servidor.sh`](../../deploy/preparar-servidor.sh)) corre `actualizar.sh` sin versión: busca el commit más nuevo

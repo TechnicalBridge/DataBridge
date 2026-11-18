@@ -1,10 +1,10 @@
 name: Desplegar
 
 #  Compila las seis imagenes de DataBridge, las publica en GHCR y actualiza el
-#  servidor (#172, guia en docs/despliegue).
+#  servidor de Azure (#172, #468, #470; guia en docs/despliegue).
 #
-#  APAGADO HASTA QUE EXISTA EL SERVIDOR: sin la variable DESPLIEGUE_HOST del
-#  repositorio (Settings -> Secrets and variables -> Actions -> Variables), un
+#  Solo despliega si existe la variable DESPLIEGUE_HOST del repositorio
+#  (Settings -> Secrets and variables -> Actions -> Variables); sin ella, un
 #  push a main no hace nada. Un PR que toca el despliegue, o a mano (Run
 #  workflow) con "Solo compilar", prueba que las imagenes se construyen, sin
 #  publicarlas ni tocar ningun servidor.
@@ -147,28 +147,33 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile app ps --format '{{.Service}}: {{.Status}}'
           "
 
-      #  Que el sitio responda de verdad por HTTPS: el portal (nginx), el
-      #  gateway con ms-auth (las llaves publicas) y ms-ai.
+      #  Que el sitio responda de verdad por HTTPS, servicio por servicio. No
+      #  basta un 200: nginx devuelve su pagina con 200 a cualquier ruta que no
+      #  conoce. Sin sesion, cada servicio arriba contesta su propio 401 en
+      #  JSON; caido, el gateway responde 500.
       - name: Prueba de humo
         id: humo
         if: steps.servidor.outputs.prendido == 'true'
         env:
           SITIO: https://${{ vars.DESPLIEGUE_DOMINIO }}
         run: |
-          revisar() {
+          revisar() {  # revisar RUTA ESTADO TEXTO
             for _ in $(seq 1 12); do
-              if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$SITIO$1")" = 200 ]; then
-                echo "ok: $1"
+              estado=$(curl -s -o /tmp/humo -w '%{http_code}' --max-time 15 "$SITIO$1" || true)
+              if [ "$estado" = "$2" ] && grep -qF "$3" /tmp/humo; then
+                echo "ok: $1 ($2)"
                 return 0
               fi
               sleep 10
             done
-            echo "::error title=Prueba de humo::$1 no respondio 200"
+            echo "::error title=Prueba de humo::$1 respondio $estado, se esperaba $2 con $3"
             return 1
           }
-          revisar /
-          revisar /.well-known/jwks.json
-          revisar /api/ai/salud
+          revisar /             200 '<div id="root">'
+          revisar /api/me       401 '"No autorizado"'
+          revisar /api/debts    401 '"No autorizado"'
+          revisar /api/payments 401 '"No autorizado"'
+          revisar /api/ai/salud 200 '"service":"ms-ai"'
 
       - name: Volver a la version anterior
         if: failure() && steps.humo.outcome == 'failure'
