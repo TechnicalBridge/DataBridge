@@ -2,8 +2,9 @@
 #  frontend — el portal del deudor y de la empresa (React)
 # =============================================================================
 #  Prueba solo si cambio su carpeta. Compila el portal y revisa sus
-#  dependencias: rompe ante algo de severidad alta o critica. Lo moderado lo
-#  revisa Dependabot con un pull request, sin bloquear a todo el equipo.
+#  dependencias: rompe ante algo de severidad alta o critica en lo que se
+#  publica, o critica en cualquier dependencia (#479). Lo demas lo revisa
+#  Dependabot con un pull request, sin bloquear a todo el equipo.
 # =============================================================================
 name: frontend
 
@@ -68,8 +69,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+      #  Vite es una herramienta de desarrollo y no va en lo que se publica: lo
+      #  alto se bloquea en produccion, y lo critico en todo el arbol (#479).
+      #  GHSA-fc5q-39xc-vjpf (picomatch, por Vite) aun no tiene version corregida:
+      #  https://github.com/advisories/GHSA-fc5q-39xc-vjpf
       - name: Dependencias vulnerables
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --include=dev --audit-level=critical
 
   #  El check que exige main: pasa si las pruebas pasaron o si no tocaban.
   resultado:
