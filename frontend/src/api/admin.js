@@ -77,6 +77,42 @@ export async function historialDeEmpresa(rut) {
 
 export const historialDeAdmins = () => pedir("/admin/auth/admins/historial").then(acciones);
 
+// ---- La bitacora unificada de acciones administrativas (#443) --------------------
+
+const SERVICIOS_BITACORA = ["auth", "debt", "payments"];
+const POR_PAGINA_BITACORA = 100;
+
+async function paginaDeBitacora(tramo, filtros, pagina) {
+  const params = { pagina, porPagina: POR_PAGINA_BITACORA };
+  for (const [clave, valor] of Object.entries(filtros || {})) {
+    if (valor) params[clave] = valor;
+  }
+  const data = await pedir(`/admin/${tramo}/bitacora`, { params });
+  return { filas: acciones(data), pagina: data.page || { totalPages: 0, totalElements: 0 } };
+}
+
+/** Todas las paginas de un servicio, para ordenar y paginar globalmente en el portal. */
+async function bitacoraDe(tramo, filtros) {
+  const primera = await paginaDeBitacora(tramo, filtros, 0);
+  const total = primera.pagina.totalPages || 0;
+  if (total <= 1) return primera.filas;
+  const demas = await Promise.all(
+    Array.from({ length: total - 1 }, (_, i) => paginaDeBitacora(tramo, filtros, i + 1)),
+  );
+  return [...primera.filas, ...demas.flatMap((p) => p.filas)];
+}
+
+/**
+ * Reune las tres bitacoras. Un servicio caido no esconde lo que respondieron
+ * los otros: su nombre vuelve en `sinServicio` para mostrar el aviso.
+ */
+export async function bitacora(filtros = {}) {
+  const resultados = await Promise.allSettled(SERVICIOS_BITACORA.map((s) => bitacoraDe(s, filtros)));
+  const filas = resultados.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).sort(recientePrimero);
+  const sinServicio = resultados.flatMap((r, i) => (r.status === "rejected" ? [SERVICIOS_BITACORA[i]] : []));
+  return { filas, sinServicio };
+}
+
 // ---- La bitacora de acceso (ms-auth, #141) ----------------------------------------
 
 /**

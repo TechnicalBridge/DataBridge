@@ -5,17 +5,21 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
+import com.tbridge.debt.dto.response.BitacoraResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.AvisosService;
+import com.tbridge.debt.service.BitacoraService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,6 +33,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,6 +63,7 @@ class AdminControllerTest {
     @MockitoBean private ReglasService reglas;
     @MockitoBean private ComisionService comisiones;
     @MockitoBean private AvisosService avisos;
+    @MockitoBean private BitacoraService bitacora;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -124,6 +130,21 @@ class AdminControllerTest {
         //  La regla es de toda la ruta /api/admin, no de cada metodo: un endpoint
         //  nuevo no puede quedar abierto por olvido.
         mvc.perform(get("/api/admin/debt/lo-que-venga").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void la_bitacora_de_deudas_usa_el_contrato_comun_y_es_solo_del_admin() throws Exception {
+        BitacoraResponse fila = new BitacoraResponse(4L, "ms-debt", "empresa_suspendida",
+                "APOFYX", "77305118-6", "admin@databridge.cl", Instant.parse("2026-11-17T15:00:00Z"));
+        when(bitacora.buscar(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(List.of(fila), PageRequest.of(0, 25), 1));
+
+        mvc.perform(get("/api/admin/debt/bitacora").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.acciones[0].servicio").value("ms-debt"))
+                .andExpect(jsonPath("$._embedded.acciones[0].accion").value("empresa_suspendida"));
+        mvc.perform(get("/api/admin/debt/bitacora").header("Authorization", deudor()))
                 .andExpect(status().isForbidden());
     }
 

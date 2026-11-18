@@ -3,12 +3,14 @@ package com.tbridge.payments.controller;
 import com.tbridge.payments.config.OpenApiConfig;
 import com.tbridge.payments.dto.request.UfManualRequest;
 import com.tbridge.payments.dto.response.EstadoResponse;
+import com.tbridge.payments.dto.response.BitacoraResponse;
 import com.tbridge.payments.dto.response.OperacionResponse;
 import com.tbridge.payments.dto.response.ReglasResponse;
 import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.service.OperacionService;
+import com.tbridge.payments.service.BitacoraService;
 import com.tbridge.payments.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,12 +21,18 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.time.LocalDate;
 
 /**
  * Lo que el panel de administracion de DataBridge le pide a ms-payments.
@@ -42,10 +50,12 @@ public class AdminController {
 
     private final ReglasService reglas;
     private final OperacionService operacion;
+    private final BitacoraService bitacora;
 
-    public AdminController(ReglasService reglas, OperacionService operacion) {
+    public AdminController(ReglasService reglas, OperacionService operacion, BitacoraService bitacora) {
         this.reglas = reglas;
         this.operacion = operacion;
+        this.bitacora = bitacora;
     }
 
     // ------------------------------------------------------------------
@@ -124,5 +134,20 @@ public class AdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EstadoResponse estado() {
         return new EstadoResponse("ms-payments", true);
+    }
+
+    @GetMapping("/bitacora")
+    @Operation(summary = "La bitacora de acciones administrativas de ms-payments")
+    public PagedModel<BitacoraResponse> bitacora(
+            @RequestParam(required = false) String persona,
+            @RequestParam(required = false) String accion,
+            @RequestParam(required = false) String empresa,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "25") int porPagina) {
+        Page<BitacoraResponse> encontrados = bitacora.buscar(persona, accion, empresa, desde, hasta, pagina, porPagina);
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
+                encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
     }
 }

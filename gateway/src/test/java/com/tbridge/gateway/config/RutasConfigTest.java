@@ -40,8 +40,11 @@ class RutasConfigTest {
     @Test
     void cada_tramo_del_panel_de_administracion_llega_a_su_servicio() {
         assertEquals(Optional.of("ms-auth.invalid"), destino("/api/admin/auth/estado"));
+        assertEquals(Optional.of("ms-auth.invalid"), destino("/api/admin/auth/bitacora"));
         assertEquals(Optional.of("ms-debt.invalid"), destino("/api/admin/debt/estado"));
+        assertEquals(Optional.of("ms-debt.invalid"), destino("/api/admin/debt/bitacora"));
         assertEquals(Optional.of("ms-payments.invalid"), destino("/api/admin/payments/estado"));
+        assertEquals(Optional.of("ms-payments.invalid"), destino("/api/admin/payments/bitacora"));
     }
 
     @Test

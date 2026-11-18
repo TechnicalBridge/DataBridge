@@ -240,6 +240,7 @@ flowchart LR
 | Quitarle o devolverle el acceso | `AdminEmpresa`, `AdminEquipo` | `POST /api/admin/auth/personal/{id}/deshabilitar` y `/habilitar` | Al quitarlo no le llegan más enlaces, los que tenía sin abrir dejan de servir y sus sesiones se cierran. Un admin no se lo puede quitar a sí mismo |
 | Dar de alta a otro admin | `AdminEquipo` | `GET` y `POST /api/admin/auth/admins` | Un admin no tiene empresa, y un correo que ya es de una empresa no puede pasar a ser admin |
 | Ver lo que se hizo desde el panel | `AdminEmpresa`, `AdminEquipo` | `GET /api/admin/debt/empresas/{rut}/historial`, `GET /api/admin/auth/empresas/{rut}/historial`, `GET /api/admin/auth/admins/historial` | Cada alta y cada cambio quedan anotados con el admin que los hizo y cuándo. Quién lo hizo sale de su sesión, no de lo que mande |
+| Consultar la bitácora administrativa completa | `AdminBitacora` (`/admin/bitacora`) | `GET /api/admin/auth/bitacora`, `GET /api/admin/debt/bitacora`, `GET /api/admin/payments/bitacora` | Reúne las acciones de los tres servicios y las ordena globalmente por fecha. Permite filtrar por persona, acción, empresa y fechas; si un servicio no responde, conserva los resultados de los demás y lo avisa ([#443](https://github.com/TechnicalBridge/DataBridge/issues/443)) |
 | Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
 | Ver lo que no se entregó y reintentarlo | `AdminOperacion` | `GET /api/admin/debt/avisos`, `POST /api/admin/debt/avisos/{id}/reintentar`, `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar`, `GET /api/admin/payments/operacion`, `POST /api/admin/payments/avisos/{id}/reintentar` | Los avisos a las empresas y a ms-debt que no se entregaron, con sus intentos y su último error, y los pagos que hay que mirar ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)). Reintentar los vuelve a poner en cola; el despachador los entrega en su pasada siguiente y ms-debt abona una sola vez. Sin el contenido de ningún aviso ni un dato de un deudor. Queda anotado quién lo hizo |
 | Suspender o reactivar una empresa | `AdminEmpresa` | `POST /api/admin/debt/empresas/{rut}/suspender` y `/reactivar` | Corta todo de una vez y sin borrar nada ([#152](https://github.com/TechnicalBridge/DataBridge/issues/152)): su gente no entra ni renueva la sesión, sus claves de API no entregan cartera, y a los deudores de sus deudas no se les escribe ni pueden pagar o repactar (sí reclamar). Al reactivarla, todo sigue donde quedó. Queda anotado quién lo hizo |
@@ -366,13 +367,14 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **103 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **106 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/auth/estado` | Si ms-auth responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/auth/bitacora` | Acciones administrativas de acceso, paginadas y filtradas | Admin de DataBridge | JWT | Sí | `AdminController.bitacora` |
 | `GET /api/admin/auth/reglas` | Las reglas de acceso y de correo que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/auth/empresas/{rut}/personal` | Las personas de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.personalDeEmpresa` |
 | `POST /api/admin/auth/empresas/{rut}/personal` | Dar de alta a una persona de una empresa | Admin de DataBridge | JWT | Sí | `AdminController.crearUsuario` |
@@ -400,6 +402,7 @@ Cada caso de uso de arriba termina en uno o más de estos **103 endpoints**. La 
 | Endpoint | Qué hace | Quién | Con qué entra | Por el gateway | Clase |
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/debt/estado` | Si ms-debt responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/debt/bitacora` | Acciones administrativas de empresas y cobranza, paginadas y filtradas | Admin de DataBridge | JWT | Sí | `AdminController.bitacora` |
 | `GET /api/admin/debt/reglas` | Las reglas de cobranza y de contacto que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/debt/empresas` | Las empresas registradas | Admin de DataBridge | JWT | Sí | `AdminController.empresas` |
 | `GET /api/admin/debt/empresas/{rut}` | Una empresa | Admin de DataBridge | JWT | Sí | `AdminController.empresa` |
@@ -463,6 +466,7 @@ Cada caso de uso de arriba termina en uno o más de estos **103 endpoints**. La 
 | --- | --- | --- | --- | --- | --- |
 | `GET /api/admin/payments/reglas` | Las reglas de pago que rigen | Admin de DataBridge | JWT | Sí | `AdminController.reglas` |
 | `GET /api/admin/payments/estado` | Si ms-payments responde | Admin de DataBridge | JWT | Sí | `AdminController.estado` |
+| `GET /api/admin/payments/bitacora` | Acciones administrativas de pagos, paginadas y filtradas | Admin de DataBridge | JWT | Sí | `AdminController.bitacora` |
 | `GET /api/admin/payments/operacion` | Los pagos que hay que mirar, los cobros abiertos hace más de una hora, la UF de hoy y los avisos a ms-debt sin entregar | Admin de DataBridge | JWT | Sí | `AdminController.operacion` |
 | `POST /api/admin/payments/avisos/{id}/reintentar` | Volver a poner en cola un aviso de pago a ms-debt | Admin de DataBridge | JWT | Sí | `AdminController.reintentarAviso` |
 | `POST /api/admin/payments/cobros/{id}/liberar` | Liberar un cobro abierto hace más de una hora | Admin de DataBridge | JWT | Sí | `AdminController.liberarCobro` |

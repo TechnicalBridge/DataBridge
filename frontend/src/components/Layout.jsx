@@ -8,7 +8,7 @@ import Logo from "./Logo";
 import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
-  IconoAlerta, IconoAyuda, IconoCalendario, IconoCandado, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo,
+  IconoAlerta, IconoAyuda, IconoBitacora, IconoCalendario, IconoCandado, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo,
   IconoMegafono, IconoPanel, IconoRecibo, IconoReglas, IconoSalir, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
@@ -37,6 +37,7 @@ const ADMIN = [
   { to: "/admin/operacion", label: "Operación", corto: "Operación", Icono: IconoAlerta },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },
+  { to: "/admin/bitacora", label: "Bitácora", corto: "Bitácora", Icono: IconoBitacora },
   { to: "/admin/reglas", label: "Reglas", corto: "Reglas", Icono: IconoReglas },
 ];
 
