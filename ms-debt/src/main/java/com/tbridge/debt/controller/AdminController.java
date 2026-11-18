@@ -2,6 +2,7 @@ package com.tbridge.debt.controller;
 
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
+import com.tbridge.debt.dto.request.CorregirEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
@@ -37,6 +38,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -173,6 +175,14 @@ public class AdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<EmpresaResponse> empresa(@PathVariable String rut) {
         return conEnlaces(empresas.ficha(rut));
+    }
+
+    @PatchMapping("/empresas/{rut}")
+    @Operation(summary = "Corregir los nombres de una empresa sin cambiar RUT ni tipo")
+    public EntityModel<EmpresaResponse> corregirEmpresa(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable String rut, @Valid @RequestBody CorregirEmpresaRequest pedido) {
+        return conEnlaces(empresas.corregir(rut, pedido, admin.email()));
     }
 
     @PostMapping("/empresas")

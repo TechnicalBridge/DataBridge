@@ -18,7 +18,8 @@ public class AdminLog {
     //  aviso_reintentado: un aviso a una empresa que se volvio a poner en cola (#139).
     //  empresa_suspendida y empresa_reactivada: el admin le corto o le devolvio todo a la empresa (#152).
     //  deudor_consultado: el admin abrio la ficha de un deudor, que muestra sus datos personales (#434).
-    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado }
+    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado,
+        empresa_corregida }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,6 +38,12 @@ public class AdminLog {
     @Column(length = 254)
     private String subject;
 
+    @Column(name = "previous_values", columnDefinition = "text")
+    private String previousValues;
+
+    @Column(name = "new_values", columnDefinition = "text")
+    private String newValues;
+
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt = Instant.now();
 
@@ -49,10 +56,18 @@ public class AdminLog {
         return registro;
     }
 
+    public AdminLog conCambios(String anteriores, String nuevos) {
+        previousValues = anteriores;
+        newValues = nuevos;
+        return this;
+    }
+
     public Long getId() { return id; }
     public String getAdminEmail() { return adminEmail; }
     public Action getAction() { return action; }
     public String getOrgRut() { return orgRut; }
     public String getSubject() { return subject; }
+    public String getPreviousValues() { return previousValues; }
+    public String getNewValues() { return newValues; }
     public Instant getOccurredAt() { return occurredAt; }
 }
