@@ -18,6 +18,7 @@ import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.util.Hash;
 import com.tbridge.auth.util.Rut;
 import com.tbridge.auth.util.Correo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -95,6 +96,7 @@ public class AuthService {
                 new SmsService("mock"), publicUrl, codeTtlHours, magicTtlMinutes);
     }
 
+    @Autowired
     public AuthService(
             AccessCodeRepository codigos,
             MagicLinkRepository enlaces,
