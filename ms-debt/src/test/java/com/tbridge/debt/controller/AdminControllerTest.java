@@ -6,17 +6,21 @@ import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.BitacoraResponse;
+import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
+import com.tbridge.debt.dto.response.ReclamoAdminResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
+import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.BitacoraService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +74,7 @@ class AdminControllerTest {
     @MockitoBean private AvisosService avisos;
     @MockitoBean private BitacoraService bitacora;
     @MockitoBean private DeudoresAdminService deudoresAdmin;
+    @MockitoBean private ReclamosAdminService reclamosAdmin;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -390,5 +395,54 @@ class AdminControllerTest {
         mvc.perform(get("/api/admin/debt/deudores/16482337-7")).andExpect(status().isUnauthorized());
         verify(deudoresAdmin, times(1)).ficha(any(), any());
         verify(deudoresAdmin, times(1)).buscar(any(), eq(0), eq(20));
+    }
+
+    @Test
+    void la_deuda_de_un_pago_la_ve_solo_el_admin() throws Exception {
+        when(deudoresAdmin.deuda(15L)).thenReturn(new DeudaAdminResponse(15L, "CTR-007", "Arriendo",
+                "Patrimonio Inmuebles", "76418902-7", "APOFYX", "Arriendos", Debt.Status.paid));
+
+        mvc.perform(get("/api/admin/debt/deudas/15").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.referencia").value("CTR-007"))
+                .andExpect(jsonPath("$.cobra").value("APOFYX"));
+        for (String otro : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/deudas/15").header("Authorization", otro))
+                    .andExpect(status().isForbidden());
+        }
+        verify(deudoresAdmin, times(1)).deuda(any());
+    }
+
+    @Test
+    void el_admin_ve_los_reclamos_y_ni_una_empresa_ni_un_deudor_pueden() throws Exception {
+        ReclamoAdminResponse abierto = new ReclamoAdminResponse(15L, "CTR-2024-007", "Arriendo", "Patrimonio Inmuebles",
+                "APOFYX", "Arriendos septiembre", "ya_pagada", "<b>Pague</b> en la oficina",
+                Instant.parse("2026-11-10T15:00:00Z"), 8, null, null, null, null);
+        when(reclamosAdmin.abiertos(0, 20)).thenReturn(new PageImpl<>(List.of(abierto), PageRequest.of(0, 20), 1));
+        when(reclamosAdmin.resueltos(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 18), 0, 20))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mvc.perform(get("/api/admin/debt/reclamos").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.reclamos[0].deuda").value(15))
+                .andExpect(jsonPath("$._embedded.reclamos[0].cobra").value("APOFYX"))
+                .andExpect(jsonPath("$._embedded.reclamos[0].dias").value(8))
+                //  El texto del deudor va tal cual: el portal lo muestra como texto.
+                .andExpect(jsonPath("$._embedded.reclamos[0].detalle").value("<b>Pague</b> en la oficina"))
+                .andExpect(jsonPath("$._embedded.reclamos[0].rut").doesNotExist())
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+        mvc.perform(get("/api/admin/debt/reclamos/resueltos").param("desde", "2026-11-01").param("hasta", "2026-11-18")
+                        .header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+
+        for (String otro : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/reclamos").header("Authorization", otro)).andExpect(status().isForbidden());
+            mvc.perform(get("/api/admin/debt/reclamos/resueltos").header("Authorization", otro))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/api/admin/debt/reclamos")).andExpect(status().isUnauthorized());
+        verify(reclamosAdmin, times(1)).abiertos(0, 20);
+        verify(reclamosAdmin, times(1)).resueltos(any(), any(), eq(0), eq(20));
     }
 }

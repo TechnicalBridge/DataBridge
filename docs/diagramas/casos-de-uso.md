@@ -245,6 +245,8 @@ flowchart LR
 | Ver quién entró y qué accesos se rechazaron | `AdminAccesos` | `GET /api/admin/auth/accesos`, `GET /api/admin/auth/accesos/hoy` | La bitácora de acceso por páginas, lo más reciente primero, con filtros por fecha, por código o enlace y por resultado ([#141](https://github.com/TechnicalBridge/DataBridge/issues/141)). El RUT va a medias y no salen correos ni IP |
 | Ver lo que no se entregó y reintentarlo | `AdminOperacion` | `GET /api/admin/debt/avisos`, `POST /api/admin/debt/avisos/{id}/reintentar`, `POST /api/admin/debt/avisos/destinos/{suscripcion}/reintentar`, `GET /api/admin/payments/operacion`, `POST /api/admin/payments/avisos/{id}/reintentar` | Los avisos a las empresas y a ms-debt que no se entregaron, con sus intentos y su último error, y los pagos que hay que mirar ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)). Reintentar los vuelve a poner en cola; el despachador los entrega en su pasada siguiente y ms-debt abona una sola vez. Sin el contenido de ningún aviso ni un dato de un deudor. Queda anotado quién lo hizo |
 | Suspender o reactivar una empresa | `AdminEmpresa` | `POST /api/admin/debt/empresas/{rut}/suspender` y `/reactivar` | Corta todo de una vez y sin borrar nada ([#152](https://github.com/TechnicalBridge/DataBridge/issues/152)): su gente no entra ni renueva la sesión, sus claves de API no entregan cartera, y a los deudores de sus deudas no se les escribe ni pueden pagar o repactar (sí reclamar). Al reactivarla, todo sigue donde quedó. Queda anotado quién lo hizo |
+| Ver los pagos de todas las empresas y verificar uno abierto | `AdminPagos`, `AdminPago` | `GET /api/admin/payments/pagos`, `GET /api/admin/payments/pagos/{id}`, `POST /api/admin/payments/pagos/{id}/verificar`, `GET /api/admin/debt/deudas/{id}` | Todos los pagos por páginas, el más nuevo primero, con filtros por estado, pasarela, empresa acreedora y fechas de Chile, y *Para revisar*: los abiertos hace más de una hora y los cobrados dos veces ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)). El detalle trae su historia y de qué deuda es, sin datos del deudor: para eso, su ficha. Verificar le pregunta a la pasarela cómo quedó un pago abierto: si ya se cobró, queda pagado; si no se pagó, se cierra; si sigue en curso, no cambia. Queda anotado quién lo verificó |
+| Ver los reclamos de todas las empresas | `AdminReclamos` | `GET /api/admin/debt/reclamos`, `GET /api/admin/debt/reclamos/resueltos` | Los abiertos, el más antiguo primero, con el motivo, lo que escribió el deudor (se muestra como texto), la empresa que tiene que responder y los días que lleva sin respuesta, en días de Chile ([#436](https://github.com/TechnicalBridge/DataBridge/issues/436)). Los resueltos de un período (sin fechas, los últimos 30 días), con cuánto tardó y cómo se cerró: reanudada, retirada al darle la razón al deudor, o retirada en una carga. Sin datos del deudor: la referencia lleva a buscarlo en *Deudores*. El panel solo mira: el reclamo lo resuelve la empresa |
 | Liberar un cobro trabado | `AdminOperacion` | `POST /api/admin/payments/cobros/{id}/liberar` | Un cobro abierto hace más de una hora, por ejemplo uno de Mercado Pago en verificación que deja la cuota bloqueada por horas ([#453](https://github.com/TechnicalBridge/DataBridge/issues/453)). Antes se le pregunta a la pasarela: si ya lo cobró, queda pagado; si no, queda vencido y la cuota se puede volver a pagar, y si la pasarela lo aprueba después, se registra igual. Queda anotado quién lo liberó |
 | Cargar a mano la UF de un día | `AdminOperacion` | `POST /api/admin/payments/uf` | Para cuando el Banco Central no la entregó: queda como la UF de ese día, que es la que usan los cobros en UF, y queda anotado quién la cargó |
 | Ver las reglas que rigen | `AdminReglas` | `GET /api/admin/auth/reglas`, `/api/admin/debt/reglas`, `/api/admin/payments/reglas` | De solo lectura. Cada servicio arma las suyas con su configuración, y cada una dice de qué variable sale. Ninguna clave: de las pasarelas y del correo dice solo si están. Los feriados son los mismos que usan las campañas |
@@ -368,7 +370,7 @@ arquitectura calza:
 
 ## Todos los endpoints, y quién los usa
 
-Cada caso de uso de arriba termina en uno o más de estos **110 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
+Cada caso de uso de arriba termina en uno o más de estos **117 endpoints**. La lista sale del código: de las anotaciones `@GetMapping`, `@PostMapping` y las demás de cada controlador. Los que el gateway no publica solo se alcanzan desde dentro de la red de los servicios. La entrega por API (`/api/v1`) y las claves (`/api/claves`) están apagadas por omisión y responden `404`.
 
 ### ms-auth
 
@@ -398,6 +400,7 @@ Cada caso de uso de arriba termina en uno o más de estos **110 endpoints**. La 
 | `POST /internal/codigos` | Emitir un código de acceso | ms-debt | Clave interna | No | `InternalController.emitir` |
 | `POST /internal/correo/prueba` | Mandar un correo de prueba | Operación de DataBridge | Clave interna | No | `InternalController.probarCorreo` |
 | `GET /.well-known/jwks.json` | Las llaves públicas con que se verifican las sesiones | ms-debt y ms-payments | Ninguna | No | `JwksController.keys` |
+| `POST /api/webhooks/resend` | Recibir de Resend si un correo salió, se entregó, se atrasó, rebotó o se marcó como spam | Resend | Firma Svix | Sí | `ResendWebhookController.recibir` |
 
 ### ms-debt
 
@@ -412,6 +415,9 @@ Cada caso de uso de arriba termina en uno o más de estos **110 endpoints**. La 
 | `GET /api/admin/debt/empresas/{rut}/historial` | Lo que se hizo sobre una empresa desde el panel | Admin de DataBridge | JWT | Sí | `AdminController.historial` |
 | `GET /api/admin/debt/deudores` | Buscar a un deudor en todas las empresas, por páginas | Admin de DataBridge | JWT | Sí | `AdminController.buscarDeudores` |
 | `GET /api/admin/debt/deudores/{rut}` | La ficha de un deudor; abrirla queda en la bitácora del panel | Admin de DataBridge | JWT | Sí | `AdminController.fichaDeDeudor` |
+| `GET /api/admin/debt/deudas/{id}` | Una deuda, sin datos del deudor, para el detalle de un pago | Admin de DataBridge | JWT | Sí | `AdminController.deuda` |
+| `GET /api/admin/debt/reclamos` | Los reclamos abiertos de todas las empresas, el más antiguo primero | Admin de DataBridge | JWT | Sí | `AdminController.reclamosAbiertos` |
+| `GET /api/admin/debt/reclamos/resueltos` | Los reclamos que se cerraron en un período, y cómo | Admin de DataBridge | JWT | Sí | `AdminController.reclamosResueltos` |
 | `POST /api/admin/debt/empresas/{rut}/suspender` | Suspender una empresa usuaria: se congela todo lo suyo | Admin de DataBridge | JWT | Sí | `AdminController.suspender` |
 | `POST /api/admin/debt/empresas/{rut}/reactivar` | Reactivar una empresa suspendida | Admin de DataBridge | JWT | Sí | `AdminController.reactivar` |
 | `GET /api/admin/debt/avisos` | Los avisos a las empresas que no se han entregado | Admin de DataBridge | JWT | Sí | `AdminController.avisos` |
@@ -474,6 +480,9 @@ Cada caso de uso de arriba termina en uno o más de estos **110 endpoints**. La 
 | `GET /api/admin/payments/operacion` | Los pagos que hay que mirar, los cobros abiertos hace más de una hora, la UF de hoy y los avisos a ms-debt sin entregar | Admin de DataBridge | JWT | Sí | `AdminController.operacion` |
 | `POST /api/admin/payments/avisos/{id}/reintentar` | Volver a poner en cola un aviso de pago a ms-debt | Admin de DataBridge | JWT | Sí | `AdminController.reintentarAviso` |
 | `POST /api/admin/payments/cobros/{id}/liberar` | Liberar un cobro abierto hace más de una hora | Admin de DataBridge | JWT | Sí | `AdminController.liberarCobro` |
+| `GET /api/admin/payments/pagos` | Los pagos de todas las empresas, por páginas y con filtros | Admin de DataBridge | JWT | Sí | `AdminController.pagos` |
+| `GET /api/admin/payments/pagos/{id}` | Un pago con su historia | Admin de DataBridge | JWT | Sí | `AdminController.pago` |
+| `POST /api/admin/payments/pagos/{id}/verificar` | Preguntarle a la pasarela cómo quedó un pago abierto | Admin de DataBridge | JWT | Sí | `AdminController.verificarPago` |
 | `GET /api/admin/payments/deudores/{rut}/pagos` | Los últimos 100 pagos de un deudor | Admin de DataBridge | JWT | Sí | `AdminController.pagosDeDeudor` |
 | `POST /api/admin/payments/uf` | Cargar a mano la UF de un día | Admin de DataBridge | JWT | Sí | `AdminController.cargarUf` |
 | `POST /internal/uf` | Cargar a mano la UF de un día | Operación de DataBridge | Clave interna | No | `InternalController.cargarAMano` |
