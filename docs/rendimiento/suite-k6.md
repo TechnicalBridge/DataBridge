@@ -172,6 +172,58 @@ Cada corrida escribe en `performance-tests/k6/reports/`:
 incluye `setup_data`**, así que no arrastra los tokens de las sesiones; aun
 así, no compartas reportes con datos de una base que no sea de demo.
 
+## Generación y visor local de evidencias
+
+Requiere Python 3.9 o posterior y no instala dependencias adicionales.
+Los scripts se versionan en `performance-tests/k6/scripts/`; los resultados
+siguen en `reports/`, ignorado por Git.
+
+Para generar los informes con los resultados existentes y abrir el visor,
+**sin ejecutar pruebas ni modificar Docker**:
+
+```powershell
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
+```
+
+El visor queda en <http://127.0.0.1:8766/evidencias/index.html>.
+Recargar una página actualiza los informes con las ejecuciones terminadas.
+Se escucha solo en la interfaz local; `Ctrl+C` detiene el servidor.
+`-Puerto 8770` permite elegir otro puerto y `-SinAbrir` evita abrir el navegador.
+
+Para ejecutar la suite, restaurar los límites y luego generar y abrir los
+informes automáticamente:
+
+```powershell
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 `
+  -Proyecto databridge
+```
+
+**Este comando recrea gateway y ms-auth** para aumentar temporalmente sus
+cupos. Detecta el directorio del Compose activo mediante sus etiquetas y
+conserva las imágenes y variables del entorno existente. Al terminar intenta
+restaurar los cupos originales antes de iniciar el visor. Si la restauración
+falla, conserva la configuración temporal para recuperación e informa el error.
+Si antes usaste `run.ps1 -Levantar`, restaura primero los cupos siguiendo
+la sección anterior: de lo contrario, los valores altos ya serán la
+configuración inicial que esta suite conservará.
+No ejecutarlo simultáneamente con otra corrida ni interrumpirlo cerrando a
+la fuerza PowerShell. No reconstruye el despliegue ni instala datos de demo:
+estos deben existir previamente. IA, repactaciones y pasarelas de la suite
+quedan desactivadas. `-SinVisualizar` genera HTML sin iniciar un servidor.
+
+También se puede usar Python directamente:
+
+```powershell
+python performance-tests/k6/scripts/generar-evidencias.py --servir
+python performance-tests/k6/scripts/generar-evidencias.py --report-dir performance-tests/k6/reports
+python -m unittest discover -s performance-tests/k6/scripts -p test_generar_evidencias.py
+```
+
+Los HTML son una presentación propia de los JSON reales de k6, **no una interfaz
+nativa de k6**. Incluyen umbrales, código de salida y enlaces a las fuentes.
+Un escenario no se aprueba si falla un umbral o un check, si no hay peticiones
+o si su código de salida es distinto de cero.
+
 ## Datos de prueba
 
 Las carteras son ficticias:
