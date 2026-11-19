@@ -133,7 +133,8 @@ export default function Repact() {
       </header>
       {error ? <div className="error">{error}</div> : null}
 
-      <div className="card bloque aparece" style={{ "--i": 1 }}>
+      {/* En el telefono no ayuda a decidir y empuja el total hacia abajo (#475). */}
+      <div className="card bloque aparece solo-escritorio" style={{ "--i": 1 }}>
         <BarraEstado deuda={deuda} />
       </div>
 

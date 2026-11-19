@@ -40,6 +40,8 @@
   --font: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* El alto de la barra de abajo en el telefono: lo que va fijo sobre ella se apoya aqui. */
+  --alto-barra-movil: 65px;
 }
 
 :root[data-theme="dark"] {
@@ -1199,6 +1201,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .method .pasarela-logo { height: 44px; width: 100%; min-width: 74px; padding: 0 4px; container-type: inline-size; }
 .method.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 3px var(--ring); }
 .pegado { position: sticky; top: 24px; }
+/* La barra fija con el total y Pagar (#475): solo en el telefono. */
+.pagar-fija { display: none; }
 .esperando { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 15px; flex-wrap: wrap; }
 /* Se cerro la ventana de la pasarela con el cobro abierto (#307). */
 .ventana-cerrada { flex-basis: 100%; color: var(--ink-2); }
@@ -1455,6 +1459,36 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
+  /* Pagar en el telefono (#475): sin la barra de estados, las pasarelas como filas de una sola opcion, y el
+     total con Pagar fijos sobre la navegacion. La pagina reserva su alto para que la barra no tape nada. */
+  .solo-escritorio { display: none; }
+  .methods { grid-template-columns: 1fr; gap: 8px; }
+  .method { flex-direction: row; align-items: center; gap: 14px; min-height: 56px; padding: 8px 14px; }
+  .method .pasarela-logo { width: 96px; min-width: 96px; height: 36px; flex: none; }
+  .method span { flex: 1; }
+  .pagar-en-tarjeta { display: none; }
+  .con-pagar-fija { padding-bottom: 80px; }
+  .pagar-fija {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--alto-barra-movil) + env(safe-area-inset-bottom));
+    z-index: 19;
+    padding: 10px 16px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35);
+  }
+  .pagar-fija-total { flex: 1; min-width: 0; display: grid; }
+  .pagar-fija-total span { font-size: 13px; color: var(--muted); }
+  .pagar-fija-total b { font-size: 20px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .pagar-fija .btn { min-height: 48px; }
+  /* Todo lo que se toca en el portal del deudor, de 44 px o mas (#475). */
+  [data-portal="debtor"] .btn, [data-portal="debtor"] .chip { min-height: 44px; }
+  [data-portal="debtor"] .link-btn { display: inline-flex; align-items: center; min-height: 44px; }
   /* Abajo va la barra: lo ultimo de la pagina tiene que poder subir mas alla de ella. */
   .main { padding: 18px 16px 104px; }
   .topbar { flex-wrap: wrap; align-items: flex-start; }

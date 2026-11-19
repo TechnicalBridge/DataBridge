@@ -149,7 +149,7 @@ export default function Layout({ variant }) {
   }, [esEmpresa]);
 
   return (
-    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`}>
+    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`} data-portal={variant}>
       <aside className="sidebar">
         <div className="brand-row">
           <Logo size={40} />
