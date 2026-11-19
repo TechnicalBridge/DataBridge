@@ -5,6 +5,7 @@ import com.tbridge.debt.model.OutboxEvent;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,14 +47,19 @@ class EventosTest {
     }
 
     @Test
-    void despuesDelSextoIntentoQuedaFallido() {
+    void espera_24_horas_tras_el_sexto_y_se_rinde_al_septimo() {
         OutboxEvent evento = OutboxEvent.para(null, "x", "pago.confirmado", "{}", Instant.now());
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
+            Instant antes = Instant.now();
             evento.fallo("caido");
             assertEquals(OutboxEvent.Status.pending, evento.getStatus());
+            if (i == 5) {
+                assertTrue(!evento.getNextAttemptAt().isBefore(antes.plus(Duration.ofHours(24))));
+                assertTrue(evento.getNextAttemptAt().isBefore(Instant.now().plus(Duration.ofHours(24)).plusSeconds(2)));
+            }
         }
         evento.fallo("caido");
         assertEquals(OutboxEvent.Status.failed, evento.getStatus());
-        assertEquals((short) 6, evento.getAttempts());
+        assertEquals((short) 7, evento.getAttempts());
     }
 }

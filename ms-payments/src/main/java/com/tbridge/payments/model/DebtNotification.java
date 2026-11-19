@@ -73,7 +73,7 @@ public class DebtNotification {
 
     /**
      * Lo vuelve a poner en cola para ahora, desde el panel (#139). Conserva los
-     * intentos: si vuelve a fallar despues del sexto, queda otra vez como fallido.
+     * intentos: si vuelve a fallar despues del septimo, queda otra vez como fallido.
      */
     public void reintentar() {
         this.status = Status.pending;
@@ -85,7 +85,7 @@ public class DebtNotification {
         this.attempts = (short) (this.attempts + 1);
         this.lastError = motivo == null ? null
                 : motivo.substring(0, Math.min(motivo.length(), 300));
-        if (attempts >= ESPERAS.length) {
+        if (attempts > ESPERAS.length) {
             this.status = Status.failed;
             return;
         }

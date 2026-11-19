@@ -55,7 +55,7 @@ class AvisosServiceTest {
         return suscripcion;
     }
 
-    /** Un aviso con tantos intentos fallidos: con seis, queda como fallido. */
+    /** Un aviso con tantos intentos fallidos: con siete, queda como fallido. */
     private static OutboxEvent aviso(Subscription destino, int fallos) {
         OutboxEvent aviso = OutboxEvent.para(destino, "evt", "pago.confirmado",
                 "{\"rut_deudor\":\"18905214-6\",\"monto\":410000}", Instant.parse("2026-10-20T15:00:00Z"));
@@ -70,7 +70,7 @@ class AvisosServiceTest {
         Subscription apofyx = suscripcion(1, "APOFYX", "77305118-6", "http://host.docker.internal:8000/api/eventos?token=secreto");
         Subscription otra = suscripcion(2, "Otra SpA", "76000000-0", "https://otra.cl/avisos");
         when(bandeja.findTop500ByStatusInOrderByIdDesc(any())).thenReturn(List.of(
-                aviso(otra, 1), aviso(apofyx, 6), aviso(apofyx, 6)));
+                aviso(otra, 1), aviso(apofyx, 7), aviso(apofyx, 7)));
         when(bandeja.countByStatus(OutboxEvent.Status.pending)).thenReturn(1L);
         when(bandeja.countByStatus(OutboxEvent.Status.failed)).thenReturn(2L);
 
@@ -85,7 +85,7 @@ class AvisosServiceTest {
         assertEquals("http://host.docker.internal:8000", primero.direccion(), "sin la ruta ni los parametros");
         AvisosResponse.Aviso fallido = primero.avisos().getFirst();
         assertEquals("failed", fallido.estado());
-        assertEquals(6, fallido.intentos());
+        assertEquals(7, fallido.intentos());
         assertEquals("Connection refused", fallido.ultimoError());
         assertNull(fallido.proximoIntento(), "un fallido espera un reintento a mano");
         AvisosResponse.Destino segundo = respuesta.destinos().get(1);
@@ -104,7 +104,7 @@ class AvisosServiceTest {
 
     @Test
     void reintentar_lo_deja_en_cola_para_ahora_y_lo_anota_sobre_la_empresa() {
-        OutboxEvent fallido = aviso(suscripcion(1, "APOFYX", "77305118-6", "https://apofyx.cl/eventos"), 6);
+        OutboxEvent fallido = aviso(suscripcion(1, "APOFYX", "77305118-6", "https://apofyx.cl/eventos"), 7);
         when(bandeja.findById(9L)).thenReturn(Optional.of(fallido));
         Instant antes = Instant.now();
 
@@ -112,7 +112,7 @@ class AvisosServiceTest {
 
         assertEquals(OutboxEvent.Status.pending, fallido.getStatus());
         assertTrue(!fallido.getNextAttemptAt().isBefore(antes), "queda para ahora, no para dentro de un rato");
-        assertEquals(6, fallido.getAttempts().intValue(), "conserva sus intentos");
+        assertEquals(7, fallido.getAttempts().intValue(), "conserva sus intentos");
         assertEquals("pending", enCola.estado());
         verify(bandeja).save(fallido);
         ArgumentCaptor<AdminLog> registro = ArgumentCaptor.forClass(AdminLog.class);
@@ -125,12 +125,12 @@ class AvisosServiceTest {
 
     @Test
     void si_vuelve_a_fallar_queda_otra_vez_como_fallido() {
-        OutboxEvent fallido = aviso(suscripcion(1, "APOFYX", "77305118-6", "https://apofyx.cl"), 6);
+        OutboxEvent fallido = aviso(suscripcion(1, "APOFYX", "77305118-6", "https://apofyx.cl"), 7);
         fallido.reintentar();
         fallido.fallo("Connection refused");
 
         assertEquals(OutboxEvent.Status.failed, fallido.getStatus());
-        assertEquals(7, fallido.getAttempts().intValue());
+        assertEquals(8, fallido.getAttempts().intValue());
     }
 
     @Test
@@ -151,7 +151,7 @@ class AvisosServiceTest {
     @Test
     void reintentar_un_destinatario_pone_en_cola_todos_sus_fallidos_y_lo_anota_una_vez() {
         Subscription apofyx = suscripcion(1, "APOFYX", "77305118-6", "https://apofyx.cl/eventos");
-        List<OutboxEvent> fallidos = List.of(aviso(apofyx, 6), aviso(apofyx, 6), aviso(apofyx, 6));
+        List<OutboxEvent> fallidos = List.of(aviso(apofyx, 7), aviso(apofyx, 7), aviso(apofyx, 7));
         when(bandeja.findBySubscriptionIdAndStatus(1L, OutboxEvent.Status.failed)).thenReturn(fallidos);
 
         assertEquals(3, avisos.reintentarDestino(1L, "admin@databridge.cl"));
