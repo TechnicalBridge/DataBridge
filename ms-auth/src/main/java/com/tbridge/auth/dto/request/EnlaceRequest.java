@@ -16,6 +16,17 @@ public record EnlaceRequest(
                 + "que registro el acreedor", example = "camila.reyes@apofyx.cl", nullable = true)
         @Email(message = "Correo no valido")
         @Size(max = 254, message = "Correo no valido")
-        String correo
+        String correo,
+
+        @Schema(description = "Canal de entrega: 'correo' o 'sms'. Por omision es 'correo'",
+                example = "sms", nullable = true)
+        String canal
 ) {
+    public EnlaceRequest(String rut, String correo) {
+        this(rut, correo, "correo");
+    }
+
+    public String canalOPorOmision() {
+        return canal == null || canal.isBlank() ? "correo" : canal.trim().toLowerCase();
+    }
 }

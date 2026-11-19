@@ -64,6 +64,22 @@ public class DeudasClient {
         }
     }
 
+    /** El telefono registrado para ese RUT. Vacio si no hay, o si ms-debt no responde. */
+    public Optional<String> telefonoDelDeudor(String rut) {
+        try {
+            Telefono respuesta = rest.get().uri("/internal/deudores/{rut}/telefono", rut)
+                    .header("X-Internal-Key", internalKey)
+                    .retrieve()
+                    .body(Telefono.class);
+            return Optional.ofNullable(respuesta).map(Telefono::telefono).filter(t -> !t.isBlank());
+        } catch (HttpClientErrorException.NotFound sinTelefono) {
+            return Optional.empty();
+        } catch (RestClientException fallo) {
+            log.warn("ms-debt no respondio por el telefono de un deudor: {}", fallo.getMessage());
+            return Optional.empty();
+        }
+    }
+
     /**
      * La empresa con ese RUT, tal como la conoce ms-debt. Vacio si no existe.
      *
@@ -90,4 +106,5 @@ public class DeudasClient {
     public record Empresa(String rut, String nombre, boolean activa) {}
 
     record Correo(String correo) {}
+    record Telefono(String telefono) {}
 }

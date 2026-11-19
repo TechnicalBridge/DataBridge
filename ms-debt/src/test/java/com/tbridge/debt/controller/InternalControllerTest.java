@@ -124,6 +124,19 @@ class InternalControllerTest {
     }
 
     @Test
+    void el_telefono_registrado_de_un_deudor_va_detras_de_la_clave() throws Exception {
+        when(debts.telefonoDelDeudor("16482337-7")).thenReturn(java.util.Optional.of("+56987654321"));
+        when(debts.telefonoDelDeudor("11111111-1")).thenReturn(java.util.Optional.empty());
+
+        mvc.perform(get("/internal/deudores/16482337-7/telefono")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/internal/deudores/16482337-7/telefono").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telefono").value("+56987654321"));
+        mvc.perform(get("/internal/deudores/11111111-1/telefono").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void la_cartera_de_una_empresa_va_detras_de_la_clave() throws Exception {
         when(debts.carteraInterna("77305118-6")).thenReturn(List.of(3L, 7L));
 

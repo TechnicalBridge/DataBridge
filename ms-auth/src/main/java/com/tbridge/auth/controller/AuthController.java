@@ -101,13 +101,15 @@ public class AuthController {
 
     @PostMapping("/api/auth/codigo")
     @Operation(summary = "Pedir solo un codigo de acceso",
-            description = "Al correo registrado del deudor o del personal habilitado. No incluye enlace y no revela "
+            description = "Al correo o telefono registrado del deudor o del personal habilitado. No incluye enlace y no revela "
                     + "si existe la identidad. El codigo sirve una vez y dura 15 minutos.")
     @ApiResponse(responseCode = "202", description = "Solicitud recibida, sin revelar el destinatario")
     public ResponseEntity<EnlaceResponse> codigo(@Valid @RequestBody EnlaceRequest pedido, HttpServletRequest peticion) {
         identifierLimit.check("delivery", pedido.rut(), pedido.correo());
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(auth.pedirCodigo(pedido.rut(), pedido.correo(), origen(peticion)));
+                .body("sms".equalsIgnoreCase(pedido.canalOPorOmision())
+                        ? auth.pedirCodigoSms(pedido.rut(), origen(peticion))
+                        : auth.pedirCodigo(pedido.rut(), pedido.correo(), origen(peticion)));
     }
 
     @PostMapping("/api/auth/enlace")

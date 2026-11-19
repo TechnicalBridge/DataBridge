@@ -451,6 +451,7 @@ Cada caso de uso de arriba termina en uno o más de estos **107 endpoints**. La 
 | `POST /api/v1/suscripciones` | Suscribirse a los eventos (contrato 3) | Sistema de una empresa | Clave de API | Solo con `INTEGRACION_API=true` | `IntegracionController.suscripciones` |
 | `GET /internal/debts/{id}` | Cuánto se debe y a quién (para ms-payments) | ms-payments | Clave interna | No | `InternalController.deuda` |
 | `GET /internal/deudores/{rut}/correo` | El correo registrado de un deudor (para ms-auth) | ms-auth | Clave interna | No | `InternalController.correoDelDeudor` |
+| `GET /internal/deudores/{rut}/telefono` | El teléfono registrado de un deudor (para ms-auth) | ms-auth | Clave interna | No | `InternalController.telefonoDelDeudor` |
 | `GET /internal/cartera/{rut}` | Las deudas de la cartera de una empresa (para ms-payments) | ms-payments | Clave interna | No | `InternalController.cartera` |
 | `POST /internal/claves` | Emitir una clave de API | Operación de DataBridge | Clave interna | No | `InternalController.clave` |
 | `POST /internal/campanas/avance` | Publicar ahora el avance de las campañas | Operación de DataBridge | Clave interna | No | `InternalController.avance` |

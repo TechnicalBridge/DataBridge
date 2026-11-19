@@ -50,6 +50,24 @@ class DeudasClientTest {
     }
 
     @Test
+    void pregunta_con_la_clave_interna_y_devuelve_el_telefono() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/telefono"))
+                .andExpect(header("X-Internal-Key", "clave-interna"))
+                .andRespond(withSuccess("{\"telefono\":\"+56987654321\"}", MediaType.APPLICATION_JSON));
+
+        assertEquals(Optional.of("+56987654321"), cliente.telefonoDelDeudor("16482337-7"));
+        servidor.verify();
+    }
+
+    @Test
+    void sin_telefono_registrado_no_hay_telefono() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/telefono"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertEquals(Optional.empty(), cliente.telefonoDelDeudor("16482337-7"));
+    }
+
+    @Test
     void pregunta_por_una_empresa_con_la_clave_interna() {
         servidor.expect(requestTo("http://ms-debt:8083/internal/organizaciones/77305118-6"))
                 .andExpect(header("X-Internal-Key", "clave-interna"))
