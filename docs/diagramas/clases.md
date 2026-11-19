@@ -1883,6 +1883,8 @@ classDiagram
             +buscarDeudores(String, int, int) PagedModel~DeudorEncontradoResponse~
             +fichaDeDeudor(JwtPrincipal, String) FichaDeudorResponse
             +deuda(Long) DeudaAdminResponse
+            +reclamosAbiertos(int, int) PagedModel~ReclamoAdminResponse~
+            +reclamosResueltos(LocalDate, LocalDate, int, int) PagedModel~ReclamoAdminResponse~
         }
     }
     namespace service {
@@ -1891,6 +1893,11 @@ classDiagram
             +buscar(String, int, int) Page~DeudorEncontradoResponse~
             +ficha(String, String) FichaDeudorResponse
             +deuda(Long) DeudaAdminResponse
+        }
+        class ReclamosAdminService {
+            <<service>>
+            +abiertos(int, int) Page~ReclamoAdminResponse~
+            +resueltos(LocalDate, LocalDate, int, int) Page~ReclamoAdminResponse~
         }
         class AvisosService {
             <<service>>
@@ -1961,6 +1968,9 @@ classDiagram
         class DebtRepository {
             <<repository>>
         }
+        class DebtEventRepository {
+            <<repository>>
+        }
     }
     EmpresaService ..> EmpresaService_Totales
     AdminController --> EmpresaService
@@ -1970,6 +1980,8 @@ classDiagram
     AdminController --> DeudoresAdminService
     DeudoresAdminService --> DebtRepository
     DeudoresAdminService --> AdminLogRepository
+    AdminController --> ReclamosAdminService
+    ReclamosAdminService --> DebtEventRepository
     AvisosService --> OutboxEventRepository
     AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
@@ -1986,8 +1998,9 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, los deudores, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, los deudores, los reclamos, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
 | `DeudoresAdminService` | `service` | Buscar a un deudor en todas las empresas y abrir su ficha, que queda en la bitácora del panel ([#434](https://github.com/TechnicalBridge/DataBridge/issues/434)), y una deuda sin datos del deudor para el detalle de un pago ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)). |
+| `ReclamosAdminService` | `service` | Los reclamos de todas las empresas para el panel ([#436](https://github.com/TechnicalBridge/DataBridge/issues/436)): los abiertos con los días que llevan sin respuesta y los que se cerraron en un período, y cómo, leídos de la historia de las deudas. Sin datos del deudor. |
 | `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, dar de alta una empresa usuaria, y suspenderla o reactivarla. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |

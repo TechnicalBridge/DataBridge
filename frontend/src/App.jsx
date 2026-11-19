@@ -27,6 +27,7 @@ import AdminDeudores from "./pages/AdminDeudores";
 import AdminDeudor from "./pages/AdminDeudor";
 import AdminPagos from "./pages/AdminPagos";
 import AdminPago from "./pages/AdminPago";
+import AdminReclamos from "./pages/AdminReclamos";
 import AdminOperacion from "./pages/AdminOperacion";
 
 //  El portal de empresas trae los graficos (recharts), que pesan mas que todo
@@ -133,6 +134,7 @@ export default function App() {
         <Route path="deudores/:rut" element={<AdminDeudor />} />
         <Route path="pagos" element={<AdminPagos />} />
         <Route path="pagos/:id" element={<AdminPago />} />
+        <Route path="reclamos" element={<AdminReclamos />} />
         <Route path="equipo" element={<AdminEquipo />} />
         <Route path="operacion" element={<AdminOperacion />} />
         <Route path="accesos" element={<AdminAccesos />} />

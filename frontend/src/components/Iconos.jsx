@@ -26,6 +26,15 @@ export const IconoSol = (p) => (
 
 export const IconoLuna = (p) => <Trazo {...p}><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" /></Trazo>;
 
+/** Tres puntos: lo que no cabe en la barra del telefono (#436). */
+export const IconoMas = (p) => (
+  <Trazo {...p}>
+    <circle cx="5" cy="12" r="1.4" />
+    <circle cx="12" cy="12" r="1.4" />
+    <circle cx="19" cy="12" r="1.4" />
+  </Trazo>
+);
+
 export const IconoChat = (p) => (
   <Trazo {...p}><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z" /></Trazo>
 );

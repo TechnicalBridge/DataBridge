@@ -10,6 +10,7 @@ import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
+import com.tbridge.debt.dto.response.ReclamoAdminResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
@@ -18,6 +19,7 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
+import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -72,14 +74,57 @@ public class AdminController {
     private final ComisionService comisiones;
     private final AvisosService avisos;
     private final DeudoresAdminService deudores;
+    private final ReclamosAdminService reclamos;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos, DeudoresAdminService deudores) {
+                           AvisosService avisos, DeudoresAdminService deudores, ReclamosAdminService reclamos) {
         this.deudores = deudores;
+        this.reclamos = reclamos;
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
         this.avisos = avisos;
+    }
+
+    // ------------------------------------------------------------------
+    //  Los reclamos de todas las empresas (#436)
+    // ------------------------------------------------------------------
+
+    @GetMapping("/reclamos")
+    @Operation(summary = "Los reclamos abiertos de todas las empresas",
+            description = "Las deudas en revision porque el deudor reclamo, el reclamo mas antiguo primero, con el "
+                    + "motivo, lo que escribio el deudor, la empresa que tiene que responder y los dias que lleva "
+                    + "sin respuesta. Sin datos del deudor. Va en `_embedded.reclamos`, con paginas (`pagina`, "
+                    + "`porPagina`, hasta 50).")
+    @ApiResponse(responseCode = "200", description = "Los reclamos abiertos")
+    @ApiResponse(responseCode = "400", description = "Una pagina negativa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PagedModel<ReclamoAdminResponse> reclamosAbiertos(
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int porPagina) {
+        return comoPaginas(reclamos.abiertos(pagina, porPagina));
+    }
+
+    @GetMapping("/reclamos/resueltos")
+    @Operation(summary = "Los reclamos que se cerraron en un periodo",
+            description = "Entre `desde` y `hasta`, dias de Chile incluidos (sin fechas, los ultimos 30 dias), lo "
+                    + "mas nuevo primero: cuando se cerro, cuantos dias tardo y como. `reanudada`: la empresa dijo "
+                    + "que la deuda corresponde y volvio a cobranza. `retirada`: salio de la cobranza, al resolverlo "
+                    + "(`disputa_resuelta`) o en una carga, con su motivo. Con la nota de la empresa, si la dejo.")
+    @ApiResponse(responseCode = "200", description = "Los reclamos cerrados en el periodo")
+    @ApiResponse(responseCode = "400", description = "Desde despues de hasta, o una pagina negativa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PagedModel<ReclamoAdminResponse> reclamosResueltos(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int porPagina) {
+        return comoPaginas(reclamos.resueltos(desde, hasta, pagina, porPagina));
+    }
+
+    private static <T> PagedModel<T> comoPaginas(Page<T> pagina) {
+        return PagedModel.of(pagina.getContent(), new PagedModel.PageMetadata(pagina.getSize(),
+                pagina.getNumber(), pagina.getTotalElements(), pagina.getTotalPages()));
     }
 
     // ------------------------------------------------------------------
