@@ -33,6 +33,9 @@ export const listarEmpresas = () => pedir("/admin/debt/empresas").then((data) =>
 
 export const obtenerEmpresa = (rut) => pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}`);
 
+export const corregirEmpresa = (rut, datos) =>
+  pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}`, { method: "PATCH", body: datos });
+
 /** Dar de alta una empresa usuaria: una agencia, o un acreedor que cobra directo. */
 export const crearEmpresa = (empresa) => pedir("/admin/debt/empresas", { method: "POST", body: empresa });
 
@@ -61,6 +64,9 @@ export const crearAdmin = (persona) => pedir("/admin/auth/admins", { method: "PO
 export const quitarAcceso = (id) => pedir(`/admin/auth/personal/${id}/deshabilitar`, { method: "POST" });
 
 export const devolverAcceso = (id) => pedir(`/admin/auth/personal/${id}/habilitar`, { method: "POST" });
+
+export const corregirPersona = (id, datos) =>
+  pedir(`/admin/auth/personal/${id}`, { method: "PATCH", body: datos });
 
 // ---- Lo que se hizo, y quien -----------------------------------------------------
 
