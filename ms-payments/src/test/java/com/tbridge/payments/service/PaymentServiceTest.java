@@ -1412,6 +1412,73 @@ class PaymentServiceTest {
         assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
     }
 
+    // ------------------------------------------------------------------
+    //  El admin verifica un pago abierto con su pasarela (#435)
+    // ------------------------------------------------------------------
+
+    @Test
+    void verificar_como_admin_confirma_lo_que_la_pasarela_ya_cobro_una_sola_vez() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
+
+        assertEquals(Payment.Status.paid, servicio.verificarComoAdmin(41L).getStatus());
+
+        verify(avisos, times(1)).save(any(DebtNotification.class));
+        assertEquals(Payment.Status.paid, pago.getStatus());
+    }
+
+    @Test
+    void verificar_como_admin_deja_abierto_lo_que_sigue_en_curso_y_no_lo_vence() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("in_process"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("in_process", "410000", "41"));
+
+        assertEquals(Payment.Status.created, servicio.verificarComoAdmin(41L).getStatus());
+
+        verify(eventos, never()).save(argThat(e -> e.getType() == PaymentEvent.Type.expired));
+        verify(avisos, never()).save(any(DebtNotification.class));
+        assertEquals(Payment.Status.created, pago.getStatus());
+    }
+
+    @Test
+    void verificar_como_admin_con_la_pasarela_simulada_no_pregunta_a_nadie_y_lo_deja_abierto() {
+        //  La simulada se confirma solo con su aviso firmado: no hay a quien preguntarle.
+        for (Payment.Gateway pasarela : Payment.Gateway.values()) {
+            Payment pago = abiertoEnMercadoPago();
+            pago.setGateway(pasarela);
+            pago.setGatewayTxnId(null);
+            when(mercadopago.real()).thenReturn(false);
+            when(payments.paraCerrar(41L)).thenReturn(Optional.of(pago));
+
+            assertEquals(Payment.Status.created, servicio.verificarComoAdmin(41L).getStatus(), pasarela.name());
+        }
+
+        verify(khipu, never()).estado(any());
+        verify(mercadopago, never()).consultarPreferencia(any());
+        verify(webpay, never()).estado(any());
+        verify(eventos, never()).save(any());
+        verify(avisos, never()).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void verificar_como_admin_un_pago_que_ya_no_esta_abierto_es_409_sin_preguntarle_a_la_pasarela() {
+        trabadoEnMercadoPago().setStatus(Payment.Status.paid);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.verificarComoAdmin(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(mercadopago, never()).consultarPreferencia(any());
+    }
+
+    @Test
+    void verificar_como_admin_un_pago_que_no_existe_es_404() {
+        when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(ApiException.class, () -> servicio.verificarComoAdmin(99L)).getStatus());
+    }
+
     @Test
     void un_vencido_que_mercadopago_aprueba_despues_se_registra() {
         Payment pago = abiertoEnMercadoPago();

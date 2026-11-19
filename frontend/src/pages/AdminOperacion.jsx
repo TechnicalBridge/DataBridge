@@ -3,7 +3,7 @@ import {
   SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, liberarCobro, operacionDePagos, reintentarAviso,
   reintentarAvisoDePago, reintentarDestino,
 } from "../api/admin";
-import { dinero, fecha, fechaHora, hoyEnChile } from "../utils/formato";
+import { dinero, fecha, fechaHora, hoyEnChile, PASARELA } from "../utils/formato";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
 
 /** Cuanto espera la pantalla antes de volver a mirar los avisos que puso en cola: el despachador pasa cada 15 s. */
@@ -14,12 +14,13 @@ const ESTADO_AVISO = {
   failed: { texto: "Fallido", clase: "badge-peligro" },
 };
 
-const PASARELA = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
 
 const QUE_SE_HIZO = {
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
   //  ms-payments lo guarda como "el cobro 2488 de mercadopago" (#453).
   cobro_liberado: (a) => `Liberó ${a.sobre.replace(/ de (\w+)$/, (_, p) => ` de ${PASARELA[p] ?? p}`)}`,
+  //  Y este como "el pago 2520 de webpay, que sigue abierto" (#435).
+  pago_verificado: (a) => `Verificó ${a.sobre.replace(/ de (\w+),/, (_, p) => ` de ${PASARELA[p] ?? p},`)}`,
   //  ms-payments lo guarda como "2026-01-06: 39700.55".
   uf_cargada: (a) => {
     const [dia, valor] = a.sobre.split(": ");

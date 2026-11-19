@@ -118,6 +118,34 @@ export const pagosDeDeudor = (rut) => pedir(`/admin/payments/deudores/${encodeUR
 /** Sus pedidos de codigo e intentos de entrar, de ms-auth. Nunca el codigo ni la IP. */
 export const accesosDeDeudor = (rut) => pedir(`/admin/auth/deudores/${encodeURIComponent(rut)}/accesos`);
 
+// ---- Los pagos de todas las empresas (ms-payments, #435) -------------------------
+
+/**
+ * Una pagina de pagos, el mas nuevo primero: las filas y la pagina (number,
+ * totalPages, totalElements). Los filtros vacios no se mandan. Sin datos del
+ * deudor: para eso, su ficha en Deudores.
+ */
+export async function pagosDelPanel({ estado, pasarela, empresa, desde, hasta, revisar, pagina = 0, porPagina = 20 } = {}) {
+  const params = { pagina, porPagina };
+  if (estado) params.estado = estado;
+  if (pasarela) params.pasarela = pasarela;
+  if (empresa) params.empresa = empresa;
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  if (revisar) params.revisar = true;
+  const data = await pedir("/admin/payments/pagos", { params });
+  return { filas: embebidos(data, "pagos"), pagina: data.page };
+}
+
+/** Un pago con su historia. */
+export const pagoDelPanel = (id) => pedir(`/admin/payments/pagos/${id}`);
+
+/** Volver a preguntarle a la pasarela por un pago abierto. Queda en la bitacora del panel. */
+export const verificarPago = (id) => pedir(`/admin/payments/pagos/${id}/verificar`, { method: "POST" });
+
+/** La deuda que paga un pago, sin datos del deudor (ms-debt). */
+export const deudaDelPanel = (id) => pedir(`/admin/debt/deudas/${id}`);
+
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */
