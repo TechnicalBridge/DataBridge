@@ -33,6 +33,8 @@ export default function DataBridge() {
   const [avisos, setAvisos] = useState({});
   const [enRiesgo, setEnRiesgo] = useState(0);
   const [error, setError] = useState("");
+  const [resolviendo, setResolviendo] = useState(null);
+  const [notaResolucion, setNotaResolucion] = useState("");
 
   async function refrescar() {
     const [r, d] = await Promise.all([resumenDeCartera(), listarDeudas()]);
@@ -67,22 +69,26 @@ export default function DataBridge() {
   }
 
   /** Revisada la disputa: la deuda corresponde (reanudar) o no (retirar). */
-  async function resolver(deuda, resultado) {
-    const pregunta = resultado === "reanudar"
-      ? `¿La deuda de ${deuda.deudor} corresponde? Vuelve a cobranza. Puedes dejar una nota:`
-      : `¿La deuda de ${deuda.deudor} no corresponde? Sale de la cobranza y se le avisa al acreedor. Puedes dejar una nota:`;
-    const nota = window.prompt(pregunta, "");
-    if (nota === null) return;
+  async function resolver(evento, deuda, resultado) {
+    evento.preventDefault();
     setAvisos((a) => ({ ...a, [deuda.id]: { enviando: true } }));
     try {
-      await resolverDisputa(deuda.id, resultado, nota.trim() || null);
+      await resolverDisputa(deuda.id, resultado, notaResolucion.trim() || null);
       setAvisos((a) => ({ ...a, [deuda.id]: { ok: resultado === "reanudar" ? "Cobro reanudado" : "Deuda retirada" } }));
+      setResolviendo(null);
+      setNotaResolucion("");
       await refrescar();
       //  Ya no esta en revision: con ese filtro desapareceria, y no se veria en que quedo.
       setFiltro("todas");
     } catch (err) {
       setAvisos((a) => ({ ...a, [deuda.id]: { error: err.message } }));
     }
+  }
+
+  function prepararResolucion(deuda, resultado) {
+    setResolviendo({ id: deuda.id, resultado });
+    setNotaResolucion("");
+    setAvisos((a) => ({ ...a, [deuda.id]: null }));
   }
 
   //  La busqueda va primero: los filtros cuentan sobre lo que se busco, y la pagina sobre lo filtrado (#280).
@@ -249,12 +255,32 @@ export default function DataBridge() {
                       </td>
                       <td data-campo="Acceso">
                         {d.estado === "disputed" ? (
-                          <div className="filters">
-                            <button type="button" className="btn btn-soft btn-sm" disabled={aviso?.enviando}
-                                    onClick={() => resolver(d, "reanudar")}>Reanudar cobro</button>
-                            <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
-                                    onClick={() => resolver(d, "retirar")}>Retirar</button>
-                          </div>
+                          resolviendo?.id === d.id ? (
+                            <form className="resolucion-disputa" onSubmit={(e) => resolver(e, d, resolviendo.resultado)}>
+                              <label htmlFor={`nota-disputa-${d.id}`}>
+                                {resolviendo.resultado === "reanudar"
+                                  ? `¿La deuda de ${d.deudor} corresponde? Volverá a cobranza.`
+                                  : `¿La deuda de ${d.deudor} no corresponde? Se retirará y se avisará al acreedor.`}
+                              </label>
+                              <textarea id={`nota-disputa-${d.id}`} value={notaResolucion} maxLength={500} rows={3}
+                                placeholder="Nota opcional" disabled={aviso?.enviando}
+                                onChange={(e) => setNotaResolucion(e.target.value)} />
+                              <div className="filters">
+                                <button type="submit" className="btn btn-primary btn-sm" disabled={aviso?.enviando}>
+                                  {aviso?.enviando ? "Guardando…" : "Confirmar"}
+                                </button>
+                                <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
+                                  onClick={() => setResolviendo(null)}>Cancelar</button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="filters">
+                              <button type="button" className="btn btn-soft btn-sm" disabled={aviso?.enviando}
+                                onClick={() => prepararResolucion(d, "reanudar")}>Reanudar cobro</button>
+                              <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
+                                onClick={() => prepararResolucion(d, "retirar")}>Retirar</button>
+                            </div>
+                          )
                         ) : null}
                         {cobrable ? (
                           <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
