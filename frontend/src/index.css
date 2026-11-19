@@ -692,6 +692,17 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .filtros-accesos { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end; margin: 14px 0 4px; }
 .filtros-accesos .field { min-width: 150px; flex: 1 1 150px; max-width: 220px; }
 .filtros-accesos > .btn { margin-bottom: 14px; }
+/* La bitacora administrativa unificada (#443): cinco filtros que bajan en el telefono. */
+.filtros-bitacora { display: grid; grid-template-columns: 1.3fr 1fr 1fr 0.75fr 0.75fr; gap: 0 12px; align-items: end; }
+.filtros-bitacora .field { min-width: 0; }
+.acciones-filtros-bitacora { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.tabla-bitacora { min-width: 760px; }
+.tabla-bitacora .correo-bitacora { overflow-wrap: anywhere; max-width: 220px; }
+.bitacora-movil { display: none; }
+.bitacora-tarjeta { min-width: 0; padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 7px; }
+.bitacora-tarjeta:first-child { border-top: 0; }
+.bitacora-tarjeta .correo-bitacora { overflow-wrap: anywhere; }
+.bitacora-cab { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
 .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 /* Deudores del panel (#434): el buscador y la ficha. Dos columnas, para que en el telefono se vea todo sin deslizar. */
 .buscar-deudor { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end; }
@@ -699,6 +710,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .buscar-deudor > .btn { margin-bottom: 14px; }
 .tabla-deudores .sub, .tabla-ficha .sub { overflow-wrap: anywhere; }
 .tabla-ficha td:last-child, .tabla-deudores td:last-child { width: 42%; }
+/* Lo que escribio el deudor o la empresa (#436): con sus saltos de linea, y sin ensanchar la tabla. */
+.tabla-reclamos .sub { overflow-wrap: anywhere; }
+.tabla-reclamos td:last-child { width: 38%; }
+.reclamo-texto { white-space: pre-line; }
 .ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; margin: 0; }
 .ficha-datos dt { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 .ficha-datos dd { margin: 0; overflow-wrap: anywhere; }
@@ -749,6 +764,11 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .lista-terminadas li:first-child { border-top: 0; }
 .terminada-cifras { color: var(--muted); font-size: 14px; white-space: nowrap; }
 @media (max-width: 620px) {
+  .bitacora-escritorio { display: none; }
+  .bitacora-movil { display: block; }
+  .filtros-bitacora { grid-template-columns: 1fr; }
+  .acciones-filtros-bitacora { grid-column: auto; }
+  .acciones-filtros-bitacora .btn { flex: 1 1 auto; }
   .lista-terminadas li { flex-direction: column; gap: 2px; }
 }
 .uf-de-hoy { margin: 0 0 6px; }
@@ -1447,14 +1467,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--line);
   }
-  .mobile-bar:has(a[href="/admin/campanas"]) {
-    grid-auto-columns: minmax(0, 1fr);
-  }
-  .mobile-bar:has(a[href="/admin/campanas"]) a {
-    font-size: 10px;
-    min-width: 0;
-  }
-  .mobile-bar a {
+  .mobile-bar a, .mobile-bar button {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1466,7 +1479,35 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     font-weight: 600;
     text-align: center;
   }
-  .mobile-bar a.active { color: var(--brand-2); background: var(--brand-soft); }
+  .mobile-bar a.active, .mobile-bar button.active { color: var(--brand-2); background: var(--brand-soft); }
+  .mobile-bar button { border: 0; background: none; font-family: inherit; cursor: pointer; }
+  /* "Mas": lo que no cabe en la barra del panel (#436), en una lista sobre la barra. */
+  .mas-fondo { position: fixed; inset: 0; z-index: 19; }
+  .mas-lista {
+    position: fixed;
+    right: 8px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 21;
+    display: grid;
+    gap: 2px;
+    min-width: 220px;
+    padding: 6px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+  }
+  .mas-lista a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .mas-lista a.active { color: var(--brand-2); background: var(--brand-soft); }
 }
 
 @media (max-width: 620px) {

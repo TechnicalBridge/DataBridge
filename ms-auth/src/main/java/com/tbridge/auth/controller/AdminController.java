@@ -5,6 +5,7 @@ import com.tbridge.auth.dto.request.NuevaPersonaRequest;
 import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
+import com.tbridge.auth.dto.response.BitacoraResponse;
 import com.tbridge.auth.dto.response.EstadoResponse;
 import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
@@ -13,6 +14,7 @@ import com.tbridge.auth.exception.ApiError;
 import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.service.BitacoraDeAccesos;
+import com.tbridge.auth.service.BitacoraService;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,11 +70,14 @@ public class AdminController {
     private final PersonalService personal;
     private final ReglasService reglas;
     private final BitacoraDeAccesos accesos;
+    private final BitacoraService bitacora;
 
-    public AdminController(PersonalService personal, ReglasService reglas, BitacoraDeAccesos accesos) {
+    public AdminController(PersonalService personal, ReglasService reglas, BitacoraDeAccesos accesos,
+                           BitacoraService bitacora) {
         this.personal = personal;
         this.reglas = reglas;
         this.accesos = accesos;
+        this.bitacora = bitacora;
     }
 
     @GetMapping("/estado")
@@ -265,6 +270,23 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "Los totales del dia")
     public AccesosDeHoyResponse accesosDeHoy() {
         return accesos.hoy();
+    }
+
+    @GetMapping("/bitacora")
+    @Operation(summary = "La bitacora de acciones administrativas de ms-auth",
+            description = "Altas y cambios de acceso, filtrados y paginados. Usa los mismos campos que las bitacoras "
+                    + "de ms-debt y ms-payments para que el portal pueda reunirlas.")
+    public PagedModel<BitacoraResponse> bitacora(
+            @RequestParam(required = false) String persona,
+            @RequestParam(required = false) String accion,
+            @RequestParam(required = false) String empresa,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "25") int porPagina) {
+        Page<BitacoraResponse> encontrados = bitacora.buscar(persona, accion, empresa, desde, hasta, pagina, porPagina);
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
+                encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
     }
 
     private static Link paginaDeAccesos(LocalDate desde, LocalDate hasta, AccessLog.Method metodo,
