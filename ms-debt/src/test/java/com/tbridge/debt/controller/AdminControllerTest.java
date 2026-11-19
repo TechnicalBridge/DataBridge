@@ -11,6 +11,9 @@ import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.dto.response.ReclamoAdminResponse;
+import com.tbridge.debt.dto.response.PruebaSuscripcionResponse;
+import com.tbridge.debt.dto.response.SecretoNuevoResponse;
+import com.tbridge.debt.dto.response.SuscripcionAdminResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
 import com.tbridge.debt.model.Debt;
@@ -21,6 +24,7 @@ import com.tbridge.debt.service.BitacoraService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReclamosAdminService;
+import com.tbridge.debt.service.SuscripcionesAdminService;
 import com.tbridge.debt.service.ReglasService;
 import com.tbridge.debt.service.ResumenAdminService;
 import com.tbridge.debt.dto.response.ResumenAdminResponse;
@@ -108,6 +112,7 @@ class AdminControllerTest {
     }
     @MockitoBean private DeudoresAdminService deudoresAdmin;
     @MockitoBean private ReclamosAdminService reclamosAdmin;
+    @MockitoBean private SuscripcionesAdminService suscripcionesAdmin;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -477,5 +482,46 @@ class AdminControllerTest {
         mvc.perform(get("/api/admin/debt/reclamos")).andExpect(status().isUnauthorized());
         verify(reclamosAdmin, times(1)).abiertos(0, 20);
         verify(reclamosAdmin, times(1)).resueltos(any(), any(), eq(0), eq(20));
+    }
+
+    @Test
+    void el_admin_maneja_las_suscripciones_y_ni_una_empresa_ni_un_deudor_pueden() throws Exception {
+        when(suscripcionesAdmin.listar()).thenReturn(List.of(new SuscripcionAdminResponse(1L, "APOFYX", "77305118-6",
+                "https://apofyx.cl/eventos", List.of(), false, Instant.parse("2026-10-01T12:00:00Z"), null, 2, 0)));
+        when(suscripcionesAdmin.cambiarSecreto(1L, "admin@databridge.cl"))
+                .thenReturn(new SecretoNuevoResponse(1L, "whsec_nuevo", "X-Firma: v1=..."));
+        when(suscripcionesAdmin.probar(1L, "admin@databridge.cl"))
+                .thenReturn(new PruebaSuscripcionResponse(1L, true, 202, 40, null));
+
+        mvc.perform(get("/api/admin/debt/suscripciones").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.suscripciones[0].url").value("https://apofyx.cl/eventos"))
+                .andExpect(jsonPath("$._embedded.suscripciones[0].activa").value(false))
+                .andExpect(jsonPath("$._embedded.suscripciones[0].pendientes").value(2))
+                .andExpect(jsonPath("$._embedded.suscripciones[0].secreto").doesNotExist());
+        mvc.perform(post("/api/admin/debt/suscripciones/1/activar").header("Authorization", admin()))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/admin/debt/suscripciones/1/desactivar").header("Authorization", admin()))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/admin/debt/suscripciones/1/secreto").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.secreto").value("whsec_nuevo"));
+        mvc.perform(post("/api/admin/debt/suscripciones/1/probar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value(202));
+        verify(suscripcionesAdmin).activar(1L, "admin@databridge.cl");
+        verify(suscripcionesAdmin).desactivar(1L, "admin@databridge.cl");
+
+        for (String otro : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/suscripciones").header("Authorization", otro))
+                    .andExpect(status().isForbidden());
+            for (String accion : List.of("activar", "desactivar", "secreto", "probar")) {
+                mvc.perform(post("/api/admin/debt/suscripciones/1/" + accion).header("Authorization", otro))
+                        .andExpect(status().isForbidden());
+            }
+        }
+        mvc.perform(post("/api/admin/debt/suscripciones/1/secreto")).andExpect(status().isUnauthorized());
+        verify(suscripcionesAdmin, times(1)).cambiarSecreto(any(), any());
+        verify(suscripcionesAdmin, times(1)).probar(any(), any());
     }
 }

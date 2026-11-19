@@ -8,9 +8,9 @@ import Logo from "./Logo";
 import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
-  IconoAlerta, IconoAyuda, IconoBitacora, IconoCalendario, IconoChat, IconoCandado, IconoCartera, IconoDocumento,
-  IconoEmpresa, IconoEquipo, IconoMas, IconoMegafono, IconoPanel, IconoRecibo, IconoReglas, IconoSalir, IconoSubir,
-  IconoUsuario,
+  IconoAlerta, IconoAviso, IconoAyuda, IconoBitacora, IconoCalendario, IconoChat, IconoCandado, IconoCartera,
+  IconoDocumento, IconoEmpresa, IconoEquipo, IconoMas, IconoMegafono, IconoPanel, IconoRecibo, IconoReglas,
+  IconoSalir, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
 /** Cada enlace con su nombre largo (el menu) y el corto (la barra del telefono). */
@@ -40,6 +40,7 @@ const ADMIN = [
   { to: "/admin/reclamos", label: "Reclamos", corto: "Reclamos", Icono: IconoChat },
   { to: "/admin/campanas", label: "Campañas", corto: "Campañas", Icono: IconoMegafono },
   { to: "/admin/operacion", label: "Operación", corto: "Operación", Icono: IconoAlerta },
+  { to: "/admin/suscripciones", label: "Suscripciones", corto: "Avisos", Icono: IconoAviso },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },
   { to: "/admin/bitacora", label: "Bitácora", corto: "Bitácora", Icono: IconoBitacora },
