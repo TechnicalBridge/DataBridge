@@ -18,8 +18,12 @@ public class AdminLog {
     //  aviso_reintentado: un aviso a una empresa que se volvio a poner en cola (#139).
     //  empresa_suspendida y empresa_reactivada: el admin le corto o le devolvio todo a la empresa (#152).
     //  deudor_consultado: el admin abrio la ficha de un deudor, que muestra sus datos personales (#434).
-    public enum Action { empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado,
-        empresa_corregida }
+    public enum Action {
+        empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado,
+        //  Las suscripciones de avisos, desde el panel (#438).
+        suscripcion_activada, suscripcion_desactivada, suscripcion_secreto_cambiado, suscripcion_probada,
+        empresa_corregida
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

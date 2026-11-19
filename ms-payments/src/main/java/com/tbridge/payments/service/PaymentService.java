@@ -849,6 +849,32 @@ public class PaymentService {
             throw new ApiException(HttpStatus.CONFLICT,
                     "Ese cobro lleva menos de una hora abierto: el deudor todavía puede estar pagando");
         }
+        preguntarALaPasarela(pago);
+        if (pago.getStatus() == Payment.Status.created) {
+            vencer(pago, PaymentEvent.Source.manual);
+        }
+        return pago;
+    }
+
+    /**
+     * El admin le vuelve a preguntar a la pasarela por un cobro abierto (#435):
+     * lo mismo que hace la consulta periodica, a pedido y en cualquier momento.
+     * Si la pasarela ya cobro, se confirma por el camino de siempre, una sola
+     * vez; si sigue en curso, queda abierto. Devuelve el cobro como quedo.
+     */
+    @Transactional
+    public Payment verificarComoAdmin(Long id) {
+        Payment pago = payments.paraCerrar(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ningún pago con ese id"));
+        if (pago.getStatus() != Payment.Status.created) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ese pago ya no está abierto: no hay nada que verificar");
+        }
+        preguntarALaPasarela(pago);
+        return pago;
+    }
+
+    /** Lo que dice la pasarela del cobro, aplicado a el: lo comparten liberar y verificar. */
+    private void preguntarALaPasarela(Payment pago) {
         switch (pago.getGateway()) {
             case khipu -> {
                 if (khipu.real()) {
@@ -862,10 +888,6 @@ public class PaymentService {
             }
             case webpay -> conciliarWebpay(pago.getId());
         }
-        if (pago.getStatus() == Payment.Status.created) {
-            vencer(pago, PaymentEvent.Source.manual);
-        }
-        return pago;
     }
 
     private void vencer(Payment pago, PaymentEvent.Source origen) {

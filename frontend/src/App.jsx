@@ -25,7 +25,13 @@ import AdminReglas from "./pages/AdminReglas";
 import AdminAccesos from "./pages/AdminAccesos";
 import AdminDeudores from "./pages/AdminDeudores";
 import AdminDeudor from "./pages/AdminDeudor";
+import AdminPagos from "./pages/AdminPagos";
+import AdminPago from "./pages/AdminPago";
+import AdminReclamos from "./pages/AdminReclamos";
+import AdminSuscripciones from "./pages/AdminSuscripciones";
 import AdminOperacion from "./pages/AdminOperacion";
+import AdminBitacora from "./pages/AdminBitacora";
+import AdminCampanas from "./pages/AdminCampanas";
 
 //  El portal de empresas trae los graficos (recharts), que pesan mas que todo
 //  el resto junto. Se descarga solo al entrar ahi: el deudor nunca lo baja.
@@ -126,12 +132,18 @@ export default function App() {
       >
         <Route index element={<AdminInicio />} />
         <Route path="empresas" element={<AdminEmpresas />} />
+        <Route path="campanas" element={<AdminCampanas />} />
         <Route path="empresas/:rut" element={<AdminEmpresa />} />
         <Route path="deudores" element={<AdminDeudores />} />
         <Route path="deudores/:rut" element={<AdminDeudor />} />
+        <Route path="pagos" element={<AdminPagos />} />
+        <Route path="pagos/:id" element={<AdminPago />} />
+        <Route path="reclamos" element={<AdminReclamos />} />
+        <Route path="suscripciones" element={<AdminSuscripciones />} />
         <Route path="equipo" element={<AdminEquipo />} />
         <Route path="operacion" element={<AdminOperacion />} />
         <Route path="accesos" element={<AdminAccesos />} />
+        <Route path="bitacora" element={<AdminBitacora />} />
         <Route path="reglas" element={<AdminReglas />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

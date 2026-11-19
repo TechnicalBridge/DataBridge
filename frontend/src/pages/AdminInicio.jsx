@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { SERVICIOS, estadoDe } from "../api/admin";
+import { SERVICIOS, estadoDe, resumenDeDeudas, resumenDePagos } from "../api/admin";
 import { useAuth } from "../store/authStore";
 import { IconoAlerta, IconoCheck } from "../components/Iconos";
+import { dinero, ESTADO_DEUDA } from "../utils/formato";
+
+const PASARELAS = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
+const numero = (n) => Number(n).toLocaleString("es-CL");
 
 /**
  * La portada del panel de administracion: quien entro y si cada servicio le
@@ -13,14 +17,22 @@ export default function AdminInicio() {
   const { user } = useAuth();
   //  Por servicio: sin valor mientras se consulta, y despues "ok" o "caido".
   const [estados, setEstados] = useState({});
+  const [cifras, setCifras] = useState({});
 
   function consultar() {
     setEstados({});
+    setCifras({});
     SERVICIOS.forEach(({ tramo }) => {
       estadoDe(tramo)
         .then((r) => setEstados((e) => ({ ...e, [tramo]: r.ok ? "ok" : "caido" })))
         .catch(() => setEstados((e) => ({ ...e, [tramo]: "caido" })));
     });
+    resumenDeDeudas()
+      .then((r) => setCifras((c) => ({ ...c, debt: r })))
+      .catch(() => setCifras((c) => ({ ...c, debt: "error" })));
+    resumenDePagos()
+      .then((r) => setCifras((c) => ({ ...c, payments: r })))
+      .catch(() => setCifras((c) => ({ ...c, payments: "error" })));
   }
 
   useEffect(consultar, []);
@@ -36,6 +48,61 @@ export default function AdminInicio() {
           <p>Hola, {user?.nombre}. Desde aquí el equipo de DataBridge opera la plataforma.</p>
         </div>
       </header>
+
+      <section className="admin-cifras" aria-label="Cifras de la plataforma">
+        <div className="card">
+          <h2>Empresas</h2>
+          <Cifra dato={cifras.debt} render={(r) => (
+            <>
+              <Link to="/admin/empresas" className="admin-cifra-enlace">{numero(r.empresasActivas)} activas</Link>
+              <Link to="/admin/empresas" className="admin-cifra-enlace">{numero(r.empresasSuspendidas)} suspendidas</Link>
+            </>
+          )} />
+        </div>
+        <div className="card">
+          <h2>Deudas por estado</h2>
+          <Cifra dato={cifras.debt} render={(r) => (
+            <div className="admin-cifra-lista">
+              {Object.entries(ESTADO_DEUDA).map(([estado, etiqueta]) => (
+                <Link key={estado} to="/admin/campanas" className="admin-cifra-enlace">
+                  {etiqueta}: {numero(r.deudasPorEstado[estado] ?? 0)}
+                </Link>
+              ))}
+            </div>
+          )} />
+        </div>
+        <div className="card">
+          <h2>Este mes · recuperación</h2>
+          <Cifra dato={cifras.debt} render={(r) => (
+            <>
+              <Link to="/admin/empresas" className="admin-cifra-enlace">Recuperado: {dinero(r.recuperado)}</Link>
+              <Link to="/admin/empresas" className="admin-cifra-enlace">Comisión DataBridge: {dinero(r.comision)}</Link>
+              <p className="hint">Recuperado incluye el monto cobrado con intereses; la comisión usa la misma base por empresa.</p>
+            </>
+          )} />
+        </div>
+        <div className="card">
+          <h2>Pagos de hoy</h2>
+          <Cifra dato={cifras.payments} render={(r) => (
+            <>
+              <Link to="/admin/operacion" className="admin-cifra-enlace">
+                {numero(Object.values(r.pagosHoy).reduce((a, b) => a + b, 0))} confirmados
+              </Link>
+              <div className="admin-cifra-lista">
+                {Object.entries(PASARELAS).map(([clave, nombre]) => (
+                  <Link key={clave} to="/admin/operacion" className="admin-cifra-enlace">
+                    {nombre}: {numero(r.pagosHoy[clave] ?? 0)} hoy · {numero(r.pagosMes[clave] ?? 0)} este mes
+                  </Link>
+                ))}
+              </div>
+              <Link to="/admin/operacion" className="admin-cifra-enlace">
+                Abiertos más de una hora: {numero(r.abiertosMasDeUnaHora)}
+              </Link>
+              <p className="hint">Este mes: {numero(Object.values(r.pagosMes).reduce((a, b) => a + b, 0))} pagos.</p>
+            </>
+          )} />
+        </div>
+      </section>
 
       <div className="grid-2">
         <div className="card aparece" style={{ "--i": 1 }}>
@@ -81,6 +148,12 @@ export default function AdminInicio() {
       </div>
     </div>
   );
+}
+
+function Cifra({ dato, render }) {
+  if (dato === "error") return <p role="status">Este servicio no responde. Las demás cifras siguen disponibles.</p>;
+  if (!dato) return <p role="status">Consultando cifras…</p>;
+  return render(dato);
 }
 
 function Estado({ valor }) {

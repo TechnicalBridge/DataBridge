@@ -18,11 +18,17 @@ const ESTADO = {
  * Las campañas de la empresa: las crea, las cambia, las pausa y las termina.
  * Entran por el mismo camino que las del contrato, con sus mismas reglas. Los
  * deudores se le cargan a cada una desde Cargar cartera.
+ *
+ * Es la pantalla de trabajo diario (#472): las campañas van primero, la
+ * campaña nueva se abre con un boton, y los mandatos y la comision del mes van
+ * plegados, al final.
  */
 export default function Campanas() {
   const [campanas, setCampanas] = useState(null);
   const [acreedores, setAcreedores] = useState([]);
   const [editando, setEditando] = useState(null);
+  //  El formulario de campaña se abre a pedido: para una nueva o para cambiar una.
+  const [formAbierto, setFormAbierto] = useState(false);
   //  Cambia cada vez que el formulario tiene que partir de cero.
   const [vuelta, setVuelta] = useState(0);
   const [cambiando, setCambiando] = useState("");
@@ -49,25 +55,32 @@ export default function Campanas() {
     if (!editando) setVuelta((v) => v + 1);
   }
 
-  function nueva() {
-    setEditando(null);
-    setVuelta((v) => v + 1);
-  }
-
-  function editar(c) {
-    setEditando(c);
+  /** Abre el formulario, vacio o con la campaña que se cambia, y lo trae a la vista. */
+  function abrirForm(campana) {
+    setEditando(campana);
+    setFormAbierto(true);
     setVuelta((v) => v + 1);
     setError("");
     setHecho("");
-    document.getElementById("form-campana")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => document.getElementById("form-campana")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
+
+  /** Se cierra sin crear ni cambiar nada. */
+  function cerrarForm() {
+    setEditando(null);
+    setFormAbierto(false);
+    setVuelta((v) => v + 1);
+  }
+
+  const nueva = () => abrirForm(null);
+  const editar = (c) => abrirForm(c);
 
   async function guardada(campana) {
     setError("");
     setHecho(editando
       ? `Se guardaron los cambios de "${campana.nombre}".`
       : `Se creó "${campana.nombre}" (${campana.idExterno}). Ya le puedes cargar deudores.`);
-    nueva();
+    cerrarForm();
     await cargar();
   }
 
@@ -78,7 +91,7 @@ export default function Campanas() {
     setHecho("");
     try {
       await cambiarEstadoCampana(c.idExterno, estado);
-      if (editando?.idExterno === c.idExterno) nueva();
+      if (editando?.idExterno === c.idExterno) cerrarForm();
       await cargar();
     } catch (err) {
       setError(err.message);
@@ -104,16 +117,29 @@ export default function Campanas() {
           <h1>Campañas</h1>
           <p>Tú decides cuándo y cuántas veces se contacta al deudor; DataBridge le escribe dentro de lo que permite la ley.</p>
         </div>
+        <button type="button" className="btn btn-primary" onClick={nueva}
+                aria-expanded={formAbierto && !editando} aria-controls="form-campana">
+          Nueva campaña
+        </button>
       </header>
       {error ? <div className="error">{error}</div> : null}
       {hecho ? <div className="notice">{hecho}</div> : null}
 
-      <ComisionDelMes onDatos={setComision} />
+      {formAbierto ? (
+        <div className="card bloque aparece" id="form-campana">
+          <h2>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h2>
+          <FormCampana key={vuelta} acreedores={acreedores} editando={editando} onGuardada={guardada}
+                       onCancelar={cerrarForm} />
+          <p className="hint">
+            Los deudores entran con <b>Cargar deudores</b>, en cada campaña, o desde{" "}
+            <Link className="link-btn" to="/databridge/cargar">Cargar cartera</Link>. Se deja de contactar a quien
+            paga, repacta, reclama o sale de la cobranza.
+          </p>
+        </div>
+      ) : null}
 
-      <Mandatos onCambio={cambioUnMandato} />
-
-      <div className="grid-2">
-        <div className="card aparece" style={{ "--i": 1 }}>
+      <div>
+        <div className="card bloque aparece" style={{ "--i": 1 }}>
           <div className="card-cab">
             <h2>Tus campañas</h2>
             {campanas.length > 1 ? (
@@ -220,18 +246,11 @@ export default function Campanas() {
             </details>
           ) : null}
         </div>
-
-        <div className="card aparece" id="form-campana" style={{ "--i": 2 }}>
-          <h2>{editando ? `Cambiar "${editando.nombre}"` : "Nueva campaña"}</h2>
-          <FormCampana key={vuelta} acreedores={acreedores} editando={editando} onGuardada={guardada}
-                       onCancelar={editando ? nueva : null} />
-          <p className="hint">
-            Los deudores entran con <b>Cargar deudores</b>, en cada campaña, o desde{" "}
-            <Link className="link-btn" to="/databridge/cargar">Cargar cartera</Link>. Se deja de contactar a quien
-            paga, repacta, reclama o sale de la cobranza.
-          </p>
-        </div>
       </div>
+
+      {/* Lo que no es del dia a dia, plegado y al final (#472). */}
+      <Mandatos onCambio={cambioUnMandato} />
+      <ComisionDelMes onDatos={setComision} />
     </div>
   );
 }

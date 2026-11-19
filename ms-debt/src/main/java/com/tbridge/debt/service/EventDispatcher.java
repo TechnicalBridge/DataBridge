@@ -48,7 +48,7 @@ public class EventDispatcher {
     @Scheduled(fixedDelayString = "${app.eventos.intervalo-ms:15000}")
     @Transactional
     public void despachar() {
-        for (OutboxEvent evento : bandeja.findTop100ByStatusAndNextAttemptAtBeforeOrderByIdAsc(
+        for (OutboxEvent evento : bandeja.findTop100ByStatusAndNextAttemptAtBeforeAndSubscriptionActiveTrueOrderByIdAsc(
                 OutboxEvent.Status.pending, Instant.now())) {
             try {
                 entregar(evento);

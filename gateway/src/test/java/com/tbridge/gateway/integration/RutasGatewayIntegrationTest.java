@@ -100,8 +100,11 @@ class RutasGatewayIntegrationTest {
                 {"POST", "/api/payments/checkout", "ms-payments"},
                 {"POST", "/api/ai/chat", "ms-ai"},
                 {"GET", "/api/admin/auth/estado", "ms-auth"},
+                {"GET", "/api/admin/auth/bitacora", "ms-auth"},
                 {"GET", "/api/admin/debt/estado", "ms-debt"},
+                {"GET", "/api/admin/debt/bitacora", "ms-debt"},
                 {"GET", "/api/admin/payments/estado", "ms-payments"},
+                {"GET", "/api/admin/payments/bitacora", "ms-payments"},
         };
 
         for (String[] caso : rutas) {

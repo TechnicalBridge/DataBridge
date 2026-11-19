@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { fecha, fechaHora } from "../utils/formato";
 
+function UltimoIngreso({ valor }) {
+  if (!valor) return "Todavía no entra";
+  const [dia, ...hora] = fechaHora(valor).split(", ");
+  return <time dateTime={valor}>
+    <span className="sin-corte">{dia}</span>
+    <span className="sub sin-corte">{hora.join(", ")}</span>
+  </time>;
+}
+
 /**
  * Lo que comparten la ficha de una empresa y el equipo de DataBridge: la lista
  * de personas con su acceso, el formulario para dar de alta a una y la
@@ -72,7 +81,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, alCorregir, vacio
                   </form>
                 ) : null}
               </td>
-              <td>{p.ultimoAcceso ? fechaHora(p.ultimoAcceso) : "Todavía no entra"}</td>
+              <td><UltimoIngreso valor={p.ultimoAcceso} /></td>
               <td>
                 {editando === p.id ? (
                   <>
@@ -163,6 +172,10 @@ const QUE_SE_HIZO = {
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,
   persona_habilitada: (a) => `Le devolvió el acceso a ${a.sobre}`,
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
+  suscripcion_activada: (a) => `Activó ${a.sobre}`,
+  suscripcion_desactivada: (a) => `Desactivó ${a.sobre}`,
+  suscripcion_secreto_cambiado: (a) => `Le cambió el secreto a ${a.sobre}`,
+  suscripcion_probada: (a) => `Probó ${a.sobre}`,
 };
 
 const NOMBRES_CAMPO = { nombre: "Nombre", correo: "Correo", razonSocial: "Razón social" };

@@ -17,6 +17,8 @@
   --muted: #6f665b;
   --line: #ebe1cf;
   --line-2: #dccfb8;
+  /* El borde de los campos y las casillas: 3:1 contra su fondo, para que se vean (#476). */
+  --borde-campo: #918878;
   --brand: #3e7b4f;
   --brand-2: #2f6140;
   --brand-soft: #e4efe2;
@@ -38,6 +40,8 @@
   --font: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* El alto de la barra de abajo en el telefono: lo que va fijo sobre ella se apoya aqui. */
+  --alto-barra-movil: 65px;
 }
 
 :root[data-theme="dark"] {
@@ -50,6 +54,7 @@
   --muted: #a59d90;
   --line: #2e2b27;
   --line-2: #3d3933;
+  --borde-campo: #726e68;
   --brand: #7dbd8c;
   --brand-2: #95cda2;
   --brand-soft: rgba(125, 189, 140, 0.14);
@@ -166,7 +171,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(0.98); }
-.btn:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--ring); }
+/* El mismo contorno que todo lo demas: el anillo suave casi no se veia en el tema claro (1,4:1, #476). */
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-block { width: 100%; }
 .btn-sm { padding: 8px 13px; font-size: 14.5px; border-radius: 9px; }
@@ -197,7 +203,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .field input, .field select, .field textarea, .composer input, .buscador {
   width: 100%;
   background: var(--paper-2);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--borde-campo);
   color: var(--ink);
   border-radius: var(--radius-sm);
   padding: 11px 14px;
@@ -208,7 +214,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .field input:focus, .field select:focus, .field textarea:focus, .composer input:focus, .buscador:focus {
   border-color: var(--brand);
   background: var(--paper);
-  box-shadow: 0 0 0 4px var(--ring);
+  /* Con el borde, 2 px de --brand: se ve en los dos temas (#476). */
+  box-shadow: 0 0 0 1px var(--brand);
 }
 .field input::placeholder, .composer input::placeholder, .buscador::placeholder { color: var(--muted); opacity: 0.8; }
 .field select:disabled { opacity: 0.6; }
@@ -246,7 +253,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .interruptor input:checked + .riel { background: var(--brand); }
 .interruptor input:checked + .riel::after { transform: translateX(20px); }
-.interruptor input:focus-visible + .riel { box-shadow: 0 0 0 4px var(--ring); }
+.interruptor input:focus-visible + .riel { outline: 2px solid var(--brand); outline-offset: 2px; }
 .interruptor b { display: block; }
 .interruptor span.sub { margin-top: 2px; }
 
@@ -642,6 +649,15 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .grid-3, .grid-2 { display: grid; gap: 16px; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-2 { grid-template-columns: 1.15fr 0.85fr; align-items: start; }
+.admin-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; margin-bottom: 16px; }
+.admin-cifras > * { min-width: 0; }
+.admin-cifra-lista { display: grid; gap: 6px; }
+.admin-cifra-enlace { display: block; color: var(--brand); font-weight: 600; overflow-wrap: anywhere; margin: 6px 0; }
+.admin-cifra-enlace:hover { text-decoration: underline; }
+.admin-cifras-compactas { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+.admin-cifras-compactas > div { display: grid; }
+.admin-cifras-compactas b { font-size: 1.3rem; }
+.admin-cifras-compactas span { color: var(--muted); }
 /* Una columna puede ser mas angosta que lo que trae adentro: asi una tabla ancha se desplaza dentro de su
    tarjeta (.tabla-scroll) en vez de ensanchar la pagina entera en el telefono. */
 .grid-3 > *, .grid-2 > * { min-width: 0; }
@@ -654,6 +670,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .totales span { white-space: nowrap; }
 
 .tabla-scroll { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+.resolucion-disputa { display: grid; gap: 8px; min-width: 0; }
+.resolucion-disputa textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
 .table th { color: var(--muted); font-weight: 600; font-size: 14px; }
@@ -683,6 +701,17 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .filtros-accesos { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end; margin: 14px 0 4px; }
 .filtros-accesos .field { min-width: 150px; flex: 1 1 150px; max-width: 220px; }
 .filtros-accesos > .btn { margin-bottom: 14px; }
+/* La bitacora administrativa unificada (#443): cinco filtros que bajan en el telefono. */
+.filtros-bitacora { display: grid; grid-template-columns: 1.3fr 1fr 1fr 0.75fr 0.75fr; gap: 0 12px; align-items: end; }
+.filtros-bitacora .field { min-width: 0; }
+.acciones-filtros-bitacora { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.tabla-bitacora { min-width: 760px; }
+.tabla-bitacora .correo-bitacora { overflow-wrap: anywhere; max-width: 220px; }
+.bitacora-movil { display: none; }
+.bitacora-tarjeta { min-width: 0; padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 7px; }
+.bitacora-tarjeta:first-child { border-top: 0; }
+.bitacora-tarjeta .correo-bitacora { overflow-wrap: anywhere; }
+.bitacora-cab { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
 .paginas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 /* Deudores del panel (#434): el buscador y la ficha. Dos columnas, para que en el telefono se vea todo sin deslizar. */
 .buscar-deudor { display: flex; flex-wrap: wrap; gap: 0 12px; align-items: flex-end; }
@@ -690,6 +719,16 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .buscar-deudor > .btn { margin-bottom: 14px; }
 .tabla-deudores .sub, .tabla-ficha .sub { overflow-wrap: anywhere; }
 .tabla-ficha td:last-child, .tabla-deudores td:last-child { width: 42%; }
+/* Lo que escribio el deudor o la empresa (#436): con sus saltos de linea, y sin ensanchar la tabla. */
+.tabla-reclamos .sub { overflow-wrap: anywhere; }
+.tabla-reclamos td:last-child { width: 38%; }
+.reclamo-texto { white-space: pre-line; }
+/* Las suscripciones de avisos (#438): la URL y el secreto sin ensanchar la tabla. */
+.tabla-suscripciones .sub { overflow-wrap: anywhere; }
+.tabla-suscripciones td:last-child { width: 40%; }
+.tabla-suscripciones .notice, .tabla-suscripciones .aviso, .tabla-suscripciones .error { margin: 10px 0 0; }
+.secreto-nuevo { display: grid; gap: 6px; }
+.secreto-nuevo code { overflow-wrap: anywhere; user-select: all; }
 .ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; margin: 0; }
 .ficha-datos dt { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 .ficha-datos dd { margin: 0; overflow-wrap: anywhere; }
@@ -740,6 +779,11 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .lista-terminadas li:first-child { border-top: 0; }
 .terminada-cifras { color: var(--muted); font-size: 14px; white-space: nowrap; }
 @media (max-width: 620px) {
+  .bitacora-escritorio { display: none; }
+  .bitacora-movil { display: block; }
+  .filtros-bitacora { grid-template-columns: 1fr; }
+  .acciones-filtros-bitacora { grid-column: auto; }
+  .acciones-filtros-bitacora .btn { flex: 1 1 auto; }
   .lista-terminadas li { flex-direction: column; gap: 2px; }
 }
 .uf-de-hoy { margin: 0 0 6px; }
@@ -896,18 +940,18 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .disputa-motivos { display: flex; flex-wrap: wrap; gap: 8px; }
 .disputa-motivos input { position: absolute; opacity: 0; pointer-events: none; }
-.disputa-motivos .chip:has(input:focus-visible) { box-shadow: 0 0 0 4px var(--ring); }
+.disputa-motivos .chip:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
 .disputa textarea {
   width: 100%;
   background: var(--paper-2);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--borde-campo);
   color: var(--ink);
   border-radius: var(--radius-sm);
   padding: 11px 14px;
   font-size: 16px;
   resize: vertical;
 }
-.disputa textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+.disputa textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
 .disputa .deuda-acciones { margin-top: 0; padding-top: 0; border-top: 0; }
 .al-dia { text-align: center; padding: 44px 20px; }
 .al-dia .check-animado { margin: 0 auto 12px; }
@@ -1020,6 +1064,24 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .cifra.rechazo b { color: var(--danger); }
 /* El modelo de negocio (#200): la tarjeta va sobre la grilla, a lo ancho. */
 .comision-del-mes { margin-bottom: 16px; }
+/* Lo que se pliega en una linea con lo esencial (#472): la comision del mes y los mandatos. */
+.plegable > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  min-height: 44px; cursor: pointer; list-style: none;
+}
+.plegable > summary::-webkit-details-marker { display: none; }
+.plegable .resumen-linea { flex: 1 1 260px; min-width: 0; display: grid; gap: 2px; }
+.plegable .resumen-linea b { font-size: 17px; }
+.plegable .ver-detalle { display: inline-flex; align-items: center; gap: 8px; color: var(--brand); font-size: 14.5px; font-weight: 600; }
+.plegable .ver-detalle::after {
+  content: ""; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); transition: transform 0.2s var(--ease);
+}
+.plegable[open] .ver-detalle::after { transform: rotate(-135deg); }
+.plegable[open] > summary { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.plegable[open] .si-cerrado, .plegable:not([open]) .si-abierto { display: none; }
+/* Dentro de su seccion, las cifras sin borde propio: no son tarjetas dentro de una tarjeta (#472). */
+.comision-del-mes .cifra { border: 0; background: none; padding: 0; }
 .selector-mes { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .selector-mes input { width: auto; }
 .table.tramos caption { caption-side: top; text-align: left; padding: 0 0 6px; }
@@ -1038,6 +1100,11 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .campana.elegida { border-color: var(--brand); box-shadow: 0 0 0 3px var(--ring); }
+/* En las listas de campañas y de mandatos, cada una es una fila y no una tarjeta dentro de otra (#472). */
+.campanas { gap: 0; }
+.campanas > .campana { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 14px 0; }
+.campanas > .campana:first-child { border-top: 0; padding-top: 4px; }
+.campanas > .campana.elegida { box-shadow: none; background: var(--brand-soft); padding-inline: 12px; border-radius: var(--radius-sm); }
 .campana-cabeza { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 /* El estado del mandato y, si lo esta, que su acreedor esta suspendido (#296): en el telefono bajan uno sobre otro. */
 .mandato-insignias { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
@@ -1109,7 +1176,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid var(--line-2);
+  border: 2px solid var(--borde-campo);
   background: var(--paper);
   display: grid;
   place-items: center;
@@ -1120,7 +1187,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .cuota-fila.elegida .casilla, .cuota-fila.pagada .casilla { background: var(--brand); border-color: var(--brand); }
 .cuota-fila.elegida .casilla .icono, .cuota-fila.pagada .casilla .icono { transform: scale(1); }
 .cuota-fila.pagada .casilla { opacity: 0.55; }
-.cuota-fila input:focus-visible + .casilla { box-shadow: 0 0 0 4px var(--ring); }
+.cuota-fila input:focus-visible + .casilla { outline: 2px solid var(--brand); outline-offset: 2px; }
 .cuota-info b { display: block; font-weight: 600; }
 .cuota-info span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .cuota-monto { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
@@ -1165,6 +1232,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .method .pasarela-logo { height: 44px; width: 100%; min-width: 74px; padding: 0 4px; container-type: inline-size; }
 .method.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 3px var(--ring); }
 .pegado { position: sticky; top: 24px; }
+/* La barra fija con el total y Pagar (#475): solo en el telefono. */
+.pagar-fija { display: none; }
 .esperando { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 15px; flex-wrap: wrap; }
 /* Se cerro la ventana de la pasarela con el cobro abierto (#307). */
 .ventana-cerrada { flex-basis: 100%; color: var(--ink-2); }
@@ -1221,8 +1290,24 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .plazo input[type="range"]::-moz-range-track { background: transparent; }
 .plazo input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.12); }
-.plazo input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px var(--ring); }
+.plazo input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--brand); }
 .plazo-extremos { display: flex; justify-content: space-between; color: var(--muted); font-size: 13.5px; }
+/* Antes de aceptar un convenio (#473): el total y la diferencia con hoy, junto al boton, y la confirmacion. */
+.convenio-total { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.convenio-total .hint { margin: 0; }
+.convenio-pagas { margin: 0 0 6px; font-size: 17.5px; line-height: 1.45; color: var(--ink); }
+.convenio-pagas b, .convenio-total .hint b { font-variant-numeric: tabular-nums; }
+.confirmar-convenio {
+  margin-top: 18px;
+  padding: 16px;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+}
+.confirmar-convenio:focus { outline: none; }
+.confirmar-convenio p { margin: 0 0 8px; }
+.confirmar-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.confirmar-acciones .btn { flex: 1 1 150px; }
 .espera { height: 3px; margin: 16px 0 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .espera span { display: block; height: 100%; background: var(--accent); transform-origin: left; animation: llenar-espera var(--espera) linear both; }
 .espera-texto { display: flex; align-items: center; gap: 8px; min-height: 20px; color: var(--muted); font-size: 14px; }
@@ -1405,6 +1490,36 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
+  /* Pagar en el telefono (#475): sin la barra de estados, las pasarelas como filas de una sola opcion, y el
+     total con Pagar fijos sobre la navegacion. La pagina reserva su alto para que la barra no tape nada. */
+  .solo-escritorio { display: none; }
+  .methods { grid-template-columns: 1fr; gap: 8px; }
+  .method { flex-direction: row; align-items: center; gap: 14px; min-height: 56px; padding: 8px 14px; }
+  .method .pasarela-logo { width: 96px; min-width: 96px; height: 36px; flex: none; }
+  .method span { flex: 1; }
+  .pagar-en-tarjeta { display: none; }
+  .con-pagar-fija { padding-bottom: 80px; }
+  .pagar-fija {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--alto-barra-movil) + env(safe-area-inset-bottom));
+    z-index: 19;
+    padding: 10px 16px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.35);
+  }
+  .pagar-fija-total { flex: 1; min-width: 0; display: grid; }
+  .pagar-fija-total span { font-size: 13px; color: var(--muted); }
+  .pagar-fija-total b { font-size: 20px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .pagar-fija .btn { min-height: 48px; }
+  /* Todo lo que se toca en el portal del deudor, de 44 px o mas (#475). */
+  [data-portal="debtor"] .btn, [data-portal="debtor"] .chip { min-height: 44px; }
+  [data-portal="debtor"] .link-btn { display: inline-flex; align-items: center; min-height: 44px; }
   /* Abajo va la barra: lo ultimo de la pagina tiene que poder subir mas alla de ella. */
   .main { padding: 18px 16px 104px; }
   .topbar { flex-wrap: wrap; align-items: flex-start; }
@@ -1438,7 +1553,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--line);
   }
-  .mobile-bar a {
+  .mobile-bar a, .mobile-bar button {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1450,7 +1565,35 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     font-weight: 600;
     text-align: center;
   }
-  .mobile-bar a.active { color: var(--brand-2); background: var(--brand-soft); }
+  .mobile-bar a.active, .mobile-bar button.active { color: var(--brand-2); background: var(--brand-soft); }
+  .mobile-bar button { border: 0; background: none; font-family: inherit; cursor: pointer; }
+  /* "Mas": lo que no cabe en la barra del panel (#436), en una lista sobre la barra. */
+  .mas-fondo { position: fixed; inset: 0; z-index: 19; }
+  .mas-lista {
+    position: fixed;
+    right: 8px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 21;
+    display: grid;
+    gap: 2px;
+    min-width: 220px;
+    padding: 6px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+  }
+  .mas-lista a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .mas-lista a.active { color: var(--brand-2); background: var(--brand-soft); }
 }
 
 @media (max-width: 620px) {

@@ -5,6 +5,7 @@ import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
+import com.tbridge.auth.dto.response.BitacoraResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
 import com.tbridge.auth.exception.ApiException;
@@ -12,6 +13,7 @@ import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
 import com.tbridge.auth.security.JwtService;
 import com.tbridge.auth.service.BitacoraDeAccesos;
+import com.tbridge.auth.service.BitacoraService;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
 import org.junit.jupiter.api.Test;
@@ -66,6 +68,7 @@ class AdminControllerTest {
     @MockitoBean private PersonalService personal;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private BitacoraDeAccesos accesos;
+    @MockitoBean private BitacoraService bitacora;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -234,6 +237,25 @@ class AdminControllerTest {
         }
         mvc.perform(get(ACCESOS)).andExpect(status().isUnauthorized());
         verifyNoInteractions(accesos);
+    }
+
+    @Test
+    void la_bitacora_administrativa_es_paginada_y_solo_del_admin() throws Exception {
+        BitacoraResponse fila = new BitacoraResponse(8L, "ms-auth", "persona_creada",
+                "ana@empresa.cl", "76086428-5", "admin@databridge.cl",
+                Instant.parse("2026-11-17T15:00:00Z"));
+        when(bitacora.buscar(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(List.of(fila), PageRequest.of(0, 25), 1));
+
+        mvc.perform(get("/api/admin/auth/bitacora").header("Authorization", admin())
+                        .param("persona", "admin@").param("accion", "persona_creada")
+                        .param("empresa", "76086428-5").param("desde", "2026-11-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.acciones[0].servicio").value("ms-auth"))
+                .andExpect(jsonPath("$._embedded.acciones[0].empresa").value("76086428-5"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+        mvc.perform(get("/api/admin/auth/bitacora").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
     }
 
     // ------------------------------------------------------------------
