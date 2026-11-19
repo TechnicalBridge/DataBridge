@@ -25,8 +25,14 @@ const ACCIONES = {
   empresa_suspendida: "Suspendió una empresa",
   empresa_reactivada: "Reactivó una empresa",
   aviso_reintentado: "Reintentó un aviso",
+  deudor_consultado: "Abrió la ficha de un deudor",
+  suscripcion_activada: "Activó una suscripción",
+  suscripcion_desactivada: "Desactivó una suscripción",
+  suscripcion_secreto_cambiado: "Cambió el secreto de una suscripción",
+  suscripcion_probada: "Probó una suscripción",
   uf_cargada: "Cargó una UF",
   cobro_liberado: "Liberó un cobro",
+  pago_verificado: "Verificó un pago",
 };
 
 const OPCIONES_ACCION = Object.entries(ACCIONES);

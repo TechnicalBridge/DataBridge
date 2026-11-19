@@ -115,6 +115,10 @@ const QUE_SE_HIZO = {
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,
   persona_habilitada: (a) => `Le devolvió el acceso a ${a.sobre}`,
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
+  suscripcion_activada: (a) => `Activó ${a.sobre}`,
+  suscripcion_desactivada: (a) => `Desactivó ${a.sobre}`,
+  suscripcion_secreto_cambiado: (a) => `Le cambió el secreto a ${a.sobre}`,
+  suscripcion_probada: (a) => `Probó ${a.sobre}`,
 };
 
 /** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero. */
