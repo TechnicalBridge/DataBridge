@@ -307,6 +307,9 @@ sequenceDiagram
     DS-->>P: el plan, con el enlace para aceptarlo
 
     D->>P: acepta
+    P-->>D: pide confirmar: cuántas cuotas, de cuánto, desde y hasta cuándo, y el total
+    Note over P: sin confirmar no se envía nada,<br/>y volver o cambiar el plazo no cambia nada
+    D->>P: confirma
     P->>DC: POST /api/debts/{id}/repact {months}
     DC->>DS: applyRepact(usuario, id, n)
     Note over DS: no se repacta una deuda pagada,<br/>retirada ni en reclamo
@@ -320,7 +323,7 @@ sequenceDiagram
     DS->>ES: publicar(repactacion.aceptada)
     ES->>B: outbox: un evento por suscriptor
     DS-->>P: la deuda, ya en convenio
-    P-->>D: sus cuotas y sus fechas
+    P-->>D: Pagar, con el aviso: cuántas cuotas quedaron y cuándo vence la primera
 ```
 
 ---

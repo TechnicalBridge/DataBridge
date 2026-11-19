@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { obtenerDeuda } from "../api/deudas";
 import { abrirCobro, cancelarPago, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
@@ -25,6 +25,10 @@ const porVencimiento = (a, b) => a.vencimiento.localeCompare(b.vencimiento) || a
 export default function Pay() {
   const { id } = useParams();
   const [parametros] = useSearchParams();
+  const { state, pathname, search } = useLocation();
+  const navigate = useNavigate();
+  //  Recien aceptado un convenio (#473): se avisa una vez, y no vuelve a salir al recargar.
+  const [convenio] = useState(() => state?.convenio || null);
   const [deuda, setDeuda] = useState(null);
   const [pasarela, setPasarela] = useState("webpay");
   //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
@@ -45,6 +49,11 @@ export default function Pay() {
   useEffect(() => {
     obtenerDeuda(id).then(setDeuda).catch((err) => setError(err.message));
   }, [id]);
+
+  useEffect(() => {
+    if (state?.convenio) navigate(`${pathname}${search}`, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mientras la pasarela no confirma, se consulta el pago. Fallido (Khipu lo
   // rechazo, o el deudor lo anulo) o vencido, no hay nada mas que esperar. El
@@ -232,6 +241,12 @@ export default function Pay() {
         </Link>
       </header>
       {error ? <div className="error">{error}</div> : null}
+      {convenio ? (
+        <div className="notice aparece" role="status">
+          <b>Quedó tu convenio de {convenio.cuotas} {convenio.cuotas === 1 ? "cuota" : "cuotas"}</b>
+          {convenio.primera ? `: la primera vence el ${fecha(convenio.primera)}.` : "."}
+        </div>
+      ) : null}
 
       {pago?.status === "paid" ? (
         <div className="card success aparece">
