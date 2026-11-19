@@ -4,6 +4,7 @@ import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
+import com.tbridge.debt.dto.response.BitacoraResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
 import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
@@ -15,6 +16,7 @@ import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
+import com.tbridge.debt.service.BitacoraService;
 import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
@@ -35,6 +37,7 @@ import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.IanaLinkRelations;
 import org.springframework.hateoas.PagedModel;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -73,17 +76,20 @@ public class AdminController {
     private final ReglasService reglas;
     private final ComisionService comisiones;
     private final AvisosService avisos;
+    private final BitacoraService bitacora;
     private final DeudoresAdminService deudores;
     private final ReclamosAdminService reclamos;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
-                           AvisosService avisos, DeudoresAdminService deudores, ReclamosAdminService reclamos) {
+                           AvisosService avisos, BitacoraService bitacora, DeudoresAdminService deudores,
+                           ReclamosAdminService reclamos) {
         this.deudores = deudores;
         this.reclamos = reclamos;
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
         this.avisos = avisos;
+        this.bitacora = bitacora;
     }
 
     // ------------------------------------------------------------------
@@ -275,6 +281,21 @@ public class AdminController {
     public CollectionModel<AccionResponse> historial(@PathVariable String rut) {
         return CollectionModel.of(empresas.historial(rut),
                 linkTo(AdminController.class).slash("empresas").slash(rut).slash("historial").withSelfRel());
+    }
+
+    @GetMapping("/bitacora")
+    @Operation(summary = "La bitacora de acciones administrativas de ms-debt")
+    public PagedModel<BitacoraResponse> bitacora(
+            @RequestParam(required = false) String persona,
+            @RequestParam(required = false) String accion,
+            @RequestParam(required = false) String empresa,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "25") int porPagina) {
+        Page<BitacoraResponse> encontrados = bitacora.buscar(persona, accion, empresa, desde, hasta, pagina, porPagina);
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
+                encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
     }
 
     @GetMapping("/deudores")

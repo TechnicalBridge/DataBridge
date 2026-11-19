@@ -2,6 +2,7 @@ package com.tbridge.payments.controller;
 
 import com.tbridge.payments.config.SecurityConfig;
 import com.tbridge.payments.dto.response.OperacionResponse;
+import com.tbridge.payments.dto.response.BitacoraResponse;
 import com.tbridge.payments.dto.response.PagoAdminDetalleResponse;
 import com.tbridge.payments.dto.response.PagoAdminResponse;
 import com.tbridge.payments.dto.response.PagoVerificadoResponse;
@@ -11,6 +12,7 @@ import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.model.Payment;
 import com.tbridge.payments.security.JwtTestIssuer;
 import com.tbridge.payments.service.OperacionService;
+import com.tbridge.payments.service.BitacoraService;
 import com.tbridge.payments.service.PagosAdminService;
 import com.tbridge.payments.service.PagosDelDeudorService;
 import com.tbridge.payments.service.ReglasService;
@@ -31,6 +33,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,6 +56,7 @@ class AdminControllerTest {
     @Autowired private JwtTestIssuer jwt;
     @MockitoBean private ReglasService reglas;
     @MockitoBean private OperacionService operacion;
+    @MockitoBean private BitacoraService bitacora;
     @MockitoBean private PagosDelDeudorService pagosDelDeudor;
     @MockitoBean private PagosAdminService pagosAdmin;
 
@@ -113,6 +117,21 @@ class AdminControllerTest {
         //  La regla es de toda la ruta /api/admin, no de cada metodo: un endpoint
         //  nuevo no puede quedar abierto por olvido.
         mvc.perform(get("/api/admin/payments/lo-que-venga").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void la_bitacora_de_pagos_usa_el_contrato_comun_y_es_solo_del_admin() throws Exception {
+        BitacoraResponse fila = new BitacoraResponse(2L, "ms-payments", "uf_cargada",
+                "2026-11-17: 40123.45", null, "admin@databridge.cl", Instant.parse("2026-11-17T15:00:00Z"));
+        when(bitacora.buscar(any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(List.of(fila), PageRequest.of(0, 25), 1));
+
+        mvc.perform(get("/api/admin/payments/bitacora").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.acciones[0].servicio").value("ms-payments"))
+                .andExpect(jsonPath("$._embedded.acciones[0].empresa").doesNotExist());
+        mvc.perform(get("/api/admin/payments/bitacora").header("Authorization", empresa()))
                 .andExpect(status().isForbidden());
     }
 

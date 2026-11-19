@@ -77,6 +77,48 @@ export async function historialDeEmpresa(rut) {
 
 export const historialDeAdmins = () => pedir("/admin/auth/admins/historial").then(acciones);
 
+// ---- La bitacora unificada de acciones administrativas (#443) --------------------
+
+const SERVICIOS_BITACORA = ["auth", "debt", "payments"];
+const POR_PAGINA_BITACORA = 100;
+const MAX_REGISTROS_BITACORA = 500;
+
+async function paginaDeBitacora(tramo, filtros, pagina) {
+  const params = { pagina, porPagina: POR_PAGINA_BITACORA };
+  for (const [clave, valor] of Object.entries(filtros || {})) {
+    if (valor) params[clave] = valor;
+  }
+  const data = await pedir(`/admin/${tramo}/bitacora`, { params });
+  return { filas: acciones(data), pagina: data.page || { totalPages: 0, totalElements: 0 } };
+}
+
+/** A lo sumo cinco páginas por servicio; una bitácora grande no debe agotar el gateway. */
+async function bitacoraDe(tramo, filtros) {
+  const primera = await paginaDeBitacora(tramo, filtros, 0);
+  const total = Math.min(primera.pagina.totalPages || 0, MAX_REGISTROS_BITACORA / POR_PAGINA_BITACORA);
+  if (total <= 1) return { filas: primera.filas, limitada: primera.pagina.totalElements > MAX_REGISTROS_BITACORA };
+  const demas = await Promise.all(
+    Array.from({ length: total - 1 }, (_, i) => paginaDeBitacora(tramo, filtros, i + 1)),
+  );
+  return {
+    filas: [...primera.filas, ...demas.flatMap((p) => p.filas)],
+    limitada: primera.pagina.totalElements > MAX_REGISTROS_BITACORA,
+  };
+}
+
+/**
+ * Reune las tres bitacoras. Un servicio caido no esconde lo que respondieron
+ * los otros: su nombre vuelve en `sinServicio` para mostrar el aviso.
+ */
+export async function bitacora(filtros = {}) {
+  const resultados = await Promise.allSettled(SERVICIOS_BITACORA.map((s) => bitacoraDe(s, filtros)));
+  const filas = resultados.flatMap((r) => (r.status === "fulfilled" ? r.value.filas : [])).sort(recientePrimero);
+  const sinServicio = resultados.flatMap((r, i) => (r.status === "rejected" ? [SERVICIOS_BITACORA[i]] : []));
+  const limitados = resultados.flatMap((r, i) =>
+    (r.status === "fulfilled" && r.value.limitada ? [SERVICIOS_BITACORA[i]] : []));
+  return { filas, sinServicio, limitados };
+}
+
 // ---- La bitacora de acceso (ms-auth, #141) ----------------------------------------
 
 /**

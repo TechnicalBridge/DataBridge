@@ -91,6 +91,14 @@ export const IconoRecibo = (p) => (
   <Trazo {...p}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6M9 16h3" /></Trazo>
 );
 
+/** Una lista con marcas de tiempo: la bitacora administrativa. */
+export const IconoBitacora = (p) => (
+  <Trazo {...p}>
+    <path d="M8 5h12M8 12h12M8 19h12" />
+    <circle cx="4" cy="5" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="19" r="1" />
+  </Trazo>
+);
+
 export const IconoUsuario = (p) => (
   <Trazo {...p}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></Trazo>
 );

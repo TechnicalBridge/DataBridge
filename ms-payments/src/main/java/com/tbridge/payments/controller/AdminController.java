@@ -3,6 +3,7 @@ package com.tbridge.payments.controller;
 import com.tbridge.payments.config.OpenApiConfig;
 import com.tbridge.payments.dto.request.UfManualRequest;
 import com.tbridge.payments.dto.response.EstadoResponse;
+import com.tbridge.payments.dto.response.BitacoraResponse;
 import com.tbridge.payments.dto.response.OperacionResponse;
 import com.tbridge.payments.dto.response.PagoAdminDetalleResponse;
 import com.tbridge.payments.dto.response.PagoAdminResponse;
@@ -13,6 +14,7 @@ import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.security.JwtPrincipal;
 import com.tbridge.payments.service.OperacionService;
+import com.tbridge.payments.service.BitacoraService;
 import com.tbridge.payments.service.PagosAdminService;
 import com.tbridge.payments.service.PagosDelDeudorService;
 import com.tbridge.payments.service.ReglasService;
@@ -55,15 +57,17 @@ public class AdminController {
 
     private final ReglasService reglas;
     private final OperacionService operacion;
+    private final BitacoraService bitacora;
     private final PagosDelDeudorService pagosDelDeudor;
     private final PagosAdminService pagosAdmin;
 
-    public AdminController(ReglasService reglas, OperacionService operacion, PagosDelDeudorService pagosDelDeudor,
-                           PagosAdminService pagosAdmin) {
+    public AdminController(ReglasService reglas, OperacionService operacion, BitacoraService bitacora,
+                           PagosDelDeudorService pagosDelDeudor, PagosAdminService pagosAdmin) {
         this.pagosAdmin = pagosAdmin;
         this.pagosDelDeudor = pagosDelDeudor;
         this.reglas = reglas;
         this.operacion = operacion;
+        this.bitacora = bitacora;
     }
 
     // ------------------------------------------------------------------
@@ -203,5 +207,20 @@ public class AdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EstadoResponse estado() {
         return new EstadoResponse("ms-payments", true);
+    }
+
+    @GetMapping("/bitacora")
+    @Operation(summary = "La bitacora de acciones administrativas de ms-payments")
+    public PagedModel<BitacoraResponse> bitacora(
+            @RequestParam(required = false) String persona,
+            @RequestParam(required = false) String accion,
+            @RequestParam(required = false) String empresa,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "25") int porPagina) {
+        Page<BitacoraResponse> encontrados = bitacora.buscar(persona, accion, empresa, desde, hasta, pagina, porPagina);
+        return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
+                encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
     }
 }
