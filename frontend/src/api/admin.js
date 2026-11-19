@@ -146,6 +146,21 @@ export const verificarPago = (id) => pedir(`/admin/payments/pagos/${id}/verifica
 /** La deuda que paga un pago, sin datos del deudor (ms-debt). */
 export const deudaDelPanel = (id) => pedir(`/admin/debt/deudas/${id}`);
 
+// ---- Los reclamos de todas las empresas (ms-debt, #436) ---------------------------
+/** Los reclamos abiertos, el mas antiguo primero, con los dias que llevan sin respuesta. Sin datos del deudor. */
+export async function reclamosAbiertos({ pagina = 0, porPagina = 20 } = {}) {
+  const data = await pedir("/admin/debt/reclamos", { params: { pagina, porPagina } });
+  return { filas: embebidos(data, "reclamos"), pagina: data.page };
+}
+/** Los que se cerraron entre dos dias de Chile (sin fechas, los ultimos 30), lo mas nuevo primero, y como. */
+export async function reclamosResueltos({ desde, hasta, pagina = 0, porPagina = 20 } = {}) {
+  const params = { pagina, porPagina };
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  const data = await pedir("/admin/debt/reclamos/resueltos", { params });
+  return { filas: embebidos(data, "reclamos"), pagina: data.page };
+}
+
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */
