@@ -17,6 +17,8 @@
   --muted: #6f665b;
   --line: #ebe1cf;
   --line-2: #dccfb8;
+  /* El borde de los campos y las casillas: 3:1 contra su fondo, para que se vean (#476). */
+  --borde-campo: #918878;
   --brand: #3e7b4f;
   --brand-2: #2f6140;
   --brand-soft: #e4efe2;
@@ -50,6 +52,7 @@
   --muted: #a59d90;
   --line: #2e2b27;
   --line-2: #3d3933;
+  --borde-campo: #726e68;
   --brand: #7dbd8c;
   --brand-2: #95cda2;
   --brand-soft: rgba(125, 189, 140, 0.14);
@@ -166,7 +169,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(0.98); }
-.btn:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--ring); }
+/* El mismo contorno que todo lo demas: el anillo suave casi no se veia en el tema claro (1,4:1, #476). */
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-block { width: 100%; }
 .btn-sm { padding: 8px 13px; font-size: 14.5px; border-radius: 9px; }
@@ -197,7 +201,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .field input, .field select, .field textarea, .composer input, .buscador {
   width: 100%;
   background: var(--paper-2);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--borde-campo);
   color: var(--ink);
   border-radius: var(--radius-sm);
   padding: 11px 14px;
@@ -208,7 +212,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .field input:focus, .field select:focus, .field textarea:focus, .composer input:focus, .buscador:focus {
   border-color: var(--brand);
   background: var(--paper);
-  box-shadow: 0 0 0 4px var(--ring);
+  /* Con el borde, 2 px de --brand: se ve en los dos temas (#476). */
+  box-shadow: 0 0 0 1px var(--brand);
 }
 .field input::placeholder, .composer input::placeholder, .buscador::placeholder { color: var(--muted); opacity: 0.8; }
 .field select:disabled { opacity: 0.6; }
@@ -246,7 +251,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .interruptor input:checked + .riel { background: var(--brand); }
 .interruptor input:checked + .riel::after { transform: translateX(20px); }
-.interruptor input:focus-visible + .riel { box-shadow: 0 0 0 4px var(--ring); }
+.interruptor input:focus-visible + .riel { outline: 2px solid var(--brand); outline-offset: 2px; }
 .interruptor b { display: block; }
 .interruptor span.sub { margin-top: 2px; }
 
@@ -925,18 +930,18 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .disputa-motivos { display: flex; flex-wrap: wrap; gap: 8px; }
 .disputa-motivos input { position: absolute; opacity: 0; pointer-events: none; }
-.disputa-motivos .chip:has(input:focus-visible) { box-shadow: 0 0 0 4px var(--ring); }
+.disputa-motivos .chip:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
 .disputa textarea {
   width: 100%;
   background: var(--paper-2);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--borde-campo);
   color: var(--ink);
   border-radius: var(--radius-sm);
   padding: 11px 14px;
   font-size: 16px;
   resize: vertical;
 }
-.disputa textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+.disputa textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
 .disputa .deuda-acciones { margin-top: 0; padding-top: 0; border-top: 0; }
 .al-dia { text-align: center; padding: 44px 20px; }
 .al-dia .check-animado { margin: 0 auto 12px; }
@@ -1138,7 +1143,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid var(--line-2);
+  border: 2px solid var(--borde-campo);
   background: var(--paper);
   display: grid;
   place-items: center;
@@ -1149,7 +1154,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .cuota-fila.elegida .casilla, .cuota-fila.pagada .casilla { background: var(--brand); border-color: var(--brand); }
 .cuota-fila.elegida .casilla .icono, .cuota-fila.pagada .casilla .icono { transform: scale(1); }
 .cuota-fila.pagada .casilla { opacity: 0.55; }
-.cuota-fila input:focus-visible + .casilla { box-shadow: 0 0 0 4px var(--ring); }
+.cuota-fila input:focus-visible + .casilla { outline: 2px solid var(--brand); outline-offset: 2px; }
 .cuota-info b { display: block; font-weight: 600; }
 .cuota-info span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .cuota-monto { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
@@ -1250,7 +1255,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .plazo input[type="range"]::-moz-range-track { background: transparent; }
 .plazo input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.12); }
-.plazo input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px var(--ring); }
+.plazo input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--brand); }
 .plazo-extremos { display: flex; justify-content: space-between; color: var(--muted); font-size: 13.5px; }
 .espera { height: 3px; margin: 16px 0 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .espera span { display: block; height: 100%; background: var(--accent); transform-origin: left; animation: llenar-espera var(--espera) linear both; }
