@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { fecha, fechaHora } from "../utils/formato";
 
+function UltimoIngreso({ valor }) {
+  if (!valor) return "Todavía no entra";
+  const [dia, ...hora] = fechaHora(valor).split(", ");
+  return <time dateTime={valor}>
+    <span className="sin-corte">{dia}</span>
+    <span className="sub sin-corte">{hora.join(", ")}</span>
+  </time>;
+}
+
 /**
  * Lo que comparten la ficha de una empresa y el equipo de DataBridge: la lista
  * de personas con su acceso, el formulario para dar de alta a una y la
@@ -35,7 +44,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, vacio }) {
                 {p.nombre}{p.correo === tuCorreo ? " (tú)" : ""}
                 <span className="sub">{p.correo}</span>
               </td>
-              <td>{p.ultimoAcceso ? fechaHora(p.ultimoAcceso) : "Todavía no entra"}</td>
+              <td><UltimoIngreso valor={p.ultimoAcceso} /></td>
               <td>
                 {p.habilitada
                   ? <span className="badge badge-ok">Con acceso</span>
