@@ -27,6 +27,7 @@ export default function Vencimientos() {
 
   const vencidas = cuotas.filter((c) => c.vencida);
   const proximas = cuotas.filter((c) => !c.vencida);
+  const primeraVencida = vencidas[0];
   const siguiente = proximas[0];
 
   //  Las proximas, agrupadas por mes.
@@ -45,9 +46,11 @@ export default function Vencimientos() {
         <div>
           <h1>Próximos vencimientos</h1>
           <p>
-            {siguiente
-              ? `Tu próximo pago es el ${fechaLarga(siguiente.vencimiento)}: ${dinero(siguiente.monto, siguiente.moneda)}.`
-              : vencidas.length ? "No tienes pagos por venir, pero sí pagos vencidos." : "No tienes cuotas por pagar."}
+            {primeraVencida
+              ? `${vencidas.length === 1 ? "Tienes un pago vencido" : `Tienes ${vencidas.length} pagos vencidos`}. El más antiguo venció el ${fechaLarga(primeraVencida.vencimiento)}: ${dinero(primeraVencida.monto, primeraVencida.moneda)}.`
+              : siguiente
+                ? `Tu próximo pago es el ${fechaLarga(siguiente.vencimiento)}: ${dinero(siguiente.monto, siguiente.moneda)}.`
+                : "No tienes cuotas por pagar."}
           </p>
         </div>
         {cuotas.length ? (
