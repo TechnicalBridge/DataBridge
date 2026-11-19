@@ -16,6 +16,12 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
+    @Query("select new com.tbridge.payments.repository.ConteoPorPasarela(p.gateway, count(p)) "
+            + "from Payment p where p.status = com.tbridge.payments.model.Payment.Status.paid "
+            + "and p.paidAt >= :desde and p.paidAt < :hasta group by p.gateway")
+    List<ConteoPorPasarela> pagosConfirmadosPorPasarela(@Param("desde") Instant desde,
+                                                        @Param("hasta") Instant hasta);
+
     /** Lo que ve un deudor: lo suyo, por RUT. */
     List<Payment> findByDebtorRutOrderByCreatedAtDesc(String debtorRut);
 

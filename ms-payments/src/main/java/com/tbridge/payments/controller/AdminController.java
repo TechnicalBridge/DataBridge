@@ -10,6 +10,7 @@ import com.tbridge.payments.dto.response.PagoAdminResponse;
 import com.tbridge.payments.dto.response.PagoVerificadoResponse;
 import com.tbridge.payments.dto.response.PagoDeDeudorResponse;
 import com.tbridge.payments.dto.response.ReglasResponse;
+import com.tbridge.payments.dto.response.ResumenAdminResponse;
 import com.tbridge.payments.dto.response.UfResponse;
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.security.JwtPrincipal;
@@ -18,6 +19,7 @@ import com.tbridge.payments.service.BitacoraService;
 import com.tbridge.payments.service.PagosAdminService;
 import com.tbridge.payments.service.PagosDelDeudorService;
 import com.tbridge.payments.service.ReglasService;
+import com.tbridge.payments.service.ResumenAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -57,17 +59,27 @@ public class AdminController {
 
     private final ReglasService reglas;
     private final OperacionService operacion;
+    private final ResumenAdminService resumen;
     private final BitacoraService bitacora;
     private final PagosDelDeudorService pagosDelDeudor;
     private final PagosAdminService pagosAdmin;
 
-    public AdminController(ReglasService reglas, OperacionService operacion, BitacoraService bitacora,
-                           PagosDelDeudorService pagosDelDeudor, PagosAdminService pagosAdmin) {
+    public AdminController(ReglasService reglas, OperacionService operacion, ResumenAdminService resumen,
+                           BitacoraService bitacora, PagosDelDeudorService pagosDelDeudor,
+                           PagosAdminService pagosAdmin) {
         this.pagosAdmin = pagosAdmin;
         this.pagosDelDeudor = pagosDelDeudor;
         this.reglas = reglas;
         this.operacion = operacion;
+        this.resumen = resumen;
         this.bitacora = bitacora;
+    }
+
+    @GetMapping("/resumen")
+    @Operation(summary = "Pagos confirmados de hoy y del mes por pasarela, y cobros abiertos hace más de una hora")
+    @ApiResponse(responseCode = "200", description = "Totales de pagos en horario de Chile")
+    public ResumenAdminResponse resumen() {
+        return resumen.resumen();
     }
 
     // ------------------------------------------------------------------

@@ -22,6 +22,9 @@ import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
+import com.tbridge.debt.service.ResumenAdminService;
+import com.tbridge.debt.dto.response.ResumenAdminResponse;
+import com.tbridge.debt.dto.response.CampanaAdminResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -38,6 +41,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,6 +77,35 @@ class AdminControllerTest {
     @MockitoBean private ComisionService comisiones;
     @MockitoBean private AvisosService avisos;
     @MockitoBean private BitacoraService bitacora;
+    @MockitoBean private ResumenAdminService resumen;
+
+    @Test
+    void resumen_solo_admin() throws Exception {
+        when(resumen.resumen()).thenReturn(new ResumenAdminResponse(2, 1, Map.of("open", 7L),
+                LocalDate.of(2026, 11, 1), 12000, 1200));
+        mvc.perform(get("/api/admin/debt/resumen").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deudasPorEstado.open").value(7))
+                .andExpect(jsonPath("$.recuperado").value(12000));
+        mvc.perform(get("/api/admin/debt/resumen").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/debt/resumen").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void campanas_solo_admin_y_sin_datos_personales() throws Exception {
+        when(resumen.campanas()).thenReturn(List.of(
+                new CampanaAdminResponse(1L, "Cobranza", "Agencia", "running", 8)));
+        mvc.perform(get("/api/admin/debt/campanas").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].deudas").value(8))
+                .andExpect(jsonPath("$[0].nombre").value("Cobranza"));
+        mvc.perform(get("/api/admin/debt/campanas").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/debt/campanas").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
     @MockitoBean private DeudoresAdminService deudoresAdmin;
     @MockitoBean private ReclamosAdminService reclamosAdmin;
 

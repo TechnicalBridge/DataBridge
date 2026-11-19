@@ -18,6 +18,11 @@ export const SERVICIOS = [
 /** Si un servicio responde. */
 export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 
+/** Totales independientes: un servicio caído no impide consultar al otro. */
+export const resumenDeDeudas = () => pedir("/admin/debt/resumen");
+export const resumenDePagos = () => pedir("/admin/payments/resumen");
+export const campanasAdmin = () => pedir("/admin/debt/campanas");
+
 /** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
 export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
 
