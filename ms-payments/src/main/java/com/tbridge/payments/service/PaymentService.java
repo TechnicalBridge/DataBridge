@@ -1359,10 +1359,8 @@ public class PaymentService {
 
         if (!firmaOk) {
             log.info("firewall domain=PAYMENTS rule=WEBHOOK_SIGNATURE outcome=denied status=401");
-            //  Un aviso con firma invalida no se aplica, pero se guarda:
-            //  alguien mandando avisos falsos es algo que hay que poder ver.
-            eventos.save(PaymentEvent.de(pago.getId(), PaymentEvent.Type.failed, PaymentEvent.Source.webhook)
-                    .conFirma(false));
+            //  No guardar eventos de un remitente no autenticado: podria llenar
+            //  payment_events con avisos falsos para ids de pago conocidos.
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Firma criptografica invalida");
         }
         if (gateway != null && pago.getGateway() != null && pago.getGateway() != gateway) {
