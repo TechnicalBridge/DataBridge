@@ -239,7 +239,7 @@ public class AdminController {
 
     @GetMapping("/avisos")
     @Operation(summary = "Los avisos a las empresas que no se han entregado",
-            description = "Pendientes (esperan su proximo intento) y fallidos (se rindieron despues del sexto), "
+            description = "Pendientes (esperan su proximo intento) y fallidos (se rindieron despues del septimo), "
                     + "agrupados por destinatario, con sus intentos y su ultimo error. Sin el contenido de ningun "
                     + "aviso, que lleva datos de la deuda, y del destinatario solo el esquema, el host y el puerto.")
     @ApiResponse(responseCode = "200", description = "Los avisos sin entregar")
@@ -250,7 +250,7 @@ public class AdminController {
     @PostMapping("/avisos/{id}/reintentar")
     @Operation(summary = "Volver a poner en cola un aviso",
             description = "Queda pendiente para ahora y el despachador lo entrega en su pasada siguiente (cada 15 "
-                    + "segundos). Si vuelve a fallar despues del sexto intento, queda otra vez como fallido. Queda "
+                    + "segundos). Si vuelve a fallar despues del septimo intento, queda otra vez como fallido. Queda "
                     + "anotado quien lo hizo, en la historia de la empresa.")
     @ApiResponse(responseCode = "200", description = "El aviso, ya en cola")
     @ApiResponse(responseCode = "404", description = "No hay ningun aviso con ese id",

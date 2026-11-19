@@ -167,14 +167,14 @@ class OperacionServiceTest {
     void los_avisos_a_ms_debt_sin_entregar_con_su_pago_y_sin_datos_del_deudor() {
         when(ufs.findById(any())).thenReturn(Optional.empty());
         when(avisos.countByStatus(DebtNotification.Status.failed)).thenReturn(1L);
-        when(avisos.findTop200ByStatusInOrderByIdDesc(any())).thenReturn(List.of(aviso(58, 6), aviso(59, 2)));
+        when(avisos.findTop200ByStatusInOrderByIdDesc(any())).thenReturn(List.of(aviso(58, 7), aviso(59, 2)));
 
         OperacionResponse.Avisos sinEntregar = operacion.operacion().avisos();
 
         assertEquals(1, sinEntregar.fallidos());
         assertEquals(58L, sinEntregar.lista().getFirst().pago());
         assertEquals("failed", sinEntregar.lista().getFirst().estado());
-        assertEquals(6, sinEntregar.lista().getFirst().intentos());
+        assertEquals(7, sinEntregar.lista().getFirst().intentos());
         assertNull(sinEntregar.lista().getFirst().proximoIntento());
         assertEquals("pending", sinEntregar.lista().get(1).estado());
         assertEquals(6, OperacionResponse.Aviso.class.getRecordComponents().length, "solo el pago, sin el deudor");
@@ -195,7 +195,7 @@ class OperacionServiceTest {
 
     @Test
     void reintentar_un_aviso_lo_deja_en_cola_y_lo_anota() {
-        DebtNotification fallido = aviso(58, 6);
+        DebtNotification fallido = aviso(58, 7);
         when(avisos.findById(3L)).thenReturn(Optional.of(fallido));
 
         OperacionResponse.Aviso enCola = operacion.reintentarAviso(3L, "admin@databridge.cl");
