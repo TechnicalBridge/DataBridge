@@ -12,9 +12,12 @@ import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
+import com.tbridge.debt.dto.response.PruebaSuscripcionResponse;
 import com.tbridge.debt.dto.response.ReclamoAdminResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.dto.response.ResumenAdminResponse;
+import com.tbridge.debt.dto.response.SecretoNuevoResponse;
+import com.tbridge.debt.dto.response.SuscripcionAdminResponse;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.security.JwtPrincipal;
 import com.tbridge.debt.service.AvisosService;
@@ -26,6 +29,7 @@ import com.tbridge.debt.service.HorarioDeContacto;
 import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
 import com.tbridge.debt.service.ResumenAdminService;
+import com.tbridge.debt.service.SuscripcionesAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -84,12 +88,15 @@ public class AdminController {
     private final BitacoraService bitacora;
     private final DeudoresAdminService deudores;
     private final ReclamosAdminService reclamos;
+    private final SuscripcionesAdminService suscripciones;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
                            AvisosService avisos, ResumenAdminService resumen, BitacoraService bitacora,
-                           DeudoresAdminService deudores, ReclamosAdminService reclamos) {
+                           DeudoresAdminService deudores, ReclamosAdminService reclamos,
+                           SuscripcionesAdminService suscripciones) {
         this.deudores = deudores;
         this.reclamos = reclamos;
+        this.suscripciones = suscripciones;
         this.empresas = empresas;
         this.reglas = reglas;
         this.comisiones = comisiones;
@@ -146,6 +153,75 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int porPagina) {
         return comoPaginas(reclamos.resueltos(desde, hasta, pagina, porPagina));
+    }
+
+    // ------------------------------------------------------------------
+    //  Las suscripciones de avisos de las empresas (#438)
+    // ------------------------------------------------------------------
+
+    @GetMapping("/suscripciones")
+    @Operation(summary = "Las suscripciones de avisos de cada empresa",
+            description = "Por empresa: a donde avisa (sin usuario, clave ni parametros), que eventos recibe, si "
+                    + "esta activa, su ultima entrega y cuantos avisos esperan o fallaron. Nunca el secreto.")
+    @ApiResponse(responseCode = "200", description = "Las suscripciones")
+    public CollectionModel<SuscripcionAdminResponse> suscripciones() {
+        return CollectionModel.of(suscripciones.listar(),
+                linkTo(AdminController.class).slash("suscripciones").withSelfRel());
+    }
+
+    @PostMapping("/suscripciones/{id}/activar")
+    @Operation(summary = "Activar una suscripcion",
+            description = "Se le vuelven a encolar los avisos nuevos, y lo pendiente se entrega en la proxima pasada. "
+                    + "Queda en la bitacora del panel.")
+    @ApiResponse(responseCode = "204", description = "Activada")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna suscripcion con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Ya estaba activa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ResponseEntity<Void> activarSuscripcion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
+        suscripciones.activar(id, admin.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/suscripciones/{id}/desactivar")
+    @Operation(summary = "Desactivar una suscripcion",
+            description = "No se le encolan avisos nuevos, y lo pendiente espera, sin gastar intentos, a que se "
+                    + "vuelva a activar. Queda en la bitacora del panel.")
+    @ApiResponse(responseCode = "204", description = "Desactivada")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna suscripcion con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Ya estaba desactivada",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ResponseEntity<Void> desactivarSuscripcion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
+        suscripciones.desactivar(id, admin.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/suscripciones/{id}/secreto")
+    @Operation(summary = "Cambiar el secreto de una suscripcion",
+            description = "Genera uno nuevo, lo guarda cifrado con CIFRADO_LLAVE y lo devuelve esta unica vez: "
+                    + "despues no se vuelve a mostrar. Desde ahora los avisos van firmados con el, asi que la "
+                    + "empresa tiene que ponerlo en su sistema. Queda en la bitacora del panel.")
+    @ApiResponse(responseCode = "200", description = "El secreto nuevo")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna suscripcion con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public SecretoNuevoResponse cambiarSecretoDeSuscripcion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
+        return suscripciones.cambiarSecreto(id, admin.email());
+    }
+
+    @PostMapping("/suscripciones/{id}/probar")
+    @Operation(summary = "Probar una suscripcion",
+            description = "Manda un evento de tipo prueba, firmado igual que los reales y sin datos de negocio, y "
+                    + "dice lo que respondio el receptor. No pasa por la bandeja. Queda en la bitacora del panel.")
+    @ApiResponse(responseCode = "200", description = "Lo que respondio el receptor, o por que no respondio")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna suscripcion con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PruebaSuscripcionResponse probarSuscripcion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
+        return suscripciones.probar(id, admin.email());
     }
 
     private static <T> PagedModel<T> comoPaginas(Page<T> pagina) {

@@ -1007,6 +1007,10 @@ classDiagram
             empresa_suspendida
             empresa_reactivada
             deudor_consultado
+            suscripcion_activada
+            suscripcion_desactivada
+            suscripcion_secreto_cambiado
+            suscripcion_probada
         }
     }
     Organization ..> Organization_Kind
@@ -1885,6 +1889,11 @@ classDiagram
             +deuda(Long) DeudaAdminResponse
             +reclamosAbiertos(int, int) PagedModel~ReclamoAdminResponse~
             +reclamosResueltos(LocalDate, LocalDate, int, int) PagedModel~ReclamoAdminResponse~
+            +suscripciones() CollectionModel~SuscripcionAdminResponse~
+            +activarSuscripcion(JwtPrincipal, Long) ResponseEntity
+            +desactivarSuscripcion(JwtPrincipal, Long) ResponseEntity
+            +cambiarSecretoDeSuscripcion(JwtPrincipal, Long) SecretoNuevoResponse
+            +probarSuscripcion(JwtPrincipal, Long) PruebaSuscripcionResponse
         }
     }
     namespace service {
@@ -1893,6 +1902,14 @@ classDiagram
             +buscar(String, int, int) Page~DeudorEncontradoResponse~
             +ficha(String, String) FichaDeudorResponse
             +deuda(Long) DeudaAdminResponse
+        }
+        class SuscripcionesAdminService {
+            <<service>>
+            +listar() List~SuscripcionAdminResponse~
+            +activar(Long, String) void
+            +desactivar(Long, String) void
+            +cambiarSecreto(Long, String) SecretoNuevoResponse
+            +probar(Long, String) PruebaSuscripcionResponse
         }
         class ReclamosAdminService {
             <<service>>
@@ -1982,6 +1999,9 @@ classDiagram
     DeudoresAdminService --> AdminLogRepository
     AdminController --> ReclamosAdminService
     ReclamosAdminService --> DebtEventRepository
+    AdminController --> SuscripcionesAdminService
+    SuscripcionesAdminService --> OutboxEventRepository
+    SuscripcionesAdminService --> AdminLogRepository
     AvisosService --> OutboxEventRepository
     AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
@@ -2001,6 +2021,7 @@ classDiagram
 | `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, los deudores, los reclamos, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
 | `DeudoresAdminService` | `service` | Buscar a un deudor en todas las empresas y abrir su ficha, que queda en la bitácora del panel ([#434](https://github.com/TechnicalBridge/DataBridge/issues/434)), y una deuda sin datos del deudor para el detalle de un pago ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)). |
 | `ReclamosAdminService` | `service` | Los reclamos de todas las empresas para el panel ([#436](https://github.com/TechnicalBridge/DataBridge/issues/436)): los abiertos con los días que llevan sin respuesta y los que se cerraron en un período, y cómo, leídos de la historia de las deudas. Sin datos del deudor. |
+| `SuscripcionesAdminService` | `service` | Las suscripciones de avisos de las empresas para el panel ([#438](https://github.com/TechnicalBridge/DataBridge/issues/438)): verlas sin su secreto, activarlas o desactivarlas, cambiarles el secreto (que se muestra una vez) y mandarles un evento de prueba firmado. Cada acción queda en la historia de la empresa. |
 | `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, dar de alta una empresa usuaria, y suspenderla o reactivarla. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |

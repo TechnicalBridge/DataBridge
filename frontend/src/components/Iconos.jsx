@@ -26,6 +26,14 @@ export const IconoSol = (p) => (
 
 export const IconoLuna = (p) => <Trazo {...p}><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" /></Trazo>;
 
+/** Una campanilla: los avisos que DataBridge le manda a cada empresa (#438). */
+export const IconoAviso = (p) => (
+  <Trazo {...p}>
+    <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S6 15 6 9z" />
+    <path d="M10.2 20.5a2 2 0 0 0 3.6 0" />
+  </Trazo>
+);
+
 /** Tres puntos: lo que no cabe en la barra del telefono (#436). */
 export const IconoMas = (p) => (
   <Trazo {...p}>

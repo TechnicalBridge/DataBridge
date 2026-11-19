@@ -208,6 +208,16 @@ export async function reclamosResueltos({ desde, hasta, pagina = 0, porPagina = 
   return { filas: embebidos(data, "reclamos"), pagina: data.page };
 }
 
+// ---- Las suscripciones de avisos de las empresas (ms-debt, #438) ----------------------
+/** Todas, por empresa, con la URL sin credenciales y como van sus entregas. Nunca el secreto. */
+export const suscripciones = () => pedir("/admin/debt/suscripciones").then((data) => embebidos(data, "suscripciones"));
+export const activarSuscripcion = (id) => pedir(`/admin/debt/suscripciones/${id}/activar`, { method: "POST" });
+export const desactivarSuscripcion = (id) => pedir(`/admin/debt/suscripciones/${id}/desactivar`, { method: "POST" });
+/** Un secreto nuevo, que se muestra esta unica vez. */
+export const cambiarSecretoDeSuscripcion = (id) => pedir(`/admin/debt/suscripciones/${id}/secreto`, { method: "POST" });
+/** Manda un evento de prueba firmado y cuenta lo que respondio el receptor. */
+export const probarSuscripcion = (id) => pedir(`/admin/debt/suscripciones/${id}/probar`, { method: "POST" });
+
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */
