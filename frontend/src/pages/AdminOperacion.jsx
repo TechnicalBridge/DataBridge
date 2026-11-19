@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   SERVICIOS, avisosAEmpresas, cargarUf, estadoDe, liberarCobro, operacionDePagos, reintentarAviso,
   reintentarAvisoDePago, reintentarDestino,
@@ -132,9 +133,13 @@ export default function AdminOperacion() {
             Sin datos de ningún deudor.
           </p>
         </div>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setVuelta((v) => v + 1)}>
-          Actualizar
-        </button>
+        <div className="acciones-fila">
+          {/* Los reclamos tambien son algo que espera respuesta (#436, idea de #485). */}
+          <Link className="btn btn-ghost btn-sm" to="/admin/reclamos">Ver reclamos</Link>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setVuelta((v) => v + 1)}>
+            Actualizar
+          </button>
+        </div>
       </header>
 
       {mensaje ? <div className="notice" role="status">{mensaje}</div> : null}
