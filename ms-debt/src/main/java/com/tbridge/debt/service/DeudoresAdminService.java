@@ -1,6 +1,7 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.dto.response.DebtSummaryResponse;
+import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.exception.ApiException;
@@ -98,6 +99,13 @@ public class DeudoresAdminService {
                         .map(FichaDeudorResponse.Contacto::de).toList());
         bitacora.save(AdminLog.de(admin, AdminLog.Action.deudor_consultado, null, deudor.getRut()));
         return ficha;
+    }
+
+    /** Una deuda sin datos del deudor, para el detalle de un pago en el panel (#435). No queda en la bitacora. */
+    @Transactional(readOnly = true)
+    public DeudaAdminResponse deuda(Long id) {
+        return deudas.findById(id).map(DeudaAdminResponse::de)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay ninguna deuda con ese id"));
     }
 
     /**

@@ -175,4 +175,23 @@ class DeudoresAdminServiceTest {
                 Instant.parse("2026-11-01T12:00:00Z"), 1, 6, true, 0, null, null, null, BigDecimal.ZERO,
                 new BigDecimal("96.25"), null, null, false, null, null, false);
     }
+
+    @Test
+    void la_deuda_de_un_pago_trae_su_referencia_campana_y_quien_cobra_sin_datos_del_deudor() {
+        Campaign campana = new Campaign();
+        campana.setName("Arriendos septiembre");
+        campana.setAgency(apofyx);
+        when(deudas.findById(3L)).thenReturn(Optional.of(deuda(3L, "CTR-007", campana)));
+
+        var deuda = servicio.deuda(3L);
+
+        assertEquals("CTR-007", deuda.referencia());
+        assertEquals("Patrimonio Inmuebles", deuda.acreedor());
+        assertEquals("APOFYX", deuda.cobra());
+        assertEquals("Arriendos septiembre", deuda.campana());
+        assertFalse(deuda.toString().contains("16482337"));
+        verify(bitacora, never()).save(any());
+        when(deudas.findById(4L)).thenReturn(Optional.empty());
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ApiException.class, () -> servicio.deuda(4L)).getStatus());
+    }
 }

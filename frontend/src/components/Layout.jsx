@@ -35,6 +35,7 @@ const ADMIN = [
   { to: "/admin", label: "Inicio", corto: "Inicio", Icono: IconoPanel, end: true },
   { to: "/admin/empresas", label: "Empresas", corto: "Empresas", Icono: IconoEmpresa },
   { to: "/admin/deudores", label: "Deudores", corto: "Deudores", Icono: IconoUsuario },
+  { to: "/admin/pagos", label: "Pagos", corto: "Pagos", Icono: IconoRecibo },
   { to: "/admin/operacion", label: "Operación", corto: "Operación", Icono: IconoAlerta },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },

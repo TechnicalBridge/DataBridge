@@ -4,24 +4,12 @@ import { accesosDeDeudor, fichaDeDeudor, pagosDeDeudor } from "../api/admin";
 import Cargando from "../components/Cargando";
 import Paginas, { dePagina } from "../components/Paginas";
 import { IconoVolver } from "../components/Iconos";
-import { dinero, ESTADO_DEUDA, fechaHora, rutLegible } from "../utils/formato";
+import { dinero, ESTADO_DE_PAGO, ESTADO_DEUDA, fechaHora, PASARELA, rutLegible } from "../utils/formato";
 import { METODOS, RESULTADOS } from "./AdminAccesos";
 
 const CLASE_DE_DEUDA = {
   open: "badge-warn", repacted: "badge-muted", paid: "badge-ok", withdrawn: "badge-muted", disputed: "badge-peligro",
 };
-
-const ESTADO_DE_PAGO = {
-  created: { texto: "Abierto", clase: "badge-muted" },
-  authorized: { texto: "Autorizado", clase: "badge-muted" },
-  paid: { texto: "Pagado", clase: "badge-ok" },
-  failed: { texto: "Falló", clase: "badge-peligro" },
-  expired: { texto: "Vencido", clase: "badge-warn" },
-  refunded: { texto: "Devuelto", clase: "badge-muted" },
-  duplicated: { texto: "Duplicado", clase: "badge-warn" },
-};
-
-const PASARELA = { webpay: "Webpay", khipu: "Khipu", mercadopago: "Mercado Pago" };
 
 /** De a cuantas filas se ve cada parte: un deudor puede tener decenas de pagos e ingresos. */
 const POR_PAGINA = 10;

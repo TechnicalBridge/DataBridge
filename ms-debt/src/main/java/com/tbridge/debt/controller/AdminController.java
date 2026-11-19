@@ -5,6 +5,7 @@ import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.EstadoResponse;
@@ -263,6 +264,18 @@ public class AdminController {
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
             @PathVariable String rut) {
         return deudores.ficha(rut, admin.email());
+    }
+
+    @GetMapping("/deudas/{id}")
+    @Operation(summary = "Una deuda, sin datos del deudor",
+            description = "Cual es, de que acreedor, quien la cobra, su campana y su estado: lo que muestra el "
+                    + "detalle de un pago en el panel (#435). No queda en la bitacora, porque no trae datos del "
+                    + "deudor; para eso esta su ficha.")
+    @ApiResponse(responseCode = "200", description = "La deuda")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna deuda con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public DeudaAdminResponse deuda(@PathVariable Long id) {
+        return deudores.deuda(id);
     }
 
     private static EntityModel<EmpresaResponse> conEnlaces(EmpresaResponse empresa) {

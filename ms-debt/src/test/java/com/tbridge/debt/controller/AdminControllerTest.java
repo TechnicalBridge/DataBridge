@@ -5,11 +5,13 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
+import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.FichaDeudorResponse;
 import com.tbridge.debt.dto.response.ReglasResponse;
 import com.tbridge.debt.exception.ApiException;
+import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.AvisosService;
@@ -371,5 +373,21 @@ class AdminControllerTest {
         mvc.perform(get("/api/admin/debt/deudores/16482337-7")).andExpect(status().isUnauthorized());
         verify(deudoresAdmin, times(1)).ficha(any(), any());
         verify(deudoresAdmin, times(1)).buscar(any(), eq(0), eq(20));
+    }
+
+    @Test
+    void la_deuda_de_un_pago_la_ve_solo_el_admin() throws Exception {
+        when(deudoresAdmin.deuda(15L)).thenReturn(new DeudaAdminResponse(15L, "CTR-007", "Arriendo",
+                "Patrimonio Inmuebles", "76418902-7", "APOFYX", "Arriendos", Debt.Status.paid));
+
+        mvc.perform(get("/api/admin/debt/deudas/15").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.referencia").value("CTR-007"))
+                .andExpect(jsonPath("$.cobra").value("APOFYX"));
+        for (String otro : List.of(empresa(), deudor())) {
+            mvc.perform(get("/api/admin/debt/deudas/15").header("Authorization", otro))
+                    .andExpect(status().isForbidden());
+        }
+        verify(deudoresAdmin, times(1)).deuda(any());
     }
 }

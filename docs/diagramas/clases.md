@@ -1880,9 +1880,18 @@ classDiagram
             +reintentarDestino(JwtPrincipal, Long) Reintentados
             +suspender(JwtPrincipal, String) EmpresaResponse
             +reactivar(JwtPrincipal, String) EmpresaResponse
+            +buscarDeudores(String, int, int) PagedModel~DeudorEncontradoResponse~
+            +fichaDeDeudor(JwtPrincipal, String) FichaDeudorResponse
+            +deuda(Long) DeudaAdminResponse
         }
     }
     namespace service {
+        class DeudoresAdminService {
+            <<service>>
+            +buscar(String, int, int) Page~DeudorEncontradoResponse~
+            +ficha(String, String) FichaDeudorResponse
+            +deuda(Long) DeudaAdminResponse
+        }
         class AvisosService {
             <<service>>
             +sinEntregar() AvisosResponse
@@ -1958,6 +1967,9 @@ classDiagram
     AdminController --> ReglasService
     AdminController --> AvisosService
     AdminController ..> HorarioDeContacto
+    AdminController --> DeudoresAdminService
+    DeudoresAdminService --> DebtRepository
+    DeudoresAdminService --> AdminLogRepository
     AvisosService --> OutboxEventRepository
     AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
@@ -1974,7 +1986,8 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, los deudores, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `DeudoresAdminService` | `service` | Buscar a un deudor en todas las empresas y abrir su ficha, que queda en la bitácora del panel ([#434](https://github.com/TechnicalBridge/DataBridge/issues/434)), y una deuda sin datos del deudor para el detalle de un pago ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)). |
 | `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, dar de alta una empresa usuaria, y suspenderla o reactivarla. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
@@ -2501,6 +2514,7 @@ classDiagram
             aviso_reintentado
             uf_cargada
             cobro_liberado
+            pago_verificado
         }
     }
     namespace events {
@@ -2588,6 +2602,11 @@ classDiagram
             +estado() EstadoResponse
             +operacion() OperacionResponse
             +reintentarAviso(JwtPrincipal, Long) OperacionResponse.Aviso
+            +liberarCobro(JwtPrincipal, Long) OperacionResponse.CobroLiberado
+            +pagos(String, String, String, LocalDate, LocalDate, boolean, int, int) PagedModel~PagoAdminResponse~
+            +pago(Long) PagoAdminDetalleResponse
+            +verificarPago(JwtPrincipal, Long) PagoVerificadoResponse
+            +pagosDeDeudor(String) List~PagoDeDeudorResponse~
             +cargarUf(JwtPrincipal, UfManualRequest) UfResponse
         }
     }
@@ -2669,6 +2688,12 @@ classDiagram
             +reintentarAviso(Long, String) OperacionResponse.Aviso
             +cargarUf(LocalDate, BigDecimal, String) UfResponse
         }
+        class PagosAdminService {
+            <<service>>
+            +buscar(String, String, String, LocalDate, LocalDate, boolean, int, int) Page~PagoAdminResponse~
+            +detalle(Long) PagoAdminDetalleResponse
+            +verificar(Long, String) PagoVerificadoResponse
+        }
     }
     namespace repository {
         class PaymentRepository {
@@ -2711,6 +2736,11 @@ classDiagram
     InternalController --> UfLoader
     AdminController --> ReglasService
     AdminController --> OperacionService
+    AdminController --> PagosAdminService
+    PagosAdminService --> PaymentRepository
+    PagosAdminService --> PaymentEventRepository
+    PagosAdminService --> AdminLogRepository
+    PagosAdminService --> PaymentService
     OperacionService --> PaymentRepository
     OperacionService --> PaymentEventRepository
     OperacionService --> DebtNotificationRepository
@@ -2741,8 +2771,9 @@ classDiagram
 | `PaymentController` | `controller` | Los pagos del portal, la página de la pasarela, la ida y vuelta de Webpay y Mercado Pago, y el aviso de Khipu. |
 | `WebhookController` | `controller` | Donde avisa la pasarela simulada, con firma. |
 | `InternalController` | `controller` | Cargar la UF a mano o desde el Banco Central. Con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago y la operación. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago, la operación y los pagos. Solo para el admin. |
 | `OperacionService` | `service` | La operación de los pagos para el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): los totales, la UF de hoy en Chile y los avisos a ms-debt sin entregar; reintentar uno y cargar la UF a mano, anotando quién lo hizo. |
+| `PagosAdminService` | `service` | Los pagos de todas las empresas para el panel ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)): por páginas y con filtros, cada uno con su historia, y verificar con su pasarela uno abierto, anotando quién lo hizo. Sin datos del deudor. |
 | `PaymentModelAssembler` | `assembler` | Los enlaces HATEOAS de un pago. |
 | `PaymentService` | `service` | El cobro: abrirlo, confirmarlo con la pasarela, vencerlo y dejar el aviso. |
 | `ConciliacionPasarelas` | `service` | Cada 10 segundos pregunta a las pasarelas por los cobros abiertos, y cada 5 minutos por los vencidos. |
