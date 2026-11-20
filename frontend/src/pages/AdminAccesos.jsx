@@ -55,23 +55,46 @@ export default function AdminAccesos() {
       .catch(() => { setHoy(null); setSinTotales(true); });
   }, [vuelta]);
 
+  const [exportando, setExportando] = useState(false);
+
   function filtrar(cambio) {
     setFiltros((antes) => ({ ...antes, ...cambio }));
     setPagina(0);
   }
 
-  function exportar() {
-    if (!datos || !datos.filas || datos.filas.length === 0) return;
-    descargarCsv(
-      `accesos-${hoyEnChile()}.csv`,
-      ["Fecha y hora", "Método", "RUT", "Resultado"],
-      datos.filas.map((a) => [
-        fechaHora(a.cuando),
-        METODOS[a.metodo] || a.metodo,
-        a.rut || "Sin RUT",
-        RESULTADOS[a.resultado]?.texto || a.resultado,
-      ])
-    );
+  async function exportar() {
+    if (!datos || total === 0 || exportando) return;
+    setExportando(true);
+    try {
+      let todasLasFilas = [];
+      const totalPaginas = datos?.pagina?.totalPages ?? 1;
+      if (totalPaginas <= 1) {
+        todasLasFilas = datos.filas || [];
+      } else {
+        const promesas = [];
+        for (let p = 0; p < totalPaginas; p++) {
+          if (p === pagina) {
+            promesas.push(Promise.resolve(datos.filas));
+          } else {
+            promesas.push(accesos({ ...filtros, pagina: p, porPagina: 50 }).then((res) => res.filas));
+          }
+        }
+        const paginasResultados = await Promise.all(promesas);
+        todasLasFilas = paginasResultados.flat();
+      }
+      descargarCsv(
+        `accesos-${hoyEnChile()}.csv`,
+        ["Fecha y hora", "Método", "RUT", "Resultado"],
+        todasLasFilas.map((a) => [
+          fechaHora(a.cuando),
+          METODOS[a.metodo] || a.metodo,
+          a.rut || "Sin RUT",
+          RESULTADOS[a.resultado]?.texto || a.resultado,
+        ])
+      );
+    } finally {
+      setExportando(false);
+    }
   }
 
   const hayFiltros = Object.values(filtros).some(Boolean);
@@ -159,8 +182,8 @@ export default function AdminAccesos() {
                       {total.toLocaleString("es-CL")} {total === 1 ? "registro" : "registros"}
                       {filtros.resultado ? ` · ${RESULTADOS[filtros.resultado].texto}` : ""}
                     </span>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} title="Exportar accesos a CSV">
-                      <IconoDescargar /> Exportar
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={exportando} title="Exportar accesos a CSV">
+                      <IconoDescargar /> {exportando ? "Exportando…" : "Exportar"}
                     </button>
                   </div>
                 </caption>

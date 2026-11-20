@@ -1,19 +1,16 @@
-const test = require("node:test");
+const { test, before } = require("node:test");
 const assert = require("node:assert/strict");
 
 /**
  * Prueba la lógica de exportación y neutralización de fórmulas (CSV injection, #319, #444)
  */
 
-function sanitizarParaExcel(valor) {
-  if (valor === null || valor === undefined) return "";
-  let texto = String(valor);
-  const esNumero = typeof valor === "number" || /^-?\d+([.,]\d+)?$/.test(texto);
-  if (!esNumero && /^[=+\-@\t\r]/.test(texto)) {
-    texto = `'${texto}`;
-  }
-  return /[";\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
-}
+let sanitizarParaExcel;
+
+before(async () => {
+  const mod = await import("../frontend/src/utils/exportar.js");
+  sanitizarParaExcel = mod.sanitizarParaExcel;
+});
 
 test("neutraliza valores de texto que comienzan con =, +, -, @, tabulador o retorno", () => {
   assert.equal(sanitizarParaExcel("=SUM(A1:A10)"), "'=SUM(A1:A10)");
