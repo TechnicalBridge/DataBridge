@@ -168,6 +168,18 @@ public class DebtService {
         return debtors.findByRut(normalizado).map(Debtor::getEmail).filter(c -> c != null && c.contains("@"));
     }
 
+    /**
+     * El telefono que registro el acreedor para ese RUT, para ms-auth: el codigo
+     * SMS va solo ahi.
+     */
+    public java.util.Optional<String> telefonoDelDeudor(String rut) {
+        String normalizado = Rut.normalizar(rut);
+        if (!Rut.esValido(normalizado)) {
+            return java.util.Optional.empty();
+        }
+        return debtors.findByRut(normalizado).map(Debtor::getPhone).filter(t -> t != null && !t.isBlank());
+    }
+
     /** El deudor detras del token, por RUT: es lo unico que trae su sesion. */
     Debtor deudorDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {

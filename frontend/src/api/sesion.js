@@ -4,8 +4,12 @@ import { pedir } from "./client";
 export const entrarConCodigo = (identificador, codigo, esDeudor = true) =>
   pedir("/auth/acceso", { method: "POST", body: { [esDeudor ? "rut" : "correo"]: identificador, codigo } });
 
-export const pedirCodigo = (correo, rut) =>
-  pedir("/auth/codigo", { method: "POST", body: { correo, rut: rut || null } });
+export const pedirCodigo = (correo, rut, canal = "correo") =>
+  pedir("/auth/codigo", { method: "POST", body: { correo, rut: rut || null, canal } });
+
+/** Canales de autenticacion disponibles (correo, sms). */
+export const canalesAutenticacion = () =>
+  pedir("/auth/metodos").catch(() => ({ correo: true, sms: false }));
 
 /** Codigo nuevo y enlace de respaldo, juntos en el mismo correo. */
 export const pedirEnlace = (correo, rut) =>

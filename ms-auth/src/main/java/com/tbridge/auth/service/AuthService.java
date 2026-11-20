@@ -18,6 +18,7 @@ import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.util.Hash;
 import com.tbridge.auth.util.Rut;
 import com.tbridge.auth.util.Correo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,7 @@ public class AuthService {
     private final SessionService sesiones;
     private final MailService correo;
     private final DeudasClient deudas;
+    private final SmsService sms;
     private final String publicUrl;
     private final long codeTtlHours;
     private final long magicTtlMinutes;
@@ -90,6 +92,25 @@ public class AuthService {
             @Value("${app.code-ttl-hours:24}") long codeTtlHours,
             @Value("${app.magic-ttl-minutes:15}") long magicTtlMinutes
     ) {
+        this(codigos, enlaces, personal, bitacora, jwt, sesiones, correo, deudas,
+                new SmsService("mock"), publicUrl, codeTtlHours, magicTtlMinutes);
+    }
+
+    @Autowired
+    public AuthService(
+            AccessCodeRepository codigos,
+            MagicLinkRepository enlaces,
+            StaffUserRepository personal,
+            AccessLogRepository bitacora,
+            JwtService jwt,
+            SessionService sesiones,
+            MailService correo,
+            DeudasClient deudas,
+            SmsService sms,
+            @Value("${app.public-url}") String publicUrl,
+            @Value("${app.code-ttl-hours:24}") long codeTtlHours,
+            @Value("${app.magic-ttl-minutes:15}") long magicTtlMinutes
+    ) {
         this.codigos = codigos;
         this.enlaces = enlaces;
         this.personal = personal;
@@ -98,9 +119,14 @@ public class AuthService {
         this.sesiones = sesiones;
         this.correo = correo;
         this.deudas = deudas;
+        this.sms = sms != null ? sms : new SmsService("mock");
         this.publicUrl = publicUrl.replaceAll("/$", "");
         this.codeTtlHours = codeTtlHours;
         this.magicTtlMinutes = magicTtlMinutes;
+    }
+
+    public boolean isSmsDisponible() {
+        return sms.estaDisponible();
     }
 
     // ------------------------------------------------------------------
@@ -244,6 +270,57 @@ public class AuthService {
     /** Lo que se le responde a quien pide un enlace, salga o no: no revela quien es deudor ni quien es personal. */
     static final String RESPUESTA_ENLACE = "Si tus datos están registrados, recibirás un código y un enlace en el mismo correo.";
     static final String RESPUESTA_CODIGO = "Si tus datos están registrados, recibirás un código de acceso por correo.";
+    static final String RESPUESTA_SMS = "Si tus datos están registrados, recibirás un código de acceso por SMS.";
+
+    /**
+     * Pedir codigo de acceso por SMS para el deudor registrado.
+     */
+    @Transactional
+    public EnlaceResponse pedirCodigoSms(String rutCrudo, String ip) {
+        String ipHash = ip == null ? null : Hash.sha256(ip);
+        frenarFuerzaBruta(ipHash);
+        String rut = rutCrudo == null || rutCrudo.isBlank() ? null : normalizarRut(rutCrudo);
+        if (rut == null) {
+            anotar(null, AccessLog.Method.code, AccessLog.Outcome.refused, ipHash);
+            return new EnlaceResponse(true, RESPUESTA_SMS, magicTtlMinutes);
+        }
+
+        String telefono = deudas.telefonoDelDeudor(rut).orElse(null);
+        if (telefono == null) {
+            anotar(rut, AccessLog.Method.code, AccessLog.Outcome.refused, ipHash);
+        } else {
+            Instant ahora = Instant.now();
+            MagicLink reciente = enlaces.findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(rut).orElse(null);
+            if (reciente != null && reciente.vigente()
+                    && reciente.getIssuedAt().plusSeconds(60).isAfter(ahora)) {
+                anotar(rut, AccessLog.Method.code, AccessLog.Outcome.sent, ipHash);
+                return new EnlaceResponse(true, RESPUESTA_SMS, magicTtlMinutes);
+            }
+            enlaces.anularPedidosDeRut(rut, ahora);
+            String token = UUID.randomUUID().toString();
+            String codigo = generarCodigo();
+            MagicLink enlace = new MagicLink();
+            enlace.setTokenHash(Hash.sha256(token));
+            enlace.setDebtorRut(rut);
+            enlace.setPhone(telefono);
+            enlace.setEmail(null);
+            enlace.setExpiresAt(ahora.plus(magicTtlMinutes, ChronoUnit.MINUTES));
+            enlace.setCodeHash(huella(rut, codigo));
+            enlace.setLinkEnabled(false);
+            enlaces.save(enlace);
+
+            Runnable enviar = () -> sms.enviarCodigo(telefono, codigo, magicTtlMinutes + " minutos");
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override public void afterCommit() { enviar.run(); }
+                });
+            } else {
+                enviar.run();
+            }
+            anotar(rut, AccessLog.Method.code, AccessLog.Outcome.sent, ipHash);
+        }
+        return new EnlaceResponse(true, RESPUESTA_SMS, magicTtlMinutes);
+    }
 
     /**
      * El camino de excepcion, para quien no logra entrar con el codigo.

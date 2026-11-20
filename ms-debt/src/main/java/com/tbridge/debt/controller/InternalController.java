@@ -13,6 +13,7 @@ import com.tbridge.debt.dto.response.DebtSnapshotResponse;
 import com.tbridge.debt.dto.response.OkResponse;
 import com.tbridge.debt.dto.response.OrganizacionResponse;
 import com.tbridge.debt.dto.response.RecordatoriosResponse;
+import com.tbridge.debt.dto.response.TelefonoDelDeudorResponse;
 import com.tbridge.debt.service.ApiKeyService;
 import com.tbridge.debt.service.CampanaAvanceService;
 import com.tbridge.debt.service.DebtService;
@@ -112,6 +113,22 @@ public class InternalController {
         exigirClave(clave);
         return debts.correoDelDeudor(rut).map(CorreoDelDeudorResponse::new)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Sin correo registrado"));
+    }
+
+    @GetMapping("/deudores/{rut}/telefono")
+    @Operation(summary = "El telefono registrado de un deudor (para ms-auth)",
+            description = "El que registro el acreedor en su cartera. ms-auth manda el SMS de acceso solo ahi, "
+                    + "nunca al telefono que alguien escriba en el formulario.")
+    @ApiResponse(responseCode = "200", description = "El telefono")
+    @ApiResponse(responseCode = "404", description = "Ese RUT no esta en cartera o no tiene telefono",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public TelefonoDelDeudorResponse telefonoDelDeudor(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @PathVariable String rut
+    ) {
+        exigirClave(clave);
+        return debts.telefonoDelDeudor(rut).map(TelefonoDelDeudorResponse::new)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Sin telefono registrado"));
     }
 
     @GetMapping("/cartera/{rut}")

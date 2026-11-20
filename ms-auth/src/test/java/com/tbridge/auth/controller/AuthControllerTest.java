@@ -71,6 +71,15 @@ class AuthControllerTest {
     private com.tbridge.auth.service.IdentifierLimit identifierLimit;
 
     @Test
+    void metodosInformaCanalesDisponibles() throws Exception {
+        org.mockito.Mockito.when(auth.isSmsDisponible()).thenReturn(true);
+        mvc.perform(get("/api/auth/metodos"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correo").value(true))
+                .andExpect(jsonPath("$.sms").value(true));
+    }
+
+    @Test
     void cuotaDeIdentificadorRechazaAntesDeConsultarLaCuenta() throws Exception {
         org.mockito.Mockito.doThrow(new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,"Demasiadas solicitudes"))
                 .when(identifierLimit).check("delivery", RUT, null);
