@@ -18,7 +18,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** El primer admin de DataBridge sale de ADMIN_CORREO, una sola vez, y nunca es de una empresa. */
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class PrimerAdminTest {
+
+    @Test
+    void crea_y_rechaza_conflicto_sin_exponer_correo(org.springframework.boot.test.system.CapturedOutput salida) {
+        arrancar("admin@example.org");
+        ArgumentCaptor<StaffUser> creado = ArgumentCaptor.forClass(StaffUser.class);
+        verify(personal).save(creado.capture());
+        assertEquals("admin@example.org", creado.getValue().getEmail());
+        when(personal.findByEmailIgnoreCase("empresa@example.net")).thenReturn(Optional.of(new StaffUser()));
+        arrancar("empresa@example.net");
+        assertTrue(salida.getAll().contains("configurado"));
+        assertTrue(salida.getAll().contains("no se le da el rol admin"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("admin@example.org"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("empresa@example.net"));
+        org.junit.jupiter.api.Assertions.assertFalse(java.util.regex.Pattern
+                .compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}").matcher(salida.getAll()).find());
+        verify(personal).save(any());
+    }
 
     private final StaffUserRepository personal = mock(StaffUserRepository.class);
 
