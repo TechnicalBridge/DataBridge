@@ -99,6 +99,16 @@ public class AuthController {
                 : auth.entrarConCodigoDePersonal(pedido.correo(), pedido.codigo(), origen(peticion)));
     }
 
+    @GetMapping("/api/auth/metodos")
+    @Operation(summary = "Canales de autenticacion disponibles",
+            description = "Informa que canales estan habilitados en la plataforma (correo, sms).")
+    public ResponseEntity<java.util.Map<String, Boolean>> metodos() {
+        return ResponseEntity.ok(java.util.Map.of(
+                "correo", true,
+                "sms", auth.isSmsDisponible()
+        ));
+    }
+
     @PostMapping("/api/auth/codigo")
     @Operation(summary = "Pedir solo un codigo de acceso",
             description = "Al correo o telefono registrado del deudor o del personal habilitado. No incluye enlace y no revela "

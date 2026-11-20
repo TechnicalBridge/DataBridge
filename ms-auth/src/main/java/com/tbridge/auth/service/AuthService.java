@@ -125,6 +125,10 @@ public class AuthService {
         this.magicTtlMinutes = magicTtlMinutes;
     }
 
+    public boolean isSmsDisponible() {
+        return sms.estaDisponible();
+    }
+
     // ------------------------------------------------------------------
     //  Emitir el codigo (lo pide el motor de campana, no el deudor)
     // ------------------------------------------------------------------
@@ -285,14 +289,22 @@ public class AuthService {
         if (telefono == null) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.refused, ipHash);
         } else {
-            enlaces.anularPedidosDeRut(rut, Instant.now());
+            Instant ahora = Instant.now();
+            MagicLink reciente = enlaces.findFirstByDebtorRutAndCodeHashIsNotNullOrderByIssuedAtDescIdDesc(rut).orElse(null);
+            if (reciente != null && reciente.vigente()
+                    && reciente.getIssuedAt().plusSeconds(60).isAfter(ahora)) {
+                anotar(rut, AccessLog.Method.code, AccessLog.Outcome.sent, ipHash);
+                return new EnlaceResponse(true, RESPUESTA_SMS, magicTtlMinutes);
+            }
+            enlaces.anularPedidosDeRut(rut, ahora);
             String token = UUID.randomUUID().toString();
             String codigo = generarCodigo();
             MagicLink enlace = new MagicLink();
             enlace.setTokenHash(Hash.sha256(token));
             enlace.setDebtorRut(rut);
-            enlace.setEmail(telefono);
-            enlace.setExpiresAt(Instant.now().plus(magicTtlMinutes, ChronoUnit.MINUTES));
+            enlace.setPhone(telefono);
+            enlace.setEmail(null);
+            enlace.setExpiresAt(ahora.plus(magicTtlMinutes, ChronoUnit.MINUTES));
             enlace.setCodeHash(huella(rut, codigo));
             enlace.setLinkEnabled(false);
             enlaces.save(enlace);
