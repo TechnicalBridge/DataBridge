@@ -62,9 +62,7 @@ public class HistorialController {
     @Operation(summary = "El comprobante de un pago (PDF)",
             description = "Que se pago, de que deuda, por donde y cuando. Lo descarga el deudor o la empresa que opera la deuda.")
     @ApiResponse(responseCode = "200", description = "El PDF", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE))
-    @ApiResponse(responseCode = "403", description = "El pago no es de quien pregunta",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "404", description = "No existe ese pago",
+    @ApiResponse(responseCode = "403", description = "Pago inexistente o no visible",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiError.class)))
     public ResponseEntity<byte[]> comprobante(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
                                               @PathVariable Long id) {

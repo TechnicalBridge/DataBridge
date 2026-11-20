@@ -113,7 +113,7 @@ public class PaymentController {
     @ApiResponse(responseCode = "200", description = "El pago, devuelto, con la fecha y la referencia")
     @ApiResponse(responseCode = "400", description = "El pago no es duplicado, o falta la referencia o es muy larga",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "403", description = "Quien pregunta no es una empresa, o el pago no es de su cartera",
+    @ApiResponse(responseCode = "403", description = "Quien pregunta no es una empresa, o el pago es inexistente o no visible",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<PaymentResponse> registrarDevolucion(
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
@@ -137,9 +137,7 @@ public class PaymentController {
     @Operation(summary = "Un pago")
     @SecurityRequirement(name = OpenApiConfig.JWT)
     @ApiResponse(responseCode = "200", description = "El pago y sus enlaces")
-    @ApiResponse(responseCode = "403", description = "No le corresponde verlo",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "404", description = "No existe",
+    @ApiResponse(responseCode = "403", description = "Pago inexistente o no visible",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<PaymentResponse> one(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
                                             @PathVariable Long id) {
@@ -154,9 +152,7 @@ public class PaymentController {
                     + "cambia nada.")
     @SecurityRequirement(name = OpenApiConfig.JWT)
     @ApiResponse(responseCode = "200", description = "En que quedo el pago: `expired`, `failed`, `paid` o `duplicated`")
-    @ApiResponse(responseCode = "403", description = "No es el deudor de ese pago",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "404", description = "No existe",
+    @ApiResponse(responseCode = "403", description = "Pago inexistente o ajeno, o rol no autorizado",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La pasarela lo esta verificando: el deudor ya pago",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -171,7 +167,7 @@ public class PaymentController {
     @Operation(summary = "El libro de un pago", description = "Cada paso, del primero al ultimo. Nada se sobreescribe.")
     @SecurityRequirement(name = OpenApiConfig.JWT)
     @ApiResponse(responseCode = "200", description = "Los pasos del pago")
-    @ApiResponse(responseCode = "403", description = "No le corresponde verlo",
+    @ApiResponse(responseCode = "403", description = "Pago inexistente o no visible",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<HistoriaResponse> historia(@Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal user,
                                                   @PathVariable Long id) {
