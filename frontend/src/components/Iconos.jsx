@@ -76,6 +76,16 @@ export const IconoCandado = (p) => (
   <Trazo {...p}><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Trazo>
 );
 
+//  Una pantalla con una persona: las sesiones abiertas (#439).
+export const IconoSesion = (p) => (
+  <Trazo {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
+    <circle cx="12" cy="9" r="2" />
+    <path d="M8.5 13.5a3.5 3.5 0 0 1 7 0" />
+  </Trazo>
+);
+
 export const IconoCalendario = (p) => (
   <Trazo {...p}><rect x="3" y="5" width="18" height="16" rx="2.5" /><path d="M3 10h18M8 3v4M16 3v4" /></Trazo>
 );
