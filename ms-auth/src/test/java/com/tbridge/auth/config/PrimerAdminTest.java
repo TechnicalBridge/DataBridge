@@ -39,9 +39,19 @@ class PrimerAdminTest {
     }
 
     private final StaffUserRepository personal = mock(StaffUserRepository.class);
+    private final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(PrimerAdmin.class);
+    private ch.qos.logback.classic.Level nivelAnterior;
+
+    @org.junit.jupiter.api.AfterEach
+    void restaurarNivel() {
+        logger.setLevel(nivelAnterior);
+    }
 
     @BeforeEach
     void sinNadie() {
+        nivelAnterior = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.INFO);
         when(personal.existsByRole(StaffUser.Role.admin)).thenReturn(false);
         when(personal.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
     }
