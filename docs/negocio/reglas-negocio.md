@@ -247,7 +247,8 @@ cuota y el código que reenvía la empresa. Un correo que cae en un momento proh
 sale en la primera oportunidad permitida.
 
 **Para una demo se pueden apagar** las dos, solo para probar: `CONTACTO_SIN_HORARIO=true` deja escribir a
-cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, y
+cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, igual
+que *Campañas* en el panel, que además dice cuándo fue la última pasada de contacto y si se cayó (#441), y
 en producción van en `false` ([§10](../despliegue/docker.md#variables-de-entorno)).
 
 - **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera

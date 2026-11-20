@@ -22,6 +22,8 @@ export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 export const resumenDeDeudas = () => pedir("/admin/debt/resumen");
 export const resumenDePagos = () => pedir("/admin/payments/resumen");
 export const campanasAdmin = () => pedir("/admin/debt/campanas");
+/** La ultima pasada de contacto, la proxima, si se detuvo y si la ley esta activa (#441). */
+export const estadoDelContacto = () => pedir("/admin/debt/contacto/estado");
 
 /** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
 export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
