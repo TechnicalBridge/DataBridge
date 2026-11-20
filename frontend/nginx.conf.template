@@ -35,6 +35,8 @@ upstream gateway {
 }
 
 server {
+    #  Oculta la version tanto en respuestas normales como en errores de nginx.
+    server_tokens off;
     #  8080 y no 80: nginx corre sin privilegios, y los puertos bajo el 1024
     #  solo los puede tomar root.
     listen 8080;
