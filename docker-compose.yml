@@ -227,8 +227,11 @@ services:
       TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
       TWILIO_API_URL:               ${TWILIO_API_URL:-https://api.twilio.com}
       SMS_TIMEOUT_MS:               ${SMS_TIMEOUT_MS:-10000}
-      #  Despacho de codigos de acceso por WhatsApp (twilio o mock).
+      #  Despacho de codigos de acceso por WhatsApp (evolution, twilio o mock).
       WHATSAPP_TRANSPORT:           ${WHATSAPP_TRANSPORT:-}
+      EVOLUTION_URL:                ${EVOLUTION_URL:-http://evolution-api:8080}
+      EVOLUTION_API_KEY:            ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE:           ${EVOLUTION_INSTANCE:-databridge}
       TWILIO_WHATSAPP_FROM:         ${TWILIO_WHATSAPP_FROM:-whatsapp:+14155238886}
       TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: ${TWILIO_WHATSAPP_MESSAGING_SERVICE_SID:-}
       WHATSAPP_TIMEOUT_MS:          ${WHATSAPP_TIMEOUT_MS:-10000}
@@ -429,6 +432,83 @@ services:
       resources:
         limits: { memory: 512M }
 
+  # ---------------------------------------------------------------------------
+  #  Evolution API: Pasarela de WhatsApp real y gratuita sobre Docker (#507).
+  #  Permite despachar codigos de acceso a cualquier celular sin pagar por
+  #  plantillas de Meta ni requerir opt-in previo.
+  # ---------------------------------------------------------------------------
+  evolution-postgres:
+    image: postgres:15-alpine
+    container_name: tbridge-evo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_PASSWORD:-evolution_secret_pass}
+      POSTGRES_DB: evolution_db
+    volumes:
+      - evo_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits: { memory: 128M }
+
+  evolution-redis:
+    image: redis:7-alpine
+    container_name: tbridge-evo-redis
+    restart: unless-stopped
+    volumes:
+      - evo_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { memory: 64M }
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: tbridge-evolution
+    restart: unless-stopped
+    depends_on:
+      evolution-postgres: { condition: service_healthy }
+      evolution-redis: { condition: service_healthy }
+    ports:
+      - "${EVOLUTION_PORT:-8088}:8080"
+    environment:
+      SERVER_PORT: 8080
+      SERVER_TYPE: http
+      SERVER_URL: ${EVOLUTION_PUBLIC_URL:-http://localhost:8088}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-databridge-evolution-secret-key}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      # Base de datos
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_PASSWORD:-evolution_secret_pass}@evolution-postgres:5432/evolution_db
+      DATABASE_CONNECTION_CLIENT_NAME: evolution-api
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_CONTACTS: "false"
+      DATABASE_SAVE_CHATS: "false"
+      # Cache y Colas
+      CACHE_LOCAL_ENABLED: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379
+      CACHE_REDIS_PREFIX_KEY: "evolution-api:"
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+    volumes:
+      - evo_instances:/evolution/instances
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
   portal:
     profiles: ["app"]
     build: { context: ./frontend }
@@ -516,3 +596,6 @@ volumes:
   tb_auth_data:
   tb_debt_data:
   tb_payments_data:
+  evo_pg_data:
+  evo_redis_data:
+  evo_instances:

@@ -55,6 +55,26 @@ class WhatsAppServiceTest {
         return "http://127.0.0.1:" + servidor.getAddress().getPort();
     }
 
+    private String iniciarServidorEvolution(int estado, String respuestaJson,
+                                            AtomicReference<String> apiKeyRecibida,
+                                            AtomicReference<String> cuerpoRecibido,
+                                            AtomicInteger pedidos) throws IOException {
+        servidor = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        servidor.createContext("/message/sendText/databridge", intercambio -> {
+            pedidos.incrementAndGet();
+            apiKeyRecibida.set(intercambio.getRequestHeaders().getFirst("apikey"));
+            cuerpoRecibido.set(new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] bytes = respuestaJson.getBytes(StandardCharsets.UTF_8);
+            intercambio.getResponseHeaders().add("Content-Type", "application/json");
+            intercambio.sendResponseHeaders(estado, bytes.length);
+            try (OutputStream salida = intercambio.getResponseBody()) {
+                salida.write(bytes);
+            }
+        });
+        servidor.start();
+        return "http://127.0.0.1:" + servidor.getAddress().getPort();
+    }
+
     private static Map<String, String> decodificarFormulario(String cuerpo) {
         Map<String, String> campos = new HashMap<>();
         if (cuerpo == null || cuerpo.isBlank()) return campos;
@@ -110,6 +130,9 @@ class WhatsAppServiceTest {
                 "whatsapp:+14155238886",
                 "",
                 url,
+                "",
+                "",
+                "databridge",
                 2_000L
         );
         assertTrue(servicio.estaDisponible());
@@ -125,6 +148,36 @@ class WhatsAppServiceTest {
         assertEquals("whatsapp:+56987654321", formulario.get("To"));
         assertEquals("whatsapp:+14155238886", formulario.get("From"));
         assertTrue(formulario.get("Body").contains("WA1234"));
+    }
+
+    @Test
+    void evolution_envia_peticion_con_apikey_y_payload_json() throws IOException {
+        AtomicReference<String> apiKey = new AtomicReference<>();
+        AtomicReference<String> cuerpo = new AtomicReference<>();
+        AtomicInteger pedidos = new AtomicInteger();
+        String url = iniciarServidorEvolution(200, "{\"key\":{\"id\":\"EVO-123\"}}", apiKey, cuerpo, pedidos);
+
+        WhatsAppService servicio = new WhatsAppService(
+                "evolution",
+                "",
+                "",
+                "",
+                "",
+                "",
+                url,
+                "mi-evo-api-key",
+                "databridge",
+                2_000L
+        );
+        assertEquals("evolution", servicio.transporteActivo());
+        assertTrue(servicio.estaDisponible());
+
+        servicio.enviarCodigo("+56 9 4790 1054", "EVO789", "10 minutos");
+
+        assertEquals(1, pedidos.get());
+        assertEquals("mi-evo-api-key", apiKey.get());
+        assertTrue(cuerpo.get().contains("\"number\":\"56947901054\""));
+        assertTrue(cuerpo.get().contains("EVO789"));
     }
 
     @Test
