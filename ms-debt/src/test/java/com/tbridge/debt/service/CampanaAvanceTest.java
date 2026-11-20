@@ -11,12 +11,15 @@ import com.tbridge.debt.repository.ContactRepository;
 import com.tbridge.debt.repository.DebtEventRepository;
 import com.tbridge.debt.repository.DebtRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -93,5 +96,14 @@ class CampanaAvanceTest {
         assertEquals(0, comoViaja.get("deudas").asInt());
         assertEquals(0, comoViaja.get("enviados").asInt(), "sin cartera no hay a quien haberle escrito");
         assertEquals("APX-CMP-8", comoViaja.get("campana_id_externo").asText());
+    }
+
+    @Test
+    void la_publicacion_programada_corre_en_una_transaccion() throws Exception {
+        //  #338: deTodasLasCampanas() llama a publicarTodas() dentro de la misma clase, sin pasar por el proxy
+        //  de Spring, y avisarle a una suscripcion lee el acreedor de la campana, que es LAZY.
+        Method programada = CampanaAvanceService.class.getMethod("deTodasLasCampanas");
+        assertNotNull(new AnnotationTransactionAttributeSource()
+                .getTransactionAttribute(programada, CampanaAvanceService.class));
     }
 }

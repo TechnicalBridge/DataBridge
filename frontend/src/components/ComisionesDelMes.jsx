@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { comisionesDelMes } from "../api/admin";
-import { dinero, porcentaje, rutLegible } from "../utils/formato";
+import { dinero, porcentaje, rutLegible, mesDeHoy, mesEnPalabras } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
 import { IconoDescargar } from "./Iconos";
-import { mesDeHoy, mesEnPalabras } from "./ComisionDelMes";
 
 /**
  * El modelo de negocio, visto por el admin (#200): lo que DataBridge le cobra a cada empresa en el mes. La

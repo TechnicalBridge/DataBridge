@@ -2,6 +2,8 @@ package com.tbridge.payments.repository;
 
 import com.tbridge.payments.model.Payment;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -14,8 +16,17 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
+    @Query("select new com.tbridge.payments.repository.ConteoPorPasarela(p.gateway, count(p)) "
+            + "from Payment p where p.status = com.tbridge.payments.model.Payment.Status.paid "
+            + "and p.paidAt >= :desde and p.paidAt < :hasta group by p.gateway")
+    List<ConteoPorPasarela> pagosConfirmadosPorPasarela(@Param("desde") Instant desde,
+                                                        @Param("hasta") Instant hasta);
+
     /** Lo que ve un deudor: lo suyo, por RUT. */
     List<Payment> findByDebtorRutOrderByCreatedAtDesc(String debtorRut);
+
+    /** Los ultimos 100 de un deudor: su ficha en el panel (#434). */
+    List<Payment> findTop100ByDebtorRutOrderByCreatedAtDesc(String debtorRut);
 
     /** El pago de una pasarela por su id de transaccion (en Khipu, el payment_id). */
     Optional<Payment> findByGatewayAndGatewayTxnId(Payment.Gateway gateway, String gatewayTxnId);
@@ -51,6 +62,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     /** Cuantos siguen en un estado desde antes de un instante: los abiertos que llevan rato. */
     long countByStatusAndCreatedAtBefore(Payment.Status status, Instant antes);
 
+    /** Los que siguen en un estado desde antes de un instante, el mas antiguo primero: los cobros trabados (#453). */
+    List<Payment> findTop50ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(Payment.Status status, Instant antes);
+
     /** Los pagos en un estado de varias deudas: los duplicados de una cartera. */
     List<Payment> findByStatusAndDebtIdInOrderByCreatedAtDesc(Payment.Status status, Collection<Long> debtIds);
 
@@ -62,4 +76,25 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      * columna por la que filtrar.
      */
     List<Payment> findByCreditorRutOrderByCreatedAtDesc(String creditorRut);
+
+    /**
+     * Los pagos de todas las empresas para la pantalla Pagos del panel (#435),
+     * con los filtros que vengan. Con {@code revisar}, solo los que hay que
+     * mirar: los duplicados y los abiertos desde antes de {@code abiertoAntes}.
+     */
+    @Query("""
+            select p from Payment p
+             where (:estado is null or p.status = :estado)
+               and (:pasarela is null or p.gateway = :pasarela)
+               and (:empresa is null or p.creditorRut = :empresa)
+               and (:desde is null or p.createdAt >= :desde)
+               and (:hasta is null or p.createdAt < :hasta)
+               and (:revisar = false
+                    or p.status = com.tbridge.payments.model.Payment.Status.duplicated
+                    or (p.status = com.tbridge.payments.model.Payment.Status.created and p.createdAt < :abiertoAntes))
+            """)
+    Page<Payment> paraElPanel(@Param("estado") Payment.Status estado, @Param("pasarela") Payment.Gateway pasarela,
+                              @Param("empresa") String empresa, @Param("desde") Instant desde,
+                              @Param("hasta") Instant hasta, @Param("revisar") boolean revisar,
+                              @Param("abiertoAntes") Instant abiertoAntes, Pageable pagina);
 }

@@ -56,7 +56,10 @@ public class CampanaAvanceService {
         this.avisos = avisos;
     }
 
+    //  Por lo mismo que ContactoService.pasar (#338): publicarTodas() llamado desde aqui no pasa por el proxy,
+    //  y avisarle a una suscripcion lee el acreedor de la campana, que es LAZY.
     @Scheduled(cron = "${app.eventos.avance-cron:0 0 8 * * *}", zone = "America/Santiago")
+    @Transactional
     public void deTodasLasCampanas() {
         publicarTodas();
     }

@@ -5,8 +5,8 @@ import { descargarCsv } from "../utils/exportar";
 import { IconoDescargar } from "../components/Iconos";
 import Cargando from "../components/Cargando";
 
-/** Cada resultado de la bitacora, como se lo nombra en el panel. */
-const RESULTADOS = {
+/** Cada resultado de la bitacora, como se lo nombra en el panel (tambien en la ficha del deudor). */
+export const RESULTADOS = {
   granted: { texto: "Entró", clase: "badge-ok", que: "Entró con su código o su enlace." },
   invalid: { texto: "No corresponde", clase: "badge-peligro", que: "El código no era el de ese RUT, o el enlace no existe o ya se usó." },
   expired: { texto: "Vencido", clase: "badge-warn", que: "El código ya había vencido." },
@@ -15,7 +15,7 @@ const RESULTADOS = {
   refused: { texto: "Rechazado", clase: "badge-peligro", que: "Lo pidió y no salió nada (el RUT no tiene correo registrado, o el correo no tiene cuenta), o su cuenta no tiene acceso." },
 };
 
-const METODOS = { code: "Código", magic_link: "Enlace" };
+export const METODOS = { code: "Código", magic_link: "Enlace" };
 
 const SIN_FILTROS = { resultado: "", metodo: "", desde: "", hasta: "" };
 

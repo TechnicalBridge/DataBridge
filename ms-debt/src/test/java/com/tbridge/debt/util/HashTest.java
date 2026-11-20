@@ -21,5 +21,7 @@ class HashTest {
         assertFalse(Hash.igualesEnTiempoConstante("abc", "abd"));
         assertFalse(Hash.igualesEnTiempoConstante("abc", "abcd"));
         assertFalse(Hash.igualesEnTiempoConstante(null, "abc"));
+        assertFalse(Hash.igualesEnTiempoConstante("abc", null));
+        assertFalse(Hash.igualesEnTiempoConstante(null, null));
     }
 }

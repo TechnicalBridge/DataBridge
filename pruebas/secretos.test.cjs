@@ -78,6 +78,12 @@ const casos = [
     'databridge-secreto-por-omision'],
   ['un valor por omision en el compose', () => 'BREVO_API_KEY: ${BREVO_API_KEY:-' + azar(32) + '}',
     'databridge-secreto-por-omision'],
+  ...['RESEND_API_KEY', 'RESEND_WEBHOOK_SECRET'].flatMap((variable) => [
+    [variable + ' vacía', () => variable + '=\n', null],
+    [variable + ' con su valor', () => variable + '=' + azar(32), 'databridge-variable-con-valor'],
+    ['un valor por omisión para ' + variable,
+      () => variable + ': ${' + variable + ':-' + azar(32) + '}', 'databridge-secreto-por-omision'],
+  ]),
   //  base64url empieza con guion una de cada 64 veces: esta lo prueba siempre (#270).
   ['un valor por omision que empieza con guion', () => 'BREVO_API_KEY: ${BREVO_API_KEY:--' + azar(32) + '}',
     'databridge-secreto-por-omision'],

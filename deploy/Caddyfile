@@ -1,6 +1,7 @@
 # DataBridge en un servidor (#172): Caddy saca el certificado de Let's Encrypt
 # para el dominio, lo renueva solo, y le pasa todo al portal (nginx), que a su
-# vez manda /api al gateway.
+# vez manda /api al gateway. Si el nombre no tiene www (el de Azure), se usa
+# Caddyfile.sin-www (#468): lo que cambie en un archivo, va en los dos.
 
 www.{$DOMINIO} {
 	redir https://{$DOMINIO}{uri} permanent
