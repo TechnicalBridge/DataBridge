@@ -257,7 +257,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_y_queda_anotado() {
+    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_sin_escribir_eventos() {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
@@ -265,14 +265,11 @@ class PaymentServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
-        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
-        verify(eventos).save(libro.capture());
-        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
-        assertFalse(libro.getValue().getSignatureOk());
+        verify(eventos, never()).save(any());
     }
 
     @Test
-    void un_aviso_con_firma_falsa_no_se_aplica_pero_queda_anotado() {
+    void un_aviso_con_firma_falsa_no_se_aplica_ni_guarda_eventos() {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
@@ -280,10 +277,7 @@ class PaymentServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
-        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
-        verify(eventos).save(libro.capture());
-        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
-        assertFalse(libro.getValue().getSignatureOk());
+        verify(eventos, never()).save(any());
     }
 
     @Test
