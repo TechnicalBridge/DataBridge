@@ -122,6 +122,7 @@ public class AuthService {
         AccessCode registro = new AccessCode();
         registro.setCodeHash(huella(rut, codigo));
         registro.setDebtorRut(rut);
+        registro.setContactChangedAt(deudas.fechaCambioCorreo(rut));
         registro.setChannels(canalesComoJson(canales));
         registro.setExpiresAt(Instant.now().plus(codeTtlHours, ChronoUnit.HOURS));
         registro.setIssuedFor(paraQue);
@@ -142,6 +143,16 @@ public class AuthService {
     @Transactional
     public void anularCodigo(String rut, String codigo) {
         codigos.deleteByCodeHash(huella(rut, codigo));
+    }
+
+    @Transactional
+    public void validarDestinoDeCodigo(String rut, String codigo, String destino) {
+        AccessCode issued=codigos.findFirstByDebtorRutOrderByIssuedAtDescIdDesc(rut).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "El codigo fue reemplazado"));
+        if (!Hash.igualesEnTiempoConstante(issued.getCodeHash(), huella(rut, codigo)))
+            throw new ApiException(HttpStatus.CONFLICT, "El codigo fue reemplazado");
+        deudas.exigirCredencialVigente(rut, issued.getIssuedAt(), issued.getContactChangedAt());
+        deudas.exigirDestinoVigente(rut, destino);
     }
 
     // ------------------------------------------------------------------
@@ -194,6 +205,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
         }
 
+        deudas.exigirCredencialVigente(rut, registro.getIssuedAt(), registro.getContactChangedAt());
         //  De un solo uso: consumirlo es parte de entrar.
         registro.consumir();
         codigos.save(registro);
@@ -349,6 +361,8 @@ public class AuthService {
         //  Un enlace pedido con RUT es del deudor, y abre solo su sesion: aunque
         //  su correo fuera tambien el de alguien del personal, no entra como empresa.
         if (enlace.getDebtorRut() != null) {
+            deudas.exigirCredencialVigente(enlace.getDebtorRut(), enlace.getIssuedAt());
+            deudas.exigirDestinoVigente(enlace.getDebtorRut(), enlace.getEmail());
             return sesionDeDeudor(enlace.getDebtorRut(), ipHash);
         }
         //  Codigo o enlace no reemplazan la habilitacion actual del personal.
@@ -380,6 +394,12 @@ public class AuthService {
         SessionService.Renovada renovada = sesiones.renovar(llave, ipHash);
 
         if (renovada.role() == Session.Role.DEBTOR) {
+            try {
+                deudas.exigirCredencialVigente(renovada.rut(), sesiones.inicioDeFamilia(renovada.familia()));
+            } catch (ApiException failed) {
+                sesiones.revocarFamilia(renovada.familia());
+                throw failed;
+            }
             return new Sesion(jwtDeDeudor(renovada.rut()), UsuarioResponse.deudor(renovada.rut()), renovada.llave());
         }
         //  Tiene que seguir habilitado y con el rol con que abrio la sesion: una

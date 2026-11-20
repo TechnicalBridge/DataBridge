@@ -47,11 +47,16 @@ public class AuthClient {
 
     private final RestClient rest;
     private final String internalKey;
+    private final RestClient contactoRest;
 
     public AuthClient(@Value("${app.auth-url}") String authUrl,
                       @Value("${app.internal-key}") String internalKey) {
         this.rest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).build();
         this.internalKey = internalKey;
+        var timeouts = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        timeouts.setConnectTimeout(2_000);
+        timeouts.setReadTimeout(15_000);
+        this.contactoRest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).requestFactory(timeouts).build();
     }
 
     public CodigoEmitido emitirCodigo(PedidoDeCodigo pedido) {
@@ -69,6 +74,22 @@ public class AuthClient {
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo emitir el codigo: el servicio de acceso no responde");
+        }
+    }
+
+    private record Verificacion(String correo, String codigo) {}
+    private record Aviso(String eventoId, String correo) {}
+    public void verificarCorreo(String correo, String codigo) {
+        enviarContacto("/internal/contacto/verificacion", new Verificacion(correo, codigo));
+    }
+    public void avisarCambio(String eventoId, String correo) {
+        enviarContacto("/internal/contacto/aviso", new Aviso(eventoId, correo));
+    }
+    private void enviarContacto(String path, Object body) {
+        try {
+            contactoRest.post().uri(path).header("X-Internal-Key", internalKey).body(body).retrieve().toBodilessEntity();
+        } catch (RestClientException failed) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "El servicio de correo no esta disponible");
         }
     }
 

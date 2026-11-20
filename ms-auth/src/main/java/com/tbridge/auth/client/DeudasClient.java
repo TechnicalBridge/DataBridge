@@ -89,5 +89,36 @@ public class DeudasClient {
     /** Una empresa registrada en ms-debt: su RUT, como se la conoce y si puede operar. */
     public record Empresa(String rut, String nombre, boolean activa) {}
 
+    public record Contacto(String correo, java.time.Instant emailUpdatedAt) {}
+
+    /** Live, fail-closed cutoff check; independent of delivery of change notices. */
+    public void exigirCredencialVigente(String rut, java.time.Instant issuedAt) {
+        Contacto current = contacto(rut);
+        if (current.emailUpdatedAt() != null && (issuedAt == null || !issuedAt.isAfter(current.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un codigo nuevo.");
+    }
+    public java.time.Instant fechaCambioCorreo(String rut) { return contacto(rut).emailUpdatedAt(); }
+    public void exigirCredencialVigente(String rut, java.time.Instant issuedAt, java.time.Instant version) {
+        Contacto current=contacto(rut);
+        if (!java.util.Objects.equals(current.emailUpdatedAt(), version)
+                || current.emailUpdatedAt()!=null && (issuedAt==null || !issuedAt.isAfter(current.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un codigo nuevo.");
+    }
+    public void exigirDestinoVigente(String rut, String email) {
+        Contacto current = contacto(rut);
+        if (current.correo() == null || !current.correo().equalsIgnoreCase(email))
+            throw new ApiException(HttpStatus.CONFLICT, "El destino de acceso ya no esta vigente");
+    }
+    private Contacto contacto(String rut) {
+        try {
+            Contacto current = rest.get().uri("/internal/deudores/{rut}/contacto", rut)
+                    .header("X-Internal-Key", internalKey).retrieve().body(Contacto.class);
+            if (current == null) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso");
+            return current;
+        } catch (RestClientException failed) {
+            // No bodies, URLs, causes or addresses in security errors.
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso. Reintenta.");
+        }
+    }
     record Correo(String correo) {}
 }

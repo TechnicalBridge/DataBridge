@@ -59,3 +59,12 @@ export async function descargarCertificado(id) {
   const res = await client.get(`/debts/${id}/certificate`, { responseType: "blob" });
   descargar(res.data, "certificado-deuda-pagada.pdf");
 }
+
+export const cambiarTelefono = (telefono) =>
+  pedir("/debts/mis-datos/telefono", { method: "PATCH", body: { telefono } });
+export const solicitarCambioCorreo = (correo) =>
+  pedir("/debts/mis-datos/correo/verificacion", { method: "POST", body: { correo } });
+export const confirmarCambioCorreo = (solicitudId, codigo) =>
+  pedir("/debts/mis-datos/correo/confirmacion", { method: "POST", body: { solicitudId, codigo } });
+export const cancelarCambioCorreo = (solicitudId) =>
+  pedir("/debts/mis-datos/correo/cancelacion", { method: "POST", body: { solicitudId } });

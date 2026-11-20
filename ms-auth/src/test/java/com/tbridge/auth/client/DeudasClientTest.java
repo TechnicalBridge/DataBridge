@@ -88,4 +88,22 @@ class DeudasClientTest {
 
         assertEquals(Optional.empty(), cliente.correoDelDeudor("16482337-7"));
     }
+
+    @Test void credencial_anterior_al_cambio_se_rechaza_sin_depender_del_aviso() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andExpect(header("X-Internal-Key", "clave-interna"))
+                .andRespond(withSuccess("{\"correo\":\"nuevo@correo.cl\",\"emailUpdatedAt\":\"2026-11-20T12:00:00Z\"}", MediaType.APPLICATION_JSON));
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(ApiException.class, () -> cliente.exigirCredencialVigente("16482337-7", java.time.Instant.parse("2026-11-20T11:59:59Z"))).getStatus());
+    }
+    @Test void credencial_nueva_funciona() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andRespond(withSuccess("{\"correo\":\"nuevo@correo.cl\",\"emailUpdatedAt\":\"2026-11-20T12:00:00Z\"}", MediaType.APPLICATION_JSON));
+        cliente.exigirCredencialVigente("16482337-7", java.time.Instant.parse("2026-11-20T12:00:01Z"));
+    }
+    @Test void sin_contacto_vigente_no_se_abre_sesion() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andRespond(withServerError());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ApiException.class, () -> cliente.exigirCredencialVigente("16482337-7", java.time.Instant.now())).getStatus());
+    }
+
 }

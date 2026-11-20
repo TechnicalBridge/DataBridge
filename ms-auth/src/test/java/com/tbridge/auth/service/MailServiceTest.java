@@ -677,4 +677,58 @@ class MailServiceTest {
         servicio.enviarCodigo("sofia.lagos@correo.cl", "EEEEEE", "Patrimonio Inmuebles");
         verify(smtp, times(4)).send(any(MimeMessage.class));
     }
+
+    @Test void verifica_correo_con_plantilla_separada_y_sin_enlace() {
+        real("@correo.cl", "").enviarVerificacionDeCorreo("nuevo@correo.cl", "K7M2QX");
+        Enviado e = enviado();
+        assertTrue(e.texto().contains("K7M2QX"));
+        assertTrue(e.texto().contains("No es un codigo de acceso"));
+        assertFalse(e.texto().contains("/magic"));
+        assertFalse(e.texto().contains("acreedor"));
+    }
+    @Test void verificacion_redirigida_o_bloqueada_no_sale() {
+        for (String desvio : new String[]{"", "equipo@gmail.com"}) {
+            assertThrows(com.tbridge.auth.exception.ApiException.class, () ->
+                    real("@permitido.cl", desvio).enviarVerificacionDeCorreo("nuevo@correo.cl", "K7M2QX"));
+        }
+        verify(smtp, never()).send(any(MimeMessage.class));
+    }
+    @Test void mailpit_no_acredita_propiedad() {
+        when(proveedor.getIfAvailable()).thenReturn(smtp);
+        MailService mail = new MailService(proveedor,"equipo@gmail.com","http://localhost:8080/","mailpit",1025,
+                "","DataBridge","","","","mailpit:1025");
+        assertThrows(com.tbridge.auth.exception.ApiException.class, () -> mail.enviarVerificacionDeCorreo("nuevo@correo.cl","K7M2QX"));
+        verify(smtp, never()).send(any(MimeMessage.class));
+    }
+    @Test void dominio_reservado_no_acredita_propiedad() {
+        assertThrows(com.tbridge.auth.exception.ApiException.class, () -> real("", "").enviarVerificacionDeCorreo("nuevo@example.com","K7M2QX"));
+        verify(smtp, never()).send(any(MimeMessage.class));
+    }
+    @Test void sin_transporte_no_hay_verificacion() {
+        assertThrows(com.tbridge.auth.exception.ApiException.class, () -> correo("").enviarVerificacionDeCorreo("nuevo@correo.cl","K7M2QX"));
+    }
+    @Test void fallo_de_transporte_es_un_error_seguro() {
+        doThrow(new org.springframework.mail.MailSendException("fallo para nuevo@correo.cl K7M2QX"))
+                .when(smtp).send(any(MimeMessage.class));
+        var e = assertThrows(com.tbridge.auth.exception.ApiException.class, () -> real("", "").enviarVerificacionDeCorreo("nuevo@correo.cl","K7M2QX"));
+        assertFalse(e.getMessage().contains("nuevo@correo.cl")); assertFalse(e.getMessage().contains("K7M2QX"));
+    }
+    @Test void aviso_no_incluye_datos_financieros_ni_credenciales() {
+        real("", "").enviarAvisoDeCambio("anterior@correo.cl");
+        Enviado e=enviado();
+        assertTrue(e.texto().contains("Si no solicitaste"));
+        for(String sensitive : new String[]{"K7M2QX", "RUT", "monto", "acreedor", "nuevo@correo.cl"})
+            assertFalse(e.texto().contains(sensitive));
+    }
+
+
+    @Test void brevo_envia_la_verificacion_por_el_transporte_elegido() {
+        porBrevo("@correo.cl", "").enviarVerificacionDeCorreo("nuevo@correo.cl", "K7M2QX");
+        assertTrue(enviado().texto().contains("K7M2QX"));
+    }
+    @Test void aviso_respeta_desvio_de_pruebas() {
+        real("@permitido.cl", "equipo@gmail.com").enviarAvisoDeCambio("anterior@correo.cl");
+        assertEquals("equipo@gmail.com", enviado().para().getFirst());
+    }
+
 }

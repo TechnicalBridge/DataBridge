@@ -15,6 +15,9 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     Optional<Session> findByRefreshHash(String refreshHash);
 
+    @Query("select min(s.issuedAt) from Session s where s.familyId = :family")
+    Instant inicioDeFamilia(@Param("family") String family);
+
     /**
      * La misma busqueda, pero bloqueando la fila hasta el fin de la
      * transaccion. Si dos pestanas renuevan en el mismo instante, sin el
