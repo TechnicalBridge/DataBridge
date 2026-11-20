@@ -47,6 +47,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/debts")
 @Tag(name = "Deudas", description = "Ver, simular, repactar y certificar deudas")
 @SecurityRequirement(name = OpenApiConfig.JWT)
+@ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible, o rol no autorizado",
+        content = @Content(schema = @Schema(implementation = ApiError.class)))
 public class DebtController {
 
     private final DebtService debts;
@@ -114,7 +116,7 @@ public class DebtController {
     @ApiResponse(responseCode = "200", description = "La deuda con sus cuotas nuevas")
     @ApiResponse(responseCode = "400", description = "Plazo fuera de 3 a 24 meses",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "403", description = "Quien acepta no es el deudor",
+    @ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible, o quien acepta no es el deudor",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda ya esta pagada o fue retirada",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -131,7 +133,7 @@ public class DebtController {
     @ApiResponse(responseCode = "200", description = "La deuda, en disputa")
     @ApiResponse(responseCode = "400", description = "Un motivo que no existe",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "403", description = "Quien disputa no es el deudor",
+    @ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible, o quien disputa no es el deudor",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda ya esta pagada, retirada o en revision",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -146,7 +148,7 @@ public class DebtController {
             description = """
                     Solo la empresa que opera la deuda. `reanudar`: la deuda corresponde y vuelve a cobranza,                     con su convenio si tenia uno (evento `deuda.reanudada`). `retirar`: no corresponde y sale de                     la cobranza con el motivo `disputa_resuelta` (evento `deuda.retirada`).""")
     @ApiResponse(responseCode = "200", description = "La deuda, resuelta")
-    @ApiResponse(responseCode = "403", description = "Quien resuelve no es la empresa que opera la deuda",
+    @ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible, o rol no autorizado",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda no esta en disputa",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -161,7 +163,7 @@ public class DebtController {
     @Operation(summary = "Hacerle llegar al deudor su codigo de acceso",
             description = "Solo la empresa. El codigo va al correo del deudor y no vuelve en la respuesta: quien lo viera podria entrar en su lugar.")
     @ApiResponse(responseCode = "200", description = "A donde se mando")
-    @ApiResponse(responseCode = "403", description = "Quien pide no es la empresa que opera la deuda",
+    @ApiResponse(responseCode = "403", description = "Deuda inexistente o no visible, o rol no autorizado",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda ya no esta en cobranza, o el deudor no tiene correo",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

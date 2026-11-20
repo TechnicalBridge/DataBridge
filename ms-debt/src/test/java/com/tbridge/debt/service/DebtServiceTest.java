@@ -239,6 +239,83 @@ class DebtServiceTest {
     }
 
     @Test
+    void checkout_autoriza_antes_de_estados_saldo_y_cuotas() {
+        deuda.setStatus(Debt.Status.disputed);
+        patrimonio.setStatus(Organization.Status.suspended);
+        for (Long id : List.of(3L, 4L)) {
+            for (List<Long> ids : java.util.Arrays.<List<Long>>asList(null, List.of(99L), List.of(12L, 12L))) {
+                ApiException error = assertThrows(ApiException.class,
+                        () -> servicio.snapshotCheckout(id, ids, "16482337-7"));
+                assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+                assertEquals("No puedes ver esta deuda", error.getMessage());
+            }
+        }
+        org.mockito.Mockito.verifyNoInteractions(installments, descuentos);
+    }
+
+    @Test
+    void checkout_sin_identidad_no_consulta_cuotas() {
+        for (String rut : java.util.Arrays.asList(null, "", " ")) {
+            ApiException error = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, List.of(12L), rut));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+            assertEquals("No puedes ver esta deuda", error.getMessage());
+        }
+        org.mockito.Mockito.verifyNoInteractions(installments, descuentos);
+    }
+
+    @Test
+    void checkout_propio_sin_saldo_conserva_el_conflicto() {
+        cuotas.forEach(c -> c.setStatus(Installment.Status.paid));
+        ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+        ApiException actual = assertThrows(ApiException.class,
+                () -> servicio.snapshotCheckout(3L, null, valentina.getRut()));
+        assertEquals(HttpStatus.CONFLICT, actual.getStatus());
+        assertEquals(previo.getMessage(), actual.getMessage());
+    }
+
+    @Test
+    void checkout_cuota_ajena_e_inexistente_son_indistinguibles() {
+        Installment ajena = new Installment();
+        Debt otra = new Debt();
+        otra.setId(4L);
+        ajena.setDebt(otra);
+        when(installments.findById(98L)).thenReturn(Optional.of(ajena));
+        for (Long id : List.of(98L, 99L)) {
+            ApiException error = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, List.of(id), valentina.getRut()));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+            assertEquals("No puedes ver esta deuda", error.getMessage());
+        }
+    }
+
+    @Test
+    void checkout_propio_conserva_montos_y_conflictos() {
+        assertEquals(servicio.snapshotInterno(3L, null), servicio.snapshotCheckout(3L, null, valentina.getRut()));
+        enConvenioDeTres();
+        for (List<Long> ids : java.util.Arrays.<List<Long>>asList(null, List.of(14L), List.of(12L), List.of(13L, 13L))) {
+            if (ids == null) {
+                assertEquals(servicio.snapshotInterno(3L, ids), servicio.snapshotCheckout(3L, ids, valentina.getRut()));
+            } else {
+                ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, ids));
+                ApiException actual = assertThrows(ApiException.class,
+                        () -> servicio.snapshotCheckout(3L, ids, valentina.getRut()));
+                assertEquals(previo.getStatus(), actual.getStatus());
+                assertEquals(previo.getMessage(), actual.getMessage());
+            }
+        }
+        for (boolean suspendida : List.of(false, true)) {
+            deuda.setStatus(suspendida ? Debt.Status.open : Debt.Status.disputed);
+            patrimonio.setStatus(suspendida ? Organization.Status.suspended : Organization.Status.active);
+            ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+            ApiException actual = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, null, valentina.getRut()));
+            assertEquals(HttpStatus.CONFLICT, actual.getStatus());
+            assertEquals(previo.getMessage(), actual.getMessage());
+        }
+    }
+
+    @Test
     void varias_cuotas_se_cobran_juntas_si_son_las_que_vencen_primero() {
         enConvenioDeTres();
 

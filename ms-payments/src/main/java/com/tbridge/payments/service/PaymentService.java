@@ -172,15 +172,15 @@ public class PaymentService {
         //  Solo se paga lo propio, y lo propio se decide por RUT: es lo unico
         //  que trae la sesion de un deudor, que entra con su codigo, sin
         //  cuenta ni correo.
-        if (user == null || user.rut() == null) {
+        if (user == null || !user.isDebtor() || user.rut() == null || user.rut().isBlank()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "La sesion no identifica al deudor");
         }
         Payment.Gateway gateway = pasarela(pedido.gateway());
 
         //  El monto y a quien se le debe salen de ms-debt, no del cuerpo.
-        DebtClient.DebtSnapshot deuda = deudas.obtener(pedido.debtId(), pedido.installmentIds());
+        DebtClient.DebtSnapshot deuda = deudas.obtenerParaCheckout(pedido.debtId(), pedido.installmentIds(), user.rut());
         if (!user.rut().equalsIgnoreCase(deuda.debtorRut())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Esa deuda no es tuya");
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
         }
         //  Un pago a la vez por deuda: si no, el deudor puede pagar dos veces
         //  las mismas cuotas.

@@ -98,6 +98,20 @@ public class InternalController {
         return debts.snapshotInterno(id, installmentIds);
     }
 
+    @GetMapping("/debts/{id}/checkout")
+    @Operation(summary = "Monto para checkout, después de autorizar al propietario",
+            description = "El RUT procede de la sesión verificada por ms-payments, nunca del cuerpo público.")
+    @ApiResponse(responseCode = "403", description = "Deuda o cuota ajena o inexistente",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Conflicto legítimo de una deuda propia")
+    public DebtSnapshotResponse checkout(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @PathVariable Long id, @RequestParam String debtorRut,
+            @RequestParam(required = false) List<Long> installmentIds) {
+        exigirClave(clave);
+        return debts.snapshotCheckout(id, installmentIds, debtorRut);
+    }
+
     @GetMapping("/deudores/{rut}/correo")
     @Operation(summary = "El correo registrado de un deudor (para ms-auth)",
             description = "El que registro el acreedor en su cartera. ms-auth manda el enlace de acceso solo ahi, "

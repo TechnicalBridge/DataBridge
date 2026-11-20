@@ -69,7 +69,7 @@ public class PaymentController {
     @ApiResponse(responseCode = "200", description = "Cobro abierto")
     @ApiResponse(responseCode = "400", description = "Falta la deuda o la pasarela no existe",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "403", description = "La deuda no es de quien pide pagarla, o quien pide es una empresa",
+    @ApiResponse(responseCode = "403", description = "Deuda o cuota ajena o inexistente (mismo mensaje), o quien pide es una empresa",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "La deuda no tiene saldo por pagar",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

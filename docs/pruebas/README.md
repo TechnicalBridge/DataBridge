@@ -106,3 +106,6 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 </details>
 
 ---
+
+La [regresión de recursos privados por ID](../seguridad/recursos-privados.md) describe
+el contrato neutro de deudas, pagos y checkout del PR #404 y sus pruebas.
