@@ -3,6 +3,7 @@ package com.tbridge.auth.repository;
 import com.tbridge.auth.model.StaffUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +18,7 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, Long> {
 
     /** Las personas de un rol, por nombre: los admin de DataBridge. */
     List<StaffUser> findByRoleOrderByFullNameAsc(StaffUser.Role role);
+
+    /** Las personas de unos correos, tal como quedaron en sus sesiones (#439). */
+    List<StaffUser> findByEmailIn(Collection<String> correos);
 }

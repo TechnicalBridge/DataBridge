@@ -10,6 +10,8 @@ import com.tbridge.auth.dto.response.EstadoResponse;
 import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
+import com.tbridge.auth.dto.response.SesionAbiertaResponse;
+import com.tbridge.auth.dto.response.SesionCerradaResponse;
 import com.tbridge.auth.exception.ApiError;
 import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
@@ -17,6 +19,7 @@ import com.tbridge.auth.service.BitacoraDeAccesos;
 import com.tbridge.auth.service.BitacoraService;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
+import com.tbridge.auth.service.SesionesDelPersonal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -71,13 +74,15 @@ public class AdminController {
     private final ReglasService reglas;
     private final BitacoraDeAccesos accesos;
     private final BitacoraService bitacora;
+    private final SesionesDelPersonal sesiones;
 
     public AdminController(PersonalService personal, ReglasService reglas, BitacoraDeAccesos accesos,
-                           BitacoraService bitacora) {
+                           BitacoraService bitacora, SesionesDelPersonal sesiones) {
         this.personal = personal;
         this.reglas = reglas;
         this.accesos = accesos;
         this.bitacora = bitacora;
+        this.sesiones = sesiones;
     }
 
     @GetMapping("/estado")
@@ -287,6 +292,44 @@ public class AdminController {
         Page<BitacoraResponse> encontrados = bitacora.buscar(persona, accion, empresa, desde, hasta, pagina, porPagina);
         return PagedModel.of(encontrados.getContent(), new PagedModel.PageMetadata(encontrados.getSize(),
                 encontrados.getNumber(), encontrados.getTotalElements(), encontrados.getTotalPages()));
+    }
+
+    // ------------------------------------------------------------------
+    //  Las sesiones abiertas del personal (#439)
+    // ------------------------------------------------------------------
+
+    @GetMapping("/sesiones")
+    @Operation(summary = "Las sesiones abiertas del personal",
+            description = "De las personas de las empresas y de los admin de DataBridge: quien, de que empresa, desde "
+                    + "cuando, su ultima renovacion y hasta cuando puede renovarla sin volver a entrar. La renovada "
+                    + "hace menos primero, en `_embedded.sesiones` (sin `_embedded` si no hay ninguna), por paginas "
+                    + "(`pagina`, `porPagina`, hasta 50). Sin IP, huellas ni llaves. Las de los deudores no salen.")
+    @ApiResponse(responseCode = "200", description = "Una pagina de sesiones abiertas")
+    @ApiResponse(responseCode = "400", description = "Una pagina negativa",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public PagedModel<SesionAbiertaResponse> sesiones(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @Parameter(description = "La pagina, desde 0") @RequestParam(defaultValue = "0") int pagina,
+            @Parameter(description = "Cuantas por pagina: 20 si no se dice, nunca mas de 50")
+            @RequestParam(defaultValue = "20") int porPagina) {
+        Page<SesionAbiertaResponse> abiertas = sesiones.abiertas(pagina, porPagina, admin);
+        return PagedModel.of(abiertas.getContent(), new PagedModel.PageMetadata(abiertas.getSize(),
+                abiertas.getNumber(), abiertas.getTotalElements(), abiertas.getTotalPages()));
+    }
+
+    @PostMapping("/sesiones/{familia}/revocar")
+    @Operation(summary = "Cerrar a distancia una sesion del personal",
+            description = "Revoca su familia de llaves de renovacion: la siguiente renovacion responde 401 y la persona "
+                    + "tiene que volver a entrar. El JWT que ya tiene no se revoca (#428): su acceso termina a mas "
+                    + "tardar en `accesoHasta`, cuando vence. Queda en la bitacora del panel como `sesion_cerrada`.")
+    @ApiResponse(responseCode = "200", description = "La sesion, cerrada")
+    @ApiResponse(responseCode = "404", description = "No hay ninguna sesion del personal con ese id",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "La sesion ya estaba cerrada o vencida",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public SesionCerradaResponse cerrarSesion(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable String familia) {
+        return sesiones.cerrar(familia, admin);
     }
 
     private static Link paginaDeAccesos(LocalDate desde, LocalDate hasta, AccessLog.Method metodo,

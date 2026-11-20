@@ -15,7 +15,7 @@ import java.time.Instant;
 @Table(name = "admin_log")
 public class AdminLog {
 
-    public enum Action { persona_creada, admin_creado, persona_deshabilitada, persona_habilitada }
+    public enum Action { persona_creada, admin_creado, persona_deshabilitada, persona_habilitada, sesion_cerrada }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
