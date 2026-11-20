@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { fecha, fechaHora } from "../utils/formato";
+import Paginas, { dePagina } from "./Paginas";
 
 function UltimoIngreso({ valor }) {
   if (!valor) return "Todavía no entra";
@@ -130,19 +131,30 @@ const QUE_SE_HIZO = {
   suscripcion_probada: (a) => `Probó ${a.sobre}`,
 };
 
-/** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero. */
+/** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero, con paginacion (#383). */
 export function Historial({ acciones }) {
-  if (acciones.length === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+  const [pagina, setPagina] = useState(0);
+  const porPagina = 10;
+  const total = acciones?.length ?? 0;
+
+  if (total === 0) return <div className="empty">Todavía no se ha hecho nada desde el panel.</div>;
+
+  const { enPagina, filas: visibles } = dePagina(acciones, pagina, porPagina);
+
   return (
-    <div className="lista">
-      {acciones.map((a, i) => (
-        <div className="fila" key={`${a.accion}-${a.cuando}-${i}`}>
-          <div className="fila-que">
-            <b>{(QUE_SE_HIZO[a.accion] || (() => a.accion))(a)}</b>
-            <span>{a.quien} · {fechaHora(a.cuando)}</span>
+    <div>
+      <div className="lista">
+        {visibles.map((a, i) => (
+          <div className="fila" key={`${a.accion}-${a.cuando}-${i}`}>
+            <div className="fila-que">
+              <b>{(QUE_SE_HIZO[a.accion] || (() => a.accion))(a)}</b>
+              <span>{a.quien} · {fechaHora(a.cuando)}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <Paginas total={total} porPagina={porPagina} pagina={enPagina} alCambiar={setPagina}
+               etiqueta="Páginas del historial" />
     </div>
   );
 }
