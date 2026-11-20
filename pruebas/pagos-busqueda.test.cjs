@@ -2,12 +2,15 @@
 //  Pruebas de búsqueda con omisión de tildes y diacríticos en Pagos (#431):
 //  node --test pruebas/pagos-busqueda.test.cjs
 // =============================================================================
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
 
-// Misma lógica de normalización que frontend/src/utils/formato.js
-const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-  .replace(/[.\-\s]/g, "");
+let paraBuscar;
+
+before(async () => {
+  const formato = await import('../frontend/src/utils/formato.js');
+  paraBuscar = formato.paraBuscar;
+});
 
 // Lógica de filtrado de PagosRecibidos.jsx
 function filtrarPagos(pagos, buscar) {
