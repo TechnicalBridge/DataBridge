@@ -40,7 +40,7 @@ class AnalyticsControllerTest {
 
     @Test
     void la_empresa_ve_el_resumen_de_su_cartera() throws Exception {
-        when(analytics.resumenPara(any())).thenReturn(new ResumenResponse("APOFYX", "77305118-6", 3, 2, 1, 1, 0,
+        when(analytics.resumenPara(any())).thenReturn(new ResumenResponse("APOFYX", "77305118-6", 3, 2, 1, 1, 0, 1,
                 List.of(new ResumenResponse.PorMoneda("CLP", new BigDecimal("1040000"), new BigDecimal("410000"),
                         new BigDecimal("28.3"))),
                 List.of(), Map.of()));
@@ -49,6 +49,7 @@ class AnalyticsControllerTest {
                         .header("Authorization", "Bearer " + jwt.issue("1", "c@apofyx.cl", "CREDITOR", "Camila", "77305118-6")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.organizacion").value("APOFYX"))
+                .andExpect(jsonPath("$.enRevision").value(1))
                 .andExpect(jsonPath("$.porMoneda[0].tasaRecuperacion").value(28.3))
                 .andExpect(jsonPath("$._links.deudas.href").value("http://localhost/api/debts"));
     }

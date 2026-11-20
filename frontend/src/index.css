@@ -670,8 +670,6 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .totales span { white-space: nowrap; }
 
 .tabla-scroll { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
-.resolucion-disputa { display: grid; gap: 8px; min-width: 0; }
-.resolucion-disputa textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
 .table th { color: var(--muted); font-weight: 600; font-size: 14px; }
@@ -1054,6 +1052,34 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .opcion:hover { border-color: var(--line-2); }
 .opcion.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--ring); }
 .opcion b { display: block; }
+/* La bandeja del inicio de la empresa (#474): cada pendiente es una fila que lleva a resolverlo. */
+.bandeja h2 { margin-bottom: 12px; }
+.bandeja-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bandeja-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%;
+  min-height: 56px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.bandeja-item:hover { border-color: var(--brand); background: var(--paper-2); }
+.bandeja-numero {
+  min-width: 40px; height: 40px; display: grid; place-items: center; padding: 0 8px; border-radius: 99px;
+  background: var(--warn-soft); color: var(--warn); font-size: 18px; font-variant-numeric: tabular-nums;
+}
+.bandeja-texto b { display: block; }
+.bandeja-al-dia { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--brand-2); font-weight: 600; }
+/* El panel para responder un reclamo, bajo su fila (#474). */
+.fila-reclamo > td { background: var(--paper-2); }
+.panel-reclamo { display: grid; gap: 12px; max-width: 720px; padding: 4px 0; }
+.panel-reclamo:focus { outline: none; }
+.panel-reclamo h3 { margin: 0; }
+.panel-reclamo .hint { margin: 0; }
+.reclamo-cita { margin: 0; padding: 10px 14px; border-left: 1px solid var(--line-2); display: grid; gap: 4px; }
+.reclamo-detalle { white-space: pre-line; overflow-wrap: anywhere; color: var(--ink-2); }
+.opciones-reclamo { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.opciones-reclamo legend { font-weight: 600; margin-bottom: 8px; }
+.opciones-reclamo .opcion { grid-template-columns: auto minmax(0, 1fr); }
+.panel-reclamo .field { margin-bottom: 0; }
 .opcion .mono { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .zona-planilla { border-radius: var(--radius-sm); padding: 16px; }
 .cifras-revision { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0 0 14px; }
