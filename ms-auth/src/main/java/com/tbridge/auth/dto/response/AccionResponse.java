@@ -11,7 +11,8 @@ import java.time.Instant;
 @Schema(description = "Algo que un admin de DataBridge hizo con una persona desde el panel")
 public record AccionResponse(
         @Schema(example = "persona_creada",
-                allowableValues = {"persona_creada", "admin_creado", "persona_deshabilitada", "persona_habilitada"})
+                allowableValues = {"persona_creada", "admin_creado", "persona_deshabilitada", "persona_habilitada",
+                        "sesion_cerrada"})
         String accion,
         @Schema(description = "A quien: su correo", example = "ana.soto@empresatest.cl", nullable = true) String sobre,
         @Schema(description = "El admin que lo hizo", example = "admin@databridge.cl") String quien,
