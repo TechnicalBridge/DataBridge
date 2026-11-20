@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.clearInvocations;
@@ -225,6 +226,7 @@ public abstract class BaseIntegracionMySql {
 
         when(deudas.correoDelDeudor(RUT_DEUDOR)).thenReturn(Optional.of(CORREO_DEUDOR));
         when(deudas.correoDelDeudor(RUT_OTRO_DEUDOR)).thenReturn(Optional.of(CORREO_OTRO_DEUDOR));
+        when(deudas.telefonoDelDeudor(any())).thenReturn(Optional.of("+56987654321"));
         when(deudas.empresa(RUT_EMPRESA))
                 .thenReturn(Optional.of(new DeudasClient.Empresa(RUT_EMPRESA, "Patrimonio Inmuebles", true)));
     }

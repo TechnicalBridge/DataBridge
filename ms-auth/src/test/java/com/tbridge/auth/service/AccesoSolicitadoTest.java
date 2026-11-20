@@ -97,6 +97,14 @@ class AccesoSolicitadoTest {
     }
 
     @Test
+    void el_envio_por_sms_contiene_codigo_y_permite_entrar() {
+        when(deudas.telefonoDelDeudor(RUT)).thenReturn(Optional.of("+56987654321"));
+        var respuesta = auth.pedirCodigoSms(RUT, "127.0.0.1");
+        assertTrue(respuesta.ok());
+        assertEquals("Si tus datos están registrados, recibirás un código de acceso por SMS.", respuesta.mensaje());
+    }
+
+    @Test
     void el_respaldo_es_un_mensaje_con_codigo_y_enlace_y_el_codigo_invalida_ambos() {
         auth.pedirEnlace(RUT, null, "127.0.0.1");
         assertEquals(1, mensajes.size());

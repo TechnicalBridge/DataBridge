@@ -121,6 +121,10 @@ no es secreto sí tiene un valor de desarrollo.
 | `MAIL_FROM`, `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `noreply@technicalbridge.local`, `DataBridge`, vacía | El remitente, el nombre que muestra el buzón a su lado, y a quién se le responde si no es al remitente. Con Gmail, el remitente tiene que ser la propia cuenta |
 | `CORREO_SOLO_A`, `CORREO_DESVIAR_A` | vacías | El modo de prueba: a quién se le escribe directo, y adónde se desvía lo demás. Vacías, se le escribe a cualquier dirección |
 | `CORREO_DESVIO_MAXIMO_POR_DIA` | `100` | Hasta cuántos correos desvía el modo de prueba en un día de Chile: el desvío gasta el cupo del proveedor. `0`, sin tope (#236) |
+| `SMS_TRANSPORT` | vacía (auto) | El proveedor de SMS (`twilio` o `mock`). Vacía: si Twilio tiene credenciales y remitente usa Twilio; de lo contrario queda en `mock` sin proveedor |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | vacías | Cuenta y token de la API REST de Twilio |
+| `TWILIO_FROM_NUMBER`, `TWILIO_MESSAGING_SERVICE_SID` | vacías | El número emisor E.164 o el SID del Messaging Service de Twilio |
+| `TWILIO_API_URL`, `SMS_TIMEOUT_MS` | `https://api.twilio.com`, `10000` | Dirección base y tiempo de espera HTTP para SMS |
 
 </details>
 

@@ -44,7 +44,7 @@ export const useAuth = create((set, get) => {
       return get().abrirSesion(await sesion.entrarConCodigo(identificador, codigo, esDeudor));
     },
 
-    pedirCodigo: (correo, rut) => sesion.pedirCodigo(correo, rut),
+    pedirCodigo: (correo, rut, canal) => sesion.pedirCodigo(correo, rut, canal),
     pedirEnlace: (correo, rut) => sesion.pedirEnlace(correo, rut),
 
     entrarConEnlace: async (token) => {

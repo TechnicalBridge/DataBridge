@@ -23,8 +23,11 @@ public class MagicLink {
     @Column(name = "debtor_rut", length = 12)
     private String debtorRut;
 
-    @Column(nullable = false, length = 254)
+    @Column(name = "email", length = 254)
     private String email;
+
+    @Column(name = "phone", length = 30)
+    private String phone;
 
     @Column(name = "issued_at", nullable = false)
     private Instant issuedAt = Instant.now();
@@ -59,6 +62,8 @@ public class MagicLink {
     public void setDebtorRut(String debtorRut) { this.debtorRut = debtorRut; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
     public Instant getIssuedAt() { return issuedAt; }
     public void setIssuedAt(Instant issuedAt) { this.issuedAt = issuedAt; }
     public Instant getExpiresAt() { return expiresAt; }
