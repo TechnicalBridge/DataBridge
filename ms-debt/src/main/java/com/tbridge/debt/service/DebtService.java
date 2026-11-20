@@ -210,6 +210,26 @@ public class DebtService {
     }
 
     /**
+     * El resumen de cada deuda, con la ultima vez que se le escribio al deudor:
+     * lo mismo que ve la empresa en su cartera, para la ficha del deudor en el
+     * panel (#434). No anota un ingreso, porque el que mira es el admin.
+     */
+    Map<Long, DebtSummaryResponse> resumenes(List<Debt> deudas) {
+        if (deudas.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Instant> enviado = contactos.ultimoPorDeuda(deudas).stream()
+                .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
+        Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(deudas);
+        Map<Long, BigDecimal> caes = caes(deudas);
+        Map<Long, DebtSummaryResponse> porDeuda = new HashMap<>();
+        for (Debt d : deudas) {
+            porDeuda.put(d.getId(), resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())));
+        }
+        return porDeuda;
+    }
+
+    /**
      * La mora de cada cuota pendiente de la deuda, hoy. Los cargos se leen solo
      * si la deuda genera intereses, que son las menos.
      */

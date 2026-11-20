@@ -16,6 +16,10 @@ import java.util.Optional;
 
 public interface DebtRepository extends JpaRepository<Debt, Long> {
 
+    @Query("select new com.tbridge.debt.repository.ConteoPorEstado(d.status, count(d)) "
+            + "from Debt d group by d.status")
+    List<ConteoPorEstado> contarPorEstado();
+
     /** Las deudas de un mandato que siguen en gestion: las que se cobran aunque el mandato termine (#234). */
     long countByMandateAndStatusIn(Mandate mandate, Collection<Debt.Status> estados);
 
@@ -56,6 +60,11 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     List<SaldoPendiente> saldoPorEmpresa();
 
     List<Debt> findByDebtorOrderByUpdatedAtDesc(Debtor debtor);
+
+    /** Cuantas deudas tiene cada deudor con cada acreedor: la lista de la busqueda del panel (#434). */
+    @Query("select new com.tbridge.debt.repository.DeudasDelDeudor(d.debtor.id, d.creditor.tradeName, count(d)) "
+            + "from Debt d where d.debtor in :deudores group by d.debtor.id, d.creditor.tradeName")
+    List<DeudasDelDeudor> porDeudorYAcreedor(@Param("deudores") Collection<Debtor> deudores);
 
     List<Debt> findByCampaign(Campaign campaign);
 

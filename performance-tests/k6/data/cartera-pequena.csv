@@ -1,0 +1,7 @@
+deuda_id;accion;motivo_retiro;deudor_rut;deudor_tipo;deudor_nombre;deudor_correo;deudor_telefono;moneda;concepto;referencias;tasa_interes_mensual;cargo_concepto;cargo_periodo;cargo_monto;cargo_vencimiento
+VOL-0001;registrar;;30000000-2;persona;Deudor Volumen 0001;deudor.volumen.0001@example.com;+56900000001;CLP;Servicios ficticios de prueba;contrato=VOL-0001 | origen=rendimiento;;Servicios enero 2026;2026-01;310000;2026-01-05
+VOL-0001;registrar;;30000000-2;persona;Deudor Volumen 0001;deudor.volumen.0001@example.com;+56900000001;CLP;Servicios ficticios de prueba;contrato=VOL-0001 | origen=rendimiento;;Servicios febrero 2026;2026-02;310000;2026-02-05
+VOL-0002;registrar;;30000001-0;persona;Deudor Volumen 0002;deudor.volumen.0002@example.com;+56900000002;CLP;Servicios ficticios de prueba;contrato=VOL-0002 | origen=rendimiento;;Servicios enero 2026;2026-01;320000;2026-01-05
+VOL-0002;registrar;;30000001-0;persona;Deudor Volumen 0002;deudor.volumen.0002@example.com;+56900000002;CLP;Servicios ficticios de prueba;contrato=VOL-0002 | origen=rendimiento;;Servicios febrero 2026;2026-02;320000;2026-02-05
+VOL-0003;registrar;;30000002-9;persona;Deudor Volumen 0003;deudor.volumen.0003@example.com;+56900000003;CLP;Servicios ficticios de prueba;contrato=VOL-0003 | origen=rendimiento;;Servicios enero 2026;2026-01;330000;2026-01-05
+VOL-0003;registrar;;30000002-9;persona;Deudor Volumen 0003;deudor.volumen.0003@example.com;+56900000003;CLP;Servicios ficticios de prueba;contrato=VOL-0003 | origen=rendimiento;;Servicios febrero 2026;2026-02;330000;2026-02-05

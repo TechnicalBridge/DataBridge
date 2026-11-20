@@ -20,8 +20,9 @@ el helper tambien encuentra el OpenSSL de Git for Windows; no descarga herramien
 El helper crea `/.secrets/jwt` ignorado por Git, restringe permisos antes de generar
 y exporta privada PKCS#8 PEM (`BEGIN PRIVATE KEY`) y publica SPKI/X.509 PEM
 (`BEGIN PUBLIC KEY`). En PowerShell no se usa criptografia casera ni se imprime PEM.
-`preparar-env.ps1` detecta ese directorio y rellena su ruta absoluta si faltaba;
-no reemplaza una ruta configurada ni sus archivos. Para otro destino usar
+`preparar-env.ps1` detecta ese directorio y, si faltaba la variable, anota la ruta
+relativa `./.secrets/jwt` (ver la tabla de abajo); no reemplaza una ruta configurada
+ni sus archivos. Para otro destino usar
 `-Directory <directorio-nuevo>` y configurar su ruta manualmente.
 
 Alternativa Unix con herramientas estandar, en un directorio **nuevo**:
@@ -47,8 +48,15 @@ JWT_KEY_DIRECTORY/
     proxima.pem       (solo publica SPKI)
 ```
 
-`JWT_KEY_DIRECTORY` es una **ruta absoluta host**, nunca texto PEM. Solo auth
-recibe esa variable. Compose monta el directorio en `/run/secrets/jwt` read-only
+`JWT_KEY_DIRECTORY` es la ruta de esa carpeta en el equipo, nunca texto PEM:
+
+| Dónde corre ms-auth | Ruta |
+| --- | --- |
+| Docker | La relativa `./.secrets/jwt`, que Compose resuelve contra la carpeta del repositorio. Es la que crea `scripts/generar-claves-jwt.ps1`, la que trae `.env.example` y la que se usa si la variable queda vacía, así que el mismo `.env` sirve en cualquier computador (#469) |
+| Fuera de Docker (`spring-boot:run`) | La absoluta: el proceso corre en la carpeta del servicio, y una relativa apuntaría a `ms-auth/.secrets/jwt` |
+| El servidor | `/opt/databridge/.secrets/jwt`, que pone `deploy/preparar-servidor.sh` |
+
+Solo auth recibe esa variable. Compose monta el directorio en `/run/secrets/jwt` read-only
 y sin crear un origen vacio si falta. Nunca privada por build arg, Dockerfile o
 variable compartida. Los Dockerfiles no necesitan las claves para construir.
 

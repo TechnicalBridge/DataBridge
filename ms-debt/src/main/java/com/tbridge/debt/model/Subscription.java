@@ -52,6 +52,7 @@ public class Subscription {
     public void setSecret(String secret) { this.secret = secret; }
     public String getEvents() { return events; }
     public void setEvents(String events) { this.events = events; }
+    public boolean isActive() { return Boolean.TRUE.equals(active); }
     public void setActive(Boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }
 }

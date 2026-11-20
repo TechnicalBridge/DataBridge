@@ -191,18 +191,22 @@ if (-not (Valor $lineas 'AUTH_JWKS_URI')) {
     Poner $lineas 'AUTH_JWKS_URI' 'http://127.0.0.1:8081/.well-known/jwks.json'
 }
 # La firma usa un directorio, no un secreto compartido. Nunca pisa sus archivos.
+# Se anota relativa: Docker la resuelve contra esta carpeta, y el .env sirve en
+# cualquier computador (#469).
 $directorioJwt = Valor $lineas 'JWT_KEY_DIRECTORY'
 if (-not $directorioJwt) {
     $candidatoJwt = Join-Path $PSScriptRoot '.secrets/jwt'
     if ((Test-Path -LiteralPath (Join-Path $candidatoJwt 'private.pem')) -and
         (Test-Path -LiteralPath (Join-Path $candidatoJwt 'public.pem'))) {
-        $directorioJwt = (Resolve-Path -LiteralPath $candidatoJwt).Path
-        Poner $lineas 'JWT_KEY_DIRECTORY' $directorioJwt.Replace('\', '/')
+        $directorioJwt = './.secrets/jwt'
+        Poner $lineas 'JWT_KEY_DIRECTORY' $directorioJwt
     }
 }
-if (-not $directorioJwt -or
-    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'private.pem')) -or
-    -not (Test-Path -LiteralPath (Join-Path $directorioJwt 'public.pem'))) {
+$rutaJwt = $directorioJwt
+if ($rutaJwt -and -not [System.IO.Path]::IsPathRooted($rutaJwt)) { $rutaJwt = Join-Path $PSScriptRoot $rutaJwt }
+if (-not $rutaJwt -or
+    -not (Test-Path -LiteralPath (Join-Path $rutaJwt 'private.pem')) -or
+    -not (Test-Path -LiteralPath (Join-Path $rutaJwt 'public.pem'))) {
     Write-Warning 'Falta la pareja JWT. Ejecuta scripts/generar-claves-jwt.ps1 y configura JWT_KEY_DIRECTORY; ver docs/seguridad/jwt.md.'
 }
 [System.IO.File]::WriteAllLines($archivo, $lineas, $sinBom)

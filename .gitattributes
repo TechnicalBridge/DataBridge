@@ -21,3 +21,6 @@ mvnw    text eol=lf
 
 #  El hook de secretos corre con sh: sin CR (#232).
 .githooks/* text eol=lf
+
+#  La unidad de systemd del servidor tambien se lee en Linux (#470).
+*.service text eol=lf
