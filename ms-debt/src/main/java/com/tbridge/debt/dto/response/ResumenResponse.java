@@ -20,6 +20,8 @@ public record ResumenResponse(
         @Schema(example = "1") int enConvenio,
         @Schema(example = "1") int pagadas,
         @Schema(example = "0") int retiradas,
+        @Schema(description = "En revision: el deudor reclamo y espera la respuesta de la empresa. Tambien cuentan "
+                + "en activas", example = "1") int enRevision,
         List<PorMoneda> porMoneda,
         List<PorAcreedor> porAcreedor,
         @Schema(description = "Lo recuperado cada dia de los ultimos 30, una serie por moneda. Con ceros: un grafico "
