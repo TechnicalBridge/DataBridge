@@ -55,7 +55,7 @@ function ConCodigo({ esDeudor, esAdmin }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
   const [enviado, setEnviado] = useState(null);
-  const [canales, setCanales] = useState({ correo: true, sms: false });
+  const [canales, setCanales] = useState({ correo: true, sms: false, whatsapp: false });
 
   useEffect(() => {
     canalesAutenticacion().then(setCanales).catch(() => {});
@@ -63,7 +63,7 @@ function ConCodigo({ esDeudor, esAdmin }) {
 
   async function solicitar(respaldo, canal = "correo") {
     if (!entrada.current.reportValidity()) return;
-    setBusy(respaldo ? "respaldo" : canal === "sms" ? "sms" : "codigo");
+    setBusy(respaldo ? "respaldo" : canal === "sms" ? "sms" : canal === "whatsapp" ? "whatsapp" : "codigo");
     setError("");
     setEnviado(null);
     try {
@@ -108,16 +108,24 @@ function ConCodigo({ esDeudor, esAdmin }) {
                placeholder={esDeudor ? "12.345.678-5" : esAdmin ? "nombre@databridge.cl" : "nombre@empresa.cl"}
                autoComplete="username" maxLength={esDeudor ? 20 : 254} required />
       </div>
-      {esDeudor && canales.sms ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+      {esDeudor && (canales.whatsapp || canales.sms) ? (
+        <div style={{ display: "grid", gridTemplateColumns: canales.whatsapp && canales.sms ? "repeat(auto-fit, minmax(130px, 1fr))" : "1fr 1fr", gap: "8px" }}>
           <button type="button" className="btn btn-ghost" disabled={Boolean(busy)}
                   onClick={() => solicitar(false, "correo")}>
             {busy === "codigo" ? <><span className="girando" /> Enviando…</> : "Código al correo"}
           </button>
-          <button type="button" className="btn btn-ghost" disabled={Boolean(busy)}
-                  onClick={() => solicitar(false, "sms")}>
-            {busy === "sms" ? <><span className="girando" /> Enviando…</> : "Código por SMS"}
-          </button>
+          {canales.whatsapp ? (
+            <button type="button" className="btn btn-ghost" disabled={Boolean(busy)}
+                    onClick={() => solicitar(false, "whatsapp")}>
+              {busy === "whatsapp" ? <><span className="girando" /> Enviando…</> : "Código por WhatsApp"}
+            </button>
+          ) : null}
+          {canales.sms ? (
+            <button type="button" className="btn btn-ghost" disabled={Boolean(busy)}
+                    onClick={() => solicitar(false, "sms")}>
+              {busy === "sms" ? <><span className="girando" /> Enviando…</> : "Código por SMS"}
+            </button>
+          ) : null}
         </div>
       ) : (
         <button type="button" className="btn btn-ghost btn-block" disabled={Boolean(busy)}

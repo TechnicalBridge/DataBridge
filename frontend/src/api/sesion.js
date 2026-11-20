@@ -7,9 +7,9 @@ export const entrarConCodigo = (identificador, codigo, esDeudor = true) =>
 export const pedirCodigo = (correo, rut, canal = "correo") =>
   pedir("/auth/codigo", { method: "POST", body: { correo, rut: rut || null, canal } });
 
-/** Canales de autenticacion disponibles (correo, sms). */
+/** Canales de autenticacion disponibles (correo, sms, whatsapp). */
 export const canalesAutenticacion = () =>
-  pedir("/auth/metodos").catch(() => ({ correo: true, sms: false }));
+  pedir("/auth/metodos").catch(() => ({ correo: true, sms: false, whatsapp: false }));
 
 /** Codigo nuevo y enlace de respaldo, juntos en el mismo correo. */
 export const pedirEnlace = (correo, rut) =>

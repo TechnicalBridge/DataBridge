@@ -73,10 +73,23 @@ class AuthControllerTest {
     @Test
     void metodosInformaCanalesDisponibles() throws Exception {
         org.mockito.Mockito.when(auth.isSmsDisponible()).thenReturn(true);
+        org.mockito.Mockito.when(auth.isWhatsappDisponible()).thenReturn(true);
         mvc.perform(get("/api/auth/metodos"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.correo").value(true))
+                .andExpect(jsonPath("$.whatsapp").value(true))
                 .andExpect(jsonPath("$.sms").value(true));
+    }
+
+    @Test
+    void solicitar_codigo_por_whatsapp_usa_pedirCodigoWhatsapp() throws Exception {
+        when(auth.pedirCodigoWhatsapp(eq(RUT), any())).thenReturn(new EnlaceResponse(true,
+                "Si tus datos están registrados, recibirás un código de acceso por WhatsApp.", 15));
+        mvc.perform(post("/api/auth/codigo").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rut\":\"" + RUT + "\",\"canal\":\"whatsapp\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.expiraEnMinutos").value(15));
+        verify(auth).pedirCodigoWhatsapp(eq(RUT), any());
     }
 
     @Test

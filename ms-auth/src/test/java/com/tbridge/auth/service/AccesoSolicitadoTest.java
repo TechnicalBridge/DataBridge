@@ -322,4 +322,12 @@ class AccesoSolicitadoTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+
+    @Test
+    void pedirCodigoWhatsapp_con_telefono_despacha_codigo() {
+        when(deudas.telefonoDelDeudor(RUT)).thenReturn(Optional.of("+56987654321"));
+        var respuesta = auth.pedirCodigoWhatsapp(RUT, "127.0.0.1");
+        assertTrue(respuesta.ok());
+        assertEquals(AuthService.RESPUESTA_WHATSAPP, respuesta.mensaje());
+    }
 }
