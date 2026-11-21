@@ -22,8 +22,9 @@ const ESPERA_MS = 1000;
 /**
  * Simular un plan de cuotas y aceptarlo.
  *
- * Simular no compromete nada: el deudor mueve el plazo y ve la cuota. Recien
- * al confirmar se crea el plan, y la empresa se entera por un evento.
+ * Simular no compromete nada: el deudor mueve el plazo y ve la cuota. Aceptar
+ * pide confirmar con el resumen a la vista, y recien al confirmar se crea el
+ * plan; la empresa se entera por un evento (#473).
  */
 export default function Repact() {
   const { id } = useParams();
@@ -34,7 +35,11 @@ export default function Repact() {
   const [planes, setPlanes] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  //  Aceptar no crea el convenio: primero se confirma, con el resumen a la vista (#473).
+  const [confirmando, setConfirmando] = useState(false);
   const enCurso = useRef(new Set());
+  const botonAceptar = useRef(null);
+  const cajaConfirmar = useRef(null);
 
   useEffect(() => {
     obtenerDeuda(id).then(setDeuda).catch((err) => setError(err.message));
@@ -59,12 +64,28 @@ export default function Repact() {
       .finally(() => enCurso.current.delete(pedido));
   }, [id, pedido, planes]);
 
+  //  Otro plazo es otro convenio: lo que se estaba confirmando ya no vale.
+  useEffect(() => { setConfirmando(false); }, [meses]);
+
+  useEffect(() => {
+    if (confirmando) cajaConfirmar.current?.focus();
+  }, [confirmando]);
+
+  function volver() {
+    setConfirmando(false);
+    //  El foco vuelve a Aceptar cuando el boton ya esta de nuevo en la pagina.
+    setTimeout(() => botonAceptar.current?.focus(), 0);
+  }
+
   async function confirmar() {
     setBusy(true);
     setError("");
     try {
-      await repactar(id, meses);
-      navigate(`/app/pagar/${id}`);
+      const deudaRepactada = await repactar(id, meses);
+      //  El aviso en Pagar sale de lo que guardo ms-debt, no de la simulacion.
+      const cuotas = (deudaRepactada?.cuotas || []).filter((c) => c.enConvenio && c.estado === "pending");
+      const primera = cuotas.map((c) => c.vencimiento).sort()[0];
+      navigate(`/app/pagar/${id}`, { state: { convenio: { cuotas: cuotas.length, primera } } });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -89,6 +110,13 @@ export default function Repact() {
   const plan = planes[meses];
   const esperando = !plan && pedido !== meses;
   const pct = `${((meses - MIN) / (MAX - MIN)) * 100}%`;
+  const primera = plan?.cuotas?.[0]?.dueDate;
+  const ultima = plan?.cuotas?.[plan.cuotas.length - 1]?.dueDate;
+  const ultimaDistinta = plan && Number(plan.lastAmount) !== Number(plan.monthlyAmount);
+  const conInteres = plan && Number(plan.interesConvenio) > 0;
+  const lasCuotas = plan
+    ? `${meses} cuotas de ${dinero(plan.monthlyAmount, moneda)}${ultimaDistinta ? ` (la última, de ${dinero(plan.lastAmount, moneda)})` : ""}`
+    : "";
 
   return (
     <div>
@@ -105,7 +133,8 @@ export default function Repact() {
       </header>
       {error ? <div className="error">{error}</div> : null}
 
-      <div className="card bloque aparece" style={{ "--i": 1 }}>
+      {/* En el telefono no ayuda a decidir y empuja el total hacia abajo (#475). */}
+      <div className="card bloque aparece solo-escritorio" style={{ "--i": 1 }}>
         <BarraEstado deuda={deuda} />
       </div>
 
@@ -163,34 +192,65 @@ export default function Repact() {
               <b key={`t${meses}${!!plan}`}>{plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}</b>
             </div>
           </div>
+          {plan ? (
+            //  Lo que importa antes de aceptar, junto al boton: cuanto se paga en total y cuanto mas que
+            //  hoy (#473). Todos los montos son los que calculo ms-debt.
+            <div className="convenio-total" aria-live="polite">
+              <p className="convenio-pagas">
+                Pagas <b>{dinero(plan.costoTotal ?? plan.total, moneda)}</b> en total
+                {conInteres ? (
+                  <>, <b>{dinero(plan.interesConvenio, moneda)} más</b> que lo que debes hoy ({dinero(plan.aRepactar, moneda)}).</>
+                ) : (
+                  <>, lo mismo que debes hoy: sin intereses.</>
+                )}
+              </p>
+              <p className="hint">
+                {lasCuotas}, del {fecha(primera)} al {fecha(ultima)}. <b>CAE {porcentaje(plan.cae, 2)}</b>: el costo
+                del convenio en un año, con todo incluido.
+              </p>
+            </div>
+          ) : null}
           {deuda.tasaInteresMensual && !plan ? (
             <p className="hint">
               Las cuotas llevan el {porcentaje(deuda.tasaInteresMensual)} de interés mensual que pactaste con{" "}
-              {deuda.acreedor}. Al calcular la cuota ves el costo total y la CAE (el costo del convenio en un año, con
-              todo incluido).
+              {deuda.acreedor}. Al calcular la cuota ves el costo total y la CAE.
             </p>
           ) : deuda.tasaInteresMensual ? (
             <p className="hint">
               Se repacta lo que debes hoy: {dinero(plan.capital, moneda)}
-              {Number(plan.interesMora) > 0 ? ` más ${dinero(plan.interesMora, moneda)} de intereses por mora` : ""},{" "}
-              {dinero(plan.aRepactar, moneda)}. Las cuotas llevan el {porcentaje(plan.tasaInteresMensual)} de interés
-              mensual que pactaste con {deuda.acreedor}: en total pagas {dinero(plan.costoTotal ?? plan.total, moneda)}, y{" "}
-              {dinero(plan.interesConvenio, moneda)} son intereses del convenio. CAE {porcentaje(plan.cae, 2)} (el costo
-              del convenio en un año, con todo incluido). La última cuota absorbe el redondeo.
+              {Number(plan.interesMora) > 0 ? ` más ${dinero(plan.interesMora, moneda)} de intereses por mora` : ""}.
+              Las cuotas llevan el {porcentaje(plan.tasaInteresMensual)} de interés mensual que pactaste con{" "}
+              {deuda.acreedor}. La última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           ) : (
             <p className="hint">
-              El costo total es lo que debes hoy: {plan ? dinero(plan.costoTotal ?? plan.total, moneda) : "—"}, no se
-              cobran intereses. CAE {porcentaje(plan?.cae, 2)} (el costo del convenio en un año, con todo incluido). La
-              última cuota absorbe el redondeo.
+              No se cobran intereses. La última cuota absorbe el redondeo.
               {moneda === "UF" ? " En UF, cada cuota se paga al valor de la UF del día en que pagas." : ""}
             </p>
           )}
-          <button className="btn btn-primary btn-block" style={{ marginTop: 18 }} disabled={busy || !plan}
-                  onClick={confirmar}>
-            {busy ? <><span className="girando" /> Aceptando…</> : <>Aceptar {meses} cuotas <IconoFlecha size={16} /></>}
-          </button>
+          {confirmando && plan ? (
+            <div className="confirmar-convenio" role="group" aria-labelledby="confirmar-convenio-titulo"
+                 ref={cajaConfirmar} tabIndex={-1}>
+              <p id="confirmar-convenio-titulo"><b>¿Aceptas este convenio?</b></p>
+              <p>
+                Vas a aceptar {lasCuotas}, desde el {fecha(primera)} hasta el {fecha(ultima)}. En total
+                pagas {dinero(plan.costoTotal ?? plan.total, moneda)}.
+              </p>
+              <p className="hint">Tus cuotas de hoy se reemplazan por las del convenio, y {deuda.acreedor} se entera.</p>
+              <div className="confirmar-acciones">
+                <button type="button" className="btn btn-ghost" onClick={volver} disabled={busy}>Volver</button>
+                <button type="button" className="btn btn-primary" onClick={confirmar} disabled={busy}>
+                  {busy ? <><span className="girando" /> Aceptando…</> : "Confirmar convenio"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button ref={botonAceptar} className="btn btn-primary btn-block" style={{ marginTop: 18 }}
+                    disabled={busy || !plan} onClick={() => setConfirmando(true)}>
+              Aceptar {meses} cuotas <IconoFlecha size={16} />
+            </button>
+          )}
         </div>
 
         <div className="card aparece" style={{ "--i": 3 }}>

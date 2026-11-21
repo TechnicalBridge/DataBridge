@@ -673,6 +673,9 @@ cambia, porque siempre fue el de Patrimonio.
 | **Sin orden garantizado** | Se ordena por `ocurrido_en`, no por llegada |
 | **Respuesta** | `2xx` en menos de 10 s. El receptor guarda y procesa después |
 | **Reintentos** | 1 min, 5 min, 30 min, 2 h, 6 h y 24 h. Después queda como *entrega fallida*, reenviable a mano |
+| **Pausa** | Desde el panel, el admin de DataBridge puede desactivar una suscripción: no se le encolan avisos nuevos, y los pendientes esperan, sin gastar intentos, a que se active de nuevo ([#438](https://github.com/TechnicalBridge/DataBridge/issues/438)) |
+| **Secreto nuevo** | El admin también le puede cambiar el secreto. Se muestra una sola vez, y desde ahí todos los avisos, también los pendientes, van firmados con el nuevo |
+| **Prueba** | El admin puede mandar un evento de tipo `prueba`, con el mismo sobre y la misma firma, y `datos` con solo un `mensaje`. No está en el catálogo: el receptor lo responde con `2xx` y no hace nada con él |
 
 Es la misma técnica HMAC que ms-payments ya usa para verificar las pasarelas (`WebhookVerifier`),
 ahora en sentido contrario.

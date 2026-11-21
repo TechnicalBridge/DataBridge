@@ -1,18 +1,6 @@
 import { useEffect, useState } from "react";
 import { comisionDelMes } from "../api/analitica";
-import { dinero, porcentaje } from "../utils/formato";
-
-/** El mes de hoy, en Chile, como 2026-10: lo que pide la API y lo que usa el selector. */
-export function mesDeHoy() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" })
-    .format(new Date()).slice(0, 7);
-}
-
-/** 2026-10-01 -> "octubre de 2026" */
-export function mesEnPalabras(fecha) {
-  const [ano, mes] = String(fecha).split("-").map(Number);
-  return new Date(ano, mes - 1, 1).toLocaleDateString("es-CL", { month: "long", year: "numeric" });
-}
+import { dinero, porcentaje, mesDeHoy, mesEnPalabras } from "../utils/formato";
 
 /** "Más de $1.000.000 y hasta $5.000.000" */
 function tramo(t) {
@@ -24,6 +12,9 @@ function tramo(t) {
  * El modelo de negocio, visto por la empresa (#200): lo que recupero en el mes, su porcentaje, lo que le paga
  * a DataBridge y lo que le queda, con la cuenta escrita en vez de la formula (#305). onDatos recibe la respuesta, para que Campañas
  * muestre lo que recuperó cada una.
+ *
+ * Va plegada en una linea con lo esencial del mes elegido (#472); al abrirla, el selector del mes, las cifras
+ * y los tramos.
  */
 export default function ComisionDelMes({ onDatos }) {
   const [mes, setMes] = useState(mesDeHoy());
@@ -48,10 +39,22 @@ export default function ComisionDelMes({ onDatos }) {
     return () => { vigente = false; };
   }, [mes, onDatos]);
 
+  const mesTexto = datos ? mesEnPalabras(datos.mes) : "";
+  const linea = datos
+    ? `${mesTexto.charAt(0).toUpperCase()}${mesTexto.slice(1)}: ${dinero(datos.recuperado)} recuperado`
+      + (datos.recuperado ? `, ${porcentaje(datos.porcentaje)}, pagas ${dinero(datos.comision)}` : ", no pagas nada")
+    : error ? "No se pudo cargar la comisión" : "Cargando la comisión…";
+
   return (
-    <section className="card aparece comision-del-mes" aria-labelledby="titulo-comision">
+    <details className="card aparece comision-del-mes plegable">
+      <summary>
+        <span className="resumen-linea">
+          <b id="titulo-comision">Lo que pagas a DataBridge</b>
+          <span className="sub" aria-live="polite">{linea}</span>
+        </span>
+        <span className="ver-detalle"><span className="si-cerrado">Ver detalle</span><span className="si-abierto">Ocultar</span></span>
+      </summary>
       <div className="card-cab">
-        <h2 id="titulo-comision">Lo que pagas a DataBridge</h2>
         <label className="selector-mes">
           Mes{" "}
           <input type="month" value={mes} max={mesDeHoy()} onChange={(e) => e.target.value && setMes(e.target.value)} />
@@ -92,6 +95,6 @@ export default function ComisionDelMes({ onDatos }) {
           </div>
         </>
       ) : null}
-    </section>
+    </details>
   );
 }

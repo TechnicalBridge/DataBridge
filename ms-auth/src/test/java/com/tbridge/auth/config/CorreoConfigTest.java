@@ -45,4 +45,49 @@ class CorreoConfigTest {
         contexto.withPropertyValues("app.mail.brevo.api-key=   ")
                 .run(app -> assertThat(app).doesNotHaveBean(JavaMailSender.class));
     }
+
+    @Test
+    void resend_sin_clave_falla_aunque_brevo_y_smtp_esten_configurados() {
+        contexto.withBean(com.tbridge.auth.service.ResendDeliveryTelemetry.class,
+                        () -> org.mockito.Mockito.mock(com.tbridge.auth.service.ResendDeliveryTelemetry.class))
+                .withPropertyValues("app.mail.transport=resend", "app.mail.resend.api-key= ",
+                        "app.mail.brevo.api-key=fixture-only", "spring.mail.host=smtp.example.com")
+                .run(app -> {
+                    assertThat(app).hasFailed();
+                    assertThat(app.getStartupFailure()).hasRootCauseMessage("MAIL_TRANSPORT=resend requiere RESEND_API_KEY");
+                });
+    }
+
+    @Test
+    void smtp_explicito_prevalece_sobre_brevo() {
+        contexto.withPropertyValues("app.mail.transport=smtp", "app.mail.brevo.api-key=fixture-only",
+                        "spring.mail.host=smtp.example.com")
+                .run(app -> {
+                    assertThat(app).hasSingleBean(JavaMailSender.class);
+                    assertThat(app.getBean(JavaMailSender.class)).isExactlyInstanceOf(JavaMailSenderImpl.class);
+                });
+    }
+
+    @Test
+    void brevo_explicito_prevalece_sobre_smtp() {
+        contexto.withPropertyValues("app.mail.transport=brevo", "app.mail.brevo.api-key=fixture-only",
+                        "spring.mail.host=smtp.example.com")
+                .run(app -> {
+                    assertThat(app).hasSingleBean(JavaMailSender.class);
+                    assertThat(app.getBean(JavaMailSender.class)).isInstanceOf(CorreoPorBrevo.class);
+                });
+    }
+
+    @Test
+    void mailpit_explicito_prevalece_sobre_brevo_y_smtp() {
+        contexto.withInitializer(app -> new BuzonDePrueba().postProcessEnvironment(app.getEnvironment(), null))
+                .withPropertyValues("app.mail.transport=mailpit", "app.mail.brevo.api-key=fixture-only",
+                        "spring.mail.host=smtp.example.com", "app.mail.buzon-de-prueba=mailpit:1025")
+                .run(app -> {
+                    assertThat(app).hasSingleBean(JavaMailSender.class);
+                    var sender = (JavaMailSenderImpl) app.getBean(JavaMailSender.class);
+                    assertThat(sender.getHost()).isEqualTo("mailpit");
+                    assertThat(sender.getPort()).isEqualTo(1025);
+                });
+    }
 }
