@@ -86,8 +86,9 @@ export default function Landing() {
               <Link className="btn btn-ghost" to="/databridge/login">Soy de una empresa</Link>
             </div>
             <p className="portada-aviso aparece" style={{ "--i": 3 }}>
-              Los avisos de DataBridge traen solo un código: nunca el monto ni un enlace para pagar. Si te llega un
-              enlace que no pediste, no lo abras y escribe tú la dirección del portal.
+              Los avisos de cobranza no incluyen montos ni enlaces para pagar. Si pides un acceso de respaldo,
+              puede llegar un enlace de un solo uso. Si recibes uno que no pediste, no lo abras: escribe tú la
+              dirección del portal.
             </p>
           </div>
 
