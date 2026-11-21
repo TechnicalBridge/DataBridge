@@ -102,8 +102,8 @@ class ReglasServiceTest {
             var regla = negocio.reglas().get(i);
             assertEquals("Si el total ingresado por pagos supera " + tramos[i], regla.que());
             assertEquals(porcentajes[i] + " % del total ingresado por pagos en el mes", regla.valor());
-            assertEquals("P(G) = G × p(G) / 100, con p(G) expresado como 6, 10, 12 o 15. "
-                    + "La paga quien cargó la deuda", regla.nota());
+            assertEquals(porcentajes[i] + " % del total ingresado por pagos en el mes; lo paga quien cargó la deuda",
+                    regla.nota());
             assertNull(regla.variable(), "es el modelo del equipo: no sale de una variable");
         }
     }

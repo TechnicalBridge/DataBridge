@@ -84,7 +84,8 @@ public class ReglasService {
                                 : "Si el total ingresado por pagos supera $" + pesos.format(t.desde()) + " y hasta $"
                                         + pesos.format(t.hasta()),
                         t.porcentaje().stripTrailingZeros().toPlainString() + " % del total ingresado por pagos en el mes",
-                        "P(G) = G × p(G) / 100, con p(G) expresado como 6, 10, 12 o 15. La paga quien cargó la deuda"))
+                        t.porcentaje().stripTrailingZeros().toPlainString()
+                                + " % del total ingresado por pagos en el mes; lo paga quien cargó la deuda"))
                 .toList());
         return new ReglasResponse("ms-debt", List.of(cobranza, contacto, negocio));
     }
