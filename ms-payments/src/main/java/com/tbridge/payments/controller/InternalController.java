@@ -1,5 +1,7 @@
 package com.tbridge.payments.controller;
 
+import com.tbridge.payments.util.Hash;
+
 import com.tbridge.payments.exception.ApiError;
 import com.tbridge.payments.exception.ApiException;
 import com.tbridge.payments.config.OpenApiConfig;
@@ -71,7 +73,8 @@ public class InternalController {
     }
 
     private void exigirClave(String clave) {
-        if (clave == null || !clave.equals(internalKey)) {
+        if (clave == null || clave.isBlank() || internalKey == null || internalKey.isBlank()
+                || !Hash.igualesEnTiempoConstante(Hash.sha256(internalKey), Hash.sha256(clave))) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
         }
     }
