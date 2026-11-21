@@ -226,6 +226,24 @@ class ResendIntegrationTest {
         });
     }
 
+    @Test
+    void el_simbolo_va_dentro_del_correo_como_adjunto_en_linea() {
+        //  #465: con Resend el simbolo tambien va dentro, como adjunto con content_id, y el HTML lo nombra con cid:.
+        contexto().run(app -> {
+            assertThat(app.getBean(MailService.class).probar(DESTINO).enviado()).isTrue();
+            JsonNode carta = cartaRecibida();
+            assertThat(carta.path("html").asText()).contains("src=\"cid:logo-databridge\"")
+                    .doesNotContain(PORTAL + "/logo.png");
+            assertThat(carta.path("attachments")).hasSize(1);
+            JsonNode simbolo = carta.path("attachments").get(0);
+            assertThat(simbolo.path("content_id").asText()).isEqualTo("logo-databridge");
+            assertThat(simbolo.path("content_type").asText()).isEqualTo("image/png");
+            assertThat(simbolo.path("filename").asText()).isEqualTo("databridge.png");
+            assertThat(java.util.Base64.getDecoder().decode(simbolo.path("content").asText()))
+                    .isEqualTo(MailService.LOGO_INCRUSTADO);
+        });
+    }
+
     private JsonNode cartaRecibida() throws InterruptedException {
         JsonNode carta = recibidos.poll(5, TimeUnit.SECONDS);
         assertThat(carta != null).as("Resend simulado recibió un correo").isTrue();
