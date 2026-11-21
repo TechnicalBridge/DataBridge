@@ -114,7 +114,7 @@ export default function FormCampana({ acreedores, editando = null, onGuardada, o
       <div className="field">
         <label htmlFor={id("nombre")}>Nombre</label>
         <input id={id("nombre")} value={form.nombre} maxLength={120} onChange={campo("nombre")}
-               placeholder="Arriendos octubre" required />
+               placeholder="Cobranza de arriendos" required />
       </div>
       {acreedores.length > 1 || editando ? (
         <div className="field">
@@ -185,8 +185,9 @@ export default function FormCampana({ acreedores, editando = null, onGuardada, o
       {editando ? null : (
         <div className="field">
           <label htmlFor={id("id")}>Id en tu sistema (opcional)</label>
-          <input id={id("id")} value={form.id} maxLength={64} onChange={campo("id")}
-                 placeholder="Si lo dejas vacío, DataBridge le pone uno" />
+           <input id={id("id")} value={form.id} maxLength={64} onChange={campo("id")}
+                  aria-describedby={id("id-ayuda")} />
+           <p className="hint" id={id("id-ayuda")}>Si no indicas uno, DataBridge lo genera.</p>
         </div>
       )}
       <button className="btn btn-primary btn-block" disabled={busy || !listo}>
