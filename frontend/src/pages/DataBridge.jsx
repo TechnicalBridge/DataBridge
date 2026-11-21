@@ -409,12 +409,13 @@ export default function DataBridge() {
                           <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
                                   onClick={() => enviarCodigo(d)}>
                             {aviso?.enviando ? <><span className="girando" /> Enviando…</>
-                              : d.codigoEnviado ? "Reenviar código" : "Enviar código"}
+                              : d.codigoEnviado || d.accesoConfirmado ? "Reenviar código" : "Enviar código"}
                           </button>
                         ) : null}
                         {cobrable && !aviso ? (
                           <span className="sub">
-                            {d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
+                            {d.accesoConfirmado ? `Ya ingresó el ${fecha(d.accesoConfirmado)}`
+                              : d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
                           </span>
                         ) : null}
                         {cobrable && !aviso && d.correoFallido ? (
