@@ -226,7 +226,7 @@ public class CarteraIntakeService {
         JsonNode nodo = lote.get("acreedor");
         String rut = Rut.normalizar(nodo == null ? null : texto(nodo.get("rut")));
         if (!Rut.esValido(rut)) {
-            throw new CarteraInvalida("acreedor_invalido", "El RUT del acreedor no es valido");
+            throw new CarteraInvalida("acreedor_invalido", "El RUT del acreedor no es válido");
         }
         return organizations.findByRut(rut).orElseThrow(() -> new CarteraInvalida(
                 "acreedor_desconocido", "El acreedor " + rut + " no esta registrado", 404));
@@ -430,7 +430,7 @@ public class CarteraIntakeService {
         String rut = Rut.normalizar(nodoDeudor == null ? null : texto(nodoDeudor.get("rut")));
         if (!Rut.esValido(rut)) {
             errores.add(error("deudor.rut", "rut_invalido",
-                    "El RUT no cumple el formato o el digito verificador no corresponde"));
+                    "El RUT no cumple el formato o el dígito verificador no corresponde"));
         }
         //  Un correo que no puede recibir nada no rechaza la deuda: entra sin el, y la
         //  respuesta lo avisa. Solo si tampoco trae telefono se queda sin canal.
@@ -439,13 +439,13 @@ public class CarteraIntakeService {
         List<ErrorDeuda> advertencias = new ArrayList<>();
         if (!vacio(correoCrudo) && correo == null) {
             advertencias.add(error("deudor.correo", "correo_invalido",
-                    "El correo no es una direccion valida: la deuda entra sin correo"));
+                    "El correo no es una dirección válida: la deuda entra sin correo"));
         }
         String telefono = nodoDeudor == null ? null : texto(nodoDeudor.get("telefono"));
         if (correo == null && vacio(telefono)) {
             errores.add(error("deudor", "sin_canal_contacto", advertencias.isEmpty()
-                    ? "El deudor no trae ni correo ni telefono"
-                    : "El deudor no trae un correo valido ni telefono"));
+                    ? "El deudor no trae ni correo ni teléfono"
+                    : "El deudor no trae un correo válido ni teléfono"));
         }
         String tipo = nodoDeudor == null ? null : texto(nodoDeudor.get("tipo"));
         if (!"persona".equals(tipo) && !"empresa".equals(tipo)) {
@@ -474,11 +474,11 @@ public class CarteraIntakeService {
             tasa = nodoTasa.isNumber() ? nodoTasa.decimalValue() : null;
             if (tasa == null || tasa.signum() <= 0 || tasa.stripTrailingZeros().scale() > 2) {
                 errores.add(error("tasa_interes_mensual", "tasa_invalida",
-                        "La tasa va como un numero mayor que cero, en porcentaje mensual y con hasta dos decimales"));
+                         "La tasa va como un número mayor que cero, en porcentaje mensual y con hasta dos decimales"));
                 tasa = null;
             } else if (tasa.compareTo(tasaMaxima) > 0) {
                 errores.add(error("tasa_interes_mensual", "tasa_sobre_maxima",
-                        "La tasa de " + tasa.toPlainString() + "% mensual supera la maxima permitida, "
+                         "La tasa de " + tasa.toPlainString() + "% mensual supera la máxima permitida, "
                                 + tasaMaxima.toPlainString() + "%"));
                 tasa = null;
             }
@@ -503,7 +503,7 @@ public class CarteraIntakeService {
         short maximo = mandato == null ? Short.MAX_VALUE : mandato.getMaxOverdueDays();
         if (mora > maximo) {
             errores.add(error("cargos", "mora_fuera_de_mandato",
-                    mora + " dias de mora: pasados los " + maximo + " el caso vuelve al acreedor"));
+                     mora + " días de mora: pasados los " + maximo + " el caso vuelve al acreedor"));
         }
 
         boolean todosLeidos = nodoCargos != null && nodoCargos.isArray() && cargos.size() == nodoCargos.size();
@@ -514,7 +514,7 @@ public class CarteraIntakeService {
         boolean pagada = existente != null && existente.getStatus() == Debt.Status.paid;
         if (pagada && todosLeidos && !soloCargosNuevos(existente, cargos)) {
             errores.add(error("id_externo", "deuda_saldada",
-                    "Esa deuda ya se pago: vuelve a cobranza solo con cargos posteriores a los que se pagaron"));
+                     "Esa deuda ya se pagó: vuelve a cobranza solo con cargos posteriores a los que se pagaron"));
         }
 
         //  El alcance: deudores morosos. Se exige solo al ENTRAR, y una deuda
@@ -525,8 +525,8 @@ public class CarteraIntakeService {
         //  antiguo de los buenos no dice nada.
         if ((existente == null || pagada) && todosLeidos && mora < minDiasMora) {
             errores.add(error("cargos", "bajo_umbral_mora", "Tiene " + mora
-                    + (mora == 1 ? " dia de mora" : " dias de mora")
-                    + ": DataBridge recibe deudas desde " + minDiasMora + " dias de mora"));
+                     + (mora == 1 ? " día de mora" : " días de mora")
+                     + ": DataBridge recibe deudas desde " + minDiasMora + " días de mora"));
         }
 
         if (!errores.isEmpty()) {

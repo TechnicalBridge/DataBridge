@@ -91,7 +91,7 @@ public class CampanaController {
 
     private Organization empresa(JwtPrincipal user) {
         if (user == null || !user.isCreditor()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Las campanas son de las empresas");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Las campañas son de las empresas");
         }
         return debts.organizacionDe(user);
     }

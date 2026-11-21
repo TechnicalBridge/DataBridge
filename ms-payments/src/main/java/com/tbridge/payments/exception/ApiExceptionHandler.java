@@ -99,7 +99,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> archivoGrande(MaxUploadSizeExceededException ex) {
-        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamano maximo permitido");
+        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamaño máximo permitido");
     }
 
     /**

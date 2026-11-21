@@ -131,7 +131,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("bajo_umbral_mora", resultado.errores().getFirst().codigo());
-        assertEquals("Tiene 13 dias de mora: DataBridge recibe deudas desde 30 dias de mora",
+        assertEquals("Tiene 13 días de mora: DataBridge recibe deudas desde 30 días de mora",
                 resultado.errores().getFirst().mensaje());
         verify(debts, never()).save(any());
     }
@@ -485,7 +485,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("tasa_sobre_maxima", resultado.errores().getFirst().codigo());
-        assertEquals("La tasa de 3.5% mensual supera la maxima permitida, 3.0%",
+        assertEquals("La tasa de 3.5% mensual supera la máxima permitida, 3.0%",
                 resultado.errores().getFirst().mensaje());
         verify(debts, never()).save(any());
     }
@@ -630,7 +630,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("sin_canal_contacto", resultado.errores().getFirst().codigo());
-        assertEquals("El deudor no trae un correo valido ni telefono", resultado.errores().getFirst().mensaje());
+        assertEquals("El deudor no trae un correo válido ni teléfono", resultado.errores().getFirst().mensaje());
         assertEquals("correo_invalido", resultado.avisos().getFirst().codigo());
     }
 

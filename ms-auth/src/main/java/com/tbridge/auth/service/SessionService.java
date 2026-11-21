@@ -165,7 +165,7 @@ public class SessionService {
      * le diria a quien prueba llaves cual de sus intentos estuvo cerca.
      */
     private static ApiException invalida() {
-        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no es valida. Vuelve a entrar.");
+        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no es válida. Vuelve a entrar.");
     }
 
     static String huella(String valor) {

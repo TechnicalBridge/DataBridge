@@ -157,7 +157,7 @@ public class AuthController {
     public ResponseEntity<?> refresh(@Parameter(hidden = true) @CookieValue(name = COOKIE, required = false) String llave,
                                      HttpServletRequest peticion) {
         if (llave == null || llave.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError("No hay una sesion que renovar"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError("No hay una sesión que renovar"));
         }
         try {
             return responder(auth.renovar(llave, origen(peticion)));
