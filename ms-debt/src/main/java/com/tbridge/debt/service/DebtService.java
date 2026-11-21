@@ -194,10 +194,15 @@ public class DebtService {
             Map<Long, Instant> enviado = cartera.isEmpty() ? Map.of()
                     : contactos.ultimoPorDeuda(cartera).stream()
                             .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
+            Map<Long, Instant> porDeudor = contactosPorDeudor(cartera, enviado);
+            Map<Long, Instant> ingresos = cartera.isEmpty() ? Map.of()
+                    : events.ultimoIngresoPorDeudor(cartera, DebtEvent.Type.portal_entered).stream()
+                            .collect(Collectors.toMap(e -> e.getDeudor(), e -> e.getCuando()));
             Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(cartera);
             Map<Long, BigDecimal> caes = caes(cartera);
             return cartera.stream()
-                    .map(d -> resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())))
+                    .map(d -> resumen(d, porDeudor.get(d.getDebtor().getId()), disputas.get(d.getId()),
+                            caes.get(d.getId()), ingresos.get(d.getDebtor().getId())))
                     .toList();
         }
         List<Debt> filas = debts.findByDebtorOrderByUpdatedAtDesc(deudorDe(user));
@@ -227,6 +232,17 @@ public class DebtService {
             porDeuda.put(d.getId(), resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())));
         }
         return porDeuda;
+    }
+
+    /** Comparte solo contactos de deudas ya autorizadas; nunca consulta otra cartera. */
+    static Map<Long, Instant> contactosPorDeudor(List<Debt> visibles, Map<Long, Instant> porDeuda) {
+        Map<Long, Instant> resultado = new HashMap<>();
+        for (Debt deuda : visibles) {
+            Instant cuando = porDeuda.get(deuda.getId());
+            if (cuando != null) resultado.merge(deuda.getDebtor().getId(), cuando,
+                    (a, b) -> a.isAfter(b) ? a : b);
+        }
+        return resultado;
     }
 
     /**
@@ -756,10 +772,15 @@ public class DebtService {
     /** Con una sola consulta de cuotas: el saldo, la mora y el avance salen de la misma lista. */
     private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa,
                                         BigDecimal cae) {
+        return resumen(deuda, codigoEnviado, disputa, cae, null);
+    }
+
+    private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa,
+                                        BigDecimal cae, Instant accesoConfirmado) {
         List<Installment> cuotas = installments.findByDebtOrderByNumberAsc(deuda);
         BigDecimal moraTotal = Intereses.total(mora(deuda, cuotas));
         return DebtSummaryResponse.from(deuda, cuotas, codigoEnviado, disputa, moraTotal,
-                oferta(deuda, cuotas, moraTotal), cae);
+                oferta(deuda, cuotas, moraTotal), cae, accesoConfirmado);
     }
 
     private DebtDetailResponse detalle(Debt deuda) {
