@@ -25,7 +25,8 @@ import java.util.Set;
  *
  * <p>Soporta:
  * <ul>
- *   <li>{@code evolution}: envio directo sin opt-in ni plantillas Meta usando Evolution API (Baileys/WhatsApp Web).</li>
+ *   <li>{@code kapso}: envio mediante proxy WhatsApp Cloud API de Kapso.</li>
+ *   <li>{@code evolution}: envio directo sin opt-in ni plantillas Meta usando Evolution API.</li>
  *   <li>{@code twilio}: envio por la API REST oficial de Twilio para WhatsApp.</li>
  *   <li>{@code mock}: registro local en consola para desarrollo y pruebas.</li>
  * </ul>
@@ -47,12 +48,15 @@ public class WhatsAppService {
     private final String evolutionUrl;
     private final String evolutionApiKey;
     private final String evolutionInstance;
+    private final String kapsoApiKey;
+    private final String kapsoPhoneNumberId;
+    private final String kapsoUrl;
     private final Duration timeout;
     private final HttpClient http;
 
     public WhatsAppService(String transport) {
         this(transport, "", "", "whatsapp:+14155238886", "", TWILIO_API_POR_OMISION,
-                "", "", "databridge", 10_000L);
+                "", "", "databridge", "", "597907523413541", "https://app.kapso.ai/api/meta", 10_000L);
     }
 
     @Autowired
@@ -66,6 +70,9 @@ public class WhatsAppService {
             @Value("${app.whatsapp.evolution.url:}") String evolutionUrl,
             @Value("${app.whatsapp.evolution.api-key:}") String evolutionApiKey,
             @Value("${app.whatsapp.evolution.instance:databridge}") String evolutionInstance,
+            @Value("${app.whatsapp.kapso.api-key:}") String kapsoApiKey,
+            @Value("${app.whatsapp.kapso.phone-number-id:597907523413541}") String kapsoPhoneNumberId,
+            @Value("${app.whatsapp.kapso.url:https://app.kapso.ai/api/meta}") String kapsoUrl,
             @Value("${app.whatsapp.timeout-ms:10000}") long timeoutMs
     ) {
         this.twilioAccountSid = limpiar(twilioAccountSid);
@@ -81,12 +88,19 @@ public class WhatsAppService {
         String inst = limpiar(evolutionInstance);
         this.evolutionInstance = inst.isEmpty() ? "databridge" : inst;
 
+        this.kapsoApiKey = limpiar(kapsoApiKey);
+        this.kapsoPhoneNumberId = limpiar(kapsoPhoneNumberId);
+        String baseKapso = limpiar(kapsoUrl);
+        this.kapsoUrl = (baseKapso.isEmpty() ? "https://app.kapso.ai/api/meta" : baseKapso).replaceAll("/+$", "");
+
         this.timeout = Duration.ofMillis(Math.max(1_000L, timeoutMs));
         this.http = HttpClient.newBuilder().connectTimeout(this.timeout).build();
-        this.transport = seleccionarTransporte(transport, this.evolutionUrl, this.twilioAccountSid,
+        this.transport = seleccionarTransporte(transport, this.kapsoApiKey, this.evolutionUrl, this.twilioAccountSid,
                 this.twilioAuthToken, this.twilioFromNumber, this.twilioMessagingServiceSid);
 
-        if ("evolution".equals(this.transport)) {
+        if ("kapso".equals(this.transport)) {
+            log.info("WhatsApp: servidor Kapso Cloud API (phoneId: {})", this.kapsoPhoneNumberId);
+        } else if ("evolution".equals(this.transport)) {
             log.info("WhatsApp: servidor Evolution API en {}, instancia '{}'",
                     this.evolutionUrl, this.evolutionInstance);
         } else if ("twilio".equals(this.transport)) {
@@ -108,6 +122,9 @@ public class WhatsAppService {
     }
 
     public boolean estaDisponible() {
+        if ("kapso".equals(transport)) {
+            return kapsoListo();
+        }
         if ("evolution".equals(transport)) {
             return evolutionListo();
         }
@@ -123,6 +140,10 @@ public class WhatsAppService {
             log.warn("No se envio WhatsApp: numero de telefono vacio o invalido");
             return;
         }
+        if ("kapso".equals(transport)) {
+            enviarPorKapso(destino, codigo, duracion);
+            return;
+        }
         if ("evolution".equals(transport)) {
             enviarPorEvolution(destino, codigo, duracion);
             return;
@@ -135,13 +156,57 @@ public class WhatsAppService {
                 transport, ofuscarTelefono(destino));
     }
 
+    private void enviarPorKapso(String destinoE164, String codigo, String duracion) {
+        if (!kapsoListo()) {
+            log.error("No se pudo enviar WhatsApp por Kapso a {}: falta KAPSO_API_KEY o KAPSO_PHONE_NUMBER_ID",
+                    ofuscarTelefono(destinoE164));
+            return;
+        }
+        String cuerpoTexto = "DataBridge: tu codigo de acceso es " + codigo
+                + ". Vence en " + duracion + ". No lo compartas.";
+
+        String peticionJson;
+        try {
+            peticionJson = JSON.writeValueAsString(new MensajeKapsoTexto("whatsapp", "individual", destinoE164, "text", new CuerpoTexto(cuerpoTexto)));
+        } catch (Exception e) {
+            log.error("Error al serializar mensaje para Kapso: {}", e.getMessage());
+            return;
+        }
+
+        URI uri = URI.create(kapsoUrl + "/v23.0/" + kapsoPhoneNumberId + "/messages");
+        HttpRequest peticion = HttpRequest.newBuilder(uri)
+                .timeout(timeout)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("X-API-Key", kapsoApiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(peticionJson, StandardCharsets.UTF_8))
+                .build();
+
+        try {
+            HttpResponse<String> respuesta = http.send(peticion, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            int estado = respuesta.statusCode();
+            if (estado >= 200 && estado < 300) {
+                log.info("WhatsApp enviado exitosamente por Kapso a {} (HTTP {})",
+                        ofuscarTelefono(destinoE164), estado);
+            } else {
+                log.error("Kapso rechazo el envio de WhatsApp a {} (HTTP {}): {}",
+                        ofuscarTelefono(destinoE164), estado, sanitizar(respuesta.body()));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Envio de WhatsApp por Kapso interrumpido para {}", ofuscarTelefono(destinoE164));
+        } catch (IOException e) {
+            log.error("Error de conexion con Kapso ({}) al enviar WhatsApp a {}: {}",
+                    kapsoUrl, ofuscarTelefono(destinoE164), sanitizar(e.getMessage()));
+        }
+    }
+
     private void enviarPorEvolution(String destinoE164, String codigo, String duracion) {
         if (!evolutionListo()) {
             log.error("No se pudo enviar WhatsApp por Evolution API a {}: falta EVOLUTION_URL",
                     ofuscarTelefono(destinoE164));
             return;
         }
-        // Evolution API recibe numeros en formato internacional sin '+': ej. 56947901054
         String numeroPuro = destinoE164.replaceAll("^\\+", "").replaceAll("[^0-9]", "");
         String cuerpoTexto = "DataBridge: tu codigo de acceso es " + codigo
                 + ". Vence en " + duracion + ". No lo compartas.";
@@ -174,7 +239,6 @@ public class WhatsAppService {
             } else if (estado == 404) {
                 log.warn("Instancia '{}' de Evolution API no encontrada (HTTP 404). Intentando auto-creacion...", evolutionInstance);
                 if (intentarCrearInstancia()) {
-                    // Reintentar envio una vez tras crear la instancia
                     HttpResponse<String> reintento = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                     if (reintento.statusCode() >= 200 && reintento.statusCode() < 300) {
                         log.info("WhatsApp enviado por Evolution API tras auto-crear instancia a {}", ofuscarTelefono(destinoE164));
@@ -275,6 +339,10 @@ public class WhatsAppService {
         }
     }
 
+    private boolean kapsoListo() {
+        return !kapsoApiKey.isEmpty() && !kapsoPhoneNumberId.isEmpty();
+    }
+
     private boolean evolutionListo() {
         return !evolutionUrl.isEmpty();
     }
@@ -285,14 +353,17 @@ public class WhatsAppService {
                 && (!twilioFromNumber.isEmpty() || !twilioMessagingServiceSid.isEmpty());
     }
 
-    private static String seleccionarTransporte(String transport, String evoUrl, String sid, String token,
+    private static String seleccionarTransporte(String transport, String kapsoKey, String evoUrl, String sid, String token,
                                                 String from, String messagingServiceSid) {
         String modo = limpiar(transport).toLowerCase(Locale.ROOT);
         if (!modo.isEmpty()) {
-            if (!Set.of("evolution", "twilio", "mock").contains(modo)) {
-                throw new IllegalArgumentException("WHATSAPP_TRANSPORT debe ser evolution, twilio o mock");
+            if (!Set.of("kapso", "evolution", "twilio", "mock").contains(modo)) {
+                throw new IllegalArgumentException("WHATSAPP_TRANSPORT debe ser kapso, evolution, twilio o mock");
             }
             return modo;
+        }
+        if (!kapsoKey.isEmpty()) {
+            return "kapso";
         }
         if (!evoUrl.isEmpty()) {
             return "evolution";
@@ -331,6 +402,9 @@ public class WhatsAppService {
         }
         if (!evolutionApiKey.isEmpty()) {
             limpio = limpio.replace(evolutionApiKey, "[oculto]");
+        }
+        if (!kapsoApiKey.isEmpty()) {
+            limpio = limpio.replace(kapsoApiKey, "[oculto]");
         }
         return limpio;
     }
@@ -387,4 +461,6 @@ public class WhatsAppService {
 
     private record MensajeEvolution(String number, String text) {}
     private record CreacionInstancia(String instanceName, String integration, boolean qrcode) {}
+    private record MensajeKapsoTexto(String messaging_product, String recipient_type, String to, String type, CuerpoTexto text) {}
+    private record CuerpoTexto(String body) {}
 }

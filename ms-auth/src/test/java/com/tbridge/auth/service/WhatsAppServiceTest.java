@@ -75,6 +75,26 @@ class WhatsAppServiceTest {
         return "http://127.0.0.1:" + servidor.getAddress().getPort();
     }
 
+    private String iniciarServidorKapso(int estado, String respuestaJson,
+                                        AtomicReference<String> apiKeyRecibida,
+                                        AtomicReference<String> cuerpoRecibido,
+                                        AtomicInteger pedidos) throws IOException {
+        servidor = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        servidor.createContext("/v23.0/597907523413541/messages", intercambio -> {
+            pedidos.incrementAndGet();
+            apiKeyRecibida.set(intercambio.getRequestHeaders().getFirst("X-API-Key"));
+            cuerpoRecibido.set(new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] bytes = respuestaJson.getBytes(StandardCharsets.UTF_8);
+            intercambio.getResponseHeaders().add("Content-Type", "application/json");
+            intercambio.sendResponseHeaders(estado, bytes.length);
+            try (OutputStream salida = intercambio.getResponseBody()) {
+                salida.write(bytes);
+            }
+        });
+        servidor.start();
+        return "http://127.0.0.1:" + servidor.getAddress().getPort();
+    }
+
     private static Map<String, String> decodificarFormulario(String cuerpo) {
         Map<String, String> campos = new HashMap<>();
         if (cuerpo == null || cuerpo.isBlank()) return campos;
@@ -133,6 +153,9 @@ class WhatsAppServiceTest {
                 "",
                 "",
                 "databridge",
+                "",
+                "597907523413541",
+                "https://app.kapso.ai/api/meta",
                 2_000L
         );
         assertTrue(servicio.estaDisponible());
@@ -167,6 +190,9 @@ class WhatsAppServiceTest {
                 url,
                 "mi-evo-api-key",
                 "databridge",
+                "",
+                "597907523413541",
+                "https://app.kapso.ai/api/meta",
                 2_000L
         );
         assertEquals("evolution", servicio.transporteActivo());
@@ -178,6 +204,39 @@ class WhatsAppServiceTest {
         assertEquals("mi-evo-api-key", apiKey.get());
         assertTrue(cuerpo.get().contains("\"number\":\"56947901054\""));
         assertTrue(cuerpo.get().contains("EVO789"));
+    }
+
+    @Test
+    void kapso_envia_peticion_con_x_api_key_y_payload_json() throws IOException {
+        AtomicReference<String> apiKey = new AtomicReference<>();
+        AtomicReference<String> cuerpo = new AtomicReference<>();
+        AtomicInteger pedidos = new AtomicInteger();
+        String url = iniciarServidorKapso(200, "{\"messaging_product\":\"whatsapp\"}", apiKey, cuerpo, pedidos);
+
+        WhatsAppService servicio = new WhatsAppService(
+                "kapso",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "databridge",
+                "mi-kapso-key",
+                "597907523413541",
+                url,
+                2_000L
+        );
+        assertEquals("kapso", servicio.transporteActivo());
+        assertTrue(servicio.estaDisponible());
+
+        servicio.enviarCodigo("+56 9 4790 1054", "KAP123", "15 minutos");
+
+        assertEquals(1, pedidos.get());
+        assertEquals("mi-kapso-key", apiKey.get());
+        assertTrue(cuerpo.get().contains("\"to\":\"+56947901054\""));
+        assertTrue(cuerpo.get().contains("KAP123"));
     }
 
     @Test

@@ -227,8 +227,11 @@ services:
       TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
       TWILIO_API_URL:               ${TWILIO_API_URL:-https://api.twilio.com}
       SMS_TIMEOUT_MS:               ${SMS_TIMEOUT_MS:-10000}
-      #  Despacho de codigos de acceso por WhatsApp (evolution, twilio o mock).
+      #  Despacho de codigos de acceso por WhatsApp (kapso, evolution, twilio o mock).
       WHATSAPP_TRANSPORT:           ${WHATSAPP_TRANSPORT:-}
+      KAPSO_API_KEY:                ${KAPSO_API_KEY:-}
+      KAPSO_PHONE_NUMBER_ID:        ${KAPSO_PHONE_NUMBER_ID:-597907523413541}
+      KAPSO_URL:                    ${KAPSO_URL:-https://app.kapso.ai/api/meta}
       EVOLUTION_URL:                ${EVOLUTION_URL:-http://evolution-api:8080}
       EVOLUTION_API_KEY:            ${EVOLUTION_API_KEY:-}
       EVOLUTION_INSTANCE:           ${EVOLUTION_INSTANCE:-databridge}
