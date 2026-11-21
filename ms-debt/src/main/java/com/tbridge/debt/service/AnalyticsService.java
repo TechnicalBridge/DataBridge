@@ -64,6 +64,7 @@ public class AnalyticsService {
         int pagadas = 0;
         int retiradas = 0;
         int enConvenio = 0;
+        int enRevision = 0;
 
         for (Debt deuda : cartera) {
             BigDecimal saldo = servicio.saldo(deuda);
@@ -84,6 +85,7 @@ public class AnalyticsService {
                 case paid -> pagadas++;
                 case withdrawn -> retiradas++;
                 case repacted -> { enConvenio++; activas++; }
+                case disputed -> { enRevision++; activas++; }
                 default -> activas++;
             }
         }
@@ -98,7 +100,7 @@ public class AnalyticsService {
         });
 
         return new ResumenResponse(organizacion.getTradeName(), organizacion.getRut(), cartera.size(), activas,
-                enConvenio, pagadas, retiradas, monedas, new ArrayList<>(porAcreedor.values()),
+                enConvenio, pagadas, retiradas, enRevision, monedas, new ArrayList<>(porAcreedor.values()),
                 recuperadoPorDia(cartera));
     }
 

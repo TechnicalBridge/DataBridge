@@ -80,6 +80,11 @@ public class DeudasClient {
                 if (!(debt.get(key) instanceof String text) || text.isBlank()) throw new DeudasException(PROTOCOLO);
                 projected.put(key, text);
             }
+            //  El RUT del acreedor es parte del contexto de la deuda y permite
+            //  distinguirlo de un tercero. El del deudor no viaja: la sesión ya lo tiene.
+            if (debt.get("acreedorRut") instanceof String acreedorRut && !acreedorRut.isBlank()) {
+                projected.put("acreedorRut", acreedorRut);
+            }
             if (!Set.of("open", "repacted", "paid", "disputed", "withdrawn").contains(projected.get("estado"))) throw new DeudasException(PROTOCOLO);
             if (!Set.of("CLP","UF").contains(projected.get("moneda"))) throw new DeudasException(PROTOCOLO);
             for (String key : List.of("montoOriginal", "saldo", "totalHoy", "interesMora", "tasaInteresMensual", "descuentoDisponible")) {

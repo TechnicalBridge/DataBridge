@@ -13,6 +13,8 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.tbridge.auth.config.TransporteCorreo;
+import org.springframework.core.env.Environment;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,9 +51,7 @@ import java.util.Optional;
  * ({@link PlantillasDeCorreo}). Sale en HTML y en texto, juntos: el cliente que
  * no muestra HTML muestra el texto.
  *
- * <p>Sin SMTP configurado no falla: registra el contenido en el log, que es lo
- * que permite trabajar y demostrar el flujo sin depender de un servidor de
- * correo.
+ * <p>Sin transporte configurado no se entregan correos. En desarrollo se puede usar Mailpit.
  *
  * <p>Con un servidor real, {@link ModoDePrueba} decide a quien se le escribe
  * de verdad: sin el, los correos inventados de los datos de demostracion
@@ -90,7 +90,7 @@ public class MailService {
     private final String servidor;
     private final String clave;
     private final String claveDeBrevo;
-    private final boolean porBrevo;
+    private final String proveedorApi;
     private final boolean alBuzonDePrueba;
     private final ModoDePrueba modo;
     /** Por donde sale lo de un dominio reservado cuando el correo va por un proveedor real. */
@@ -112,10 +112,12 @@ public class MailService {
             @Value("${app.mail.desviar-a:}") String desviarA,
             @Value("${app.mail.buzon-de-prueba:}") String buzonDePrueba,
             @Value("${app.mail.brevo.api-key:}") String claveDeBrevo,
-            @Value("${app.mail.desvio-maximo-por-dia:100}") int desvioMaximoPorDia
+            @Value("${app.mail.desvio-maximo-por-dia:100}") int desvioMaximoPorDia,
+            Environment entorno
     ) {
         this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba,
-                claveDeBrevo, desvioMaximoPorDia, null, Clock.systemUTC());
+                claveDeBrevo, desvioMaximoPorDia, null, Clock.systemUTC(),
+                TransporteCorreo.seleccionar(entorno));
     }
 
     /**
@@ -125,20 +127,33 @@ public class MailService {
     MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
                 String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba,
                 String claveDeBrevo, int desvioMaximoPorDia, JavaMailSender buzonDeReservados, Clock reloj) {
+        this(mailSender, from, publicUrl, host, puerto, clave, nombre, responderA, soloA, desviarA, buzonDePrueba,
+                claveDeBrevo, desvioMaximoPorDia, buzonDeReservados, reloj,
+                StringUtils.hasText(claveDeBrevo) ? "brevo" : "");
+    }
+
+    private MailService(ObjectProvider<JavaMailSender> mailSender, String from, String publicUrl, String host, int puerto,
+                        String clave, String nombre, String responderA, String soloA, String desviarA, String buzonDePrueba,
+                        String claveDeBrevo, int desvioMaximoPorDia, JavaMailSender buzonDeReservados, Clock reloj,
+                        String transporte) {
         this.mailSender = mailSender.getIfAvailable();
         this.from = from;
         this.remitente = conNombre(from, nombre);
         this.responderA = StringUtils.hasText(responderA) ? responderA.strip() : null;
         this.portal = publicUrl.strip().replaceFirst("^https?://", "").replaceAll("/$", "");
         this.logo = direccionDelLogo(publicUrl);
-        this.porBrevo = this.mailSender != null && StringUtils.hasText(claveDeBrevo);
-        this.conServidor = this.mailSender != null && (porBrevo || StringUtils.hasText(host));
-        this.servidor = porBrevo ? "Brevo (API)" : conServidor ? host.strip() + ":" + puerto : null;
+        this.proveedorApi = switch (transporte) {
+            case "resend" -> "Resend";
+            case "brevo" -> "Brevo";
+            default -> null;
+        };
+        this.conServidor = this.mailSender != null && (proveedorApi != null || StringUtils.hasText(host));
+        this.servidor = proveedorApi != null ? proveedorApi + " (API)" : conServidor ? host.strip() + ":" + puerto : null;
         this.clave = clave;
         this.claveDeBrevo = claveDeBrevo;
         this.modo = new ModoDePrueba(soloA, desviarA);
-        this.alBuzonDePrueba = conServidor && !porBrevo && StringUtils.hasText(buzonDePrueba)
-                && buzonDePrueba.strip().startsWith(host.strip());
+        this.alBuzonDePrueba = conServidor && proveedorApi == null && StringUtils.hasText(buzonDePrueba)
+                && (transporte.equals("mailpit") || transporte.isEmpty() && buzonDePrueba.strip().split(":", 2)[0].equals(host.strip()));
         //  Con un proveedor real, el buzon de prueba (si lo hay) recibe lo de los dominios reservados.
         boolean hayBuzonAparte = conServidor && !alBuzonDePrueba && StringUtils.hasText(buzonDePrueba);
         this.direccionDelBuzon = hayBuzonAparte ? buzonDePrueba.strip() : null;
@@ -184,12 +199,7 @@ public class MailService {
      */
     private void decirComoQuedo(String host, String buzonDePrueba) {
         if (!conServidor) {
-            log.info("Correo: sin servidor. Los codigos y los enlaces quedan en el log");
-        } else if (porBrevo && modo.activo()) {
-            log.info("Correo: por la API de Brevo, remitente {}; {}", from, modo.descripcion());
-        } else if (porBrevo) {
-            log.warn("Correo: por la API de Brevo, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
-                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", from);
+            log.info("Correo: sin servidor. No se entregan correos");
         } else if (alBuzonDePrueba) {
             log.info("Correo: al buzon de prueba ({}). Nada sale hacia afuera", servidor);
         } else if (modo.activo()) {
@@ -218,11 +228,11 @@ public class MailService {
         String por;
         String variables;
         if (!conServidor) {
-            por = "Por ningún servidor: los códigos y los enlaces quedan en el registro del servicio";
+            por = "Por ningún servidor: configura un transporte para entregar correos";
             variables = "BREVO_API_KEY · SMTP_HOST";
-        } else if (porBrevo) {
-            por = "Por la API de Brevo";
-            variables = "BREVO_API_KEY";
+        } else if (proveedorApi != null) {
+            por = "Por la API de " + proveedorApi;
+            variables = proveedorApi.toUpperCase(java.util.Locale.ROOT) + "_API_KEY";
         } else if (alBuzonDePrueba) {
             por = "Al buzón de prueba (" + servidor + "): no le llegan a nadie";
             variables = "SMTP_HOST";
@@ -281,11 +291,6 @@ public class MailService {
      * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarCodigo(String to, String codigo, String acreedor) {
-        if (!conServidor) {
-            //  Solo sin SMTP, que es desarrollo. Con SMTP el codigo NO va al
-            //  log: quien leyera los logs podria entrar como cualquier deudor.
-            log.info("Sin SMTP: codigo de acceso para {}: {}", to, codigo);
-        }
         enviarODecirlo(to, "Tu código de acceso", "codigo", datos(
                 "acreedor", acreedor == null ? "Una empresa" : acreedor,
                 "portal", portal,
@@ -303,9 +308,6 @@ public class MailService {
      * @throws CorreoNoSalio si el servidor no lo acepto.
      */
     public void enviarRecordatorio(String to, String codigo, String acreedor, LocalDate vence) {
-        if (!conServidor) {
-            log.info("Sin SMTP: recordatorio para {}, cuota del {}, codigo {}", to, vence, codigo);
-        }
         enviarODecirlo(to, "Se acerca el vencimiento de tu cuota", "recordatorio", datos(
                 "vence", vence.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", ES_CL)),
                 "acreedor", acreedor,
@@ -320,9 +322,6 @@ public class MailService {
      */
     @Async
     public void enviarEnlace(String to, String url, long minutos) {
-        if (!conServidor) {
-            log.info("Sin SMTP: enlace de acceso para {}: {}", to, url);
-        }
         enviar(to, "Tu enlace para entrar a DataBridge", "enlace", datos(
                 "url", url,
                 "dura", cuanto(minutos, "minuto", "minutos")));
@@ -355,9 +354,6 @@ public class MailService {
      */
     @Async
     public void enviarInvitacion(String to, String nombre, String aQue, String url, long horas, String entrada) {
-        if (!conServidor) {
-            log.info("Sin SMTP: invitacion para {}: {}", to, url);
-        }
         String direccion = entrada.strip().replaceFirst("^https?://", "");
         enviar(to, "Tu acceso a DataBridge", "invitacion", datos(
                 "nombre", nombre == null ? "" : nombre.strip(),
