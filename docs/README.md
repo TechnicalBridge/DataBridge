@@ -11,7 +11,7 @@ es la entrada: qué hace DataBridge, cómo se levanta y su arquitectura. Desde a
 | [`base-de-datos`](base-de-datos/README.md) | Las tres bases, una por servicio, y sus migraciones con Flyway; por qué no se cruzan, y cómo pasar los datos del MySQL único de antes | Quien programa u opera |
 | [`integracion`](integracion/README.md) | El contrato v1 con que el sistema de una empresa entrega su cartera y recibe los avisos. La API que lo atiende está apagada por omisión | Quien conecta otro sistema |
 | [`eventos`](eventos/README.md) | El aviso de pago que ms-payments le manda a ms-debt por RabbitMQ | Quien programa ms-debt o ms-payments |
-| [`seguridad`](seguridad/jwt.md) | [Las llaves de las sesiones](seguridad/jwt.md), cómo se generan y cómo se cambian; y [que ninguna clave llegue al repositorio](seguridad/secretos.md) | Quien opera o programa |
+| [`seguridad`](seguridad/jwt.md) | [Las llaves de las sesiones](seguridad/jwt.md), [gestión de secretos](seguridad/secretos.md) y [evaluación de filtrado HTTP](seguridad/filtrado-http.md) | Quien opera o programa |
 | [`despliegue`](despliegue/docker.md) | Configuración de [Docker y Docker Compose](despliegue/docker.md), [correo con Resend](despliegue/resend.md) y DataBridge en el [servidor de la demo](despliegue/README.md) | Quien despliega |
 | [`pruebas`](pruebas/README.md) | Las 1.512 pruebas automatizadas en Java, ejecución con JDK 25, reportes Surefire y flujos de CI | Quien prueba o programa |
 | [`cartera`](cartera/README.md) | Cómo probar la carga de la cartera, y la demo que viene incluida | Quien prueba |
