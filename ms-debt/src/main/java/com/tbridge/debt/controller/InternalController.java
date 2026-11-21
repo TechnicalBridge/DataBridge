@@ -1,5 +1,7 @@
 package com.tbridge.debt.controller;
 
+import com.tbridge.debt.util.Hash;
+
 import com.tbridge.debt.events.PagoConfirmado;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.exception.ApiException;
@@ -216,7 +218,8 @@ public class InternalController {
     }
 
     private void exigirClave(String clave) {
-        if (clave == null || !clave.equals(internalKey)) {
+        if (clave == null || clave.isBlank() || internalKey == null || internalKey.isBlank()
+                || !Hash.igualesEnTiempoConstante(Hash.sha256(internalKey), Hash.sha256(clave))) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
         }
     }

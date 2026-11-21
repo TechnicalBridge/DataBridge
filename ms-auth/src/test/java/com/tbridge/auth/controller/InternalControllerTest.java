@@ -34,6 +34,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, com.tbridge.auth.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class InternalControllerTest {
+    @Autowired private InternalController controlador;
+
+    @Test
+    void configuracion_interna_ausente_o_vacia_no_concede_acceso() {
+        Object original = org.springframework.test.util.ReflectionTestUtils.getField(controlador, "internalKey");
+        try {
+            for (String configurada : new String[]{null, "", " "}) {
+                org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", configurada);
+                for (String recibida : new String[]{null, "", " ", "clave-interna-de-prueba"}) {
+                    org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                            () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                    controlador, "exigirClave", recibida));
+                }
+            }
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", original);
+        }
+    }
 
     private static final String CUERPO = """
             {"rut":"16482337-7","canales":["correo"],"correo":"felipe.rojas@correo.cl","acreedor":"Patrimonio Inmuebles"}""";
@@ -46,6 +64,16 @@ class InternalControllerTest {
 
     @MockitoBean
     private MailService correo;
+
+    @Test
+    void claves_vacias_prefijos_y_longitudes_distintas_no_emiten_codigos() throws Exception {
+        for (String clave : new String[]{"", " ", "clave-interna-de-prueb", "clave-interna-de-pruebaX", "otra"}) {
+            mvc.perform(post("/internal/codigos").header("X-Internal-Key", clave)
+                    .contentType(MediaType.APPLICATION_JSON).content(CUERPO))
+                    .andExpect(status().isUnauthorized());
+        }
+        org.mockito.Mockito.verifyNoInteractions(auth, correo);
+    }
 
     @Test
     void el_correo_de_prueba_pide_la_clave_interna_y_una_direccion_valida() throws Exception {
