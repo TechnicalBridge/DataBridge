@@ -771,7 +771,8 @@ public class DebtService {
                         caes(List.of(deuda)).get(deuda.getId())),
                 charges.findByDebtOrderByDueDateAsc(deuda).stream().map(DebtDetailResponse.Cargo::from).toList(),
                 cuotas.stream().map(c -> DebtDetailResponse.Cuota.from(c, mora.get(c.getId()))).toList(),
-                historia(deuda));
+                historia(deuda),
+                DebtDetailResponse.referencias(deuda.getRefs()));
     }
 
     /**

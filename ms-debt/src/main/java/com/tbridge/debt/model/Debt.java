@@ -109,6 +109,7 @@ public class Debt {
     public void setCurrency(Currency currency) { this.currency = currency; }
     public String getConcept() { return concept; }
     public void setConcept(String concept) { this.concept = concept; }
+    public String getRefs() { return refs; }
     public void setRefs(String refs) { this.refs = refs; }
     public BigDecimal getOriginalAmount() { return originalAmount; }
     public void setOriginalAmount(BigDecimal originalAmount) { this.originalAmount = originalAmount; }

@@ -246,6 +246,11 @@ export default function Pay() {
             {deuda.concepto}, ref. {deuda.externalId}
             {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
           </p>
+          {Object.entries(deuda.referencias || {}).length ? (
+            <p className="hint">
+              Referencias: {Object.entries(deuda.referencias).map(([clave, valor]) => `${clave}: ${valor}`).join(" · ")}
+            </p>
+          ) : null}
         </div>
         <Link className="btn btn-ghost btn-sm" to="/app">
           <IconoVolver size={16} />
