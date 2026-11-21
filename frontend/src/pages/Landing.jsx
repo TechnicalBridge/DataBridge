@@ -195,9 +195,9 @@ export default function Landing() {
           </nav>
         </div>
         <p className="letra-chica">
-          Comisión para empresas: 6 % de lo recuperado en el mes si suma hasta $1.000.000; 10 % si suma más de
+          Comisión para empresas: 6 % del total ingresado por pagos en el mes si suma hasta $1.000.000; 10 % si suma más de
           $1.000.000 y hasta $5.000.000; 12 % si suma más de $5.000.000 y hasta $10.000.000, y 15 % si suma más de
-          $10.000.000. El porcentaje se aplica sobre todo lo recuperado en el mes y lo paga la empresa que cargó la
+          $10.000.000. El porcentaje se aplica sobre el total de pagos del mes y lo paga la empresa que cargó la
           deuda. Al deudor no se le cobra nada por usar DataBridge.
         </p>
         <p className="letra-chica">© 2026 DataBridge.</p>
