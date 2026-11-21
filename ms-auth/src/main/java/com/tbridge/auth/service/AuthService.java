@@ -455,10 +455,8 @@ public class AuthService {
             return;
         }
         long recientes = bitacora
-                .findByIpHashAndOccurredAtAfter(ipHash, Instant.now().minus(10, ChronoUnit.MINUTES))
-                .stream()
-                .filter(registro -> registro.getOutcome() != AccessLog.Outcome.granted)
-                .count();
+                .countByIpHashAndOccurredAtAfterAndOutcomeNot(ipHash,
+                        Instant.now().minus(10, ChronoUnit.MINUTES), AccessLog.Outcome.granted);
         if (recientes >= INTENTOS_POR_ORIGEN) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
                     "Demasiados intentos. Espera unos minutos.");
