@@ -46,7 +46,7 @@ public class BitacoraService {
 
     private static Pageable pagina(int pagina, int porPagina) {
         if (pagina < 0 || porPagina < 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "La pagina y su tamaño deben ser positivos");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "La página y su tamaño deben ser positivos");
         }
         return PageRequest.of(pagina, Math.min(porPagina, MAXIMO_POR_PAGINA),
                 Sort.by(Sort.Order.desc("occurredAt"), Sort.Order.desc("id")));

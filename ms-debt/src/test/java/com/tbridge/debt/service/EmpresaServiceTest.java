@@ -238,7 +238,7 @@ class EmpresaServiceTest {
                 new NuevaEmpresaRequest("76086428-9", "Empresa Test SpA", null, "agencia"), ADMIN));
 
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
-        assertTrue(error.getMessage().contains("digito verificador"));
+        assertTrue(error.getMessage().contains("dígito verificador"));
         verify(organizations, never()).saveAndFlush(any());
         verify(bitacora, never()).save(any());
     }

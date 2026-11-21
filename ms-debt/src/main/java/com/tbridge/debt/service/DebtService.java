@@ -171,7 +171,7 @@ public class DebtService {
     /** El deudor detras del token, por RUT: es lo unico que trae su sesion. */
     Debtor deudorDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no identifica al deudor");
         }
         return debtors.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay deudas a tu nombre"));
@@ -422,13 +422,13 @@ public class DebtService {
         }
         Debt deuda = requireVisible(user, id);
         if (deuda.getStatus() == Debt.Status.paid) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya esta pagada");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya está pagada");
         }
         if (deuda.getStatus() == Debt.Status.withdrawn) {
-            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiro esta deuda de la cobranza");
+            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiró esta deuda de la cobranza");
         }
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se repacta mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se repacta mientras tanto");
         }
         if (deuda.congelada()) {
             throw new ApiException(HttpStatus.CONFLICT,
@@ -522,7 +522,7 @@ public class DebtService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se puede pagar mientras tanto");
         }
         //  Mientras la empresa que la cobra esta suspendida, tampoco (#152).
         if (deuda.congelada()) {
@@ -579,7 +579,7 @@ public class DebtService {
         if (!cuota.getDebt().getId().equals(deuda.getId())) {
             return new ApiException(HttpStatus.BAD_REQUEST, "Esa cuota no es de esa deuda");
         }
-        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no esta pendiente");
+        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no está pendiente");
     }
 
     /**
