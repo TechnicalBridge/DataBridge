@@ -18,14 +18,16 @@ export function descargar(blob, nombre) {
  * (CSV injection, #319) anteponiendo un apóstrofo si empieza con =, +, -, @, tabulador o retorno,
  * a menos que sea un número legítimo. Escapa comillas y separadores según RFC 4180.
  */
+const montosControlados = new WeakSet();
+
 export function sanitizarParaExcel(valor) {
   if (valor === null || valor === undefined) return "";
   let texto = String(valor);
-  const esNumero = typeof valor === "number" || /^-?\d+([.,]\d+)?$/.test(texto);
-  if (!esNumero && /^[=+\-@\t\r]/.test(texto)) {
+  const esNumero = (typeof valor === "number" && Number.isFinite(valor)) || montosControlados.has(valor);
+  if (!esNumero && (/^[\t\r\n]/.test(texto) || /^[\s\u0000-\u001f\u007f]*[=+\-@]/u.test(texto))) {
     texto = `'${texto}`;
   }
-  return /[";\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+  return /[";\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
 }
 
 /**
@@ -39,6 +41,12 @@ export function descargarCsv(nombre, columnas, filas) {
   descargar(new Blob(["\ufeff" + lineas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), nombre);
 }
 
-/** Un monto como lo lee Excel en Chile: sin miles y con coma decimal. */
-export const montoParaExcel = (valor, moneda) =>
-  moneda === "UF" ? Number(valor).toFixed(2).replace(".", ",") : String(Math.round(Number(valor)));
+/** Celda numérica controlada: solo se usa en filas CSV, sin miles y con coma decimal. */
+export function montoParaExcel(valor, moneda) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return "";
+  const texto = moneda === "UF" ? n.toFixed(2).replace(".", ",") : String(Math.round(n));
+  const celda = Object.freeze({ toString: () => texto });
+  montosControlados.add(celda);
+  return celda;
+}
