@@ -6,6 +6,7 @@ import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.BitacoraResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.ContactoEstadoResponse;
 import com.tbridge.debt.dto.response.CampanaAdminResponse;
 import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
@@ -26,6 +27,7 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
+import com.tbridge.debt.service.PasadasDeContacto;
 import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
 import com.tbridge.debt.service.ResumenAdminService;
@@ -89,11 +91,12 @@ public class AdminController {
     private final DeudoresAdminService deudores;
     private final ReclamosAdminService reclamos;
     private final SuscripcionesAdminService suscripciones;
+    private final PasadasDeContacto pasadas;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
                            AvisosService avisos, ResumenAdminService resumen, BitacoraService bitacora,
                            DeudoresAdminService deudores, ReclamosAdminService reclamos,
-                           SuscripcionesAdminService suscripciones) {
+                           SuscripcionesAdminService suscripciones, PasadasDeContacto pasadas) {
         this.deudores = deudores;
         this.reclamos = reclamos;
         this.suscripciones = suscripciones;
@@ -103,6 +106,7 @@ public class AdminController {
         this.avisos = avisos;
         this.resumen = resumen;
         this.bitacora = bitacora;
+        this.pasadas = pasadas;
     }
 
     @GetMapping("/resumen")
@@ -113,10 +117,24 @@ public class AdminController {
     }
 
     @GetMapping("/campanas")
-    @Operation(summary = "Campañas de la plataforma, con solo el número de deudas por campaña")
-    @ApiResponse(responseCode = "200", description = "Campañas sin datos de deudores")
+    @Operation(summary = "Las campanas de todas las empresas, con sus deudas y sus contactos",
+            description = "Quien la gestiona, para que acreedor cobra, su estado, sus fechas, cuantas deudas tiene y "
+                    + "cuantas siguen abiertas, y cuantos correos les llegaron a sus deudores hoy y en los ultimos "
+                    + "siete dias, en Chile (#441). Sin datos de los deudores.")
+    @ApiResponse(responseCode = "200", description = "Campanas sin datos de deudores")
     public List<CampanaAdminResponse> campanas() {
         return resumen.campanas();
+    }
+
+    @GetMapping("/contacto/estado")
+    @Operation(summary = "Como va la pasada de contacto",
+            description = "Cuando fue la ultima pasada que escribe a los deudores, cuantos toques e invitaciones "
+                    + "salieron y cuantos quedaron pendientes, o con que tipo de error se cayo; cuando toca la "
+                    + "proxima y si ya debio haber pasado otra (`atrasada`); y si el horario y el limite de la ley "
+                    + "estan activos. Se guarda en memoria desde que arranco ms-debt (`desde`) (#441).")
+    @ApiResponse(responseCode = "200", description = "El estado de la pasada de contacto")
+    public ContactoEstadoResponse estadoDelContacto() {
+        return pasadas.estado();
     }
 
     // ------------------------------------------------------------------
