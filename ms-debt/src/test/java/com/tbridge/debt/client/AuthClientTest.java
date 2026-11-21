@@ -112,4 +112,35 @@ class AuthClientTest {
         assertEquals(300, fallo.motivo().length());
         assertTrue(fallo.motivo().endsWith("..."));
     }
+
+    @Test void contacto_usa_contratos_separados_y_clave_interna() throws IOException {
+        var received=new java.util.concurrent.LinkedBlockingQueue<String>();
+        servidor=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        servidor.createContext("/internal/contacto", exchange -> {
+            received.add(exchange.getRequestURI().getPath()+"|"+exchange.getRequestHeaders().getFirst("X-Internal-Key")+"|"+
+                    new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(200,-1);exchange.close();
+        });
+        servidor.start();
+        AuthClient auth=new AuthClient("http://127.0.0.1:"+servidor.getAddress().getPort(),"clave-interna");
+        auth.verificarCorreo("nuevo@correo.cl","K7M2QX");
+        auth.avisarCambio("00000000-0000-0000-0000-000000000471","anterior@correo.cl");
+        String verification=received.remove(),notice=received.remove();
+        assertTrue(verification.startsWith("/internal/contacto/verificacion|clave-interna|"));
+        assertTrue(verification.contains("\"codigo\":\"K7M2QX\""));
+        assertTrue(notice.startsWith("/internal/contacto/aviso|clave-interna|"));
+        assertTrue(notice.contains("\"eventoId\""));assertFalse(notice.contains("K7M2QX"));
+    }
+    @Test void fallo_de_contacto_no_expone_cuerpo_remoto() throws IOException {
+        servidor=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        servidor.createContext("/internal/contacto", exchange -> {
+            byte[] body="nuevo@correo.cl K7M2QX".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(503,body.length);exchange.getResponseBody().write(body);exchange.close();
+        });
+        servidor.start();
+        AuthClient auth=new AuthClient("http://127.0.0.1:"+servidor.getAddress().getPort(),"clave-interna");
+        ApiException failure=assertThrows(ApiException.class,()->auth.verificarCorreo("nuevo@correo.cl","K7M2QX"));
+        assertFalse(failure.getMessage().contains("nuevo@correo.cl"));assertFalse(failure.getMessage().contains("K7M2QX"));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE,failure.getStatus());
+    }
 }

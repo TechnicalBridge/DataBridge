@@ -524,3 +524,12 @@ Cada caso de uso de arriba termina en uno o más de estos **126 endpoints**. La 
 | `POST /api/ai/chat` | Preguntarle al asistente | Deudor | JWT | Sí | `ChatController.chat` |
 | `GET /api/ai/salud` | Estado del asistente | Monitoreo | Ninguna | Sí | `SaludController.salud` |
 
+
+
+## Corregir contacto desde Mis datos (#471)
+
+Actor: deudor autenticado. Desde `/app/mis-datos` guarda un teléfono chileno o solicita
+verificación de un correo nuevo y confirma el código recibido. Puede cancelar la solicitud.
+El correo anterior permanece vigente durante la espera. No permite editar nombre/RUT ni
+recuperar una cuenta sin sesión. La empresa ve origen y fecha del cambio en su propia cartera.
+Ver [reglas de contacto](../negocio/reglas-negocio.md#contacto-corregido-por-el-deudor-471).

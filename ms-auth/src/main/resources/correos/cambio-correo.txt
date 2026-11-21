@@ -1,0 +1,8 @@
+Confirma tu nuevo correo en DataBridge
+
+Tu codigo para confirmar el cambio de correo es:
+
+[(${codigo})]
+
+Vence en 15 minutos y sirve una sola vez. No es un codigo de acceso.
+Si no solicitaste este cambio, ignora este mensaje.

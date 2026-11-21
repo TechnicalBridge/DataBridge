@@ -327,6 +327,51 @@ public class MailService {
                 "dura", cuanto(minutos, "minuto", "minutos")));
     }
 
+    /** A redirected/test-sink delivery never proves mailbox ownership. */
+    public void enviarVerificacionDeCorreo(String to, String codigo) {
+        var destination = modo.para(to, "Confirma tu nuevo correo en DataBridge");
+        if (!conServidor || alBuzonDePrueba || DominiosReservados.es(to)
+                || destination.isEmpty() || destination.get().desviado()) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "La configuracion no permite verificar el destino propuesto");
+        }
+        try {
+            // Same selected provider and template renderer; no login credential is created.
+            mailSender.send(armar(mailSender, destination.get(), escribir("cambio-correo", datos("codigo", codigo))));
+        } catch (RuntimeException failed) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo enviar la verificacion de correo");
+        }
+    }
+
+    private Optional<String> entregarAvisoPrivado(String to) {
+        String subject = "Se modifico tu correo de contacto en DataBridge";
+        var data = escribir("aviso-cambio-correo", Map.of());
+        Optional<ModoDePrueba.Destino> destination;
+        if (!alBuzonDePrueba && DominiosReservados.es(to)) {
+            if (buzonDeReservados != null) {
+                buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, subject, false), data));
+                return Optional.of(direccionDelBuzon);
+            }
+            destination = modo.desviar(to, subject);
+        } else destination = modo.para(to, subject);
+        if (destination.isEmpty() || (destination.get().desviado() && !topeDeDesvio.tomar())) return Optional.empty();
+        mailSender.send(armar(mailSender, destination.get(), data));
+        return Optional.of(destination.get().a());
+    }
+
+    public void enviarAvisoDeCambio(String to) {
+        if (!conServidor) throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "El correo no esta disponible");
+        try {
+            if (entregarAvisoPrivado(to).isEmpty())
+                throw new IllegalStateException();
+        } catch (RuntimeException failed) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo entregar el aviso de cambio");
+        }
+    }
+
     /** Un solo mensaje: codigo y, solo si se pidio respaldo, su enlace alternativo. */
     @Async
     public void enviarAcceso(String to, String codigo, String url, long minutos) {

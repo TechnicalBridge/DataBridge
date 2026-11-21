@@ -98,6 +98,14 @@ public class InternalController {
         return debts.snapshotInterno(id, installmentIds);
     }
 
+    @GetMapping("/deudores/{rut}/contacto")
+    @Operation(summary = "Contacto y fecha de corte de credenciales; solo ms-auth")
+    public com.tbridge.debt.service.DebtService.ContactoVigente contactoVigente(
+            @RequestHeader(value = "X-Internal-Key", required = false) String clave, @PathVariable String rut) {
+        exigirClave(clave);
+        return debts.contactoVigente(rut);
+    }
+
     @GetMapping("/deudores/{rut}/correo")
     @Operation(summary = "El correo registrado de un deudor (para ms-auth)",
             description = "El que registro el acreedor en su cartera. ms-auth manda el enlace de acceso solo ahi, "

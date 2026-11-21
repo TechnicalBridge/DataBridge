@@ -139,6 +139,9 @@ public class SessionService {
         return sesiones.revocarDeCorreo(correo, reloj.instant());
     }
 
+    @Transactional(readOnly = true)
+    public Instant inicioDeFamilia(String family) { return sesiones.inicioDeFamilia(family); }
+
     private Llave emitir(String familia, Session.Role role, String rut, String email,
                          Instant venceEn, String ipHash) {
         //  256 bits al azar: adivinarla no es un problema de intentos por
