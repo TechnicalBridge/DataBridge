@@ -5,11 +5,12 @@
   oscuro).
 
   Esta escrito como se escriben los correos, no como una pagina: tablas y
-  estilos en cada elemento. Gmail ignora parte del <style>, Outlook de
-  escritorio dibuja con Word y casi todos bloquean las imagenes. Por eso la
-  unica imagen es el simbolo, que se carga del portal (la variable logo, #274), y el
-  nombre va escrito al lado: si el cliente bloquea la imagen, la marca se lee
-  igual. El <style> solo agrega lo que no se puede escribir en linea: el tema
+  estilos en cada elemento. Gmail ignora parte del <style> y Outlook de
+  escritorio dibuja con Word. La unica imagen es el simbolo, y va dentro del
+  correo (cid:, #465): asi se ve aunque el cliente bloquee las imagenes de
+  afuera o el portal sea localhost. Solo por Brevo, que no lo permite, se carga
+  del portal (#274). El nombre va escrito al lado: la marca se lee igual sin la
+  imagen. El <style> solo agrega lo que no se puede escribir en linea: el tema
   oscuro (Apple Mail, Outlook) y el ancho del telefono.
 -->
 <html lang="es" xmlns:th="http://www.thymeleaf.org" th:fragment="carta(titulo, adelanto, contenido, pie)">
@@ -35,6 +36,7 @@
       .tinta { color: #efebe3 !important; }
       .tinta-2 { color: #d2cbbf !important; }
       .tenue { color: #a59d90 !important; }
+      .separador { border-top-color: #2e2b27 !important; }
       .caja { background-color: #2a3127 !important; }
       .codigo { color: #95cda2 !important; }
       .aviso { background-color: #252320 !important; border-left-color: #e09a72 !important; }
@@ -50,6 +52,7 @@
     [data-ogsc] .tinta { color: #efebe3 !important; }
     [data-ogsc] .tinta-2 { color: #d2cbbf !important; }
     [data-ogsc] .tenue { color: #a59d90 !important; }
+    [data-ogsb] .separador { border-top-color: #2e2b27 !important; }
     [data-ogsc] .codigo { color: #95cda2 !important; }
     [data-ogsc] .boton-texto { color: #10170f !important; }
   </style>
@@ -93,8 +96,12 @@
           </tr>
           <tr>
             <td class="relleno" style="padding:20px 8px 0 8px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;">
+              <!--/* El pie: por que llego este correo, y quien lo escribe (#465). */-->
               <p th:replace="${pie}">Por que te llego</p>
-              <p class="tenue" style="margin:10px 0 0 0;color:#7c7266;">DataBridge</p>
+              <p class="tenue separador" style="margin:12px 0 0 0;padding-top:12px;border-top:1px solid #ebe1cf;color:#6f665b;">
+                Te escribe <strong class="tinta-2" style="color:#4b453c;">DataBridge</strong>, la plataforma de pago de deudas
+                (<span style="overflow-wrap:anywhere;word-break:break-word;" th:text="${portal}">databridge.cl</span>).
+              </p>
             </td>
           </tr>
         </table>

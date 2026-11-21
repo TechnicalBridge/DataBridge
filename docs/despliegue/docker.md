@@ -73,7 +73,7 @@ no es secreto sí tiene un valor de desarrollo.
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
 | `PORTAL_PORT`, `DB_AUTH_PORT`, `DB_DEBT_PORT`, `DB_PAYMENTS_PORT`, `RABBIT_PORT`, `RABBIT_ADMIN_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_PORT` | `8080`, `3308`, `3309`, `3310`, `5672`, `15672`, `1025`, `8025` | Los puertos que se publican en el equipo. Se cambian si alguno ya está ocupado |
-| `PUBLIC_URL` | `http://localhost:8080` | La dirección del portal que va en los correos y en el retorno de Webpay y de Khipu |
+| `PUBLIC_URL` | `http://localhost:8080` | La dirección del portal que va en los correos y en el retorno de Webpay y de Khipu. El símbolo de los correos va dentro de cada uno (`cid:`, #465), salvo por Brevo, cuya API no lo permite: ahí se carga de `PUBLIC_URL/logo.png`, que tiene que ser una dirección pública |
 
 </details>
 

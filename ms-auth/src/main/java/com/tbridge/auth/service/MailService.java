@@ -83,10 +83,13 @@ public class MailService {
     /** La direccion del portal como se escribe en el navegador, sin {@code https://}. */
     private final String portal;
     /**
-     * El simbolo de DataBridge que muestra el encabezado de cada correo: lo sirve
-     * el portal, en su direccion publica (#274).
+     * El simbolo de DataBridge en el portal, en su direccion publica (#274). Solo
+     * lo usa Brevo, que no deja incrustar imagenes: los demas llevan el simbolo
+     * dentro del correo ({@link #LOGO_INCRUSTADO}, #465).
      */
     private final String logo;
+    /** Si el correo puede llevar el simbolo dentro: por SMTP, Mailpit y Resend si; por Brevo, no (#465). */
+    private final boolean incrustaLogo;
     private final String servidor;
     private final String clave;
     private final String claveDeBrevo;
@@ -147,6 +150,7 @@ public class MailService {
             case "brevo" -> "Brevo";
             default -> null;
         };
+        this.incrustaLogo = !"Brevo".equals(proveedorApi);
         this.conServidor = this.mailSender != null && (proveedorApi != null || StringUtils.hasText(host));
         this.servidor = proveedorApi != null ? proveedorApi + " (API)" : conServidor ? host.strip() + ":" + puerto : null;
         this.clave = clave;
@@ -500,8 +504,9 @@ public class MailService {
         if (!alBuzonDePrueba && DominiosReservados.es(to)) {
             //  Un dominio reservado no entrega correo: por el proveedor solo gastaria su cupo (#236).
             if (buzonDeReservados != null) {
+                //  El buzon de prueba es SMTP: el simbolo va dentro.
                 buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
-                        escribir(plantilla, datos)));
+                        escribir(plantilla, datos, true)));
                 log.info("Dominio reservado: el correo para {} va al buzon de prueba, no al proveedor", to);
                 return Optional.of(direccionDelBuzon);
             }
@@ -523,18 +528,43 @@ public class MailService {
                     + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
             return Optional.empty();
         }
-        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos)));
+        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos, incrustaLogo)));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
         }
         return Optional.of(destino.get().a());
     }
 
-    /** Escribe el correo con su plantilla, con el logo del encabezado que llevan todos. */
-    private Carta escribir(String plantilla, Map<String, ?> datos) {
+    /**
+     * Escribe el correo con su plantilla, con el simbolo del encabezado que
+     * llevan todos: dentro del correo ({@code cid:}) o, por Brevo, desde el portal.
+     * Tambien va la direccion del portal, que el pie dice en todos.
+     */
+    private Carta escribir(String plantilla, Map<String, ?> datos, boolean incrustado) {
         Map<String, Object> conLogo = new HashMap<>(datos);
-        conLogo.put("logo", logo);
+        conLogo.put("logo", incrustado ? "cid:" + LOGO_ID : logo);
+        conLogo.putIfAbsent("portal", portal);
         return PLANTILLAS.escribir(plantilla, conLogo);
+    }
+
+    /**
+     * El simbolo, dentro del correo (#465): con la direccion del portal, Gmail no
+     * lo puede bajar si es {@code localhost}, y Gmail y Outlook esconden las
+     * imagenes de afuera hasta que la persona las permite. Una imagen incrustada
+     * se ve siempre. Es el mismo {@code logo.png} del portal.
+     */
+    static final String LOGO_ID = "logo-databridge";
+    static final byte[] LOGO_INCRUSTADO = leerLogo();
+
+    private static byte[] leerLogo() {
+        try (var entrada = MailService.class.getResourceAsStream("/correos/logo.png")) {
+            if (entrada == null) {
+                throw new IllegalStateException("Falta correos/logo.png en ms-auth");
+            }
+            return entrada.readAllBytes();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("No se pudo leer correos/logo.png", e);
+        }
     }
 
     /**
@@ -549,7 +579,8 @@ public class MailService {
 
     /**
      * El correo en sus dos versiones ({@code multipart/alternative}): primero
-     * el texto y despues el HTML, que es la que muestra quien puede.
+     * el texto y despues el HTML, que es la que muestra quien puede. Si el HTML
+     * lleva el simbolo dentro, va junto a el en un {@code multipart/related}.
      *
      * <p>Un remitente mal escrito es de la configuracion de DataBridge y se
      * informa sin su causa: si la llevara, {@link #esDeLaDireccion} culparia a
@@ -583,7 +614,21 @@ public class MailService {
             texto.setText(carta.texto(), StandardCharsets.UTF_8.name());
             MimeBodyPart html = new MimeBodyPart();
             html.setText(carta.html(), StandardCharsets.UTF_8.name(), "html");
-            mensaje.setContent(new MimeMultipart("alternative", texto, html));
+            if (!carta.html().contains("cid:" + LOGO_ID)) {
+                mensaje.setContent(new MimeMultipart("alternative", texto, html));
+                return mensaje;
+            }
+            //  Con el simbolo dentro: el HTML y la imagen van juntos (multipart/related), y el
+            //  texto aparte. Asi el cliente que muestra texto no ve un adjunto.
+            MimeBodyPart simbolo = new MimeBodyPart();
+            simbolo.setDataHandler(new jakarta.activation.DataHandler(
+                    new jakarta.mail.util.ByteArrayDataSource(LOGO_INCRUSTADO, "image/png")));
+            simbolo.setContentID("<" + LOGO_ID + ">");
+            simbolo.setDisposition(MimeBodyPart.INLINE);
+            simbolo.setFileName("databridge.png");
+            MimeBodyPart conSimbolo = new MimeBodyPart();
+            conSimbolo.setContent(new MimeMultipart("related", html, simbolo));
+            mensaje.setContent(new MimeMultipart("alternative", texto, conSimbolo));
             return mensaje;
         } catch (MessagingException e) {
             throw new MailPreparationException("No se pudo armar el correo", e);
