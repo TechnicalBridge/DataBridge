@@ -164,6 +164,26 @@ docker compose --profile app up -d --build --wait
 | **Consola RabbitMQ** | [http://localhost:15672](http://localhost:15672) | Usuario: `guest`, contraseña: valor de `RABBIT_PASSWORD` en `.env`. |
 | **Bases de datos MySQL** | `127.0.0.1:3308` (`tb_auth`)<br>`127.0.0.1:3309` (`tb_debt`)<br>`127.0.0.1:3310` (`tb_payments`) | Usuario: `tbridge`, contraseñas configuradas en `.env`. |
 
+**Dónde llega el correo al desarrollar:** el portal no puede saber qué transporte
+usa `ms-auth`; que Vite corra con `npm run dev` no significa que el correo vaya
+a Mailpit. `MAIL_TRANSPORT`, si está definido, elige explícitamente `mailpit`,
+`smtp`, `brevo` o `resend`. Sin esa variable, se elige en este orden:
+
+| Configuración de `ms-auth` | Destino |
+| :--- | :--- |
+| `BREVO_API_KEY` | Brevo (proveedor externo) |
+| `SMTP_HOST` | Servidor SMTP configurado (puede ser externo) |
+| `CORREO_BUZON_DE_PRUEBA` (Docker Compose local) | Mailpit, normalmente [localhost:8025](http://localhost:8025) |
+| Ninguna de las anteriores (Maven fuera de Docker) | No se entrega correo; no se debe esperar un enlace en Mailpit ni en el log |
+
+Con `MAIL_TRANSPORT=resend` se usa Resend y se requiere `RESEND_API_KEY`.
+Antes de probar con un proveedor externo, configura `CORREO_SOLO_A` y
+`CORREO_DESVIAR_A` para no enviar invitaciones ni códigos a personas reales.
+Los dominios reservados como `example.com` se envían a Mailpit si está
+disponible, o se desvían al destinatario de prueba configurado; sin ninguno
+de los dos, no se entregan. Consulta también
+[la configuración del correo](docs/despliegue/resend.md).
+
 Para apagar el entorno:
 ```powershell
 docker compose --profile app down
@@ -174,7 +194,7 @@ docker compose --profile app down -v
 ### Cuentas de prueba y demostración
 
 Con `DEMO_DATOS=true`:
-- **Acceso Empresa**: Ingresar a *Soy de una empresa* con el correo `camila.reyes@example.com`. El código de acceso de un solo uso llegará al buzón Mailpit (http://localhost:8025).
+- **Acceso Empresa**: Ingresar a *Soy de una empresa* con el correo `camila.reyes@example.com`. En Docker local, el código de acceso llega a Mailpit (http://localhost:8025) si el buzón de prueba está disponible; con otro transporte, consulta la tabla anterior.
 - **Acceso Deudor**: Ingresar en *Tengo un código de acceso* o mediante solicitud de código con RUTs de ejemplo:
   - `16.482.337-7`: Deudor en convenio de 6 cuotas (3 pagadas).
   - `19.230.418-0`: Deudor con totalidad de deuda saldada.
