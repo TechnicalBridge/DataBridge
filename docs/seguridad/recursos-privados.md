@@ -159,11 +159,12 @@ el Gateway ni se cambia ninguna de estas políticas.
 ### Plan oficial
 
 `PLAN_OFICIAL_ACTUALIZADO = NO`.
-`MOTIVO = ubicación del caso oficial editable no disponible`.
+`MOTIVO = sin autorización para actualizar documentos académicos oficiales`.
 
-Se buscó en el repositorio y Drive por SEG-DAT-007, SEG-DAT, DataBridge, pruebas
-y Plan pruebas. La carpeta accesible `07_pruebas` no devolvió archivos. El informe
-histórico Informe_Fase_2_DataBridge_Corporativo.docx contiene la familia SEG-DAT,
-pero su extracción legible no identifica el caso SEG-DAT-007 ni un registro editable
-de resultado. No se modifica un documento histórico distinto como si fuera el plan
-oficial. Esta evidencia automatizada permite actualizar el caso cuando se localice.
+El plan oficial se localizó en Drive: PTY4614_800D_Plan_de_Pruebas.xlsx,
+https://docs.google.com/spreadsheets/d/1t5BvHTmp3gX-kA6NdwA7IRMjCgnO8CGC/edit
+Caso SEG-DAT-007, hoja Pruebas de seguridad; índice exportado 80 (fila 82
+observada en el plan). Estado leído: No ejecutado / Pendiente. Criterio:
+403 indistinguible para un recurso ajeno e inexistente. Las pruebas del PR
+aportan evidencia automatizada; E2E con MySQL sigue NOT RUN y pasa al lote 3.
+La ubicación deberá verificarse de nuevo antes de actualizar el registro.
