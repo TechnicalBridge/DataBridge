@@ -20,9 +20,9 @@ error viaja en JSON y no incluye datos personales ni financieros del otro deudor
 
 ## Capturas
 
-![Certificado de otro deudor: 403](swagger-certificado-ajeno-403.png)
+Las capturas originales se retiraron del árbol Git y se conservaron localmente en execution-evidencia-364-original/.
 
-![Comprobante de otro deudor: 403](swagger-comprobante-ajeno-403.png)
+Antes de adjuntarlas al issue #364 o a la entrega académica, revisar JWT, credenciales y datos privados. No se han publicado desde esta ejecución.
 
 ## Pruebas automatizadas
 
@@ -33,3 +33,8 @@ error viaja en JSON y no incluye datos personales ni financieros del otro deudor
 
 No se ejecutaron pruebas de rendimiento ni se llamó a pasarelas reales; los correos salieron solo
 a Mailpit.
+
+
+## Seguridad de bases de pruebas
+
+DB_TEST_URL se valida antes de registrar el datasource y antes de Flyway: solo se acepta el nombre exacto tb_debt_pruebas o tb_payments_pruebas en su servicio. Los contenedores usan los mismos nombres. URLs ausentes se resuelven por el flujo de contenedor/omisión existente; una URL externa inválida falla sin mostrar credenciales. No se cambia el pom ni se añade otra infraestructura MySQL.

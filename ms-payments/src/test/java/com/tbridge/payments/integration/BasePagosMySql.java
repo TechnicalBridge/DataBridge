@@ -52,7 +52,7 @@ public abstract class BasePagosMySql {
     protected static synchronized MySQLContainer<?> contenedor() {
         if (MYSQL == null) {
             MYSQL = new MySQLContainer<>("mysql:8.4")
-                    .withDatabaseName("tb_payments")
+                    .withDatabaseName("tb_payments_pruebas")
                     .withUsername("tbridge")
                     .withPassword("tbridge-test")
                     //  En Windows, la inicializacion con el redo log por omision
@@ -72,11 +72,13 @@ public abstract class BasePagosMySql {
     static void baseDeDatos(DynamicPropertyRegistry propiedades) {
         if (System.getenv("DB_TEST_URL") == null) {
             MySQLContainer<?> mysql = contenedor();
+            BaseDePruebasSegura.validar(mysql.getJdbcUrl());
             propiedades.add("spring.datasource.url", mysql::getJdbcUrl);
             propiedades.add("spring.datasource.username", mysql::getUsername);
             propiedades.add("spring.datasource.password", mysql::getPassword);
         } else {
-            propiedades.add("spring.datasource.url", () -> System.getenv("DB_TEST_URL"));
+            String urlSegura = BaseDePruebasSegura.validar(System.getenv("DB_TEST_URL"));
+            propiedades.add("spring.datasource.url", () -> urlSegura);
             propiedades.add("spring.datasource.username",
                     () -> System.getenv().getOrDefault("DB_TEST_USER", "tbridge"));
             propiedades.add("spring.datasource.password", () -> System.getenv("DB_TEST_PASSWORD"));
