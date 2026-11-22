@@ -52,9 +52,10 @@ class InternalControllerTest {
             for (String configurada : new String[]{null, "", " "}) {
                 org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", configurada);
                 for (String recibida : new String[]{null, "", " ", "clave-interna-de-prueba"}) {
-                    org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    var error = org.junit.jupiter.api.Assertions.assertThrows(com.tbridge.debt.exception.ApiException.class,
                             () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(
                                     controlador, "exigirClave", recibida));
+                    org.junit.jupiter.api.Assertions.assertEquals(org.springframework.http.HttpStatus.UNAUTHORIZED, error.getStatus());
                 }
             }
         } finally {
