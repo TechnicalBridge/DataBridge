@@ -29,9 +29,15 @@ async function reconciliar(api) {
     if (lote.length < 100) break;
   }
   for (const paso of planificar(issues)) {
-    // Actualizar el plan en la próxima pasada si hubo una asignación manual.
+    // Una asignación manual distinta cambia el turno: no continuar con un plan obsoleto.
     const actual = await api.obtener(paso.numero);
-    if (actual.state !== "open" || actual.assignees.length || excluido(actual)) continue;
+    if (actual.assignees.length) {
+      if (actual.assignees.length !== 1 || actual.assignees[0].login !== paso.responsable) {
+        throw new Error(`Asignación modificada en #${paso.numero}; recalcular en la próxima pasada`);
+      }
+      continue;
+    }
+    if (actual.state !== "open" || excluido(actual)) continue;
     const respuesta = await api.asignar(paso.numero, paso.responsable);
     if (!respuesta.assignees.some(a => a.login === paso.responsable)) {
       throw new Error(`GitHub no confirmó asignación de #${paso.numero}`);

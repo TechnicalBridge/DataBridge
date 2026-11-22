@@ -3,6 +3,30 @@ const assert = require("node:assert/strict");
 const { EQUIPO, planificar, reconciliar } = require("../.github/scripts/repartir-por-turnos.cjs");
 const issue = (number, extra = {}) => ({ number, title: "Tarea", created_at: "2026-11-21T12:00:00Z", state: "open", assignees: [], ...extra });
 
+test("una asignación manual detiene el plan obsoleto y la siguiente pasada recalcula", async () => {
+  const datos = [issue(1), issue(2)];
+  let cambioManual = true;
+  const api = {
+    listar: async () => structuredClone(datos),
+    obtener: async n => {
+      if (cambioManual) {
+        datos[0].assignees = [{ login: EQUIPO[2] }];
+        cambioManual = false;
+      }
+      return datos[n - 1];
+    },
+    asignar: async (n, login) => {
+      datos[n - 1].assignees = [{ login }];
+      return datos[n - 1];
+    },
+  };
+  await assert.rejects(reconciliar(api), /Asignación modificada/);
+  assert.deepEqual(datos[1].assignees, []);
+  await reconciliar(api);
+  assert.deepEqual(datos[0].assignees, [{ login: EQUIPO[2] }]);
+  assert.deepEqual(datos[1].assignees, [{ login: EQUIPO[3] }]);
+});
+
 for (const cantidad of [1, 2, 3, 4, 10, 150]) {
   test(`${cantidad} issues simultáneos conservan orden y turnos`, () => {
     const lista = Array.from({ length: cantidad }, (_, n) => issue(n + 1));
