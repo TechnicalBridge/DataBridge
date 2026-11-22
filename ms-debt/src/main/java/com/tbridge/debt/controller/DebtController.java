@@ -174,7 +174,7 @@ public class DebtController {
         return acceso.enviarCodigo(user, id);
     }
 
-    @GetMapping(value = "/{id}/certificate", produces = MediaType.APPLICATION_PDF_VALUE)
+    @GetMapping("/{id}/certificate")
     @Operation(summary = "Certificado de deuda pagada (PDF)",
             description = "Solo para deudas pagadas por completo. Una deuda retirada tambien queda en cero, pero no se pago.")
     @ApiResponse(responseCode = "200", description = "El PDF", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE))

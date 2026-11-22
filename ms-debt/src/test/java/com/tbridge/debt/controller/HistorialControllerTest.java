@@ -86,6 +86,18 @@ class HistorialControllerTest {
     }
 
     @Test
+    void el_error_de_autorizacion_es_json_con_accept_pdf_o_json() throws Exception {
+        when(comprobantes.generar(any(), eq(57L))).thenThrow(new com.tbridge.debt.exception.ApiException(
+                org.springframework.http.HttpStatus.FORBIDDEN, "No puedes ver este pago"));
+        for (MediaType aceptado : List.of(MediaType.APPLICATION_PDF, MediaType.APPLICATION_JSON)) {
+            mvc.perform(get("/api/debts/pagos/57/comprobante").accept(aceptado).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.error").value("No puedes ver este pago"));
+        }
+    }
+
+    @Test
     void sin_sesion_no_hay_historial() throws Exception {
         mvc.perform(get("/api/debts/pagos")).andExpect(status().isUnauthorized());
     }

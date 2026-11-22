@@ -31,6 +31,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class IdorDocumentosIntegracionTest extends BaseIdorMySql {
 
     @Test
+    void negociar_json_no_omite_la_autorizacion_de_los_documentos() throws Exception {
+        crearDeuda("IDOR-ACCEPT-PROPIA-" + sufijo, RUT_DEUDOR_A,
+                "Deudor A", "deudor.a@correo.cl", 410000);
+        Debt ajena = marcarPagada(crearDeuda("IDOR-ACCEPT-" + sufijo, RUT_DEUDOR_B,
+                "Deudor B", "deudor.b@correo.cl", 520000));
+        DebtEvent pago = registrarPago(ajena, "52000");
+        String token = tokenDeudor(RUT_DEUDOR_A);
+        for (MediaType aceptado : java.util.List.of(MediaType.APPLICATION_PDF, MediaType.APPLICATION_JSON)) {
+            for (String ruta : java.util.List.of("/api/debts/" + ajena.getId() + "/certificate",
+                    "/api/debts/pagos/" + pago.getId() + "/comprobante")) {
+                mvc.perform(get(ruta).accept(aceptado).header("Authorization", "Bearer " + token))
+                        .andExpect(status().isForbidden())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+            }
+        }
+    }
+
+    @Test
     void las_migraciones_estan_aplicadas_en_mysql_de_verdad() {
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class))

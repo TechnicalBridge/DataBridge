@@ -58,7 +58,7 @@ public class HistorialController {
                 linkTo(HistorialController.class).withSelfRel());
     }
 
-    @GetMapping(value = "/{id}/comprobante", produces = MediaType.APPLICATION_PDF_VALUE)
+    @GetMapping("/{id}/comprobante")
     @Operation(summary = "El comprobante de un pago (PDF)",
             description = "Que se pago, de que deuda, por donde y cuando. Lo descarga el deudor o la empresa que opera la deuda.")
     @ApiResponse(responseCode = "200", description = "El PDF", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE))
