@@ -1069,7 +1069,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   border: 1px solid var(--line);
   flex: none;
 }
-.pasarela-logo img { flex: none; width: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+/* El escalado compensa el aire de cada SVG; la ficha recorta ese aire, no el dibujo. */
+.pasarela-logo img { flex: none; width: auto; max-width: none; }
 .pasarela-logo.sin-logo { width: auto; min-width: 74px; font-size: 13px; font-weight: 600; color: #4b453c; }
 
 /* ---- Pagar -------------------------------------------------------------------------------- */
