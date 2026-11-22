@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** JWT y autorización reales; únicamente la persistencia y los colaboradores se simulan. */
 @WebMvcTest({DebtController.class, InternalController.class, HistorialController.class})
 @Import({SecurityConfig.class, JwtTestConfig.class, DebtModelAssembler.class, DebtService.class,
-        HistorialService.class, ComprobanteService.class})
+        HistorialService.class, ComprobanteService.class, CertificateService.class})
 @ActiveProfiles("test")
 class ResourceVisibilitySecurityTest {
     @Autowired MockMvc mvc;
@@ -45,7 +46,6 @@ class ResourceVisibilitySecurityTest {
     @MockitoBean RepactationService repactation;
     @MockitoBean EventosService eventos;
     @MockitoBean DescuentoService descuentos;
-    @MockitoBean CertificateService certificates;
     @MockitoBean AccesoService acceso;
     @MockitoBean DisputaService disputas;
     @MockitoBean CampanaAvanceService avances;
@@ -125,12 +125,37 @@ class ResourceVisibilitySecurityTest {
     }
 
     @Test
+    void certificado_ajeno_e_inexistente_son_indistinguibles_con_cualquier_accept() throws Exception {
+        for (String role : List.of("DEBTOR", "CREDITOR")) {
+            verificarPdfPrivado("/api/debts/%d/certificate", 40, 41, role);
+        }
+        verifyNoInteractions(installments, charges);
+    }
+
+    private void verificarPdfPrivado(String path, long ajeno, long inexistente, String role) throws Exception {
+        for (MediaType accept : List.of(MediaType.APPLICATION_PDF, MediaType.APPLICATION_JSON, MediaType.ALL)) {
+            String previous = null;
+            for (long id : new long[]{ajeno, inexistente}) {
+                String body = mvc.perform(get(path.formatted(id)).accept(accept).header("Authorization", token(role)))
+                        .andExpect(status().isForbidden())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(content().json("{\"error\":\"No puedes ver esta deuda\"}", true))
+                        .andReturn().getResponse().getContentAsString();
+                if (previous != null) assertEquals(previous, body);
+                previous = body;
+            }
+            mvc.perform(get(path.formatted(ajeno)).accept(accept)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
     void comprobante_ajeno_ausente_y_evento_no_pagado_tienen_el_mismo_json() throws Exception {
         DebtEvent payment = DebtEvent.de(foreign, DebtEvent.Type.payment_applied, DebtEvent.Actor.debtor);
         when(events.findById(50L)).thenReturn(Optional.of(payment));
         when(events.findById(52L)).thenReturn(Optional.of(
                 DebtEvent.de(foreign, DebtEvent.Type.repacted, DebtEvent.Actor.debtor)));
         for (String role : List.of("DEBTOR", "CREDITOR")) {
+            verificarPdfPrivado("/api/debts/pagos/%d/comprobante", 50, 51, role);
             for (long id : new long[]{50, 51, 52}) {
                 mvc.perform(get("/api/debts/pagos/" + id + "/comprobante").header("Authorization", token(role)))
                         .andExpect(status().isForbidden())
