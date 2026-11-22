@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { cargarCartera, descargarPlantillaExcel, opcionesDeCarga, revisarCartera } from "../api/deudas";
 import { dinero, paraBuscar } from "../utils/formato";
 import { descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
+import { mensajesCarga } from "../utils/resultadoCarga";
 import FormCampana from "../components/FormCampana";
 import Cargando from "../components/Cargando";
 
@@ -418,18 +419,18 @@ function PasoRevision({ revision, campana, busy, onConfirmar, onOtroArchivo }) {
 }
 
 function PasoListo({ resultado, campana, onOtra }) {
-  const aceptadas = resultado.aceptadas ?? 0;
+  const mensajes = mensajesCarga(resultado, campana?.nombre);
   return (
     <>
       <h2>Listo</h2>
       <div className="notice">
-        {resultado.repetido ? "Esa planilla ya estaba cargada: no se duplicó nada. " : ""}
-        <b>{aceptadas} {aceptadas === 1 ? "deuda quedó" : "deudas quedaron"}</b> en {campana?.nombre || "la campaña"}
-        {resultado.rechazadas ? `, y ${resultado.rechazadas} no entraron` : ""}.
+        {mensajes.join(" ")}
       </div>
-      <p className="hint">
-        Cada deudor nuevo recibe su invitación con su código de acceso, dentro del horario que permite la ley.
-      </p>
+      {!resultado.repetido && resultado.resultados?.some((fila) => fila.resultado === "registrada") ? (
+        <p className="hint">
+          Cada deudor nuevo recibe su invitación con su código de acceso, dentro del horario que permite la ley.
+        </p>
+      ) : null}
       <div className="acciones-fila" style={{ marginTop: 12 }}>
         <Link className="btn btn-primary btn-sm" to="/databridge">Ver la cartera</Link>
         <Link className="btn btn-ghost btn-sm" to="/databridge/campanas">Ver las campañas</Link>
