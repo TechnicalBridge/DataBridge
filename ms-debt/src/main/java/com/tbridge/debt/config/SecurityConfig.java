@@ -38,6 +38,7 @@ public class SecurityConfig {
         base(http).authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/debts/cartera", "/api/debts/cartera/**").hasRole("CREDITOR")
                 .anyRequest().hasAnyRole("DEBTOR","CREDITOR"));
         http.oauth2ResourceServer(rs -> {
             rs.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(new JwtPrincipalConverter()));
