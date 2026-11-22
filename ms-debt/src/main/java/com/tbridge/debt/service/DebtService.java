@@ -17,6 +17,7 @@ import com.tbridge.debt.dto.response.RepactPlan;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
+import com.tbridge.debt.model.DebtCharge;
 import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Debtor;
@@ -51,6 +52,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -183,30 +186,51 @@ public class DebtService {
 
     /**
      * Lo que ve cada quien: la empresa, su cartera; el deudor, lo suyo. Cuando
-     * el que mira es el deudor, se anota que entro (ver {@link #anotarIngreso}).
+     * el que mira es el deudor, se anota que entro (ver {@link #anotarIngresos}).
      */
     @Transactional
     public List<DebtSummaryResponse> listFor(JwtPrincipal user) {
-        if (user != null && user.isCreditor()) {
-            List<Debt> cartera = debts.carteraDe(organizacionDe(user));
-            //  Cuando se le escribio por ultima vez a cada deudor, en una sola
-            //  consulta: la empresa ve a quien falta invitar o hay que reenviarselo.
-            Map<Long, Instant> enviado = cartera.isEmpty() ? Map.of()
-                    : contactos.ultimoPorDeuda(cartera).stream()
-                            .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
-            Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(cartera);
-            Map<Long, BigDecimal> caes = caes(cartera);
-            return cartera.stream()
-                    .map(d -> resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())))
-                    .toList();
+        boolean empresa = user != null && user.isCreditor();
+        List<Debt> visibles = empresa ? debts.carteraParaListado(organizacionDe(user))
+                : debts.delDeudorParaListado(deudorDe(user));
+        List<DebtSummaryResponse> resultado = new ArrayList<>(visibles.size());
+        LocalDate hoy = LocalDate.now(CHILE);
+        // Limita los parámetros y las relaciones auxiliares de cada consulta.
+        final int tamanoLote = 200;
+        for (int desde = 0; desde < visibles.size(); desde += tamanoLote) {
+            var lote = visibles.subList(desde, Math.min(desde + tamanoLote, visibles.size()));
+            if (!empresa) anotarIngresos(lote, hoy);
+            agregarResumenes(resultado, lote, empresa, hoy);
         }
-        List<Debt> filas = debts.findByDebtorOrderByUpdatedAtDesc(deudorDe(user));
-        filas.forEach(this::anotarIngreso);
-        Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(filas);
-        Map<Long, BigDecimal> caes = caes(filas);
-        return filas.stream()
-                .map(d -> resumen(d, null, disputas.get(d.getId()), caes.get(d.getId())))
-                .toList();
+        return resultado;
+    }
+
+    private void agregarResumenes(List<DebtSummaryResponse> resultado, List<Debt> lote, boolean empresa, LocalDate hoy) {
+        Map<Long, Instant> enviado = empresa ? contactos.ultimoPorDeuda(lote).stream()
+                .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando)) : Map.of();
+        Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(lote);
+        Map<Long, BigDecimal> caes = caes(lote);
+        var cuotasPorDeuda = installments.findByDebtInOrderByNumberAsc(lote).stream()
+                .collect(Collectors.groupingBy(cuota -> cuota.getDebt().getId()));
+        var conInteres = lote.stream().filter(deuda -> deuda.getInterestRate() != null).toList();
+        Map<Long, List<DebtCharge>> cargosPorDeuda = conInteres.isEmpty() ? Map.of()
+                : charges.findByDebtInOrderByDueDateAsc(conInteres).stream()
+                        .collect(Collectors.groupingBy(cargo -> cargo.getDebt().getId()));
+        var topes = conInteres.isEmpty() ? Map.<DescuentoService.Empresas, BigDecimal>of()
+                : descuentos.topesParaListado(conInteres, hoy);
+
+        for (Debt deuda : lote) {
+            Long id = deuda.getId();
+            List<Installment> cuotas = cuotasPorDeuda.getOrDefault(id, List.of());
+            List<DebtCharge> cargos = cargosPorDeuda.getOrDefault(id, List.of());
+            BigDecimal mora = deuda.getInterestRate() == null ? BigDecimal.ZERO
+                    : Intereses.total(Intereses.deMora(deuda, cargos, cuotas, hoy));
+            var oferta = oferta(deuda, cuotas, mora, hoy, () -> cargos,
+                    dias -> descuentos.porcentaje(deuda, dias, hoy,
+                            () -> descuentos.topeParaListado(deuda.getCampaign(), topes)));
+            resultado.add(DebtSummaryResponse.from(deuda, cuotas, enviado.get(id), disputas.get(id),
+                    mora, oferta, caes.get(id)));
+        }
     }
 
     /**
@@ -246,14 +270,20 @@ public class DebtService {
      * convenio, sin mora o sin una campana que ofrezca descuento.
      */
     private BigDecimal descuentoDelDia(Debt deuda, List<Installment> pendientes, BigDecimal moraTotal) {
+        LocalDate hoy = LocalDate.now(CHILE);
+        return descuentoDelDia(deuda, pendientes, moraTotal, hoy, () -> charges.findByDebtOrderByDueDateAsc(deuda),
+                dias -> descuentos.porcentaje(deuda, dias, hoy));
+    }
+
+    private BigDecimal descuentoDelDia(Debt deuda, List<Installment> pendientes, BigDecimal moraTotal, LocalDate hoy,
+                                      Supplier<List<DebtCharge>> cargos, LongFunction<BigDecimal> porcentajePara) {
         if (deuda.getStatus() != Debt.Status.open || moraTotal.signum() <= 0 || deuda.getCampaign() == null
                 || deuda.getCampaign().getMoraDiscount() == null
                 || pendientes.stream().anyMatch(Installment::enConvenio)) {
             return BigDecimal.ZERO;
         }
-        LocalDate hoy = LocalDate.now(CHILE);
-        long dias = Intereses.diasDeMora(charges.findByDebtOrderByDueDateAsc(deuda), pendientes, hoy);
-        BigDecimal porcentaje = descuentos.porcentaje(deuda, dias, hoy);
+        long dias = Intereses.diasDeMora(cargos.get(), pendientes, hoy);
+        BigDecimal porcentaje = porcentajePara.apply(dias);
         if (porcentaje == null || porcentaje.signum() <= 0) {
             return BigDecimal.ZERO;
         }
@@ -262,9 +292,17 @@ public class DebtService {
 
     /** El descuento que tiene hoy la deuda, para mostrarlo antes de pagar. Null sin descuento. */
     private DebtSummaryResponse.Oferta oferta(Debt deuda, List<Installment> cuotas, BigDecimal moraTotal) {
+        LocalDate hoy = LocalDate.now(CHILE);
+        return oferta(deuda, cuotas, moraTotal, hoy, () -> charges.findByDebtOrderByDueDateAsc(deuda),
+                dias -> descuentos.porcentaje(deuda, dias, hoy));
+    }
+
+    private DebtSummaryResponse.Oferta oferta(Debt deuda, List<Installment> cuotas, BigDecimal moraTotal,
+                                              LocalDate hoy, Supplier<List<DebtCharge>> cargos,
+                                              LongFunction<BigDecimal> porcentajePara) {
         List<Installment> pendientes = cuotas.stream().filter(c -> c.getStatus() == Installment.Status.pending)
                 .toList();
-        BigDecimal descuento = descuentoDelDia(deuda, pendientes, moraTotal);
+        BigDecimal descuento = descuentoDelDia(deuda, pendientes, moraTotal, hoy, cargos, porcentajePara);
         return descuento.signum() > 0 ? new DebtSummaryResponse.Oferta(descuento, deuda.getCampaign().getEndsOn())
                 : null;
     }
@@ -343,10 +381,13 @@ public class DebtService {
      * que la agencia mide como "ingresos al portal" y, con codigo de acceso,
      * reemplaza al clic en el enlace que ya no existe.
      */
-    private void anotarIngreso(Debt deuda) {
-        Instant desdeHoy = LocalDate.now(CHILE).atStartOfDay(CHILE).toInstant();
-        if (!events.existsByDebtAndTypeAndOccurredAtAfter(deuda, DebtEvent.Type.portal_entered, desdeHoy)) {
-            events.save(DebtEvent.de(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor));
+    private void anotarIngresos(List<Debt> deudas, LocalDate hoy) {
+        var registrados = new HashSet<>(events.deudasConEventoDesde(deudas, DebtEvent.Type.portal_entered,
+                hoy.atStartOfDay(CHILE).toInstant()));
+        for (Debt deuda : deudas) {
+            if (!registrados.contains(deuda.getId())) {
+                events.save(DebtEvent.de(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor));
+            }
         }
     }
 

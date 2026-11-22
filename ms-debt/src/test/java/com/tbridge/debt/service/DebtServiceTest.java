@@ -138,6 +138,7 @@ class DebtServiceTest {
         when(installments.findById(any())).thenAnswer(llamada -> cuotas.stream()
                 .filter(c -> c.getId().equals(llamada.getArgument(0))).findFirst());
         when(installments.findByDebtOrderByNumberAsc(deuda)).thenReturn(cuotas);
+        when(installments.findByDebtInOrderByNumberAsc(any())).thenReturn(cuotas);
         when(installments.findByDebtAndStatus(eq(deuda), any())).thenAnswer(llamada -> cuotas.stream()
                 .filter(c -> c.getStatus() == llamada.getArgument(1)).toList());
         when(events.findByDebtOrderByOccurredAtAsc(deuda)).thenReturn(historia);
@@ -160,7 +161,7 @@ class DebtServiceTest {
 
     @Test
     void el_deudor_ve_su_deuda_con_el_saldo_de_las_cuotas() {
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         List<DebtSummaryResponse> suyas = servicio.listFor(deudor("18905214-6"));
 
@@ -193,7 +194,7 @@ class DebtServiceTest {
     void el_avance_cuenta_las_cuotas_vigentes_y_no_las_anuladas() {
         enConvenioDeTres();
         cuotas.get(1).setStatus(Installment.Status.paid);
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         DebtSummaryResponse resumen = servicio.listFor(deudor("18905214-6")).getFirst();
 
@@ -318,7 +319,7 @@ class DebtServiceTest {
         enConvenioDeTres();
         cuotas.get(1).setStatus(Installment.Status.paid);
         conUnMesAparte();
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         DebtSummaryResponse resumen = servicio.listFor(deudor("18905214-6")).getFirst();
 
@@ -374,7 +375,7 @@ class DebtServiceTest {
         sinInvitar.setLastBatch(deuda.getLastBatch());
         sinInvitar.setCurrency(Debt.Currency.CLP);
         sinInvitar.setOriginalAmount(new BigDecimal("100000"));
-        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda, sinInvitar));
+        when(debts.carteraParaListado(apofyx)).thenReturn(List.of(deuda, sinInvitar));
         //  La base responde solo por las deudas a las que se les escribio alguna vez.
         when(contactos.ultimoPorDeuda(List.of(deuda, sinInvitar)))
                 .thenReturn(List.of(new UltimoContacto(3L, el("2026-10-06T10:00"))));
@@ -528,6 +529,7 @@ class DebtServiceTest {
     @Test
     void repactar_anula_las_cuotas_pendientes_en_vez_de_borrarlas() {
         when(installments.findByDebtOrderByNumberAsc(deuda)).thenReturn(cuotas);
+        when(installments.findByDebtInOrderByNumberAsc(any())).thenReturn(cuotas);
         when(installments.save(any())).thenAnswer(llamada -> llamada.getArgument(0));
 
         servicio.applyRepact(deudor("18905214-6"), 3L, 3);
@@ -796,8 +798,8 @@ class DebtServiceTest {
     @Test
     void las_listas_traen_la_cae_en_una_sola_consulta() {
         enConvenioDeTres();
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
-        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
+        when(debts.carteraParaListado(apofyx)).thenReturn(List.of(deuda));
         when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
                 .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
 
