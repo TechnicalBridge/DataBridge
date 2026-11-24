@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cargarCartera, descargarPlantillaExcel, opcionesDeCarga, revisarCartera } from "../api/deudas";
 import { dinero, paraBuscar } from "../utils/formato";
 import { descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
+import { validarPlanilla } from "../utils/validarPlanilla";
 import FormCampana from "../components/FormCampana";
 import Cargando from "../components/Cargando";
 
@@ -33,9 +34,14 @@ export default function Cargar() {
   const [revision, setRevision] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [validando, setValidando] = useState(false);
+  const seleccion = useRef(0);
+  const archivoValidado = useRef(null);
+  const operacion = useRef(false);
   const [error, setError] = useState("");
   //  Los problemas de una planilla de Excel, cada uno con su hoja, fila y columna.
   const [detalles, setDetalles] = useState([]);
+  useEffect(() => () => { seleccion.current++; }, []);
 
   /** Las campañas de cada acreedor, y cuál queda elegida. */
   async function leerOpciones(elegir) {
@@ -72,12 +78,29 @@ export default function Cargar() {
     setDetalles(err.detalles || []);
   }
 
-  function elegirArchivo(nuevo) {
-    setArchivo(nuevo);
-    setLote(nuevo ? idDeCarga() : "");
+  async function elegirArchivo(nuevo) {
+    if (operacion.current) return;
+    const turno = ++seleccion.current;
+    archivoValidado.current = null;
+    setArchivo(null);
+    setLote("");
     setRevision(null);
+    setResultado(null);
     setError("");
     setDetalles([]);
+    setValidando(Boolean(nuevo));
+    if (!nuevo) return;
+    try {
+      await validarPlanilla(nuevo);
+      if (turno !== seleccion.current) return;
+      archivoValidado.current = nuevo;
+      setArchivo(nuevo);
+      setLote(idDeCarga());
+    } catch (err) {
+      if (turno === seleccion.current) fallo(err);
+    } finally {
+      if (turno === seleccion.current) setValidando(false);
+    }
   }
 
   async function plantilla() {
@@ -98,6 +121,8 @@ export default function Cargar() {
   }
 
   async function revisar() {
+    if (!archivo || archivo !== archivoValidado.current || validando || operacion.current) return;
+    operacion.current = true;
     setBusy(true);
     setError("");
     setDetalles([]);
@@ -107,11 +132,14 @@ export default function Cargar() {
     } catch (err) {
       fallo(err);
     } finally {
+      operacion.current = false;
       setBusy(false);
     }
   }
 
   async function confirmar() {
+    if (!revision || !archivo || archivo !== archivoValidado.current || validando || operacion.current) return;
+    operacion.current = true;
     setBusy(true);
     setError("");
     setDetalles([]);
@@ -121,6 +149,7 @@ export default function Cargar() {
     } catch (err) {
       fallo(err);
     } finally {
+      operacion.current = false;
       setBusy(false);
     }
   }
@@ -181,7 +210,7 @@ export default function Cargar() {
 
           {paso === 1 ? (
             <PasoPlanilla campana={laCampana} archivo={archivo} elegirArchivo={elegirArchivo}
-                          arrastrando={arrastrando} setArrastrando={setArrastrando} busy={busy}
+                          arrastrando={arrastrando} setArrastrando={setArrastrando} busy={busy} validando={validando}
                           onRevisar={revisar} onVolver={() => setPaso(0)} onPlantilla={plantilla} />
           ) : null}
 
@@ -302,7 +331,7 @@ function PasoCampana({
   );
 }
 
-function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastrando, busy, onRevisar, onVolver,
+function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastrando, busy, validando, onRevisar, onVolver,
   onPlantilla }) {
   return (
     <div
@@ -329,13 +358,23 @@ function PasoPlanilla({ campana, archivo, elegirArchivo, arrastrando, setArrastr
           : "Arrastra aquí la planilla de Excel (.xlsx), o elígela. También sirve el CSV del contrato."}
       </p>
       <div className="acciones-fila">
-        <label className="btn btn-ghost btn-sm">
+        <label className="btn btn-ghost btn-sm" role="button" tabIndex={busy ? -1 : 0} aria-disabled={busy}
+               onKeyDown={(e) => {
+                 if (!busy && (e.key === "Enter" || e.key === " ")) {
+                   e.preventDefault();
+                   e.currentTarget.control?.click();
+                 }
+               }}>
           Elegir archivo
-          <input type="file" hidden onChange={(e) => elegirArchivo(e.target.files?.[0] || null)}
+          <input type="file" hidden disabled={busy} onChange={(e) => {
+            const nuevo = e.target.files?.[0] || null;
+            e.target.value = "";
+            elegirArchivo(nuevo);
+          }}
                  accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
         </label>
-        <button type="button" className="btn btn-primary btn-sm" disabled={!archivo || busy} onClick={onRevisar}>
-          {busy ? <><span className="girando" /> Revisando…</> : "Revisar la planilla"}
+        <button type="button" className="btn btn-primary btn-sm" disabled={!archivo || busy || validando} onClick={onRevisar}>
+          {busy || validando ? <><span className="girando" /> Revisando…</> : "Revisar la planilla"}
         </button>
       </div>
       <p className="hint">Revisar no guarda nada ni le escribe a nadie.</p>
