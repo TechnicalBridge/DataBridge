@@ -15,7 +15,7 @@ limita al par directo: detrás del gateway el límite por origen será conservad
 Para distinguir clientes, configurar los saltos reales de la instalación y asegurar que el
 proxy de entrada sobrescriba X-Forwarded-For. No confiar en redes arbitrarias.
 
-Migraciones aditivas: ms-debt V16 y ms-auth V10. Desplegar primero ms-debt con el endpoint interno
+Migraciones aditivas: ms-debt V17 y ms-auth V12 (después de la V16 de ms-debt y las V10 y V11 de ms-auth de #486 y #505). Desplegar primero ms-debt con el endpoint interno
 de contacto y luego ms-auth. Nunca publicar `/internal` en el gateway. El código nuevo de
 ms-auth falla cerrado si ms-debt aún no soporta la comprobación; coordinar la ventana operativa.
 
