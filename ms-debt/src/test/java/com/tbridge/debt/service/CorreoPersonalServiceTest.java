@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,6 +52,95 @@ class CorreoPersonalServiceTest {
         assertEquals("CONSUMED",pending.status);
         verify(audit).save(argThat(e -> e.getDebtorId().equals(1L) && "EMAIL".equals(e.getField())));
         verify(notices).save(argThat(n -> n.oldEmail.equals("antes@correo.cl") && n.id.equals(pending.id)));
+    }
+    @Test void confirmationCreatesSevenDayReversionAndEightCharacterNoticeCode() {
+        request();
+        Instant antes = Instant.now();
+        service.confirmar(user,pending.id,code);
+
+        ArgumentCaptor<ContactReversion> reversa = ArgumentCaptor.forClass(ContactReversion.class);
+        ArgumentCaptor<ContactNotice> aviso = ArgumentCaptor.forClass(ContactNotice.class);
+        verify(reversions).save(reversa.capture());
+        verify(notices).save(aviso.capture());
+        ContactReversion guardada = reversa.getValue();
+        String codigo = aviso.getValue().revertCode;
+        assertEquals(8, codigo.length());
+        assertTrue(codigo.chars().allMatch(c -> "23456789ABCDEFGHJKMNPQRSTUVWXYZ".indexOf(c) >= 0));
+        assertNotEquals(codigo, guardada.codeHash);
+        assertEquals(hash.calcular("EMAIL_REVERT", guardada.id + ":" + guardada.rut + ":" + codigo), guardada.codeHash);
+        assertEquals("PENDING", guardada.status);
+        assertEquals("antes@correo.cl", guardada.previousEmail);
+        assertEquals(guardada.createdAt.plus(Duration.ofDays(7)), guardada.expiresAt);
+        assertEquals(codigo, aviso.getValue().revertCode);
+    }
+    @Test void deshacerRestauraCorreoInvalidaCodigosAuditaYRevocaSesiones() {
+        ContactReversion reversa = reversa("2345678A");
+        when(reversions.findByRutAndStatus(user.rut(), "PENDING")).thenReturn(java.util.List.of(reversa));
+
+        service.deshacer(user.rut(), "2345678A", "192.0.2.1");
+
+        assertEquals("antes@correo.cl", d.getEmail());
+        assertEquals("USED", reversa.status);
+        assertNull(reversa.previousEmail);
+        assertNotNull(reversa.usedAt);
+        verify(reversions).cancelarOtras(1L, reversa.id);
+        verify(changes).reemplazar(1L);
+        ArgumentCaptor<ContactUpdate> registro = ArgumentCaptor.forClass(ContactUpdate.class);
+        verify(audit).save(registro.capture());
+        assertEquals("CONTACT_REVERTED", org.springframework.test.util.ReflectionTestUtils.getField(registro.getValue(), "action"));
+        verify(auth).revocarSesionesDeDeudor(user.rut());
+        verify(debtors).save(d);
+    }
+    @Test void codigoErradoAumentaIntentosYUsaMensajeGenerico() {
+        ContactReversion reversa = reversa("2345678A");
+        when(reversions.findByRutAndStatus(user.rut(), "PENDING")).thenReturn(java.util.List.of(reversa));
+
+        ApiException fallo = assertThrows(ApiException.class, () -> service.deshacer(user.rut(), "ZZZZZZZZ", "origen"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, fallo.getStatus());
+        assertEquals(CorreoPersonalService.CODIGO_INVALIDO, fallo.getMessage());
+        assertEquals(1, reversa.attempts);
+        verifyNoInteractions(audit, auth);
+    }
+    @Test void vencidoYConCincoIntentosNoAceptaReversion() {
+        ContactReversion vencida = reversa("2345678A");
+        vencida.expiresAt = Instant.now().minusSeconds(1);
+        ContactReversion agotada = reversa("2345678B");
+        agotada.attempts = 5;
+        when(reversions.findByRutAndStatus(user.rut(), "PENDING")).thenReturn(java.util.List.of(vencida, agotada));
+
+        ApiException fallo = assertThrows(ApiException.class, () -> service.deshacer(user.rut(), "2345678A", "origen"));
+
+        assertEquals(CorreoPersonalService.CODIGO_INVALIDO, fallo.getMessage());
+        assertEquals(0, vencida.attempts);
+        assertEquals(5, agotada.attempts);
+        verifyNoInteractions(audit, auth);
+    }
+    @Test void rutInexistenteUsaElMismoMensajeGenerico() {
+        when(debtors.bloquearPorRut("11111111-1")).thenReturn(Optional.empty());
+        ApiException fallo = assertThrows(ApiException.class, () -> service.deshacer("11111111-1", "2345678A", "origen"));
+        assertEquals(HttpStatus.BAD_REQUEST, fallo.getStatus());
+        assertEquals(CorreoPersonalService.CODIGO_INVALIDO, fallo.getMessage());
+    }
+    @Test void falloDeMsAuthNoImpideDeshacerYSeAplicanAmbosLimites() {
+        ContactReversion reversa = reversa("2345678A");
+        when(reversions.findByRutAndStatus(user.rut(), "PENDING")).thenReturn(java.util.List.of(reversa));
+        doThrow(new RuntimeException("no disponible")).when(auth).revocarSesionesDeDeudor(user.rut());
+
+        assertDoesNotThrow(() -> service.deshacer(user.rut(), "2345678A", "192.0.2.1"));
+
+        verify(limits).tomar(anyString(), eq(10));
+        verify(limits).tomar(anyString(), eq(5));
+        assertEquals("antes@correo.cl", d.getEmail());
+        assertEquals("USED", reversa.status);
+    }
+    private ContactReversion reversa(String codigo) {
+        ContactReversion r = new ContactReversion();
+        r.id = "c3a62c70-5c77-4ff7-8986-aadd50f6d8f1";
+        r.debtorId = 1L; r.rut = user.rut(); r.previousEmail = "antes@correo.cl";
+        r.codeHash = hash.calcular("EMAIL_REVERT", r.id + ":" + r.rut + ":" + codigo);
+        r.expiresAt = Instant.now().plus(Duration.ofDays(7)); r.status = "PENDING"; r.createdAt = Instant.now();
+        return r;
     }
     @Test void wrongCodesPersistAttemptsAndExhaust() {
         request(); for(int i=0;i<5;i++) assertThrows(ApiException.class,()->service.confirmar(user,pending.id,"AAAAAA"));

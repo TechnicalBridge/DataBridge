@@ -3379,6 +3379,9 @@ y la bandeja privada `ContactNotice`, que no depende de suscripciones de acreedo
 `ContactoHuella` calcula HMAC con clave externa independiente. `ContactoOrigen` solo acepta
 cabeceras reenviadas desde proxies configurados explícitamente.
 
+`ContactReversion` guarda la reversión pendiente, el correo anterior cifrado y la huella del código;
+`DeshacerCorreoController` recibe el RUT y el código en el endpoint público sin sesión.
+
 ms-auth mantiene `MailService` como único dueño del transporte. `ContactoInternoController`
 separa verificación y avisos de los OTP de acceso. `ContactNoticeService` reclama el identificador
 de evento en persistencia antes del envío para impedir duplicados ante aceptación ambigua.

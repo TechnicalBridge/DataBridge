@@ -197,6 +197,14 @@ class AuthControllerTest {
     }
 
     @Test
+    void sesionTrasCambioDeCorreoSinCookieEs401() throws Exception {
+        mvc.perform(post("/api/auth/contacto/sesion"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("No hay una sesion que renovar"));
+        org.mockito.Mockito.verifyNoInteractions(auth);
+    }
+
+    @Test
     void si_otra_pestana_acaba_de_renovar_es_409_y_la_cookie_no_se_borra() throws Exception {
         when(auth.renovar(eq("llave-vieja"), any()))
                 .thenThrow(new ApiException(HttpStatus.CONFLICT, "La sesion se acaba de renovar en otra pestana. Reintenta."));
