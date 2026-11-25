@@ -14,7 +14,7 @@ public class ContactNoticeService {
     public ContactNoticeService(JdbcTemplate jdbc, PlatformTransactionManager manager, MailService mail) {
         this.jdbc=jdbc; this.tx=new TransactionTemplate(manager); this.mail=mail;
     }
-    public void enviar(String eventoId, String correo) {
+    public void enviar(String eventoId, String correo, String codigo) {
         Boolean reclamado = tx.execute(estadoTransaccion -> jdbc.update(
                 "INSERT IGNORE INTO contact_notice_receipts (event_id, state) VALUES (?, 'SENDING')", eventoId) == 1);
         if (!Boolean.TRUE.equals(reclamado)) {
@@ -23,7 +23,7 @@ public class ContactNoticeService {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Aviso pendiente de revisión de entrega");
         }
         // No reintentar una aceptacion SMTP ambigua: podria duplicar el aviso.
-        mail.enviarAvisoDeCambio(correo);
+        mail.enviarAvisoDeCambio(correo, codigo);
         tx.executeWithoutResult(estadoTransaccion -> jdbc.update("UPDATE contact_notice_receipts SET state = 'SENT' WHERE event_id = ?", eventoId));
     }
 }

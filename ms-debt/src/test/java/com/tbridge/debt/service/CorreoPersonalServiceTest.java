@@ -20,11 +20,12 @@ class CorreoPersonalServiceTest {
     EmailChangeRepository changes = mock(EmailChangeRepository.class);
     ContactUpdateRepository audit = mock(ContactUpdateRepository.class);
     ContactNoticeRepository notices = mock(ContactNoticeRepository.class);
+    ContactReversionRepository reversions = mock(ContactReversionRepository.class);
     ContactoRateLimit limits = mock(ContactoRateLimit.class);
     AuthClient auth = mock(AuthClient.class);
     MisDatosService datos = mock(MisDatosService.class);
     ContactoHuella hash = new ContactoHuella("test-key-generated-for-471-verification-only");
-    CorreoPersonalService service = new CorreoPersonalService(debtors,changes,audit,notices,limits,hash,auth,datos);
+    CorreoPersonalService service = new CorreoPersonalService(debtors,changes,audit,notices,reversions,limits,hash,auth,datos);
     JwtPrincipal user = new JwtPrincipal("16482337-7",null,"DEBTOR",null,"16482337-7");
     Debtor d; EmailChange pending; String code;
     @BeforeEach void setup() {

@@ -78,12 +78,18 @@ public class AuthClient {
     }
 
     private record Verificacion(String correo, String codigo) {}
-    private record Aviso(String eventoId, String correo) {}
+    private record Aviso(String eventoId, String correo, String codigo) {}
+    private record Sesiones(String rut) {}
     public void verificarCorreo(String correo, String codigo) {
         enviarContacto("/internal/contacto/verificacion", new Verificacion(correo, codigo));
     }
-    public void avisarCambio(String eventoId, String correo) {
-        enviarContacto("/internal/contacto/aviso", new Aviso(eventoId, correo));
+    /** El aviso al correo anterior, con el codigo para deshacer el cambio (#471). */
+    public void avisarCambio(String eventoId, String correo, String codigoParaDeshacer) {
+        enviarContacto("/internal/contacto/aviso", new Aviso(eventoId, correo, codigoParaDeshacer));
+    }
+    /** Cierra todas las sesiones del deudor en ms-auth, cuando deshace un cambio que no pidio (#471). */
+    public void revocarSesionesDeDeudor(String rut) {
+        enviarContacto("/internal/contacto/sesiones", new Sesiones(rut));
     }
     private void enviarContacto(String ruta, Object solicitud) {
         try {

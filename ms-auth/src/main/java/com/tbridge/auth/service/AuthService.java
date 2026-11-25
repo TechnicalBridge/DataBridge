@@ -26,6 +26,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -415,6 +416,35 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "La empresa está suspendida");
         }
         return new Sesion(jwtDePersonal(staff), UsuarioResponse.personal(staff), renovada.llave());
+    }
+
+    /** Cuanto despues de confirmar el correo nuevo se puede pedir la sesion nueva: el portal la pide al tiro. */
+    static final Duration TRAS_EL_CAMBIO = Duration.ofMinutes(10);
+
+    /**
+     * Despues de que el deudor confirma su correo nuevo (#471): este navegador recibe una sesion nueva y todas
+     * las otras del deudor se cierran al tiro, tambien la familia de esta llave. Quien tiene esta llave acaba de
+     * probar con un codigo que el correo nuevo es suyo.
+     *
+     * <p>Solo sirve si el cambio es de los ultimos diez minutos y posterior al inicio de esta sesion: una llave
+     * de antes del cambio no puede usarlo para quedarse. Los JWT que ya tengan otros navegadores duran a lo mas
+     * quince minutos, como al cerrar sesion (#428).
+     */
+    public Sesion sesionTrasCambioDeCorreo(String llave, String ip) {
+        SessionService.Vigente vigente = sesiones.vigente(llave);
+        if (vigente.role() != Session.Role.DEBTOR) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo un deudor cambia su correo");
+        }
+        Instant cambio = deudas.fechaCambioCorreo(vigente.rut());
+        Instant inicio = sesiones.inicioDeFamilia(vigente.familia());
+        if (cambio == null || inicio == null || !cambio.isAfter(inicio)
+                || cambio.isBefore(Instant.now().minus(TRAS_EL_CAMBIO))) {
+            throw new ApiException(HttpStatus.CONFLICT, "No hay un cambio de correo reciente en esta sesión");
+        }
+        sesiones.revocarDeDeudor(vigente.rut());
+        String ipHash = ip == null ? null : Hash.sha256(ip);
+        SessionService.Llave nueva = sesiones.abrir(Session.Role.DEBTOR, vigente.rut(), null, ipHash);
+        return new Sesion(jwtDeDeudor(vigente.rut()), UsuarioResponse.deudor(vigente.rut()), nueva);
     }
 
     /**

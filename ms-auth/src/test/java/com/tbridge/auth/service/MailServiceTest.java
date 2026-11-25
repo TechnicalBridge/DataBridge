@@ -714,10 +714,12 @@ class MailServiceTest {
         assertFalse(e.getMessage().contains("nuevo@correo.cl")); assertFalse(e.getMessage().contains("K7M2QX"));
     }
     @Test void aviso_no_incluye_datos_financieros_ni_credenciales() {
-        real("", "").enviarAvisoDeCambio("anterior@correo.cl");
+        real("", "").enviarAvisoDeCambio("anterior@correo.cl", "R7M2QXR4");
         Enviado e=enviado();
-        assertTrue(e.texto().contains("Si no solicitaste"));
-        for(String sensitive : new String[]{"K7M2QX", "RUT", "monto", "acreedor", "nuevo@correo.cl"})
+        //  Trae como deshacerlo (#471), sin el codigo de verificacion, el correo nuevo ni datos de la deuda.
+        assertTrue(e.texto().contains("R7M2QXR4"));
+        assertTrue(e.texto().contains("¿Te cambiaron el correo?"));
+        for(String sensitive : new String[]{"K7M2QX", "16.482.337", "16482337", "monto", "acreedor", "nuevo@correo.cl"})
             assertFalse(e.texto().contains(sensitive));
     }
 
@@ -727,7 +729,7 @@ class MailServiceTest {
         assertTrue(enviado().texto().contains("K7M2QX"));
     }
     @Test void aviso_respeta_desvio_de_pruebas() {
-        real("@permitido.cl", "equipo@gmail.com").enviarAvisoDeCambio("anterior@correo.cl");
+        real("@permitido.cl", "equipo@gmail.com").enviarAvisoDeCambio("anterior@correo.cl", "R7M2QXR4");
         assertEquals("equipo@gmail.com", enviado().para().getFirst());
     }
 

@@ -23,6 +23,11 @@ public class ContactUpdate {
     public ContactUpdate(Long idDeudor, String campo, Instant ocurrioEn) {
         this.debtorId = idDeudor; this.field = campo; this.occurredAt = ocurrioEn;
     }
+    /** Con otra accion que la de siempre, por ejemplo CONTACT_REVERTED al deshacer un cambio (#471). */
+    public ContactUpdate(Long idDeudor, String campo, String accion, Instant ocurrioEn) {
+        this(idDeudor, campo, ocurrioEn);
+        this.action = accion;
+    }
     public Long getDebtorId() { return debtorId; }
     public String getField() { return field; }
     public String getActor() { return actor; }

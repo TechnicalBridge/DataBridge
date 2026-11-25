@@ -19,3 +19,6 @@ export const yo = () => pedir("/me").then((data) => data.user);
 
 /** Cerrar la sesion en el servidor: revoca la llave de renovacion. */
 export const cerrarSesion = () => pedir("/auth/logout", { method: "POST" });
+
+/** Despues de confirmar un correo nuevo (#471): sesion nueva aqui, y las otras se cierran. */
+export const sesionTrasCambioDeCorreo = () => pedir("/auth/contacto/sesion", { method: "POST" });

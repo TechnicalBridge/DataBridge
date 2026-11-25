@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { cambiarRecordatorios, misDatos, cambiarTelefono, solicitarCambioCorreo, confirmarCambioCorreo, cancelarCambioCorreo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
+import { sesionTrasCambioDeCorreo } from "../api/sesion";
+import { setSessionToken } from "../api/client";
 import Cargando from "../components/Cargando";
 
 /**
@@ -64,7 +66,14 @@ export default function MisDatos() {
     operar(async () => {
       setDatos(await confirmarCambioCorreo(pendiente.solicitudId, codigo));
       limpiarContacto();
-      setMensaje("Tu correo fue actualizado. Usa el nuevo correo para volver a entrar cuando termine esta sesión.");
+      // Sesion nueva en este navegador y las otras cerradas (#471). Si no se puede, el correo igual cambio.
+      try {
+        const nueva = await sesionTrasCambioDeCorreo();
+        setSessionToken(nueva.token);
+        setMensaje("Tu correo fue actualizado. Cerramos tus otras sesiones; aquí sigues adentro.");
+      } catch {
+        setMensaje("Tu correo fue actualizado. Usa el nuevo correo para volver a entrar cuando termine esta sesión.");
+      }
     });
   }
 

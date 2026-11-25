@@ -7,6 +7,10 @@ export const listarDeudas = () => pedir("/debts").then((data) => embebidos(data,
 /** Una deuda con sus cargos, cuotas e historia. */
 export const obtenerDeuda = (id) => pedir(`/debts/${id}`);
 
+/** Sin sesion (#471): con el RUT y el codigo que llego al correo anterior. */
+export const deshacerCambioDeCorreo = (rut, codigo) =>
+  pedir("/debts/publico/correo/deshacer", { method: "POST", body: { rut, codigo } });
+
 /** El plan que resultaria con ese plazo. No compromete nada. */
 export const simularPlan = (id, meses) =>
   pedir(`/debts/${id}/simulate`, { params: { months: meses } }).then((data) => data.plan);

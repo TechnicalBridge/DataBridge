@@ -344,9 +344,10 @@ public class MailService {
         }
     }
 
-    private Optional<String> entregarAvisoPrivado(String correo) {
+    private Optional<String> entregarAvisoPrivado(String correo, String codigo) {
         String asunto = "Se modificó tu correo de contacto en DataBridge";
-        var datosPlantilla = escribir("aviso-cambio-correo", Map.of());
+        //  El codigo para deshacer el cambio (#471), sin RUT, deuda, monto ni la direccion nueva.
+        var datosPlantilla = escribir("aviso-cambio-correo", Map.of("codigo", codigo, "portal", portal));
         Optional<ModoDePrueba.Destino> destino;
         if (!alBuzonDePrueba && DominiosReservados.es(correo)) {
             if (buzonDeReservados != null) {
@@ -360,11 +361,11 @@ public class MailService {
         return Optional.of(destino.get().a());
     }
 
-    public void enviarAvisoDeCambio(String correo) {
+    public void enviarAvisoDeCambio(String correo, String codigo) {
         if (!conServidor) throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
                 "El correo no está disponible");
         try {
-            if (entregarAvisoPrivado(correo).isEmpty())
+            if (entregarAvisoPrivado(correo, codigo).isEmpty())
                 throw new IllegalStateException();
         } catch (RuntimeException fallo) {
             throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,

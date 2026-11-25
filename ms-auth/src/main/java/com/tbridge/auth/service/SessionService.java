@@ -142,6 +142,30 @@ public class SessionService {
     @Transactional(readOnly = true)
     public Instant inicioDeFamilia(String family) { return sesiones.inicioDeFamilia(family); }
 
+    /** Lo que se sabe de una llave vigente, sin gastarla ni rotarla. */
+    public record Vigente(Session.Role role, String rut, String familia) {}
+
+    /** La llave tiene que estar viva: ni revocada, ni ya cambiada por otra, ni vencida. */
+    @Transactional(readOnly = true)
+    public Vigente vigente(String valor) {
+        Session actual = sesiones.findByRefreshHash(huella(valor)).orElseThrow(SessionService::invalida);
+        if (actual.revocada() || actual.rotada() || actual.vencida(reloj.instant())) {
+            throw invalida();
+        }
+        return new Vigente(actual.getRole(), actual.getRut(), actual.getFamilyId());
+    }
+
+    /**
+     * Cierra todas las sesiones de un deudor, en todos sus navegadores (#471). Su JWT vigente dura a lo mas quince
+     * minutos (#428), y despues ya no tiene con que renovarlo.
+     *
+     * @return cuantas llaves se revocaron.
+     */
+    @Transactional
+    public int revocarDeDeudor(String rut) {
+        return sesiones.revocarDeDeudor(rut, Session.Role.DEBTOR, reloj.instant());
+    }
+
     private Llave emitir(String familia, Session.Role role, String rut, String email,
                          Instant venceEn, String ipHash) {
         //  256 bits al azar: adivinarla no es un problema de intentos por

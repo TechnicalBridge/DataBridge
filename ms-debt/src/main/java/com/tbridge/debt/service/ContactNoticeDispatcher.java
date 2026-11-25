@@ -18,9 +18,10 @@ public class ContactNoticeDispatcher {
     public void enviar() {
         for (var aviso : avisos.findTop20ByDeliveredAtIsNullAndAttemptsLessThanAndNextAttemptAtBeforeOrderByNextAttemptAtAsc(7, Instant.now())) {
             try {
-                acceso.avisarCambio(aviso.id, aviso.oldEmail);
+                acceso.avisarCambio(aviso.id, aviso.oldEmail, aviso.revertCode);
                 aviso.deliveredAt = Instant.now();
                 aviso.oldEmail = null;
+                aviso.revertCode = null;
             } catch (RuntimeException fallo) {
                 aviso.attempts++;
                 aviso.nextAttemptAt = Instant.now().plusSeconds(60L * (1L << aviso.attempts));

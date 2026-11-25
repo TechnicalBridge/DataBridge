@@ -124,12 +124,13 @@ class AuthClientTest {
         servidor.start();
         AuthClient auth=new AuthClient("http://127.0.0.1:"+servidor.getAddress().getPort(),"clave-interna");
         auth.verificarCorreo("nuevo@correo.cl","K7M2QX");
-        auth.avisarCambio("00000000-0000-0000-0000-000000000471","anterior@correo.cl");
+        auth.avisarCambio("00000000-0000-0000-0000-000000000471","anterior@correo.cl","R7M2QXR4");
         String verification=received.remove(),notice=received.remove();
         assertTrue(verification.startsWith("/internal/contacto/verificacion|clave-interna|"));
         assertTrue(verification.contains("\"codigo\":\"K7M2QX\""));
         assertTrue(notice.startsWith("/internal/contacto/aviso|clave-interna|"));
         assertTrue(notice.contains("\"eventoId\""));assertFalse(notice.contains("K7M2QX"));
+        assertTrue(notice.contains("\"codigo\":\"R7M2QXR4\""));
     }
     @Test void fallo_de_contacto_no_expone_cuerpo_remoto() throws IOException {
         servidor=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);

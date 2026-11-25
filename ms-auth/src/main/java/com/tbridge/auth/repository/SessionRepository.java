@@ -44,4 +44,13 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Query("update Session s set s.revokedAt = :ahora "
             + "where lower(s.email) = lower(:correo) and s.revokedAt is null")
     int revocarDeCorreo(@Param("correo") String correo, @Param("ahora") Instant ahora);
+
+    /**
+     * Revoca todas las llaves vivas de un deudor, de todas sus familias (#471): cuando cambia su correo o cuando
+     * deshace un cambio que no pidio.
+     */
+    @Modifying
+    @Query("update Session s set s.revokedAt = :ahora "
+            + "where s.rut = :rut and s.role = :rol and s.revokedAt is null")
+    int revocarDeDeudor(@Param("rut") String rut, @Param("rol") Session.Role rol, @Param("ahora") Instant ahora);
 }

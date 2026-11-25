@@ -39,6 +39,9 @@ export default function Login({ portal }) {
       <section className="auth-panel">
         <div className="auth-card">
           <ConCodigo key={portal || "DEUDOR"} esDeudor={esDeudor} esAdmin={esAdmin} />
+          {esDeudor ? (
+            <p className="hint centro"><Link to="/deshacer-correo">¿Te cambiaron el correo sin pedirlo?</Link></p>
+          ) : null}
         </div>
       </section>
     </div>

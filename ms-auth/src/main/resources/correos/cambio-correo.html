@@ -1,1 +1,30 @@
-<html lang="es"><body><h1>Confirma tu nuevo correo en DataBridge</h1><p>Tu código para confirmar el cambio de correo:</p><p><strong th:text="${codigo}"></strong></p><p>Vence en 15 minutos. No es un código de acceso. No lo compartas.</p><p>Si no lo solicitaste, ignora este mensaje.</p></body></html>
+<!DOCTYPE html>
+<!--/*
+  El codigo para confirmar un correo nuevo (#471). No es un codigo de acceso y no trae enlace: el cambio se
+  guarda recien cuando el deudor lo escribe en Mis datos.
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta('Confirma tu correo nuevo', 'Tu código para confirmar el cambio de correo, válido por 15 minutos.', ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Para confirmar que este correo es tuyo, escribe este código en <strong class="tinta" style="color:#2e2a24;">Mis datos</strong>:
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0;">
+    <tr>
+      <td class="caja" align="center" bgcolor="#e4efe2" style="background-color:#e4efe2;border-radius:12px;padding:20px 12px;">
+        <span class="codigo" style="font-family:ui-monospace,'Cascadia Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:7px;color:#2f6140;"
+              th:text="${codigo}">K7M2QX</span>
+      </td>
+    </tr>
+  </table>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Vence en 15 minutos y sirve una sola vez. No es un código de acceso. Si no pediste este cambio, ignora este
+    correo: no se cambia nada.
+  </p>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">
+  Te llegó porque alguien escribió esta dirección como el correo nuevo de un acceso a DataBridge.
+</p>
+</body>
+</html>
