@@ -2,7 +2,7 @@ package com.tbridge.debt.model;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-/** Durable private outbox, independent of creditor webhook subscriptions. */
+/** Bandeja privada y duradera, independiente de las suscripciones de webhooks de acreedores. */
 @Entity @Table(name = "contact_notices")
 public class ContactNotice {
     @Id @Column(length = 36) public String id;

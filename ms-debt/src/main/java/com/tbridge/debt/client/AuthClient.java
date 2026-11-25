@@ -85,11 +85,11 @@ public class AuthClient {
     public void avisarCambio(String eventoId, String correo) {
         enviarContacto("/internal/contacto/aviso", new Aviso(eventoId, correo));
     }
-    private void enviarContacto(String path, Object body) {
+    private void enviarContacto(String ruta, Object solicitud) {
         try {
-            contactoRest.post().uri(path).header("X-Internal-Key", internalKey).body(body).retrieve().toBodilessEntity();
-        } catch (RestClientException failed) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "El servicio de correo no esta disponible");
+            contactoRest.post().uri(ruta).header("X-Internal-Key", internalKey).body(solicitud).retrieve().toBodilessEntity();
+        } catch (RestClientException fallo) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "El servicio de correo no está disponible");
         }
     }
 

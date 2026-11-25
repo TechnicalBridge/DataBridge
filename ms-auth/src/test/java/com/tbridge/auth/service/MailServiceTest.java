@@ -682,7 +682,7 @@ class MailServiceTest {
         real("@correo.cl", "").enviarVerificacionDeCorreo("nuevo@correo.cl", "K7M2QX");
         Enviado e = enviado();
         assertTrue(e.texto().contains("K7M2QX"));
-        assertTrue(e.texto().contains("No es un codigo de acceso"));
+        assertTrue(e.texto().contains("No es un código de acceso"));
         assertFalse(e.texto().contains("/magic"));
         assertFalse(e.texto().contains("acreedor"));
     }

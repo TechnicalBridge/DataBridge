@@ -24,19 +24,19 @@ public class CorreoPersonalController {
         this.service=service; this.origen=origen;
     }
     @PostMapping("/verificacion")
-    @Operation(summary="Verificar un correo nuevo", description="Solo DEBTOR autenticado, identidad del JWT. No cambia el correo vigente. Codigo separado de acceso: 15 minutos, 5 intentos, un solo uso. Sustituye solicitudes anteriores. Limites compartidos por 15 minutos: 3/deudor y 10/origen. 400 direccion invalida o actual; 429 limite; 503 envio bloqueado, redirigido o sin configurar.")
-    public CorreoPersonalService.Pendiente solicitar(@AuthenticationPrincipal JwtPrincipal user,
-            @Valid @RequestBody Solicitud body, HttpServletRequest request) {
-        return service.solicitar(user, body.correo(), origen.de(request));
+    @Operation(summary="Verificar un correo nuevo", description="Solo DEBTOR autenticado, identidad del JWT. No cambia el correo vigente. Código separado de acceso: 15 minutos, 5 intentos, un solo uso. Sustituye solicitudes anteriores. Límites compartidos por 15 minutos: 3/deudor y 10/origen. 400 dirección inválida o actual; 429 límite; 503 envío bloqueado, redirigido o sin configurar.")
+    public CorreoPersonalService.Pendiente solicitar(@AuthenticationPrincipal JwtPrincipal deudor,
+            @Valid @RequestBody Solicitud solicitud, HttpServletRequest peticion) {
+        return service.solicitar(deudor, solicitud.correo(), origen.de(peticion));
     }
     @PostMapping("/confirmacion")
-    @Operation(summary="Confirmar el cambio de correo", description="Solo el propietario autenticado. 400 codigo incorrecto; 409 solicitud sustituida/consumida; 410 vencido; 429 intentos agotados. Respuesta con contactos enmascarados.")
-    public MisDatosResponse confirmar(@AuthenticationPrincipal JwtPrincipal user, @Valid @RequestBody Confirmacion body) {
-        return service.confirmar(user, body.solicitudId(), body.codigo());
+    @Operation(summary="Confirmar el cambio de correo", description="Solo el propietario autenticado. 400 código incorrecto; 409 solicitud sustituida/consumida; 410 vencido; 429 intentos agotados. Respuesta con contactos enmascarados.")
+    public MisDatosResponse confirmar(@AuthenticationPrincipal JwtPrincipal deudor, @Valid @RequestBody Confirmacion solicitud) {
+        return service.confirmar(deudor, solicitud.solicitudId(), solicitud.codigo());
     }
     @PostMapping("/cancelacion")
-    @Operation(summary="Cancelar la verificacion propia")
-    public void cancelar(@AuthenticationPrincipal JwtPrincipal user, @Valid @RequestBody Cancelacion body) {
-        service.cancelar(user, body.solicitudId());
+    @Operation(summary="Cancelar la verificación propia")
+    public void cancelar(@AuthenticationPrincipal JwtPrincipal deudor, @Valid @RequestBody Cancelacion solicitud) {
+        service.cancelar(deudor, solicitud.solicitudId());
     }
 }

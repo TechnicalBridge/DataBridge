@@ -91,32 +91,32 @@ public class DeudasClient {
 
     public record Contacto(String correo, java.time.Instant emailUpdatedAt) {}
 
-    /** Live, fail-closed cutoff check; independent of delivery of change notices. */
-    public void exigirCredencialVigente(String rut, java.time.Instant issuedAt) {
-        Contacto current = contacto(rut);
-        if (current.emailUpdatedAt() != null && (issuedAt == null || !issuedAt.isAfter(current.emailUpdatedAt())))
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un codigo nuevo.");
+    /** Comprueba en linea el corte de credenciales, aunque no se hayan entregado los avisos. */
+    public void exigirCredencialVigente(String rut, java.time.Instant emitidoEn) {
+        Contacto contactoActual = contacto(rut);
+        if (contactoActual.emailUpdatedAt() != null && (emitidoEn == null || !emitidoEn.isAfter(contactoActual.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un código nuevo.");
     }
     public java.time.Instant fechaCambioCorreo(String rut) { return contacto(rut).emailUpdatedAt(); }
-    public void exigirCredencialVigente(String rut, java.time.Instant issuedAt, java.time.Instant version) {
-        Contacto current=contacto(rut);
-        if (!java.util.Objects.equals(current.emailUpdatedAt(), version)
-                || current.emailUpdatedAt()!=null && (issuedAt==null || !issuedAt.isAfter(current.emailUpdatedAt())))
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un codigo nuevo.");
+    public void exigirCredencialVigente(String rut, java.time.Instant emitidoEn, java.time.Instant versionContacto) {
+        Contacto contactoActual=contacto(rut);
+        if (!java.util.Objects.equals(contactoActual.emailUpdatedAt(), versionContacto)
+                || contactoActual.emailUpdatedAt()!=null && (emitidoEn==null || !emitidoEn.isAfter(contactoActual.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un código nuevo.");
     }
-    public void exigirDestinoVigente(String rut, String email) {
-        Contacto current = contacto(rut);
-        if (current.correo() == null || !current.correo().equalsIgnoreCase(email))
-            throw new ApiException(HttpStatus.CONFLICT, "El destino de acceso ya no esta vigente");
+    public void exigirDestinoVigente(String rut, String correo) {
+        Contacto contactoActual = contacto(rut);
+        if (contactoActual.correo() == null || !contactoActual.correo().equalsIgnoreCase(correo))
+            throw new ApiException(HttpStatus.CONFLICT, "El destino de acceso ya no está vigente");
     }
     private Contacto contacto(String rut) {
         try {
-            Contacto current = rest.get().uri("/internal/deudores/{rut}/contacto", rut)
+            Contacto contactoActual = rest.get().uri("/internal/deudores/{rut}/contacto", rut)
                     .header("X-Internal-Key", internalKey).retrieve().body(Contacto.class);
-            if (current == null) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso");
-            return current;
-        } catch (RestClientException failed) {
-            // No bodies, URLs, causes or addresses in security errors.
+            if (contactoActual == null) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso");
+            return contactoActual;
+        } catch (RestClientException fallo) {
+            // No incluir cuerpos, URL, causas ni direcciones en errores de seguridad.
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso. Reintenta.");
         }
     }

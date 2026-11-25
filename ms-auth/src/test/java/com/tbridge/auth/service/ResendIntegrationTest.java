@@ -237,7 +237,7 @@ class ResendIntegrationTest {
             MailService mail=app.getBean(MailService.class);
             mail.enviarVerificacionDeCorreo(DESTINO,"K7M2QX");
             JsonNode verification=cartaRecibida();
-            assertThat(verification.path("text").asText()).contains("K7M2QX", "No es un codigo de acceso");
+            assertThat(verification.path("text").asText()).contains("K7M2QX", "No es un código de acceso");
             assertThat(verification.path("to").get(0).asText()).isEqualTo(DESTINO);
             mail.enviarAvisoDeCambio(DESTINO);
             JsonNode notice=cartaRecibida();

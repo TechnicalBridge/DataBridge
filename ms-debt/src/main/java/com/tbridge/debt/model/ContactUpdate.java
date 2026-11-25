@@ -3,7 +3,7 @@ package com.tbridge.debt.model;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-/** Audit contains identifiers and field names, never contact values. */
+/** La auditoria conserva identificadores y campos, nunca los valores de contacto. */
 @Entity
 @Table(name = "contact_updates")
 public class ContactUpdate {
@@ -20,8 +20,8 @@ public class ContactUpdate {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
     protected ContactUpdate() {}
-    public ContactUpdate(Long debtorId, String field, Instant at) {
-        this.debtorId = debtorId; this.field = field; this.occurredAt = at;
+    public ContactUpdate(Long idDeudor, String campo, Instant ocurrioEn) {
+        this.debtorId = idDeudor; this.field = campo; this.occurredAt = ocurrioEn;
     }
     public Long getDebtorId() { return debtorId; }
     public String getField() { return field; }

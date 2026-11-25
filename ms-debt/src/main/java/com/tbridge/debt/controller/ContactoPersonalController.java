@@ -16,9 +16,9 @@ public class ContactoPersonalController {
     private final ContactoPersonalService contacto;
     public ContactoPersonalController(ContactoPersonalService contacto) { this.contacto = contacto; }
     @PatchMapping("/telefono")
-    @Operation(summary = "Cambiar el telefono propio", description = "Solo DEBTOR autenticado. Normaliza moviles y fijos chilenos a E.164; devuelve el numero enmascarado. 400 formato invalido; 401 sin sesion; 403 rol no permitido.")
-    public MisDatosResponse telefono(@AuthenticationPrincipal JwtPrincipal user,
-                                     @Valid @RequestBody TelefonoRequest body) {
-        return contacto.telefono(user, body.telefono());
+    @Operation(summary = "Cambiar el teléfono propio", description = "Solo DEBTOR autenticado. Normaliza móviles y fijos chilenos a E.164; devuelve el número enmascarado. 400 formato inválido; 401 sin sesión; 403 rol no permitido.")
+    public MisDatosResponse telefono(@AuthenticationPrincipal JwtPrincipal deudor,
+                                     @Valid @RequestBody TelefonoRequest solicitud) {
+        return contacto.telefono(deudor, solicitud.telefono());
     }
 }

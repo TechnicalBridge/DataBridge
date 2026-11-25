@@ -8,23 +8,23 @@ import java.time.Instant;
 
 @Service
 public class ContactNoticeDispatcher {
-    private final ContactNoticeRepository notices;
-    private final AuthClient auth;
-    public ContactNoticeDispatcher(ContactNoticeRepository notices, AuthClient auth) {
-        this.notices = notices; this.auth = auth;
+    private final ContactNoticeRepository avisos;
+    private final AuthClient acceso;
+    public ContactNoticeDispatcher(ContactNoticeRepository avisos, AuthClient acceso) {
+        this.avisos = avisos; this.acceso = acceso;
     }
     @Scheduled(fixedDelayString = "${app.contact-notices.interval-ms:30000}")
     @Transactional
     public void enviar() {
-        for (var notice : notices.findTop20ByDeliveredAtIsNullAndAttemptsLessThanAndNextAttemptAtBeforeOrderByNextAttemptAtAsc(7, Instant.now())) {
+        for (var aviso : avisos.findTop20ByDeliveredAtIsNullAndAttemptsLessThanAndNextAttemptAtBeforeOrderByNextAttemptAtAsc(7, Instant.now())) {
             try {
-                auth.avisarCambio(notice.id, notice.oldEmail);
-                notice.deliveredAt = Instant.now();
-                notice.oldEmail = null;
-            } catch (RuntimeException failed) {
-                notice.attempts++;
-                notice.nextAttemptAt = Instant.now().plusSeconds(60L * (1L << notice.attempts));
-                // No raw exceptions or contact data in logs or persisted errors.
+                acceso.avisarCambio(aviso.id, aviso.oldEmail);
+                aviso.deliveredAt = Instant.now();
+                aviso.oldEmail = null;
+            } catch (RuntimeException fallo) {
+                aviso.attempts++;
+                aviso.nextAttemptAt = Instant.now().plusSeconds(60L * (1L << aviso.attempts));
+                // No guardar excepciones ni datos de contacto en registros o errores persistidos.
             }
         }
     }

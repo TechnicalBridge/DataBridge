@@ -4,15 +4,15 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/** Only explicitly configured gateway/proxy peers can supply forwarding headers. */
+/** Solo pares configurados de gateway o proxy pueden aportar cabeceras reenviadas. */
 @Component
 public class ContactoOrigen {
     private final Pattern confiables;
-    public ContactoOrigen(@Value("${app.contact-trusted-proxies:}") String trusted) {
-        this.confiables=Pattern.compile(trusted);
+    public ContactoOrigen(@Value("${app.contact-trusted-proxies:}") String paresConfiables) {
+        this.confiables=Pattern.compile(paresConfiables);
     }
-    public String de(HttpServletRequest request) {
-        return resolver(request.getRemoteAddr(), request.getHeader("X-Forwarded-For"));
+    public String de(HttpServletRequest peticion) {
+        return resolver(peticion.getRemoteAddr(), peticion.getHeader("X-Forwarded-For"));
     }
     /** La regla sola, sin la peticion alrededor: es lo que prueban las pruebas. */
     String resolver(String par, String reenviadoPor) {

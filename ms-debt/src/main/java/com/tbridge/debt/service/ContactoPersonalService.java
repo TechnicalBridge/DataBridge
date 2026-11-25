@@ -15,39 +15,39 @@ import java.util.Objects;
 
 @Service
 public class ContactoPersonalService {
-    private final DebtorRepository debtors;
-    private final ContactUpdateRepository audit;
+    private final DebtorRepository deudores;
+    private final ContactUpdateRepository bitacora;
     private final MisDatosService datos;
-    public ContactoPersonalService(DebtorRepository debtors, ContactUpdateRepository audit, MisDatosService datos) {
-        this.debtors = debtors; this.audit = audit; this.datos = datos;
+    public ContactoPersonalService(DebtorRepository deudores, ContactUpdateRepository bitacora, MisDatosService datos) {
+        this.deudores = deudores; this.bitacora = bitacora; this.datos = datos;
     }
-    static void exigirDeudor(JwtPrincipal user) {
-        if (user == null || !user.isDebtor() || user.rut() == null || user.rut().isBlank())
+    static void exigirDeudor(JwtPrincipal deudor) {
+        if (deudor == null || !deudor.isDebtor() || deudor.rut() == null || deudor.rut().isBlank())
             throw new ApiException(HttpStatus.FORBIDDEN, "Estos datos son del deudor");
     }
     @Transactional
-    public MisDatosResponse telefono(JwtPrincipal user, String phone) {
-        exigirDeudor(user);
-        String normal = normalizarTelefono(phone);
-        Debtor d = debtors.bloquearPorRut(user.rut()).orElseThrow(() ->
+    public MisDatosResponse telefono(JwtPrincipal deudor, String telefono) {
+        exigirDeudor(deudor);
+        String telefonoNormalizado = normalizarTelefono(telefono);
+        Debtor d = deudores.bloquearPorRut(deudor.rut()).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "No hay datos a tu nombre"));
-        String actual;
-        try { actual = normalizarTelefono(d.getPhone()); }
-        catch (ApiException invalid) { actual = d.getPhone(); }
-        if (!Objects.equals(actual, normal)) {
-            Instant now = Instant.now();
-            d.actualizarTelefono(normal, now);
-            debtors.save(d);
-            audit.save(new ContactUpdate(d.getId(), "PHONE", now));
+        String telefonoActual;
+        try { telefonoActual = normalizarTelefono(d.getPhone()); }
+        catch (ApiException invalido) { telefonoActual = d.getPhone(); }
+        if (!Objects.equals(telefonoActual, telefonoNormalizado)) {
+            Instant ahora = Instant.now();
+            d.actualizarTelefono(telefonoNormalizado, ahora);
+            deudores.save(d);
+            bitacora.save(new ContactUpdate(d.getId(), "PHONE", ahora));
         }
-        return datos.ver(user);
+        return datos.ver(deudor);
     }
-    static String normalizarTelefono(String value) {
-        String phone = value == null ? "" : value.strip().replaceAll("[ ()-]", "");
-        if (phone.matches("[2-9][0-9]{8}")) phone = "+56" + phone;
-        else if (phone.matches("56[2-9][0-9]{8}")) phone = "+" + phone;
-        if (!phone.matches("\\+56[2-9][0-9]{8}"))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Escribe un telefono chileno de nueve digitos, con +56");
-        return phone;
+    static String normalizarTelefono(String telefono) {
+        String telefonoLimpio = telefono == null ? "" : telefono.strip().replaceAll("[ ()-]", "");
+        if (telefonoLimpio.matches("[2-9][0-9]{8}")) telefonoLimpio = "+56" + telefonoLimpio;
+        else if (telefonoLimpio.matches("56[2-9][0-9]{8}")) telefonoLimpio = "+" + telefonoLimpio;
+        if (!telefonoLimpio.matches("\\+56[2-9][0-9]{8}"))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Escribe un teléfono chileno de nueve dígitos, con +56");
+        return telefonoLimpio;
     }
 }

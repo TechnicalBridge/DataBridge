@@ -20,89 +20,89 @@ import java.util.UUID;
 public class CorreoPersonalService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-    private final DebtorRepository debtors;
-    private final EmailChangeRepository changes;
-    private final ContactUpdateRepository audit;
-    private final ContactNoticeRepository notices;
-    private final ContactoRateLimit limits;
-    private final ContactoHuella hash;
-    private final AuthClient auth;
+    private final DebtorRepository deudores;
+    private final EmailChangeRepository solicitudesCorreo;
+    private final ContactUpdateRepository bitacora;
+    private final ContactNoticeRepository avisos;
+    private final ContactoRateLimit limites;
+    private final ContactoHuella huella;
+    private final AuthClient acceso;
     private final MisDatosService datos;
     public record Pendiente(String solicitudId, Instant expiraEn) {}
-    public CorreoPersonalService(DebtorRepository debtors, EmailChangeRepository changes,
-            ContactUpdateRepository audit, ContactNoticeRepository notices, ContactoRateLimit limits,
-            ContactoHuella hash, AuthClient auth, MisDatosService datos) {
-        this.debtors=debtors; this.changes=changes; this.audit=audit; this.notices=notices;
-        this.limits=limits; this.hash=hash; this.auth=auth; this.datos=datos;
+    public CorreoPersonalService(DebtorRepository deudores, EmailChangeRepository solicitudesCorreo,
+            ContactUpdateRepository bitacora, ContactNoticeRepository avisos, ContactoRateLimit limites,
+            ContactoHuella huella, AuthClient acceso, MisDatosService datos) {
+        this.deudores=deudores; this.solicitudesCorreo=solicitudesCorreo; this.bitacora=bitacora; this.avisos=avisos;
+        this.limites=limites; this.huella=huella; this.acceso=acceso; this.datos=datos;
     }
-    private Debtor bloquear(JwtPrincipal user) {
-        ContactoPersonalService.exigirDeudor(user);
-        return debtors.bloquearPorRut(user.rut()).orElseThrow(() ->
+    private Debtor bloquear(JwtPrincipal deudor) {
+        ContactoPersonalService.exigirDeudor(deudor);
+        return deudores.bloquearPorRut(deudor.rut()).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "No hay datos a tu nombre"));
     }
     @Transactional(noRollbackFor = ApiException.class)
-    public Pendiente solicitar(JwtPrincipal user, String email, String origin) {
-        ContactoPersonalService.exigirDeudor(user);
-        String normalized = Correo.normalizar(email).orElseThrow(() ->
-                error(HttpStatus.BAD_REQUEST, "Escribe un correo valido")).toLowerCase(Locale.ROOT);
-        String originKey = hash.calcular("EMAIL_CHANGE_ORIGIN", origin == null ? "unknown" : origin);
-        // Same lock order across instances: origin bucket, debtor bucket, debtor.
-        limits.tomar(originKey, 10);
-        limits.tomar(hash.calcular("EMAIL_CHANGE_DEBTOR", user.rut()), 3);
-        Debtor d = bloquear(user);
-        if (normalized.equalsIgnoreCase(d.getEmail()))
+    public Pendiente solicitar(JwtPrincipal deudor, String correo, String origen) {
+        ContactoPersonalService.exigirDeudor(deudor);
+        String correoNormalizado = Correo.normalizar(correo).orElseThrow(() ->
+                error(HttpStatus.BAD_REQUEST, "Escribe un correo válido")).toLowerCase(Locale.ROOT);
+        String huellaOrigen = huella.calcular("EMAIL_CHANGE_ORIGIN", origen == null ? "unknown" : origen);
+        // Mismo orden de bloqueos en todas las instancias: origen, deudor y ficha.
+        limites.tomar(huellaOrigen, 10);
+        limites.tomar(huella.calcular("EMAIL_CHANGE_DEBTOR", deudor.rut()), 3);
+        Debtor d = bloquear(deudor);
+        if (correoNormalizado.equalsIgnoreCase(d.getEmail()))
             throw error(HttpStatus.BAD_REQUEST, "Ese ya es tu correo vigente");
-        changes.reemplazar(d.getId());
+        solicitudesCorreo.reemplazar(d.getId());
         EmailChange e = new EmailChange();
-        e.id=UUID.randomUUID().toString(); e.debtorId=d.getId(); e.rut=d.getRut(); e.newEmail=normalized;
+        e.id=UUID.randomUUID().toString(); e.debtorId=d.getId(); e.rut=d.getRut(); e.newEmail=correoNormalizado;
         e.issuedAt=Instant.now(); e.expiresAt=e.issuedAt.plusSeconds(900); e.status="PENDING";
-        StringBuilder code = new StringBuilder();
-        for (int i=0;i<6;i++) code.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
-        e.codeHash=hash.calcular("EMAIL_CHANGE_VERIFICATION", e.id + ":" + d.getRut() + ":" + e.newEmail + ":" + code);
-        changes.saveAndFlush(e);
-        try { auth.verificarCorreo(normalized, code.toString()); }
-        catch (RuntimeException failed) {
+        StringBuilder codigo = new StringBuilder();
+        for (int i=0;i<6;i++) codigo.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
+        e.codeHash=huella.calcular("EMAIL_CHANGE_VERIFICATION", e.id + ":" + d.getRut() + ":" + e.newEmail + ":" + codigo);
+        solicitudesCorreo.saveAndFlush(e);
+        try { acceso.verificarCorreo(correoNormalizado, codigo.toString()); }
+        catch (RuntimeException fallo) {
             e.status="FAILED";
             throw error(HttpStatus.SERVICE_UNAVAILABLE,
-                    "No se pudo enviar la verificacion al destino propuesto. Revisa la disponibilidad del correo.");
+                    "No se pudo enviar la verificación al destino propuesto. Revisa la disponibilidad del correo.");
         }
         return new Pendiente(e.id, e.expiresAt);
     }
     @Transactional(noRollbackFor = ApiException.class)
-    public MisDatosResponse confirmar(JwtPrincipal user, String id, String code) {
-        Debtor d = bloquear(user);
-        EmailChange e = changes.findByIdAndDebtorId(id, d.getId()).orElseThrow(() ->
-                error(HttpStatus.BAD_REQUEST, "La solicitud no esta disponible"));
+    public MisDatosResponse confirmar(JwtPrincipal deudor, String solicitudId, String codigo) {
+        Debtor d = bloquear(deudor);
+        EmailChange e = solicitudesCorreo.findByIdAndDebtorId(solicitudId, d.getId()).orElseThrow(() ->
+                error(HttpStatus.BAD_REQUEST, "La solicitud no está disponible"));
         if (!d.getRut().equals(e.rut) || !"PENDING".equals(e.status))
             throw error(HttpStatus.CONFLICT, "La solicitud fue sustituida, cancelada o ya utilizada");
         if (!Instant.now().isBefore(e.expiresAt))
-            throw error(HttpStatus.GONE, "El codigo vencio. Solicita otro.");
-        if (e.attempts >= 5) throw error(HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos. Solicita otro codigo.");
-        String normalized = code == null ? "" : code.strip().toUpperCase(Locale.ROOT);
-        String expected = hash.calcular("EMAIL_CHANGE_VERIFICATION", e.id + ":" + d.getRut() + ":" + e.newEmail + ":" + normalized);
-        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), e.codeHash.getBytes(StandardCharsets.US_ASCII))) {
+            throw error(HttpStatus.GONE, "El código venció. Solicita otro.");
+        if (e.attempts >= 5) throw error(HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos. Solicita otro código.");
+        String codigoNormalizado = codigo == null ? "" : codigo.strip().toUpperCase(Locale.ROOT);
+        String huellaEsperada = huella.calcular("EMAIL_CHANGE_VERIFICATION", e.id + ":" + d.getRut() + ":" + e.newEmail + ":" + codigoNormalizado);
+        if (!MessageDigest.isEqual(huellaEsperada.getBytes(StandardCharsets.US_ASCII), e.codeHash.getBytes(StandardCharsets.US_ASCII))) {
             e.attempts++;
             throw error(e.attempts >= 5 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
-                    e.attempts >= 5 ? "Demasiados intentos. Solicita otro codigo." : "El codigo es incorrecto");
+                    e.attempts >= 5 ? "Demasiados intentos. Solicita otro código." : "El código es incorrecto");
         }
-        Instant now = Instant.now();
-        String old = d.getEmail();
-        d.actualizarCorreo(e.newEmail, now);
+        Instant ahora = Instant.now();
+        String correoAnterior = d.getEmail();
+        d.actualizarCorreo(e.newEmail, ahora);
         e.status="CONSUMED";
-        audit.save(new ContactUpdate(d.getId(), "EMAIL", now));
-        if (old != null && !old.isBlank()) {
-            ContactNotice notice = new ContactNotice();
-            notice.id=e.id; notice.oldEmail=old; notice.nextAttemptAt=now;
-            notices.save(notice);
+        bitacora.save(new ContactUpdate(d.getId(), "EMAIL", ahora));
+        if (correoAnterior != null && !correoAnterior.isBlank()) {
+            ContactNotice aviso = new ContactNotice();
+            aviso.id=e.id; aviso.oldEmail=correoAnterior; aviso.nextAttemptAt=ahora;
+            avisos.save(aviso);
         }
-        debtors.save(d);
-        return datos.ver(user);
+        deudores.save(d);
+        return datos.ver(deudor);
     }
     @Transactional
-    public void cancelar(JwtPrincipal user, String id) {
-        Debtor d = bloquear(user);
-        changes.findByIdAndDebtorId(id, d.getId()).filter(e -> "PENDING".equals(e.status))
+    public void cancelar(JwtPrincipal deudor, String solicitudId) {
+        Debtor d = bloquear(deudor);
+        solicitudesCorreo.findByIdAndDebtorId(solicitudId, d.getId()).filter(e -> "PENDING".equals(e.status))
                 .ifPresent(e -> e.status="CANCELLED");
     }
-    private static ApiException error(HttpStatus status, String message) { return new ApiException(status, message); }
+    private static ApiException error(HttpStatus estado, String mensaje) { return new ApiException(estado, mensaje); }
 }

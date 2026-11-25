@@ -10,17 +10,17 @@ import java.util.HexFormat;
 
 @Component
 public class ContactoHuella {
-    private final String key;
-    public ContactoHuella(@Value("${app.contact-verification-key:}") String key) { this.key = key; }
-    public String calcular(String purpose, String value) {
-        if (key.length() < 32) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                "La verificacion de correo no esta configurada");
+    private final String llave;
+    public ContactoHuella(@Value("${app.contact-verification-key:}") String llave) { this.llave = llave; }
+    public String calcular(String proposito, String valor) {
+        if (llave.length() < 32) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                "La verificación de correo no está configurada");
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal((purpose + ":" + value).getBytes(StandardCharsets.UTF_8)));
+            mac.init(new SecretKeySpec(llave.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal((proposito + ":" + valor).getBytes(StandardCharsets.UTF_8)));
         } catch (java.security.GeneralSecurityException ex) {
-            throw new IllegalStateException("No se pudo preparar la verificacion");
+            throw new IllegalStateException("No se pudo preparar la verificación");
         }
     }
 }

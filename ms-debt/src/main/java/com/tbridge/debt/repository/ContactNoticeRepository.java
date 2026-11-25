@@ -6,5 +6,5 @@ import java.time.Instant;
 import java.util.List;
 public interface ContactNoticeRepository extends JpaRepository<ContactNotice, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<ContactNotice> findTop20ByDeliveredAtIsNullAndAttemptsLessThanAndNextAttemptAtBeforeOrderByNextAttemptAtAsc(int attempts, Instant now);
+    List<ContactNotice> findTop20ByDeliveredAtIsNullAndAttemptsLessThanAndNextAttemptAtBeforeOrderByNextAttemptAtAsc(int intentos, Instant ahora);
 }

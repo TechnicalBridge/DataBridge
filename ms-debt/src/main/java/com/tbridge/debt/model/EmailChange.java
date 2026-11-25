@@ -2,7 +2,7 @@ package com.tbridge.debt.model;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-/** Pending ownership challenge; codes are HMACs, addresses encrypted at rest. */
+/** Desafio de propiedad pendiente; los codigos son HMAC y las direcciones quedan cifradas en reposo. */
 @Entity @Table(name = "email_changes")
 public class EmailChange {
     @Id @Column(length = 36) public String id;

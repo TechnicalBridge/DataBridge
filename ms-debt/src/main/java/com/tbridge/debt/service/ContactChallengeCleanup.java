@@ -14,6 +14,6 @@ public class ContactChallengeCleanup {
     public void limpiar() {
         jdbc.update("DELETE FROM contact_rate_limits WHERE window_id < ?", Instant.now().getEpochSecond()/900-96);
         jdbc.update("DELETE FROM email_changes WHERE expires_at < ?", Timestamp.from(Instant.now().minusSeconds(86400)));
-        // Keep failed notices available for operations; successful notices hold no address.
+        // Mantener disponibles los avisos fallidos; los entregados ya no conservan la direccion.
     }
 }
