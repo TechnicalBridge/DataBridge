@@ -10,5 +10,7 @@ public interface DebtChargeRepository extends JpaRepository<DebtCharge, Long> {
 
     List<DebtCharge> findByDebtOrderByDueDateAsc(Debt debt);
 
+    List<DebtCharge> findByDebtInOrderByDueDateAsc(List<Debt> debts);
+
     void deleteByDebt(Debt debt);
 }
