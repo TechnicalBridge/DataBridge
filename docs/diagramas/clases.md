@@ -1667,6 +1667,13 @@ classDiagram
             +pasar() void
             +contactar(LocalDateTime, String) ContactosResponse
         }
+        class PasadasDeContacto {
+            <<component>>
+            +empezo() void
+            +termino(ContactosResponse) void
+            +fallo(Throwable) void
+            +estado() ContactoEstadoResponse
+        }
         class RecordatorioService {
             <<service>>
             +programado() void
@@ -1833,6 +1840,9 @@ classDiagram
     ContactoService --> LimiteDeContacto
     ContactoService --> InvitacionService
     ContactoService --> HorarioDeContacto
+    ContactoService --> PasadasDeContacto
+    PasadasDeContacto --> HorarioDeContacto
+    PasadasDeContacto --> LimiteDeContacto
     ContactoService ..> CorreoNoSalio
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
@@ -1859,6 +1869,7 @@ classDiagram
 | `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
 | `TopeDeInvitaciones` | `service` | Cuántas invitaciones salen cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`): una carga grande no las manda todas juntas, y lo que pasa del tope sale en las pasadas siguientes (#236). |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
+| `PasadasDeContacto` | `service` | La última pasada de contacto, en memoria: lo que hizo o con qué error se cayó, la próxima y si se detuvo, para el panel (#441). |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |

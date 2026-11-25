@@ -2,6 +2,7 @@ package com.tbridge.auth.controller;
 
 import com.tbridge.auth.config.OpenApiConfig;
 import com.tbridge.auth.dto.request.NuevaPersonaRequest;
+import com.tbridge.auth.dto.request.CorregirPersonaRequest;
 import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
 import com.tbridge.auth.dto.response.AccionResponse;
@@ -40,6 +41,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -213,6 +215,15 @@ public class AdminController {
     public EntityModel<PersonaResponse> habilitar(
             @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin, @PathVariable Long id) {
         return conEnlaces(personal.habilitar(id, admin), admin);
+    }
+
+    @PatchMapping("/personal/{id}")
+    @Operation(summary = "Corregir nombre o correo sin cambiar rol ni empresa",
+            description = "Si cambia el correo se revocan las sesiones y los enlaces y códigos pendientes del anterior.")
+    public EntityModel<PersonaResponse> corregirPersona(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable Long id, @Valid @RequestBody CorregirPersonaRequest pedido) {
+        return conEnlaces(personal.corregir(id, pedido, admin), admin);
     }
 
     // ------------------------------------------------------------------

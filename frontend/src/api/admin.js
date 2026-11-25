@@ -22,6 +22,8 @@ export const estadoDe = (tramo) => pedir(`/admin/${tramo}/estado`);
 export const resumenDeDeudas = () => pedir("/admin/debt/resumen");
 export const resumenDePagos = () => pedir("/admin/payments/resumen");
 export const campanasAdmin = () => pedir("/admin/debt/campanas");
+/** La ultima pasada de contacto, la proxima, si se detuvo y si la ley esta activa (#441). */
+export const estadoDelContacto = () => pedir("/admin/debt/contacto/estado");
 
 /** Las reglas que rigen en un servicio, agrupadas, y de que variable sale cada una. */
 export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
@@ -32,6 +34,9 @@ export const reglasDe = (tramo) => pedir(`/admin/${tramo}/reglas`);
 export const listarEmpresas = () => pedir("/admin/debt/empresas").then((data) => embebidos(data, "empresas"));
 
 export const obtenerEmpresa = (rut) => pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}`);
+
+export const corregirEmpresa = (rut, datos) =>
+  pedir(`/admin/debt/empresas/${encodeURIComponent(rut)}`, { method: "PATCH", body: datos });
 
 /** Dar de alta una empresa usuaria: una agencia, o un acreedor que cobra directo. */
 export const crearEmpresa = (empresa) => pedir("/admin/debt/empresas", { method: "POST", body: empresa });
@@ -61,6 +66,9 @@ export const crearAdmin = (persona) => pedir("/admin/auth/admins", { method: "PO
 export const quitarAcceso = (id) => pedir(`/admin/auth/personal/${id}/deshabilitar`, { method: "POST" });
 
 export const devolverAcceso = (id) => pedir(`/admin/auth/personal/${id}/habilitar`, { method: "POST" });
+
+export const corregirPersona = (id, datos) =>
+  pedir(`/admin/auth/personal/${id}`, { method: "PATCH", body: datos });
 
 // ---- Lo que se hizo, y quien -----------------------------------------------------
 

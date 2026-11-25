@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { resumenDeCartera } from "../api/analitica";
 import { listarEnRiesgo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
@@ -23,7 +24,7 @@ const DEUDOR = [
 ];
 
 const EMPRESA = [
-  { to: "/databridge", label: "Cartera", corto: "Cartera", Icono: IconoCartera, end: true },
+  { to: "/databridge", label: "Cartera", corto: "Cartera", Icono: IconoCartera, end: true, reclamos: true },
   { to: "/databridge/pagos", label: "Pagos recibidos", corto: "Pagos", Icono: IconoRecibo },
   { to: "/databridge/en-riesgo", label: "Convenios en riesgo", corto: "En riesgo", Icono: IconoAlerta, riesgo: true },
   { to: "/databridge/cargar", label: "Cargar cartera", corto: "Cargar", Icono: IconoSubir },
@@ -141,6 +142,8 @@ export default function Layout({ variant }) {
   const conCuenta = variant !== "debtor";
   const { links, marca, sub, enLaBarra } = PORTALES[variant] || PORTALES.debtor;
   const [enRiesgo, setEnRiesgo] = useState(0);
+  //  Los reclamos que esperan respuesta: van como numero al lado de Cartera (#474).
+  const [enRevision, setEnRevision] = useState(0);
   //  En el computador, el asistente abierto toma una columna y la pagina se angosta: no tapa nada (#303).
   const conAsistente = useAsistente((s) => s.abierto) && variant === "debtor";
 
@@ -148,6 +151,15 @@ export default function Layout({ variant }) {
   useEffect(() => {
     if (!esEmpresa) return;
     listarEnRiesgo().then((c) => setEnRiesgo(c.length)).catch(() => setEnRiesgo(0));
+  }, [esEmpresa]);
+
+  useEffect(() => {
+    if (!esEmpresa) return undefined;
+    const contar = () => resumenDeCartera().then((r) => setEnRevision(r.enRevision || 0)).catch(() => setEnRevision(0));
+    contar();
+    //  La cartera avisa cuando se responde un reclamo, y el numero se pone al dia.
+    window.addEventListener("cartera-cambio", contar);
+    return () => window.removeEventListener("cartera-cambio", contar);
   }, [esEmpresa]);
 
   return (
@@ -162,13 +174,18 @@ export default function Layout({ variant }) {
         </div>
         {/* El asistente se abre desde arriba, no con una burbuja que tape la pagina (#303). */}
         {variant === "debtor" ? <BotonAsistente conTexto /> : null}
-        {links.map(({ to, label, end, Icono, aparte, riesgo }) => (
+        {links.map(({ to, label, end, Icono, aparte, riesgo, reclamos }) => (
           <div key={to}>
             {aparte ? <div className="nav-separador" /> : null}
             <NavLink to={to} end={end} className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
               <Icono />
               {label}
               {riesgo && enRiesgo > 0 ? <span className="cuenta" aria-label={`${enRiesgo} en riesgo`}>{enRiesgo}</span> : null}
+              {reclamos && enRevision > 0 ? (
+                <span className="cuenta" aria-label={`${enRevision} ${enRevision === 1 ? "reclamo espera" : "reclamos esperan"} tu respuesta`}>
+                  {enRevision}
+                </span>
+              ) : null}
             </NavLink>
           </div>
         ))}
