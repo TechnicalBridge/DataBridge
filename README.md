@@ -262,6 +262,11 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 | **gateway** | **54** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
 | **Total suite Java** | **1.512 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
 
+> **ms-ai en #336:** `.\mvnw.cmd -f ms-ai\pom.xml clean test` ejecuta 227 pruebas
+> en esta rama, incluidas integración, seguridad y latencia HTTP con ms-debt y LLM
+> simulados. El cuadro conserva la medición histórica de las cinco suites sobre
+> `main`; el procedimiento y los tipos están en [docs/pruebas/README.md](docs/pruebas/README.md).
+
 > **Nota sobre el portal:** El frontend no posee suite de pruebas unitarias automatizadas (`.test.jsx`); su verificación se realiza en CI mediante compilación estricta (`npm ci` y `npm run build`), control de tipos y revisión manual en navegador. Para detalles adicionales sobre ejecución y cobertura de pruebas, consultar [docs/pruebas/README.md](docs/pruebas/README.md).
 
 ---
