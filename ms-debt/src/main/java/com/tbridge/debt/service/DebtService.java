@@ -400,21 +400,30 @@ public class DebtService {
      * las de su cartera; el deudor, solo las propias.
      */
     public Debt requireVisible(JwtPrincipal user, Long id) {
-        Debt deuda = debts.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         if (user == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesion invalida");
         }
+        Organization org = user.isCreditor() ? organizacionDe(user) : null;
+        if (!user.isCreditor() && (user.rut() == null || user.rut().isBlank())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+        }
+        Debtor deudor = user.isCreditor() ? null
+                : debtors.findByRut(user.rut()).orElseThrow(DebtService::deudaNoVisible);
+        Debt deuda = debts.findById(id).orElseThrow(DebtService::deudaNoVisible);
         if (user.isCreditor()) {
-            if (!opera(organizacionDe(user), deuda)) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Esa deuda no es de tu cartera");
+            if (!opera(org, deuda)) {
+                throw deudaNoVisible();
             }
             return deuda;
         }
-        if (!deuda.getDebtor().getId().equals(deudorDe(user).getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        if (!deuda.getDebtor().getId().equals(deudor.getId())) {
+            throw deudaNoVisible();
         }
         return deuda;
+    }
+
+    private static ApiException deudaNoVisible() {
+        return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
     }
 
     /** La misma regla que {@code DebtRepository.carteraDe}, para una deuda suelta. */
@@ -561,6 +570,20 @@ public class DebtService {
     public DebtSnapshotResponse snapshotInterno(Long debtId, List<Long> installmentIds) {
         Debt deuda = debts.findById(debtId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
+        return snapshot(deuda, installmentIds, false);
+    }
+
+    /** Autoriza al dueño antes de consultar saldo, estados o cuotas. */
+    public DebtSnapshotResponse snapshotCheckout(Long debtId, List<Long> installmentIds, String debtorRut) {
+        Debt deuda = debts.findById(debtId).orElse(null);
+        if (debtorRut == null || debtorRut.isBlank() || deuda == null
+                || !debtorRut.equalsIgnoreCase(deuda.getDebtor().getRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        }
+        return snapshot(deuda, installmentIds, true);
+    }
+
+    private DebtSnapshotResponse snapshot(Debt deuda, List<Long> installmentIds, boolean checkout) {
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
             throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
@@ -583,7 +606,7 @@ public class DebtService {
                     .collect(Collectors.toMap(Installment::getId, Function.identity()));
             for (Long id : installmentIds) {
                 if (!pendientePorId.containsKey(id)) {
-                    throw cuotaQueNoSePuedePagar(deuda, id);
+                    throw cuotaQueNoSePuedePagar(deuda, id, checkout);
                 }
             }
             aPagar = pendientes.subList(0, pedidas.size());
@@ -612,8 +635,11 @@ public class DebtService {
     }
 
     /** Por que una cuota pedida no esta entre las que se pueden pagar. */
-    private ApiException cuotaQueNoSePuedePagar(Debt deuda, Long id) {
+    private ApiException cuotaQueNoSePuedePagar(Debt deuda, Long id, boolean checkout) {
         Installment cuota = installments.findById(id).orElse(null);
+        if (checkout && (cuota == null || !cuota.getDebt().getId().equals(deuda.getId()))) {
+            return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        }
         if (cuota == null) {
             return new ApiException(HttpStatus.NOT_FOUND, "Cuota no encontrada");
         }

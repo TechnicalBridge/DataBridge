@@ -172,15 +172,15 @@ public class PaymentService {
         //  Solo se paga lo propio, y lo propio se decide por RUT: es lo unico
         //  que trae la sesion de un deudor, que entra con su codigo, sin
         //  cuenta ni correo.
-        if (user == null || user.rut() == null) {
+        if (user == null || !user.isDebtor() || user.rut() == null || user.rut().isBlank()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "La sesion no identifica al deudor");
         }
         Payment.Gateway gateway = pasarela(pedido.gateway());
 
         //  El monto y a quien se le debe salen de ms-debt, no del cuerpo.
-        DebtClient.DebtSnapshot deuda = deudas.obtener(pedido.debtId(), pedido.installmentIds());
+        DebtClient.DebtSnapshot deuda = deudas.obtenerParaCheckout(pedido.debtId(), pedido.installmentIds(), user.rut());
         if (!user.rut().equalsIgnoreCase(deuda.debtorRut())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Esa deuda no es tuya");
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
         }
         //  Un pago a la vez por deuda: si no, el deudor puede pagar dos veces
         //  las mismas cuotas.
@@ -361,9 +361,9 @@ public class PaymentService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Solo el deudor cancela su pago");
         }
         Payment pago = payments.paraCerrar(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
+                .orElseThrow(PaymentService::pagoNoVisible);
         if (!mismo(user.rut(), pago.getDebtorRut())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Ese pago no es tuyo");
+            throw pagoNoVisible();
         }
         if (pago.getStatus() != Payment.Status.created) {
             return respuesta(pago);
@@ -544,9 +544,9 @@ public class PaymentService {
         if (user == null || !user.isCreditor() || user.rut() == null) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
         }
-        Payment pago = buscar(id);
+        Payment pago = buscarPrivado(id);
         if (!deudas.cartera(user.rut()).contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Este pago no es de tu cartera");
+            throw pagoNoVisible();
         }
         if (pago.getStatus() == Payment.Status.refunded) {
             return conSuDevolucion(pago);
@@ -634,11 +634,11 @@ public class PaymentService {
     }
 
     private Payment visible(JwtPrincipal user, Long id) {
-        Payment pago = buscar(id);
+        Payment pago = buscarPrivado(id);
         String suyo = user == null ? null
                 : user.isCreditor() ? pago.getCreditorRut() : pago.getDebtorRut();
         if (!mismo(user == null ? null : user.rut(), suyo)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver este pago");
+            throw pagoNoVisible();
         }
         return pago;
     }
@@ -1458,6 +1458,14 @@ public class PaymentService {
     // ------------------------------------------------------------------
     //  Auxiliares
     // ------------------------------------------------------------------
+
+    private static ApiException pagoNoVisible() {
+        return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver este pago");
+    }
+
+    private Payment buscarPrivado(Long id) {
+        return payments.findById(id).orElseThrow(PaymentService::pagoNoVisible);
+    }
 
     private Payment buscar(Long id) {
         return payments.findById(id)

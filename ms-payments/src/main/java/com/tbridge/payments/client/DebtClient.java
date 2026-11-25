@@ -81,10 +81,26 @@ public class DebtClient {
      * escrito para el deudor.
      */
     public DebtSnapshot obtener(Long debtId, List<Long> installmentIds) {
+        return consultar(debtId, installmentIds, null);
+    }
+
+    /** RUT de la sesión: ms-debt autoriza antes de calcular o validar cuotas. */
+    public DebtSnapshot obtenerParaCheckout(Long debtId, List<Long> installmentIds, String debtorRut) {
+        if (debtorRut == null || debtorRut.isBlank()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        }
+        return consultar(debtId, installmentIds, debtorRut);
+    }
+
+    private DebtSnapshot consultar(Long debtId, List<Long> installmentIds, String debtorRut) {
+        boolean checkout = debtorRut != null;
         try {
             DebtSnapshot deuda = rest.get()
                     .uri(uri -> {
-                        uri.path("/internal/debts/{id}");
+                        uri.path(checkout ? "/internal/debts/{id}/checkout" : "/internal/debts/{id}");
+                        if (checkout) {
+                            uri.queryParam("debtorRut", debtorRut);
+                        }
                         if (installmentIds != null && !installmentIds.isEmpty()) {
                             uri.queryParam("installmentIds", installmentIds.toArray());
                         }
@@ -94,10 +110,20 @@ public class DebtClient {
                     .retrieve()
                     .body(DebtSnapshot.class);
             if (deuda == null) {
-                throw new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada");
+                throw new ApiException(checkout ? HttpStatus.FORBIDDEN : HttpStatus.NOT_FOUND,
+                        checkout ? "No puedes ver esta deuda" : "Deuda no encontrada");
             }
             return deuda;
+        } catch (HttpClientErrorException.Forbidden e) {
+            if (checkout) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+            }
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo consultar la deuda: el cobro no se inicia a ciegas");
         } catch (HttpClientErrorException.NotFound e) {
+            if (checkout) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+            }
             throw new ApiException(HttpStatus.NOT_FOUND, textoDe(e, "Deuda no encontrada"));
         } catch (HttpClientErrorException.Conflict e) {
             throw new ApiException(HttpStatus.CONFLICT, textoDe(e, "Esa deuda no tiene saldo por pagar"));

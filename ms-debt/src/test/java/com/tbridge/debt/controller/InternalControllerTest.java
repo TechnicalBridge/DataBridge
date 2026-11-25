@@ -55,6 +55,19 @@ class InternalControllerTest {
     @MockitoBean private EmpresaService empresas;
 
     @Test
+    void checkout_exige_clave_y_transmite_la_identidad_verificada() throws Exception {
+        mvc.perform(get("/internal/debts/3/checkout").param("debtorRut", "18905214-6"))
+                .andExpect(status().isUnauthorized());
+        verify(debts, never()).snapshotCheckout(any(), any(), any());
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE)
+                .param("debtorRut", "18905214-6").param("installmentIds", "12", "13"))
+                .andExpect(status().isOk());
+        verify(debts).snapshotCheckout(3L, List.of(12L, 13L), "18905214-6");
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void ms_auth_pregunta_si_una_empresa_existe_antes_de_darle_una_persona() throws Exception {
         when(empresas.buscar("77305118-6")).thenReturn(Optional.of(new OrganizacionResponse("77305118-6", "APOFYX", true)));
         when(empresas.buscar("76086428-5")).thenReturn(Optional.empty());
