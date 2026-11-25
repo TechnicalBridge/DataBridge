@@ -2,6 +2,7 @@ package com.tbridge.auth.service;
 
 import com.tbridge.auth.client.DeudasClient;
 import com.tbridge.auth.dto.request.NuevaPersonaRequest;
+import com.tbridge.auth.dto.request.CorregirPersonaRequest;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.model.AdminLog;
@@ -114,6 +115,48 @@ class PersonalServiceTest {
 
     private HttpStatus estado(Runnable accion) {
         return assertThrows(ApiException.class, accion::run).getStatus();
+    }
+
+    @Test
+    void corregir_correo_revoca_sesiones_y_enlaces_incluidos_codigos_y_audita_ambos_valores() {
+        StaffUser persona = yaExiste("viejo@empresa.cl", StaffUser.Role.usuario, EMPRESA);
+        PersonaResponse actualizada = servicio.corregir(persona.getId(),
+                new CorregirPersonaRequest("Nuevo Nombre", " Nuevo@Empresa.cl "), ADMIN);
+
+        assertEquals("nuevo@empresa.cl", actualizada.correo());
+        assertEquals("Nuevo Nombre", actualizada.nombre());
+        assertEquals(EMPRESA, actualizada.empresaRut());
+        verify(enlacesRepo).anularPendientesDe(eq("viejo@empresa.cl"), any());
+        verify(sesiones).revocarDe("viejo@empresa.cl");
+        assertEquals(AdminLog.Action.persona_corregida, anotado.getFirst().getAction());
+        assertTrue(anotado.getFirst().getPreviousValues().contains("\"correo\":\"viejo@empresa.cl\""));
+        assertTrue(anotado.getFirst().getNewValues().contains("\"correo\":\"nuevo@empresa.cl\""));
+        assertTrue(anotado.getFirst().getPreviousValues().contains("\"nombre\":\"Alguien\""));
+        assertEquals(ADMIN.email(), anotado.getFirst().getAdminEmail());
+    }
+
+    @Test
+    void corregir_solo_nombre_no_revoca_y_correo_duplicado_se_rechaza() {
+        StaffUser persona = yaExiste("viejo@empresa.cl", StaffUser.Role.usuario, EMPRESA);
+        yaExiste("ocupado@empresa.cl", StaffUser.Role.admin, null);
+
+        assertEquals(HttpStatus.CONFLICT, estado(() -> servicio.corregir(persona.getId(),
+                new CorregirPersonaRequest("Otra", "OCUPADO@empresa.cl"), ADMIN)));
+        assertEquals("Alguien", persona.getFullName());
+        servicio.corregir(persona.getId(), new CorregirPersonaRequest("Ana", "viejo@empresa.cl"), ADMIN);
+        verify(enlacesRepo, never()).anularPendientesDe(any(), any());
+        verify(sesiones, never()).revocarDe(anyString());
+        assertTrue(anotado.getFirst().getPreviousValues().contains("\"nombre\":\"Alguien\""));
+        assertFalse(anotado.getFirst().getPreviousValues().contains("correo"));
+    }
+
+    @Test
+    void corregir_correo_repetido_por_otra_peticion_devuelve_conflicto() {
+        StaffUser persona = yaExiste("viejo@empresa.cl", StaffUser.Role.usuario, EMPRESA);
+        doThrow(new DataIntegrityViolationException("uq_email")).when(personal).saveAndFlush(any());
+        assertEquals(HttpStatus.CONFLICT, estado(() -> servicio.corregir(persona.getId(),
+                new CorregirPersonaRequest("Alguien", "nuevo@empresa.cl"), ADMIN)));
+        assertTrue(anotado.isEmpty());
     }
 
     // ------------------------------------------------------------------

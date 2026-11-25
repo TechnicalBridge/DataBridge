@@ -47,6 +47,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -84,6 +85,25 @@ class AdminControllerTest {
     private static PersonaResponse persona(long id, String correo, String rol, String empresa, boolean habilitada) {
         return new PersonaResponse(id, correo, "Alguien", rol, empresa, habilitada,
                 Instant.parse("2026-10-13T15:00:00Z"), null, habilitada ? null : Instant.parse("2026-10-13T16:00:00Z"));
+    }
+
+    @Test
+    void corregir_persona_solo_admin_y_valida_el_cuerpo() throws Exception {
+        String ruta = "/api/admin/auth/personal/12";
+        when(personal.corregir(eq(12L), any(), any())).thenReturn(
+                persona(12, "nuevo@empresa.cl", "usuario", "76086428-5", true));
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"Ana Soto\",\"correo\":\"nuevo@empresa.cl\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.correo").value("nuevo@empresa.cl"));
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\" \",\"correo\":\"nuevo@empresa.cl\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch(ruta).header("Authorization", empresa()).contentType(MediaType.APPLICATION_JSON)
+                        .content(ANA)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).header("Authorization", deudor()).contentType(MediaType.APPLICATION_JSON)
+                        .content(ANA)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).contentType(MediaType.APPLICATION_JSON).content(ANA))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
