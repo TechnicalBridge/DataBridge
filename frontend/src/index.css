@@ -310,8 +310,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .brand-name { font-weight: 700; font-size: 20px; line-height: 1.15; }
 .brand-sub { color: var(--muted); font-size: 14px; }
 .hero-copy { max-width: 560px; }
-.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; }
-.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; }
+.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; text-wrap: balance; }
+.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; text-wrap: pretty; }
 .muestra { margin-top: 30px; max-width: 520px; }
 .muestra .card { padding: 20px 22px; }
 .muestra-pie { margin: 10px 2px 0; color: var(--muted); font-size: 14px; }
@@ -340,6 +340,38 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .auth-card h1, .auth-card h2 { margin: 0 0 16px; font-size: 26px; letter-spacing: 0; font-weight: 600; }
 .opciones-entrada { display: grid; gap: 12px; }
 .volver-link { align-self: flex-start; }
+
+/* La entrada continua el puente de la portada (#539): el puente abajo del panel, y en la del deudor los cuatro
+   tablones con el segundo marcado. Las piezas quedan sobre el puente, con aire para que no lo toquen. */
+.auth-hero { position: relative; overflow: hidden; padding-bottom: calc(clamp(150px, 15vw, 210px) + 28px); }
+.auth-hero > :not(.puente) { position: relative; z-index: 1; }
+.auth-hero .puente-entrada {
+  /* Sin la fila y la columna de la grilla de la portada (que viene despues en este archivo): aqui va por
+     posicion. */
+  grid-row: auto;
+  grid-column: auto;
+  margin: 0;
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  height: clamp(150px, 15vw, 210px);
+}
+.entrada-pasos { max-width: 560px; }
+.entrada-pasos .tablones { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; }
+.entrada-pasos .tablon b { font-size: 17px; }
+.entrada-pasos .tablon[aria-current] b { color: var(--ink); }
+.entrada-pasos .entrada-aqui {
+  display: inline-block;
+  justify-self: start;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: var(--brand-soft);
+  color: var(--brand-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.entrada-paso-corto { display: none; margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-2); }
 
 /* ---- Portada (#536): las dos orillas ---------------------------------------------------------
    Un puente colgante visto de costado cruza la primera pantalla: el deudor en la orilla grande, la
@@ -1780,6 +1812,12 @@ html:has(.portada) { scroll-behavior: smooth; }
   .muestra { display: none; }
   .auth-panel { order: 3; padding: 24px 16px 20px; }
   .auth-hero > .brand-sub, .auth-hero > .volver-link { order: 4; justify-self: start; margin-bottom: 28px; }
+  .entrada-pasos { order: 2; margin-top: 18px; }
+  .entrada-pasos .tablones { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .entrada-pasos .tablon { padding-top: 0; }
+  .entrada-pasos .tablon b, .entrada-pasos .entrada-aqui { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .entrada-paso-corto { display: block; margin-top: 10px; }
+  .auth-hero > .puente-entrada { order: 2; position: static; margin: 14px 0 0; height: 96px; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
