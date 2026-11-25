@@ -3,9 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import Logo from "../components/Logo";
 import TemaToggle from "../components/TemaToggle";
 import { IconoVolver } from "../components/Iconos";
+import Puente from "../components/Puente";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
 
+/** Los pasos de la portada (#536): en la entrada, el deudor va en el segundo (#539). */
+const PASOS = ["Te llega un código", "Entras con tu RUT", "Ves lo que debes", "Pagas como te acomode"];
+
+/**
+ * La entrada de los tres portales. Continua el puente de la portada (#539): el deudor ve los cuatro pasos con el
+ * segundo marcado; la empresa y el admin, el puente sin los pasos, que son del deudor.
+ */
 export default function Login({ portal }) {
   const esAdmin = portal === "ADMIN";
   const esDeudor = portal !== "DATABRIDGE" && !esAdmin;
@@ -32,9 +40,23 @@ export default function Login({ portal }) {
                 : "Quién debe, quién está en convenio y qué pagos llegaron."}
           </p>
         </div>
-        <Link to="/" className="btn btn-ghost btn-sm volver-link aparece" style={{ "--i": 3 }}>
+        {esDeudor ? (
+          <div className="entrada-pasos aparece" style={{ "--i": 3 }}>
+            <ol className="tablones" aria-label="Los cuatro pasos">
+              {PASOS.map((paso, i) => (
+                <li key={paso} className={i < 2 ? "tablon encendido" : "tablon"} aria-current={i === 1 ? "step" : undefined}>
+                  <b>{paso}</b>
+                  {i === 1 ? <span className="entrada-aqui">Estás aquí</span> : null}
+                </li>
+              ))}
+            </ol>
+            <p className="entrada-paso-corto">Paso 2 de 4: entras con tu RUT</p>
+          </div>
+        ) : null}
+        <Link to="/" className="btn btn-ghost btn-sm volver-link aparece" style={{ "--i": 4 }}>
           <IconoVolver size={16} /> Volver
         </Link>
+        <Puente className="puente puente-entrada" />
       </section>
       <section className="auth-panel">
         <div className="auth-card">
