@@ -13,7 +13,6 @@ import {
 } from "../components/Iconos";
 import { dinero, ESTADO_DEUDA } from "../utils/formato";
 
-const PASARELAS = { mercadopago: "Mercado Pago", khipu: "Khipu", webpay: "Webpay" };
 const numero = (n) => Number(n).toLocaleString("es-CL");
 const sumar = (valores = {}) => Object.values(valores).reduce((total, valor) => total + Number(valor), 0);
 
@@ -97,7 +96,7 @@ export default function AdminInicio() {
           indice={3}
           titulo="Pagos de hoy"
           icono={<IconoRecibo size={20} />}
-          enlace="/admin/pagos"
+          enlace="/admin/operacion"
           dato={cifras.payments}
           render={(r) => ({
             principal: numero(sumar(r.pagosHoy)),
@@ -179,7 +178,11 @@ function EstadoServicios({ estados }) {
         return (
           <div className="admin-servicio" key={tramo}>
             <div className="admin-servicio-cabecera">
-              <span className={`admin-servicio-punto ${estado}`} aria-label={textoEstado} />
+              <span
+                className={`admin-servicio-punto ${estado}`}
+                role="img"
+                aria-label={`${nombre}: ${textoEstado}`}
+              />
               <small>{servicio}</small>
             </div>
             <b>{nombre}</b>
