@@ -316,6 +316,11 @@ classDiagram
             <<service>>
             +reglas() ReglasResponse
         }
+        class SesionesDelPersonal {
+            <<service>>
+            +abiertas(int, int, JwtPrincipal) Page~SesionAbiertaResponse~
+            +cerrar(String, JwtPrincipal) SesionCerradaResponse
+        }
         class BitacoraDeAccesos {
             <<service>>
             +buscar(LocalDate, LocalDate, Method, Outcome, int, int) Page~AccesoResponse~
@@ -463,6 +468,10 @@ classDiagram
     AdminController --> PersonalService
     AdminController --> ReglasService
     AdminController --> BitacoraDeAccesos
+    AdminController --> SesionesDelPersonal
+    SesionesDelPersonal --> SessionRepository
+    SesionesDelPersonal --> StaffUserRepository
+    SesionesDelPersonal --> AdminLogRepository
     BitacoraDeAccesos --> AccessLogRepository
     InternalController --> AuthService
     InternalController --> MailService
@@ -489,11 +498,12 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta y las reglas de acceso y correo. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta, sus sesiones abiertas y las reglas de acceso y correo. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
+| `SesionesDelPersonal` | `service` | Las sesiones abiertas del personal, para el panel: verlas sin IP ni llaves y cerrarlas a distancia, revocando su familia de llaves. Anota cada cierre. Las de los deudores no salen (#439). |
 | `ReglasService` | `service` | Las reglas de acceso y de correo que rigen, para la pantalla Reglas del panel. Del correo dice por dónde y en qué modo: ninguna clave ni dirección entera. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
@@ -507,7 +517,7 @@ classDiagram
 | `MagicLinkRepository` | `repository` | Los enlaces. |
 | `StaffUserRepository` | `repository` | Las personas con cuenta. |
 | `AccessLogRepository` | `repository` | La bitácora de acceso. |
-| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar. |
+| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar, y las abiertas del personal para el panel. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
 
 ### Seguridad, arranque y errores

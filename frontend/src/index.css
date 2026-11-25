@@ -987,6 +987,10 @@ html:has(.portada) { scroll-behavior: smooth; }
 .tabla-suscripciones .sub { overflow-wrap: anywhere; }
 .tabla-suscripciones td:last-child { width: 40%; }
 .tabla-suscripciones .notice, .tabla-suscripciones .aviso, .tabla-suscripciones .error { margin: 10px 0 0; }
+.tabla-sesiones .sub { overflow-wrap: anywhere; }
+.tabla-sesiones td:last-child { width: 44%; }
+.tabla-sesiones td:first-child .badge { margin-left: 6px; }
+.tabla-sesiones .error { margin: 10px 0 0; }
 .tabla-campanas-admin .sub { overflow-wrap: anywhere; }
 .tabla-campanas-admin td:last-child { width: 42%; }
 .tabla-campanas-admin td:last-child .badge + .badge { margin-left: 6px; }

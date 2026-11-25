@@ -226,6 +226,16 @@ export const cambiarSecretoDeSuscripcion = (id) => pedir(`/admin/debt/suscripcio
 /** Manda un evento de prueba firmado y cuenta lo que respondio el receptor. */
 export const probarSuscripcion = (id) => pedir(`/admin/debt/suscripciones/${id}/probar`, { method: "POST" });
 
+// ---- Las sesiones abiertas del personal (ms-auth, #439) ----------------------------
+/** Una pagina de sesiones que todavia se pueden renovar, la renovada hace menos primero. Sin IP ni llaves. */
+export async function sesionesAbiertas({ pagina = 0, porPagina = 20 } = {}) {
+  const data = await pedir("/admin/auth/sesiones", { params: { pagina, porPagina } });
+  return { filas: embebidos(data, "sesiones"), pagina: data.page };
+}
+/** Corta la renovacion de una sesion. Devuelve hasta cuando puede durar el acceso que la persona ya tiene. */
+export const cerrarSesion = (familia) =>
+  pedir(`/admin/auth/sesiones/${encodeURIComponent(familia)}/revocar`, { method: "POST" });
+
 // ---- La operacion (ms-debt y ms-payments, #139) ----------------------------------
 
 /** Los avisos a las empresas que no se entregaron, por destinatario. Sin su contenido. */

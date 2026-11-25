@@ -171,6 +171,7 @@ const QUE_SE_HIZO = {
   admin_creado: (a) => `Dio de alta como admin a ${a.sobre}`,
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,
   persona_habilitada: (a) => `Le devolvió el acceso a ${a.sobre}`,
+  sesion_cerrada: (a) => `Cerró a distancia una sesión de ${a.sobre}`,
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
   suscripcion_activada: (a) => `Activó ${a.sobre}`,
   suscripcion_desactivada: (a) => `Desactivó ${a.sobre}`,
