@@ -11,15 +11,21 @@ import java.time.Instant;
 @Schema(description = "Algo que un admin de DataBridge hizo con una persona desde el panel")
 public record AccionResponse(
         @Schema(example = "persona_creada",
-                allowableValues = {"persona_creada", "admin_creado", "persona_deshabilitada", "persona_habilitada"})
+                allowableValues = {"persona_creada", "admin_creado", "persona_deshabilitada", "persona_habilitada",
+                        "sesion_cerrada"})
         String accion,
         @Schema(description = "A quien: su correo", example = "ana.soto@empresatest.cl", nullable = true) String sobre,
         @Schema(description = "El admin que lo hizo", example = "admin@databridge.cl") String quien,
-        Instant cuando
+        Instant cuando,
+        String anteriores,
+        String nuevos
 ) {
+    public AccionResponse(String accion, String sobre, String quien, Instant cuando) {
+        this(accion, sobre, quien, cuando, null, null);
+    }
 
     public static AccionResponse from(AdminLog registro) {
         return new AccionResponse(registro.getAction().name(), registro.getSubject(), registro.getAdminEmail(),
-                registro.getOccurredAt());
+                registro.getOccurredAt(), registro.getPreviousValues(), registro.getNewValues());
     }
 }

@@ -29,6 +29,7 @@ import AdminPagos from "./pages/AdminPagos";
 import AdminPago from "./pages/AdminPago";
 import AdminReclamos from "./pages/AdminReclamos";
 import AdminSuscripciones from "./pages/AdminSuscripciones";
+import AdminSesiones from "./pages/AdminSesiones";
 import AdminOperacion from "./pages/AdminOperacion";
 import AdminBitacora from "./pages/AdminBitacora";
 import AdminCampanas from "./pages/AdminCampanas";
@@ -140,6 +141,7 @@ export default function App() {
         <Route path="pagos/:id" element={<AdminPago />} />
         <Route path="reclamos" element={<AdminReclamos />} />
         <Route path="suscripciones" element={<AdminSuscripciones />} />
+        <Route path="sesiones" element={<AdminSesiones />} />
         <Route path="equipo" element={<AdminEquipo />} />
         <Route path="operacion" element={<AdminOperacion />} />
         <Route path="accesos" element={<AdminAccesos />} />

@@ -25,7 +25,10 @@ public interface DebtEventRepository extends JpaRepository<DebtEvent, Long> {
     /** El historial de pagos: con un tope, porque es una pantalla y no un reporte. */
     List<DebtEvent> findTop300ByDebtInAndTypeOrderByOccurredAtDesc(Collection<Debt> debts, DebtEvent.Type type);
 
-    boolean existsByDebtAndTypeAndOccurredAtAfter(Debt debt, DebtEvent.Type type, Instant desde);
+    @Query("select distinct e.debt.id from DebtEvent e where e.debt in :deudas "
+            + "and e.type = :tipo and e.occurredAt > :desde")
+    List<Long> deudasConEventoDesde(@Param("deudas") List<Debt> deudas,
+                                   @Param("tipo") DebtEvent.Type tipo, @Param("desde") Instant desde);
 
     /**
      * Los eventos de un tipo entre dos instantes (desde incluido, hasta no), con su

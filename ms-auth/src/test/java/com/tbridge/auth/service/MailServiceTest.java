@@ -51,8 +51,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, org.springframework.boot.test.system.OutputCaptureExtension.class})
 class MailServiceTest {
+
+    private final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(MailService.class);
+    private ch.qos.logback.classic.Level nivelAnterior;
+
+    @org.junit.jupiter.api.AfterEach
+    void ningun_log_expone_direcciones(org.springframework.boot.test.system.CapturedOutput salida) {
+        try {
+            assertFalse(java.util.regex.Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+                    .matcher(salida.getAll()).find(), salida.getAll());
+        } finally {
+            logger.setLevel(nivelAnterior);
+        }
+    }
 
     @Mock
     private JavaMailSender smtp;
@@ -67,6 +81,8 @@ class MailServiceTest {
     /** Los correos se arman en memoria, como los arma el servidor de verdad. */
     @BeforeEach
     void armarEnMemoria() {
+        nivelAnterior = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.INFO);
         lenient().when(smtp.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
         lenient().when(buzon.createMimeMessage()).thenAnswer(i -> new MimeMessage(Session.getInstance(new Properties())));
     }

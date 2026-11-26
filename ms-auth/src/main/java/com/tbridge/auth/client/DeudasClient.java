@@ -59,7 +59,7 @@ public class DeudasClient {
         } catch (HttpClientErrorException.NotFound sinCorreo) {
             return Optional.empty();
         } catch (RestClientException fallo) {
-            log.warn("ms-debt no respondio por el correo de un deudor: {}", fallo.getMessage());
+            log.warn("ms-debt no respondio por el correo de un deudor: category=DEBT_SERVICE_ERROR");
             return Optional.empty();
         }
     }
@@ -80,7 +80,7 @@ public class DeudasClient {
         } catch (HttpClientErrorException.NotFound noExiste) {
             return Optional.empty();
         } catch (RestClientException fallo) {
-            log.warn("ms-debt no respondio por una empresa: {}", fallo.getMessage());
+            log.warn("ms-debt no respondio por una empresa: category=DEBT_SERVICE_ERROR");
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo comprobar la empresa: el servicio de deudas no responde. Intenta de nuevo.");
         }
