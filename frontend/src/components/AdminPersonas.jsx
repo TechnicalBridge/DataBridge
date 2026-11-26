@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TablaDeslizable from "./TablaDeslizable";
 import { fecha, fechaHora } from "../utils/formato";
 
 function UltimoIngreso({ valor }) {
@@ -57,7 +58,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, alCorregir, vacio
   if (personas.length === 0) return <div className="empty">{vacio}</div>;
 
   return (
-    <div className="tabla-scroll">
+    <TablaDeslizable nombre="Personas y accesos">
       <table className="table">
         <thead>
           <tr><th>Persona</th><th>Último ingreso</th><th>Acceso</th><th /></tr>
@@ -115,7 +116,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, alCorregir, vacio
           ))}
         </tbody>
       </table>
-    </div>
+    </TablaDeslizable>
   );
 }
 

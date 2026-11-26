@@ -932,6 +932,8 @@ html:has(.portada) { scroll-behavior: smooth; }
 .totales span { white-space: nowrap; }
 
 .tabla-scroll { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+.tabla-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.tabla-scroll-pista { margin: 0 0 6px; color: var(--muted); font-size: 14px; text-align: right; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
 .table th { color: var(--muted); font-weight: 600; font-size: 14px; }
@@ -1440,7 +1442,7 @@ html:has(.portada) { scroll-behavior: smooth; }
   border: 1px solid var(--line);
   flex: none;
 }
-/* Flex y no grid: si la imagen es mas ancha que la ficha, sobra lo mismo a cada lado, y lo que se recorta es el aire del archivo, no el dibujo. Sin tope de ancho: con el alto fijo, el tope aplastaria el logo. */
+/* El escalado compensa el aire de cada SVG; la ficha recorta ese aire, no el dibujo. */
 .pasarela-logo img { flex: none; width: auto; max-width: none; }
 .pasarela-logo.sin-logo { width: auto; min-width: 74px; font-size: 13px; font-weight: 600; color: #4b453c; }
 
