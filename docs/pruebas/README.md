@@ -18,8 +18,9 @@ espera pruebas que nunca van a correr.
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
 código. **Las unitarias y de capa web no necesitan base de datos ni internet**, así que corren en
 segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un
-servidor HTTP local. Las de rendimiento son la excepción: apuntan a un servicio vivo y se corren a
-mano.
+servidor HTTP local. La excepción son las pruebas de integración con MySQL (Testcontainers o
+`DB_TEST_URL`, ver #416): se omiten si no hay base. Las de rendimiento no viven en `src/test/java`:
+están en `performance-tests/k6/` y se corren a mano contra una pila local.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
@@ -69,10 +70,13 @@ docker compose --profile app up -d --no-deps --wait gateway ms-auth
 .\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
 ```
 
-La suite completa recrea gateway y ms-auth para subir temporalmente sus cupos y
-restaura sus variables originales antes de abrir el visor. Indica con `-Proyecto`
-el nombre real del proyecto Compose activo. No ejecutarla en paralelo con otra
-corrida. Requiere Python 3.9+; los escenarios individuales no necesitan Python.
+La suite completa sube solo tres variables de cupo en el entorno, recrea gateway
+y ms-auth y las restaura antes de abrir el visor; no guarda el entorno de los
+contenedores en disco. Indica con `-Proyecto` el nombre real del proyecto Compose
+(lo lista `docker compose ls`) y, para una comprobación rápida, usa
+`-Escenarios smoke`. No ejecutarla en paralelo con otra corrida. La suite completa
+tarda alrededor de 30 minutos (la resistencia sola son 10). Requiere Python 3.9+;
+los escenarios individuales no necesitan Python.
 El envoltorio `run.ps1 -Levantar` no restaura los cupos por sí solo: sigue la
 [guía de restauración](../rendimiento/suite-k6.md#antes-de-correrla) al terminar
 si solo ejecutas escenarios individuales.

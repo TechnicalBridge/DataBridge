@@ -5,7 +5,17 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Puerto = 8766,
     [string]$Proyecto,
-    [string]$DirectorioEntorno
+    [string]$DirectorioEntorno,
+    [ValidateSet(
+        'smoke', 'response-time', 'load', 'concurrency', 'scalability',
+        'api-performance', 'database-performance', 'volume', 'spike',
+        'recovery', 'capacity', 'stress', 'endurance'
+    )]
+    [string[]]$Escenarios = @(
+        'smoke', 'response-time', 'load', 'concurrency', 'scalability',
+        'api-performance', 'database-performance', 'volume', 'spike',
+        'recovery', 'capacity', 'stress', 'endurance'
+    )
 )
 $ErrorActionPreference = 'Stop'
 $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
@@ -28,7 +38,7 @@ if ($SoloVisualizar) {
 }
 $proyecto = $Proyecto
 if (-not $proyecto) {
-    throw 'Indica -Proyecto con el nombre del Compose local activo (por ejemplo: databridge).'
+    throw 'Indica -Proyecto con el nombre del Compose local activo (consultalo con: docker compose ls).'
 }
 if (-not $DirectorioEntorno) {
     $gateway = docker inspect "$proyecto-gateway-1" | ConvertFrom-Json
@@ -38,39 +48,60 @@ if (-not $DirectorioEntorno) {
 if (-not $DirectorioEntorno -or -not (Test-Path (Join-Path $DirectorioEntorno 'docker-compose.yml'))) {
     throw 'Indica -DirectorioEntorno con la ruta del Compose activo.'
 }
+if (-not $Escenarios) { throw 'Indica al menos un escenario en -Escenarios.' }
 $directorio = $DirectorioEntorno
-$baseTemporal = Join-Path $env:LOCALAPPDATA 'Temp\opencode'
-if (-not (Test-Path $baseTemporal)) { New-Item -ItemType Directory -Path $baseTemporal -Force | Out-Null }
-$temporal = Join-Path $baseTemporal ("databridge-rendimiento-" + [guid]::NewGuid())
-New-Item -ItemType Directory -Path $temporal | Out-Null
-$original = @{ services = @{} }
-foreach ($servicio in @('gateway', 'ms-auth')) {
-    $contenedor = docker inspect "$proyecto-$servicio-1" | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0) { throw "No se pudo inspeccionar $servicio" }
-    $variables = @{}
-    foreach ($linea in $contenedor.Config.Env) {
-        $partes = $linea -split '=', 2
-        $variables[$partes[0]] = $partes[1]
-    }
-    $original.services[$servicio] = @{ image = $contenedor.Image; environment = $variables }
-}
-$env:INTERNAL_KEY = $original.services['ms-auth'].environment['INTERNAL_KEY']
-if (-not $env:INTERNAL_KEY) { throw 'Falta la clave interna del entorno activo.' }
-$restaurar = Join-Path $temporal 'restaurar.json'
-$carga = Join-Path $temporal 'carga.json'
-$original | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $restaurar
-$pruebas = $original | ConvertTo-Json -Depth 10 | ConvertFrom-Json
-$pruebas.services.gateway.environment.RATE_GLOBAL_CAPACITY = '10000000'
-$pruebas.services.gateway.environment.RATE_AUTH_CAPACITY = '10000000'
-$pruebas.services.'ms-auth'.environment.AUTH_IDENTIFIER_LIMIT_CAPACITY = '1000000'
-$pruebas | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $carga
 $baseCompose = @('--project-directory', $directorio, '-p', $proyecto, '-f', (Join-Path $directorio 'docker-compose.yml'))
-$estado = @{ inicio = (Get-Date).ToUniversalTime().ToString('o'); limitesRestaurados = $false; ejecuciones = @() }
+$servicios = @('gateway', 'ms-auth')
+$limites = @(
+    @{ Servicio = 'gateway'; Nombre = 'RATE_GLOBAL_CAPACITY'; Valor = '10000000' },
+    @{ Servicio = 'gateway'; Nombre = 'RATE_AUTH_CAPACITY'; Valor = '10000000' },
+    @{ Servicio = 'ms-auth'; Nombre = 'AUTH_IDENTIFIER_LIMIT_CAPACITY'; Valor = '1000000' }
+)
+
+# Lee solo la variable pedida; nunca vuelca el entorno completo del contenedor.
+function Leer-VariableContenedor([string]$servicio, [string]$variable) {
+    $lineas = docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$proyecto-$servicio-1"
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo inspeccionar $servicio" }
+    $prefijo = "$variable="
+    $linea = $lineas | Where-Object { $_.StartsWith($prefijo, [StringComparison]::Ordinal) } |
+        Select-Object -First 1
+    if ($null -eq $linea) { return $null }
+    return $linea.Substring($prefijo.Length)
+}
+
+$env:INTERNAL_KEY = Leer-VariableContenedor 'ms-auth' 'INTERNAL_KEY'
+if (-not $env:INTERNAL_KEY) { throw 'Falta la clave interna del entorno activo.' }
+
+# Los valores originales viven solo en memoria: no se escriben en disco.
+$limitesOriginales = @{}
+$variablesPrevias = @{}
+foreach ($limite in $limites) {
+    $clave = "$($limite.Servicio)/$($limite.Nombre)"
+    $limitesOriginales[$clave] = Leer-VariableContenedor $limite.Servicio $limite.Nombre
+    $variablesPrevias[$limite.Nombre] = [Environment]::GetEnvironmentVariable($limite.Nombre, 'Process')
+}
+$aplicados = @{}
+foreach ($limite in $limites) {
+    $aplicados["$($limite.Servicio)/$($limite.Nombre)"] = $limite.Valor
+}
+$estado = @{
+    inicio = (Get-Date).ToUniversalTime().ToString('o')
+    limitesRestaurados = $false
+    escenarios = $Escenarios
+    limites = @{ antes = $limitesOriginales; aplicados = $aplicados; despues = @{} }
+    ejecuciones = @()
+}
 $estadoPath = Join-Path $reportes 'suite-completa-ejecuciones.json'
 try {
-    docker compose @baseCompose -f $carga --profile app up -d --no-deps --no-build --pull never --wait gateway ms-auth
+    foreach ($limite in $limites) {
+        [Environment]::SetEnvironmentVariable($limite.Nombre, $limite.Valor, 'Process')
+    }
+    $resumenCupos = ($limites | ForEach-Object { "$($_.Nombre)=$($_.Valor)" }) -join ', '
+    Write-Output "Cupos temporales aplicados: $resumenCupos"
+    #  Compose lee los cupos del entorno: basta con recrear estos dos servicios.
+    docker compose @baseCompose --profile app up -d --no-deps --no-build --pull never --wait @servicios
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron preparar los limites temporales.' }
-    foreach ($escenario in @('smoke', 'response-time', 'load', 'concurrency', 'scalability', 'api-performance', 'database-performance', 'volume', 'spike', 'recovery', 'capacity', 'stress', 'endurance')) {
+    foreach ($escenario in $Escenarios) {
         $inicio = (Get-Date).ToUniversalTime().ToString('o')
         Write-Output "Iniciando $escenario ($inicio)"
         # Cada escenario original conserva sus opciones, cargas y handleSummary.
@@ -98,16 +129,35 @@ try {
 } finally {
     Write-Output 'Restaurando la configuracion original de gateway y ms-auth...'
     $ErrorActionPreference = 'Continue'
-    docker compose @baseCompose -f $restaurar --profile app up -d --no-deps --no-build --pull never --wait gateway ms-auth
-    $estado.limitesRestaurados = ($LASTEXITCODE -eq 0)
+    #  Se restauran solo las tres variables de cupo; el resto del entorno no se toca.
+    foreach ($limite in $limites) {
+        $previo = $variablesPrevias[$limite.Nombre]
+        if ($null -eq $previo) {
+            [Environment]::SetEnvironmentVariable($limite.Nombre, $null, 'Process')
+        } else {
+            [Environment]::SetEnvironmentVariable($limite.Nombre, $previo, 'Process')
+        }
+    }
+    docker compose @baseCompose --profile app up -d --no-deps --no-build --pull never --wait @servicios
+    $codigoRestauracion = $LASTEXITCODE
+    $restaurados = ($codigoRestauracion -eq 0)
+    foreach ($limite in $limites) {
+        $clave = "$($limite.Servicio)/$($limite.Nombre)"
+        $actual = $null
+        try {
+            $actual = Leer-VariableContenedor $limite.Servicio $limite.Nombre
+        } catch {
+            $restaurados = $false
+        }
+        $estado.limites.despues[$clave] = $actual
+        if ($actual -ne $limitesOriginales[$clave]) { $restaurados = $false }
+    }
+    $estado.limitesRestaurados = $restaurados
     $estado.fin = (Get-Date).ToUniversalTime().ToString('o')
     $estado | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $estadoPath
-    Remove-Item Env:\INTERNAL_KEY
-    if ($estado.limitesRestaurados) {
-        Remove-Item -LiteralPath $carga, $restaurar
-        Remove-Item -LiteralPath $temporal
-    } else {
-        Write-Error "No se pudo restaurar. Configuracion original conservada en $restaurar"
+    [Environment]::SetEnvironmentVariable('INTERNAL_KEY', $null, 'Process')
+    if (-not $restaurados) {
+        Write-Error 'No se pudieron restaurar los cupos. Revisa suite-completa-ejecuciones.json y vuelve a levantar gateway y ms-auth sin las variables de cupo.'
     }
 }
 if (-not $estado.limitesRestaurados) {

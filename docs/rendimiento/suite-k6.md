@@ -10,6 +10,10 @@ de la red, así que no hay que instalar k6 ni abrir puertos.
 > (`gateway/`, `ms-auth/`, `ms-debt/`, `ms-payments/`, `ms-ai/` y `portal/`)
 > siguen documentados en el [README](README.md), con sus corridas históricas.
 
+La suite completa tarda alrededor de **30 minutos** en esta máquina; la prueba de
+resistencia sola son 10 minutos (`DURACION_ENDURANCE`). La duración exacta depende
+de la máquina y de si `stress` encuentra el techo antes.
+
 ## Antes de correrla
 
 - Docker Desktop con la pila local. La suite **no se corre contra producción**:
@@ -198,11 +202,13 @@ informes automáticamente:
   -Proyecto databridge
 ```
 
-**Este comando recrea gateway y ms-auth** para aumentar temporalmente sus
-cupos. Detecta el directorio del Compose activo mediante sus etiquetas y
-conserva las imágenes y variables del entorno existente. Al terminar intenta
-restaurar los cupos originales antes de iniciar el visor. Si la restauración
-falla, conserva la configuración temporal para recuperación e informa el error.
+**Este comando recrea gateway y ms-auth** para aumentar temporalmente solo
+`RATE_GLOBAL_CAPACITY`, `RATE_AUTH_CAPACITY` y `AUTH_IDENTIFIER_LIMIT_CAPACITY`.
+Detecta el directorio del Compose activo mediante sus etiquetas, no copia el
+entorno de los contenedores a disco y verifica con `docker inspect` que los tres
+valores volvieron a los originales antes de iniciar el visor. Si la restauración
+falla, deja el detalle en `reports/suite-completa-ejecuciones.json` (sin secretos)
+e informa el error. Para una comprobación rápida, agrega `-Escenarios smoke`.
 Si antes usaste `run.ps1 -Levantar`, restaura primero los cupos siguiendo
 la sección anterior: de lo contrario, los valores altos ya serán la
 configuración inicial que esta suite conservará.
