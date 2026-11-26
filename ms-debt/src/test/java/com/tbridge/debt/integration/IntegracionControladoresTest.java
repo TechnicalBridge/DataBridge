@@ -28,6 +28,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
@@ -40,10 +42,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
@@ -60,10 +65,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * ejecuta las migraciones y los controladores responden contra la base de verdad.
  * Sin secretos fijos: las credenciales son las del contenedor.
  *
- * <p>En desarrollo local se apunta a un MySQL ya levantado (por ejemplo el de
- * docker-compose) con {@code DB_TEST_URL}, {@code DB_TEST_USER} y
- * {@code DB_TEST_PASSWORD}; asi la suite no paga el arranque del contenedor.
- * Sin esas variables y fuera de CI, la clase se omite: `mvn test` sigue rapido.
+ * <p>En desarrollo local se apunta a un MySQL ya levantado con {@code DB_TEST_URL},
+ * {@code DB_TEST_USER} y {@code DB_TEST_PASSWORD}; asi la suite no paga el
+ * arranque del contenedor. La base debe ser desechable y su nombre terminar en
+ * {@code _pruebas} o {@code _test}: la prueba confirma empresas y campanas, y
+ * no debe poder escribir en una base real. Sin esas variables y fuera de CI,
+ * la clase se omite: `mvn test` sigue rapido.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -83,6 +90,62 @@ class IntegracionControladoresTest {
     /** Corre con la base externa de {@code DB_TEST_*} o en CI, donde si hay Docker. */
     static boolean hayBaseDeDatos() {
         return System.getenv("DB_TEST_URL") != null || "true".equalsIgnoreCase(System.getenv("CI"));
+    }
+
+    /**
+     * El nombre de la base en una URL JDBC, sin parametros ni credenciales.
+     *
+     * <p>Se usa solo para decidir si la base externa es desechable. Si la URL
+     * no trae un nombre reconocible devuelve una cadena vacia.
+     */
+    static String nombreDeBase(String url) {
+        if (url == null) {
+            return "";
+        }
+        int esquema = url.indexOf("://");
+        if (esquema < 0) {
+            return "";
+        }
+        String resto = url.substring(esquema + 3);
+        int barra = resto.indexOf('/');
+        if (barra < 0) {
+            return "";
+        }
+        String nombre = resto.substring(barra + 1);
+        int fin = nombre.length();
+        int parametros = nombre.indexOf('?');
+        if (parametros >= 0 && parametros < fin) {
+            fin = parametros;
+        }
+        int opciones = nombre.indexOf(';');
+        if (opciones >= 0 && opciones < fin) {
+            fin = opciones;
+        }
+        return nombre.substring(0, fin).strip();
+    }
+
+    /**
+     * Falla si {@code DB_TEST_URL} apunta a una base que no es de pruebas.
+     *
+     * <p>La prueba 6 confirma empresas y campanas, asi que una base real
+     * quedaria con datos residuales. Para no tocarla, el nombre debe terminar
+     * en {@code _pruebas} o {@code _test}. La base de Testcontainers queda
+     * fuera de esta validacion porque es nueva y desechable.
+     */
+    static void validarBaseDePruebas(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        String nombre = nombreDeBase(url);
+        String enMinusculas = nombre.toLowerCase(Locale.ROOT);
+        if (enMinusculas.endsWith("_pruebas") || enMinusculas.endsWith("_test")) {
+            return;
+        }
+        String cual = nombre.isEmpty() ? "sin nombre" : "'" + nombre + "'";
+        throw new IllegalStateException("DB_TEST_URL apunta a la base " + cual
+                + ", pero las pruebas confirman empresas y campanas. Usa una base cuyo nombre "
+                + "termine en _pruebas o _test (por ejemplo, tb_debt_pruebas), o deja DB_TEST_URL "
+                + "sin definir para usar Testcontainers.");
     }
 
     /** MySQL efimero; {@code null} cuando se usa un MySQL externo por variables de entorno. */
@@ -112,10 +175,13 @@ class IntegracionControladoresTest {
             propiedades.add("spring.datasource.username", mysql::getUsername);
             propiedades.add("spring.datasource.password", mysql::getPassword);
         } else {
-            propiedades.add("spring.datasource.url", () -> System.getenv("DB_TEST_URL"));
+            String urlExterna = System.getenv("DB_TEST_URL");
+            validarBaseDePruebas(urlExterna);
+            propiedades.add("spring.datasource.url", () -> urlExterna);
             propiedades.add("spring.datasource.username",
                     () -> System.getenv().getOrDefault("DB_TEST_USER", "tbridge"));
-            propiedades.add("spring.datasource.password", () -> System.getenv("DB_TEST_PASSWORD"));
+            propiedades.add("spring.datasource.password",
+                    () -> System.getenv().getOrDefault("DB_TEST_PASSWORD", ""));
         }
         propiedades.add("spring.flyway.enabled", () -> "true");
         propiedades.add("app.demo.datos", () -> "false");
@@ -140,6 +206,7 @@ class IntegracionControladoresTest {
 
     @BeforeEach
     void prepararEmpresa() {
+        validarBaseDePruebas(System.getenv("DB_TEST_URL"));
         organizacion();
     }
 
@@ -149,14 +216,24 @@ class IntegracionControladoresTest {
 
     @Test
     @Order(1)
-    void las_migraciones_estan_aplicadas_en_mysql_de_verdad() {
-        assertThat(flyway.info().applied()).hasSize(13);
+    void las_migraciones_estan_aplicadas_en_mysql_de_verdad() throws IOException {
+        //  Cuantas son y cual es la ultima sale de las migraciones que trae el
+        //  servicio, no de un numero fijo: asi la prueba no se rompe con cada
+        //  migracion nueva (una V14 o V15, por ejemplo).
+        Resource[] migraciones = new PathMatchingResourcePatternResolver()
+                .getResources("classpath:db/migration/V*__*.sql");
+        int ultima = Arrays.stream(migraciones)
+                .map(Resource::getFilename)
+                .mapToInt(nombre -> Integer.parseInt(nombre.substring(1, nombre.indexOf("__"))))
+                .max().orElseThrow();
+        assertThat(flyway.info().applied()).hasSize(migraciones.length);
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class)).isEqualTo(13);
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class))
+                .isEqualTo(migraciones.length);
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1", String.class))
-                .isEqualTo("13");
+                .isEqualTo(String.valueOf(ultima));
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema = DATABASE()
@@ -172,7 +249,7 @@ class IntegracionControladoresTest {
     @Test
     @Order(2)
     void lista_detalle_simula_y_repacta_con_la_base_de_verdad() throws Exception {
-        Debt deuda = crearDeuda("IT-DEBT-1", RUT_DEUDOR, "Valentina Soto", "valentina.soto@correo.cl", 410000);
+        Debt deuda = crearDeuda("IT-DEBT-1", RUT_DEUDOR, "Valentina Soto", "valentina.soto@example.com", 410000);
         String deudor = tokenDeudor(RUT_DEUDOR);
 
         mvc.perform(get("/api/debts").header("Authorization", "Bearer " + deudor))
@@ -239,11 +316,11 @@ class IntegracionControladoresTest {
     @Test
     @Order(5)
     void la_deuda_de_otro_no_se_ve_ni_se_repacta() throws Exception {
-        Debt deuda = crearDeuda("IT-DEBT-AJENA", RUT_DEUDOR, "Valentina Soto", "valentina.soto@correo.cl", 410000);
+        Debt deuda = crearDeuda("IT-DEBT-AJENA", RUT_DEUDOR, "Valentina Soto", "valentina.soto@example.com", 410000);
         //  El otro deudor tiene que existir en la base: si no, el 404 seria por
         //  "no hay deudas a tu nombre" y no probaria el control de pertenencia.
         crearDeuda("IT-DEBT-PROPIA-" + sufijo, RUT_OTRO_DEUDOR, "Otro Deudor",
-                "otro.deudor@correo.cl", 120000);
+                "otro.deudor@example.com", 120000);
         String otro = tokenDeudor(RUT_OTRO_DEUDOR);
 
         mvc.perform(get("/api/debts/" + deuda.getId()).header("Authorization", "Bearer " + otro))
@@ -342,7 +419,7 @@ class IntegracionControladoresTest {
     @Order(8)
     void la_api_interna_exige_su_clave() throws Exception {
         Debt deuda = crearDeuda("IT-DEBT-INTERNA", RUT_DEUDOR, "Valentina Soto",
-                "valentina.soto@correo.cl", 410000);
+                "valentina.soto@example.com", 410000);
 
         mvc.perform(get("/internal/debts/" + deuda.getId())).andExpect(status().isUnauthorized());
         mvc.perform(get("/internal/debts/" + deuda.getId()).header("X-Internal-Key", "otra"))
@@ -360,7 +437,7 @@ class IntegracionControladoresTest {
     @Order(9)
     void campanas_mandatos_cuotas_historial_y_mis_datos() throws Exception {
         Debt deuda = crearDeuda("IT-DEBT-RESTO", RUT_DEUDOR, "Valentina Soto",
-                "valentina.soto@correo.cl", 410000);
+                "valentina.soto@example.com", 410000);
         String acreditado = tokenAcreedor();
         String deudor = tokenDeudor(RUT_DEUDOR);
 
@@ -451,7 +528,7 @@ class IntegracionControladoresTest {
         String periodo = LocalDate.now().minusMonths(2).toString().substring(0, 7);
         return """
                 deuda_id;accion;motivo_retiro;deudor_rut;deudor_tipo;deudor_nombre;deudor_correo;deudor_telefono;moneda;concepto;referencias;tasa_interes_mensual;cargo_concepto;cargo_periodo;cargo_monto;cargo_vencimiento
-                %s;registrar;;%s;persona;Valentina Soto;valentina.soto@correo.cl;;CLP;Arriendo;contrato=%s;;Arriendo;%s;410000;%s
+                %s;registrar;;%s;persona;Valentina Soto;valentina.soto@example.com;;CLP;Arriendo;contrato=%s;;Arriendo;%s;410000;%s
                 """.formatted(idDeuda, rutDeudor, idDeuda, periodo, vencimiento);
     }
 
@@ -461,14 +538,14 @@ class IntegracionControladoresTest {
     }
 
     private String tokenDeudor(String rut) {
-        return issuer.issue(rut, "deudor@correo.cl", "DEBTOR", "Deudor", rut);
+        return issuer.issue(rut, "deudor@example.com", "DEBTOR", "Deudor", rut);
     }
 
     private String tokenAcreedor() {
-        return issuer.issue("empresa-1", "empresa@correo.cl", "CREDITOR", "Patrimonio", RUT_ACREEDOR);
+        return issuer.issue("empresa-1", "empresa@example.com", "CREDITOR", "Patrimonio", RUT_ACREEDOR);
     }
 
     private String tokenAdmin() {
-        return issuer.issue("admin-1", "admin@correo.cl", "ADMIN", "Admin", null);
+        return issuer.issue("admin-1", "admin@example.com", "ADMIN", "Admin", null);
     }
 }
