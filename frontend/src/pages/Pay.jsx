@@ -254,8 +254,14 @@ export default function Pay() {
           <h1>Pagar</h1>
           <p>
             {deuda.concepto} con {deuda.acreedor}, ref. {deuda.externalId}
-            {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
           </p>
+          {/* La CAE, dicha en palabras donde aparece (#558). */}
+          {deuda.conConvenio && deuda.cae != null ? (
+            <p className="hint">
+              CAE {porcentaje(deuda.cae, 2)}: la carga anual equivalente, lo que te cuesta el convenio en un año con
+              sus intereses.
+            </p>
+          ) : null}
           {Object.entries(deuda.referencias || {}).length ? (
             <p className="hint">
               Referencias: {Object.entries(deuda.referencias).map(([clave, valor]) => `${clave}: ${valor}`).join(" · ")}
@@ -291,7 +297,7 @@ export default function Pay() {
                 : `Pagaste todo. ${deuda.acreedor} ya fue avisado.`}
             </p>
           ) : (
-            <p className="esperando"><span className="girando" /> Conciliando el pago con tu deuda…</p>
+            <p className="esperando"><span className="girando" /> Confirmando el pago con tu deuda…</p>
           )}
           <Link className="btn btn-primary" to="/app" style={{ marginTop: 16 }}>Ver mis deudas</Link>
         </div>

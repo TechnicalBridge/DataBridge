@@ -188,7 +188,7 @@ class AuthServiceTest {
 
         ApiException vencido = assertThrows(ApiException.class,
                 () -> auth.entrarConCodigo("16482337-7", codigo, "1.2.3.4"));
-        assertTrue(vencido.getMessage().contains("expiro"));
+        assertTrue(vencido.getMessage().contains("venció"));
     }
 
     @Test
