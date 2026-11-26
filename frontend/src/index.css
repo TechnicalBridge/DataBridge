@@ -778,6 +778,57 @@ html:has(.portada) { scroll-behavior: smooth; }
 .chip.on .chip-cuenta { opacity: 0.9; }
 .card-cab .buscador { width: min(320px, 100%); }
 
+/* Cada deuda en una linea (#548): el deudor y su RUT sin cortes, la deuda recortada (completa al pasar el
+   mouse y en el detalle), el estado con sus tablones, y el detalle en una fila que se abre. */
+.tabla-cartera td { vertical-align: middle; }
+.tabla-cartera td[data-campo="Deudor"] { white-space: nowrap; }
+.tabla-cartera .rut { margin-left: 4px; color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.tabla-cartera td[data-campo="Deudor"] .tag { margin-left: 8px; }
+/* La deuda toma el ancho que sobra y se corta ahi: asi la tabla nunca es mas ancha que su tarjeta. */
+.tabla-cartera td[data-campo="Deuda"] { width: 100%; max-width: 0; }
+.tabla-cartera .recorte {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tabla-cartera td[data-campo="Saldo"], .tabla-cartera td[data-campo="Fecha"] { white-space: nowrap; }
+.tabla-cartera td[data-campo="Fecha"] { color: var(--muted); font-size: 14px; }
+.estado-celda { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 14px; }
+.estado-celda .tablas.chico { width: 72px; margin: 0; }
+.tabla-cartera td[data-campo="Estado"] .tag { margin-top: 4px; }
+.tabla-cartera td[data-campo="Estado"] .responder { display: flex; margin-top: 6px; }
+.desplegar { padding-left: 8px; padding-right: 8px; }
+.tabla-cartera td[data-campo="Acciones"] { white-space: nowrap; text-align: right; }
+.tabla-cartera td[data-campo="Acciones"] .btn + .btn { margin-left: 6px; }
+.desplegar svg { transition: transform 0.25s var(--ease); }
+.desplegar[aria-expanded="true"] svg { transform: rotate(180deg); }
+.tabla-cartera tr.abierta td { border-bottom-color: transparent; }
+.fila-detalle td { background: var(--paper-2); }
+.detalle-deuda { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; padding: 4px 2px; }
+.detalle-deuda > div { display: grid; align-content: start; justify-items: start; gap: 4px; min-width: 0; }
+.detalle-deuda .sub { overflow-wrap: anywhere; }
+.detalle-deuda .btn { margin-top: 6px; }
+.referencias { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+/* Ordenar: el encabezado es un boton; la flecha aparece en la columna activa y apunta segun el orden. */
+.ordenar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ordenar svg { opacity: 0; transform: rotate(180deg); transition: opacity 0.2s var(--ease), transform 0.2s var(--ease); }
+.ordenar:hover svg, .ordenar.activa svg { opacity: 1; }
+.ordenar.baja svg { transform: none; }
+.ordenar.activa { color: var(--ink); }
+
 @media (max-width: 620px) {
   .stats.stats-cartera > :first-child { grid-column: auto; }
   .stats.stats-cartera > :last-child { grid-column: 1 / -1; }
@@ -788,9 +839,9 @@ html:has(.portada) { scroll-behavior: smooth; }
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "deudor saldo"
-      "acreedor acreedor"
+      "deuda deuda"
       "estado estado"
-      "acceso acceso";
+      "fecha acciones";
     column-gap: 12px;
     margin-bottom: 10px;
     padding: 12px 14px;
@@ -799,34 +850,18 @@ html:has(.portada) { scroll-behavior: smooth; }
     background: var(--paper);
   }
   .table.tabla-cartera td, .table.tabla-cartera td.num { display: block; padding: 0; border: 0; text-align: left; }
-  .tabla-cartera td[data-campo="Deudor"] { grid-area: deudor; font-size: 16.5px; font-weight: 600; }
-  .tabla-cartera td[data-campo="Deudor"] .sub { font-weight: 400; }
+  .tabla-cartera td[data-campo="Deudor"] { grid-area: deudor; font-size: 16.5px; white-space: normal; }
+  .tabla-cartera .rut { display: block; margin: 0; }
+  .tabla-cartera td[data-campo="Deudor"] .tag { margin: 4px 0 0; }
   .table.tabla-cartera td[data-campo="Saldo"] { grid-area: saldo; text-align: right; font-weight: 600; }
-  .tabla-cartera td[data-campo="Saldo"] .sub { font-weight: 400; }
-  .tabla-cartera td[data-campo="Acreedor"] { grid-area: acreedor; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
-  .tabla-cartera td[data-campo="Acreedor"] .sub { display: inline; }
-  .tabla-cartera td[data-campo="Acreedor"] .sub::before { content: " · "; }
-  /* La fecha va al lado de la barra, que no ocupa todo el ancho; un reclamo baja a su propia linea. */
-  .table.tabla-cartera td[data-campo="Estado"] {
-    grid-area: estado;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 2px 12px;
-    margin-top: 8px;
-  }
-  .tabla-cartera td[data-campo="Estado"] .sub { margin: 0; }
-  .tabla-cartera td[data-campo="Estado"] .sub + .sub { flex-basis: 100%; }
-  .table.tabla-cartera td[data-campo="Acceso"] {
-    grid-area: acceso;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 10px;
-    margin-top: 8px;
-  }
-  .tabla-cartera td[data-campo="Acceso"]:empty { display: none; }
-  .tabla-cartera td[data-campo="Acceso"] .sub { margin: 0; }
+  .tabla-cartera td[data-campo="Deuda"] { grid-area: deuda; width: auto; max-width: none; margin-top: 6px; font-size: 14px; }
+  .tabla-cartera .recorte { max-width: none; }
+  .table.tabla-cartera td[data-campo="Estado"] { grid-area: estado; margin-top: 10px; }
+  .table.tabla-cartera td[data-campo="Fecha"] { grid-area: fecha; align-self: center; margin-top: 8px; }
+  .table.tabla-cartera td[data-campo="Acciones"] { grid-area: acciones; display: flex; justify-content: flex-end; margin-top: 8px; }
+  .tabla-cartera td[data-campo="Acciones"] .btn + .btn { margin-left: 0; }
+  .tabla-cartera tr.fila-detalle, .tabla-cartera tr.fila-reclamo { display: block; margin-top: -4px; }
+  .detalle-deuda { grid-template-columns: 1fr; }
 }
 
 /* ---- Portal: marco ------------------------------------------------------------------------- */
