@@ -74,6 +74,19 @@ class InternalControllerTest {
     @MockitoBean private EmpresaService empresas;
 
     @Test
+    void checkout_exige_clave_y_transmite_la_identidad_verificada() throws Exception {
+        mvc.perform(get("/internal/debts/3/checkout").param("debtorRut", "18905214-6"))
+                .andExpect(status().isUnauthorized());
+        verify(debts, never()).snapshotCheckout(any(), any(), any());
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE)
+                .param("debtorRut", "18905214-6").param("installmentIds", "12", "13"))
+                .andExpect(status().isOk());
+        verify(debts).snapshotCheckout(3L, List.of(12L, 13L), "18905214-6");
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void claves_vacias_prefijos_y_longitudes_distintas_no_revelan_empresas() throws Exception {
         for (String clave : new String[]{"", " ", "clave-interna-de-prueb", CLAVE + "X", "otra"}) {
             mvc.perform(get("/internal/organizaciones/77305118-6").header("X-Internal-Key", clave))

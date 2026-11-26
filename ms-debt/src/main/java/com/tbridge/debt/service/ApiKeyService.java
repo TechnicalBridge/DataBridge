@@ -16,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Base64;
 import java.util.List;
 
@@ -33,10 +36,17 @@ public class ApiKeyService {
 
     private final ApiKeyRepository claves;
     private final OrganizationRepository organizations;
+    private final Clock reloj;
 
+    @Autowired
     public ApiKeyService(ApiKeyRepository claves, OrganizationRepository organizations) {
+        this(claves, organizations, Clock.systemUTC());
+    }
+
+    ApiKeyService(ApiKeyRepository claves, OrganizationRepository organizations, Clock reloj) {
         this.claves = claves;
         this.organizations = organizations;
+        this.reloj = reloj;
     }
 
     /** Emite una clave para la organizacion de ese RUT. */
@@ -105,8 +115,12 @@ public class ApiKeyService {
                 throw new CarteraInvalida("empresa_suspendida",
                         "La empresa está suspendida: sus claves de API no pueden operar", 403);
             }
-            registro.setLastUsedAt(Instant.now());
-            claves.save(registro);
+            Instant ahora = reloj.instant();
+            Instant limite = ahora.minus(Duration.ofMinutes(5));
+            if (registro.getLastUsedAt() == null || !registro.getLastUsedAt().isAfter(limite)) {
+                // No mutar la entidad gestionada: el UPDATE decide atomicamente el intervalo.
+                claves.registrarUsoSiVencido(registro.getId(), ahora, limite);
+            }
             return org;
         }).orElseThrow(ApiKeyService::noAutorizado);
     }

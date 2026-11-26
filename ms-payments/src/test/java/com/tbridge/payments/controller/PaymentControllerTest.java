@@ -70,6 +70,19 @@ class PaymentControllerTest {
     }
 
     @Test
+    void checkout_ajeno_e_inexistente_devuelven_el_mismo_json() throws Exception {
+        when(payments.checkout(any(), any())).thenThrow(
+                new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+        for (long id : List.of(40L, 41L)) {
+            mvc.perform(post("/api/payments/checkout").header("Authorization", deudor())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"debtId\":" + id + ",\"installmentIds\":[99],\"gateway\":\"webpay\"}"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().json("{\"error\":\"No puedes ver esta deuda\"}"));
+        }
+    }
+
+    @Test
     void abrir_un_cobro_devuelve_el_pago_la_pasarela_y_los_enlaces_publicos() throws Exception {
         when(payments.checkout(any(), any())).thenReturn(pago().conEnlaceDePago("http://localhost:8080/pasarela/41?sig=x"));
 
