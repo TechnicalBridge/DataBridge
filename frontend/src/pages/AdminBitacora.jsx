@@ -21,6 +21,7 @@ const ACCIONES = {
   admin_creado: "Creó un administrador",
   persona_deshabilitada: "Quitó un acceso",
   persona_habilitada: "Devolvió un acceso",
+  sesion_cerrada: "Cerró una sesión",
   empresa_creada: "Creó una empresa",
   empresa_suspendida: "Suspendió una empresa",
   empresa_reactivada: "Reactivó una empresa",

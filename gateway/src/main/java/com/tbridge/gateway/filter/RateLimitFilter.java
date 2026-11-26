@@ -1,5 +1,7 @@
 package com.tbridge.gateway.filter;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,13 +17,14 @@ import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .maximumSize(50_000)
+            .expireAfterAccess(Duration.ofMinutes(10))
+            .build();
     private final long authCapacity;
     private final long globalCapacity;
     private final Duration authRefill;
@@ -60,7 +63,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 && !path.equals("/api/auth/refresh") && !path.equals("/api/auth/logout");
         String ip = clientes.de(request);
         String key = (authPath ? "auth:" : "api:") + ip;
-        Bucket bucket = buckets.computeIfAbsent(key, k -> authPath ? authBucket() : globalBucket());
+        Bucket bucket = buckets.get(key, k -> authPath ? authBucket() : globalBucket());
         if (bucket.tryConsume(1)) {
             return chain.filter(exchange);
         }

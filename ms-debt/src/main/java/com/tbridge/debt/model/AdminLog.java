@@ -21,7 +21,8 @@ public class AdminLog {
     public enum Action {
         empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado,
         //  Las suscripciones de avisos, desde el panel (#438).
-        suscripcion_activada, suscripcion_desactivada, suscripcion_secreto_cambiado, suscripcion_probada
+        suscripcion_activada, suscripcion_desactivada, suscripcion_secreto_cambiado, suscripcion_probada,
+        empresa_corregida
     }
 
     @Id
@@ -41,6 +42,12 @@ public class AdminLog {
     @Column(length = 254)
     private String subject;
 
+    @Column(name = "previous_values", columnDefinition = "text")
+    private String previousValues;
+
+    @Column(name = "new_values", columnDefinition = "text")
+    private String newValues;
+
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt = Instant.now();
 
@@ -53,10 +60,18 @@ public class AdminLog {
         return registro;
     }
 
+    public AdminLog conCambios(String anteriores, String nuevos) {
+        previousValues = anteriores;
+        newValues = nuevos;
+        return this;
+    }
+
     public Long getId() { return id; }
     public String getAdminEmail() { return adminEmail; }
     public Action getAction() { return action; }
     public String getOrgRut() { return orgRut; }
     public String getSubject() { return subject; }
+    public String getPreviousValues() { return previousValues; }
+    public String getNewValues() { return newValues; }
     public Instant getOccurredAt() { return occurredAt; }
 }
