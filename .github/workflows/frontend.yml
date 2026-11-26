@@ -10,7 +10,7 @@ name: frontend
 on:
   push:
     branches: [main]
-    paths: ['frontend/**', '.github/workflows/frontend.yml']
+    paths: ['frontend/**', 'pruebas/formato.test.cjs', 'pruebas/exportar.test.cjs', '.github/workflows/frontend.yml']
   #  En un PR corre siempre: main exige el check "CI de frontend", y un check que
   #  no corre dejaria el PR esperando para siempre. Si su carpeta no cambio, se
   #  salta las pruebas y el check pasa en segundos.
@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          RUTAS: '^(frontend/|\.github/workflows/frontend\.yml$)'
+          RUTAS: '^(frontend/|pruebas/(formato|exportar)\.test\.cjs$|\.github/workflows/frontend\.yml$)'
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "toca=true" >> "$GITHUB_OUTPUT"
@@ -68,6 +68,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Seguridad de exportaciones
+        working-directory: .
+        run: node --test pruebas/exportar.test.cjs
       - run: npm run build
       - name: Dependencias vulnerables
         run: npm audit --audit-level=high
