@@ -117,8 +117,19 @@ function tablonesDeCuota(c, todas) {
   });
 }
 
+/**
+ * Cuantas cuotas de su deuda hay que pagar para llegar a esta, contando las anteriores que siguen pendientes:
+ * Pagar llega con esas marcadas (#556). Las cuotas se pagan en orden de vencimiento.
+ */
+function hastaEsta(c, todas) {
+  const deLaDeuda = todas.filter((o) => o.deudaId === c.deudaId)
+    .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento));
+  return deLaDeuda.indexOf(c) + 1;
+}
+
 function FilaCuota({ cuota: c, i, todas }) {
   const dia = new Date(`${c.vencimiento}T12:00:00`);
+  const cuantas = hastaEsta(c, todas);
   return (
     <div className="fila" style={{ "--i": i }}>
       <div className={`fecha-caja${c.vencida ? " vencida" : ""}`}>
@@ -133,7 +144,11 @@ function FilaCuota({ cuota: c, i, todas }) {
       </div>
       <div className="fila-monto">
         <b>{dinero(c.monto, c.moneda)}</b>
-        <Link className="link-btn" to={`/app/pagar/${c.deudaId}`}>Pagar</Link>
+        <Link className="link-btn" to={`/app/pagar/${c.deudaId}${cuantas > 1 ? `?cuotas=${cuantas}` : ""}`}
+              aria-label={cuantas > 1 ? `Pagar hasta ${c.enConvenio ? `la cuota ${c.lugar}` : "esta"} (${cuantas} cuotas)`
+                : undefined}>
+          Pagar
+        </Link>
       </div>
     </div>
   );
