@@ -19,7 +19,25 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /** El correo registrado sale de ms-debt, con la clave interna; si no responde, no hay correo. */
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class DeudasClientTest {
+
+    @Test
+    void errores_http_no_registran_datos_y_conservan_resultados(org.springframework.boot.test.system.CapturedOutput salida) {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/correo"))
+                .andRespond(withServerError().body("persona@example.org /privado/16482337-7"));
+        servidor.expect(requestTo("http://ms-debt:8083/internal/organizaciones/77305118-6"))
+                .andRespond(withServerError().body("persona@example.org /privado/77305118-6"));
+        assertEquals(Optional.empty(), cliente.correoDelDeudor("16482337-7"));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE,
+                assertThrows(ApiException.class, () -> cliente.empresa("77305118-6")).getStatus());
+        servidor.verify();
+        org.junit.jupiter.api.Assertions.assertTrue(salida.getAll().contains("category=DEBT_SERVICE_ERROR"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("persona@example.org"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("/privado/"));
+        org.junit.jupiter.api.Assertions.assertFalse(java.util.regex.Pattern
+                .compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}").matcher(salida.getAll()).find());
+    }
 
     private MockRestServiceServer servidor;
     private DeudasClient cliente;
@@ -88,4 +106,22 @@ class DeudasClientTest {
 
         assertEquals(Optional.empty(), cliente.correoDelDeudor("16482337-7"));
     }
+
+    @Test void credencial_anterior_al_cambio_se_rechaza_sin_depender_del_aviso() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andExpect(header("X-Internal-Key", "clave-interna"))
+                .andRespond(withSuccess("{\"correo\":\"nuevo@correo.cl\",\"emailUpdatedAt\":\"2026-11-20T12:00:00Z\"}", MediaType.APPLICATION_JSON));
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(ApiException.class, () -> cliente.exigirCredencialVigente("16482337-7", java.time.Instant.parse("2026-11-20T11:59:59Z"))).getStatus());
+    }
+    @Test void credencial_nueva_funciona() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andRespond(withSuccess("{\"correo\":\"nuevo@correo.cl\",\"emailUpdatedAt\":\"2026-11-20T12:00:00Z\"}", MediaType.APPLICATION_JSON));
+        cliente.exigirCredencialVigente("16482337-7", java.time.Instant.parse("2026-11-20T12:00:01Z"));
+    }
+    @Test void sin_contacto_vigente_no_se_abre_sesion() {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/contacto"))
+                .andRespond(withServerError());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ApiException.class, () -> cliente.exigirCredencialVigente("16482337-7", java.time.Instant.now())).getStatus());
+    }
+
 }

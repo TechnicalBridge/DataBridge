@@ -65,6 +65,11 @@ public class AccessCode {
         this.consumedAt = Instant.now();
     }
 
+    @Column(name = "contact_changed_at")
+    private Instant contactChangedAt;
+    public Instant getContactChangedAt() { return contactChangedAt; }
+    public void setContactChangedAt(Instant at) { contactChangedAt=at; }
+
     public Long getId() { return id; }
     public String getCodeHash() { return codeHash; }
     public void setCodeHash(String codeHash) { this.codeHash = codeHash; }

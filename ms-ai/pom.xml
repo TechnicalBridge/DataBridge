@@ -26,7 +26,7 @@
     <spring-boot.run.profiles>dev</spring-boot.run.profiles>
     <!-- La rama 2.8 es la de Spring Boot 3.5; la 3.x ya es para Spring Boot 4. -->
     <springdoc.version>2.10.0</springdoc.version>
-    <openai.version>4.101.0</openai.version>
+    <openai.version>4.111.0</openai.version>
   </properties>
 
   <dependencies>
@@ -37,6 +37,10 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
     <!-- /actuator/health, para el healthcheck de Docker. -->
     <dependency>

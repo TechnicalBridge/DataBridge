@@ -201,16 +201,17 @@ public class MailService {
         if (!conServidor) {
             log.info("Correo: sin servidor. No se entregan correos");
         } else if (alBuzonDePrueba) {
-            log.info("Correo: al buzon de prueba ({}). Nada sale hacia afuera", servidor);
+            log.info("Correo: al buzon de prueba. Nada sale hacia afuera");
         } else if (modo.activo()) {
-            log.info("Correo: servidor real {}, remitente {}; {}", servidor, from, modo.descripcion());
+            log.info("Correo: transporte real configurado; modo_prueba=activo; permitidos={}; desvio={}",
+                    modo.cuantosPermitidos(), modo.desvia() ? "activo" : "inactivo");
         } else {
-            log.warn("Correo: servidor real {}, remitente {}, y SIN modo de prueba: se le escribe a cualquier "
-                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A", servidor, from);
+            log.warn("Correo: transporte real configurado y SIN modo de prueba: se le escribe a cualquier "
+                    + "direccion. Con datos de demostracion, define CORREO_SOLO_A y CORREO_DESVIAR_A");
         }
         if (conServidor && !alBuzonDePrueba) {
             log.info("Correo: lo de un dominio reservado (example.com, .test...) va {}; el desvio, hasta {} por dia",
-                    buzonDeReservados != null ? "al buzon de prueba (" + direccionDelBuzon + ")"
+                    buzonDeReservados != null ? "al buzon de prueba"
                             : modo.desvia() ? "al desvio" : "a ninguna parte",
                     topeDeDesvio.maximo() == 0 ? "sin tope" : String.valueOf(topeDeDesvio.maximo()));
         }
@@ -325,6 +326,52 @@ public class MailService {
         enviar(to, "Tu enlace para entrar a DataBridge", "enlace", datos(
                 "url", url,
                 "dura", cuanto(minutos, "minuto", "minutos")));
+    }
+
+    /** Un desvio o buzon de pruebas nunca demuestra que alguien controla el correo. */
+    public void enviarVerificacionDeCorreo(String correo, String codigo) {
+        var destino = modo.para(correo, "Confirma tu nuevo correo en DataBridge");
+        if (!conServidor || alBuzonDePrueba || DominiosReservados.es(correo)
+                || destino.isEmpty() || destino.get().desviado()) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "La configuración no permite verificar el destino propuesto");
+        }
+        try {
+            // Mantiene el proveedor y el renderizador de plantillas elegidos; no crea credenciales de acceso.
+            mailSender.send(armar(mailSender, destino.get(), escribir("cambio-correo", datos("codigo", codigo))));
+        } catch (RuntimeException fallo) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo enviar la verificación de correo");
+        }
+    }
+
+    private Optional<String> entregarAvisoPrivado(String correo, String codigo) {
+        String asunto = "Se modificó tu correo de contacto en DataBridge";
+        //  El codigo para deshacer el cambio (#471), sin RUT, deuda, monto ni la direccion nueva.
+        var datosPlantilla = escribir("aviso-cambio-correo", Map.of("codigo", codigo, "portal", portal));
+        Optional<ModoDePrueba.Destino> destino;
+        if (!alBuzonDePrueba && DominiosReservados.es(correo)) {
+            if (buzonDeReservados != null) {
+                buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(correo, asunto, false), datosPlantilla));
+                return Optional.of(direccionDelBuzon);
+            }
+            destino = modo.desviar(correo, asunto);
+        } else destino = modo.para(correo, asunto);
+        if (destino.isEmpty() || (destino.get().desviado() && !topeDeDesvio.tomar())) return Optional.empty();
+        mailSender.send(armar(mailSender, destino.get(), datosPlantilla));
+        return Optional.of(destino.get().a());
+    }
+
+    public void enviarAvisoDeCambio(String correo, String codigo) {
+        if (!conServidor) throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "El correo no está disponible");
+        try {
+            if (entregarAvisoPrivado(correo, codigo).isEmpty())
+                throw new IllegalStateException();
+        } catch (RuntimeException fallo) {
+            throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo entregar el aviso de cambio");
+        }
     }
 
     /** Un solo mensaje: codigo y, solo si se pidio respaldo, su enlace alternativo. */
@@ -458,6 +505,27 @@ public class MailService {
         return false;
     }
 
+    /** Una representacion exclusiva para logs; no cambia los errores ni las respuestas de diagnostico. */
+    private void registrarFallo(Exception e) {
+        // Solo categorias y codigos: el texto SMTP puede traer destinatarios o credenciales.
+        String categoria = esDeLaDireccion(e) ? "RECIPIENT_REJECTED" : "TRANSPORT_ERROR";
+        for (Throwable causa : cadena(e)) {
+            if (causa instanceof org.springframework.mail.MailAuthenticationException
+                    || causa instanceof MailPreparationException
+                    || (causa.getMessage() != null && causa.getMessage().startsWith("MAIL_FROM o MAIL_REPLY_TO"))) {
+                categoria = "CONFIGURATION_ERROR";
+                break;
+            }
+            if ("Resend no respondió a tiempo; aceptación desconocida".equals(causa.getMessage())) {
+                categoria = "ACCEPTANCE_UNKNOWN";
+            }
+        }
+        var codigo = java.util.regex.Pattern.compile("^(\\d{3})(?:[ -]|$)")
+                .matcher(motivo(e));
+        log.warn("mail_delivery outcome=failed category={} smtp_code={}",
+                categoria, codigo.find() ? codigo.group(1) : "none");
+    }
+
     /** Para un correo que nadie espera saber si salio: el fallo queda en el log. */
     private void enviar(String to, String asunto, String plantilla, Map<String, ?> datos) {
         if (!conServidor) {
@@ -466,7 +534,7 @@ public class MailService {
         try {
             entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
-            log.warn("No se pudo enviar SMTP a {}: {}", to, motivo(e));
+            registrarFallo(e);
         }
     }
 
@@ -483,7 +551,7 @@ public class MailService {
             entregar(to, asunto, plantilla, datos);
         } catch (Exception e) {
             String motivo = motivo(e);
-            log.warn("No se pudo enviar SMTP a {}: {}", to, motivo);
+            registrarFallo(e);
             throw new CorreoNoSalio(motivo, esDeLaDireccion(e));
         }
     }
@@ -502,30 +570,29 @@ public class MailService {
             if (buzonDeReservados != null) {
                 buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
                         escribir(plantilla, datos)));
-                log.info("Dominio reservado: el correo para {} va al buzon de prueba, no al proveedor", to);
+                log.info("Dominio reservado: el correo va al buzon de prueba, no al proveedor");
                 return Optional.of(direccionDelBuzon);
             }
             destino = modo.desviar(to, asunto);
             if (destino.isEmpty()) {
-                log.info("Dominio reservado: el correo para {} no sale (no hay buzon de prueba ni CORREO_DESVIAR_A)", to);
+                log.info("Dominio reservado: el correo no sale (no hay buzon de prueba ni CORREO_DESVIAR_A)");
                 return Optional.empty();
             }
         } else {
             destino = modo.para(to, asunto);
             if (destino.isEmpty()) {
-                log.info("Modo de prueba: el correo para {} no sale (no esta en CORREO_SOLO_A y no hay CORREO_DESVIAR_A)",
-                        to);
+                log.info("Modo de prueba: el correo no sale (destinatario no autorizado y no hay CORREO_DESVIAR_A)");
                 return Optional.empty();
             }
         }
         if (destino.get().desviado() && !topeDeDesvio.tomar()) {
-            log.warn("Modo de prueba: el correo para {} no sale, porque hoy ya se desviaron {} "
-                    + "(CORREO_DESVIO_MAXIMO_POR_DIA)", to, topeDeDesvio.maximo());
+            log.warn("Modo de prueba: el correo no sale, porque hoy ya se desviaron {} "
+                    + "(CORREO_DESVIO_MAXIMO_POR_DIA)", topeDeDesvio.maximo());
             return Optional.empty();
         }
         mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos)));
         if (destino.get().desviado()) {
-            log.info("Modo de prueba: el correo para {} se desvio a {}", to, destino.get().a());
+            log.info("Modo de prueba: el correo se desvio al buzon configurado");
         }
         return Optional.of(destino.get().a());
     }

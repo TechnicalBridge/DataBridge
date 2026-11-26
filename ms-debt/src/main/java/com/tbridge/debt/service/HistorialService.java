@@ -54,7 +54,7 @@ public class HistorialService {
     public DebtEvent pago(JwtPrincipal user, Long id) {
         DebtEvent evento = events.findById(id)
                 .filter(e -> e.getType() == DebtEvent.Type.payment_applied)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
         debts.requireVisible(user, evento.getDebt().getId());
         return evento;
     }

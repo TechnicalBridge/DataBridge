@@ -9,6 +9,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -133,6 +134,6 @@ public class ApiExceptionHandler {
     }
 
     private static ResponseEntity<ApiError> responder(HttpStatusCode codigo, String mensaje) {
-        return ResponseEntity.status(codigo).body(new ApiError(mensaje));
+        return ResponseEntity.status(codigo).contentType(MediaType.APPLICATION_JSON).body(new ApiError(mensaje));
     }
 }

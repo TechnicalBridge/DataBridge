@@ -17,6 +17,9 @@ export const IconoFlecha = (p) => <Trazo {...p}><path d="M5 12h14M13 6l6 6-6 6" 
 
 export const IconoVolver = (p) => <Trazo {...p}><path d="M19 12H5M11 18l-6-6 6-6" /></Trazo>;
 
+/** Para abrir y cerrar un detalle: apunta abajo, y se gira con CSS cuando esta abierto. */
+export const IconoDesplegar = (p) => <Trazo {...p}><path d="M6 9l6 6 6-6" /></Trazo>;
+
 export const IconoSol = (p) => (
   <Trazo {...p}>
     <circle cx="12" cy="12" r="4" />
@@ -74,6 +77,16 @@ export const IconoEquipo = (p) => (
 
 export const IconoCandado = (p) => (
   <Trazo {...p}><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Trazo>
+);
+
+//  Una pantalla con una persona: las sesiones abiertas (#439).
+export const IconoSesion = (p) => (
+  <Trazo {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
+    <circle cx="12" cy="9" r="2" />
+    <path d="M8.5 13.5a3.5 3.5 0 0 1 7 0" />
+  </Trazo>
 );
 
 export const IconoCalendario = (p) => (

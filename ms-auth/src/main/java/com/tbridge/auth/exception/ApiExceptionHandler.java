@@ -130,7 +130,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> inesperado(Exception ex) {
-        log.error("Error no controlado", ex);
+        log.error("Error no controlado: category=UNEXPECTED_ERROR type={}", ex.getClass().getSimpleName());
         return responder(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno");
     }
 
