@@ -50,7 +50,7 @@ export function rutLegible(rut) {
 export function fecha(iso) {
   if (!iso) return "";
   const d = new Date(String(iso).length === 10 ? `${iso}T12:00:00` : iso);
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Una fecha y su hora: 21 sept 2026, 18:45. */
