@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!--/*
+  El comprobante de un pago (#541), con el PDF adjunto y, si la deuda quedo
+  pagada, el certificado. A diferencia del aviso y del recordatorio, trae el
+  detalle: el deudor acaba de pagar y es su constancia. Lo mismo que dice el
+  PDF, escrito por ms-debt. Sin enlaces, como todos.
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta(${saldada} ? 'Tu deuda quedó pagada' : 'Recibimos tu pago', |Pagaste ${monto} a ${acreedor}. Folio ${folio}.|, ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0 0 22px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    <th:block th:if="${saldada}">Con este pago, tu deuda con
+      <strong class="tinta" style="color:#2e2a24;" th:text="${acreedor}">Patrimonio Inmuebles</strong>
+      quedó pagada por completo.</th:block>
+    <th:block th:unless="${saldada}">Tu pago a
+      <strong class="tinta" style="color:#2e2a24;" th:text="${acreedor}">Patrimonio Inmuebles</strong>
+      quedó abonado a tu deuda. Este es tu comprobante.</th:block>
+  </p>
+  <!--/* El monto, como en el PDF: lo que se pago, grande. */-->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px 0;">
+    <tr>
+      <td class="caja" bgcolor="#e4efe2" style="background-color:#e4efe2;border-radius:12px;padding:18px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="tinta-2" style="font-size:14px;line-height:1.4;color:#4b453c;">Monto pagado</td>
+            <td class="tinta-2" align="right" style="font-size:14px;line-height:1.4;color:#4b453c;white-space:nowrap;"
+                th:text="|Folio ${folio}|">Folio 57</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="monto" style="padding-top:4px;font-size:32px;line-height:1.15;font-weight:700;color:#2f6140;font-variant-numeric:tabular-nums;"
+                th:text="${monto}">$346.666</td>
+          </tr>
+          <tr th:if="${nota}">
+            <td colspan="2" class="tinta-2" style="padding-top:6px;font-size:14px;line-height:1.45;color:#4b453c;"
+                th:text="${nota}">Equivale a $1.540.000, con la UF de ese día ($39.876,54)</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  <!--/* El detalle: una fila por dato, con una linea entre filas. */-->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px 0;">
+    <tr th:each="fila : ${filas}">
+      <td class="tenue separador" width="36%" valign="top"
+          style="width:36%;padding:10px 12px 10px 0;border-top:1px solid #ebe1cf;font-size:14px;line-height:1.45;color:#6f665b;vertical-align:top;"
+          th:text="${fila.nombre}">Medio de pago</td>
+      <td class="tinta separador" valign="top"
+          style="padding:10px 0;border-top:1px solid #ebe1cf;font-size:15px;line-height:1.45;font-weight:600;color:#2e2a24;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;"
+          th:text="${fila.valor}">Webpay, operación wp-9f31c2</td>
+    </tr>
+    <tr th:if="${queda}">
+      <td class="tenue separador" width="36%" valign="top"
+          style="width:36%;padding:10px 12px 10px 0;border-top:1px solid #ebe1cf;font-size:14px;line-height:1.45;color:#6f665b;vertical-align:top;">Queda por pagar</td>
+      <td class="tinta separador" valign="top"
+          style="padding:10px 0;border-top:1px solid #ebe1cf;font-size:15px;line-height:1.45;font-weight:600;color:#2e2a24;vertical-align:top;font-variant-numeric:tabular-nums;"
+          th:text="${queda}">$693.332</td>
+    </tr>
+    <tr th:if="${saldada}">
+      <td class="tenue separador" width="36%" valign="top"
+          style="width:36%;padding:10px 12px 10px 0;border-top:1px solid #ebe1cf;font-size:14px;line-height:1.45;color:#6f665b;vertical-align:top;">Saldo</td>
+      <td class="tinta separador" valign="top"
+          style="padding:10px 0;border-top:1px solid #ebe1cf;font-size:15px;line-height:1.45;font-weight:600;color:#2e2a24;vertical-align:top;">Pagada por completo</td>
+    </tr>
+  </table>
+  <p class="tinta-2" style="margin:0 0 22px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    <th:block th:if="${certificado}">Te adjuntamos el comprobante en PDF y el certificado de deuda pagada.
+      Guárdalos: son tu constancia ante
+      <th:block th:text="${acreedor}">Patrimonio Inmuebles</th:block>.</th:block>
+    <th:block th:unless="${certificado}">Te adjuntamos este comprobante en PDF. Guárdalo: es tu constancia ante
+      <th:block th:text="${acreedor}">Patrimonio Inmuebles</th:block>.</th:block>
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td class="aviso tinta-2" bgcolor="#f6efe2" style="background-color:#f6efe2;border-left:3px solid #c8764b;border-radius:8px;padding:14px 16px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#4b453c;">
+        <strong>Este correo no trae ningún enlace.</strong>
+        Si quieres ver tus pagos, escribe tú la dirección del portal:
+        <span style="overflow-wrap:anywhere;word-break:break-word;" th:text="${portal}">databridge.cl</span>.
+      </td>
+    </tr>
+  </table>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#6f665b;">
+  Te llegó porque pagaste en DataBridge una deuda con <th:block th:text="${acreedor}">Patrimonio Inmuebles</th:block>.
+</p>
+</body>
+</html>

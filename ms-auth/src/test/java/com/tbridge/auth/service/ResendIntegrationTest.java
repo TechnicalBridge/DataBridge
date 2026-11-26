@@ -244,6 +244,29 @@ class ResendIntegrationTest {
         });
     }
 
+    @Test
+    void el_comprobante_lleva_el_simbolo_en_linea_y_los_pdf_como_adjuntos() {
+        //  #541: el simbolo con content_id y cada PDF sin el, con su nombre y su tipo.
+        contexto().run(app -> {
+            byte[] comprobante = "%PDF-1.4 comprobante".getBytes(StandardCharsets.UTF_8);
+            byte[] certificado = "%PDF-1.4 certificado".getBytes(StandardCharsets.UTF_8);
+            app.getBean(MailService.class).enviarComprobante(DESTINO, "58", "$693.332", null, "Empresa",
+                    List.of(new MailService.Fila("Qué se pagó", "El total de la deuda")), true, null,
+                    List.of(new MailService.Adjunto("comprobante-58.pdf", comprobante),
+                            new MailService.Adjunto("certificado-8.pdf", certificado)));
+            JsonNode carta = cartaRecibida();
+            assertThat(carta.path("subject").asText()).isEqualTo("Tu deuda quedó pagada");
+            assertThat(carta.path("attachments")).hasSize(3);
+            assertThat(carta.path("attachments").get(0).path("content_id").asText()).isEqualTo("logo-databridge");
+            JsonNode pdf = carta.path("attachments").get(1);
+            assertThat(pdf.has("content_id")).isFalse();
+            assertThat(pdf.path("filename").asText()).isEqualTo("comprobante-58.pdf");
+            assertThat(pdf.path("content_type").asText()).isEqualTo("application/pdf");
+            assertThat(java.util.Base64.getDecoder().decode(pdf.path("content").asText())).isEqualTo(comprobante);
+            assertThat(carta.path("attachments").get(2).path("filename").asText()).isEqualTo("certificado-8.pdf");
+        });
+    }
+
     private JsonNode cartaRecibida() throws InterruptedException {
         JsonNode carta = recibidos.poll(5, TimeUnit.SECONDS);
         assertThat(carta != null).as("Resend simulado recibió un correo").isTrue();

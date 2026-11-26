@@ -26,7 +26,7 @@ class AnalyticsInteresesTest {
     private final DebtEventRepository eventos = mock(DebtEventRepository.class);
     private final InstallmentRepository cuotas = mock(InstallmentRepository.class);
     private final DebtService deudas = new DebtService(debts, null, null, null, cuotas, null,
-            eventos, null, null, null, null, null);
+            eventos, null, null, null, null, null, null);
     private final AnalyticsService analytics = new AnalyticsService(debts, eventos, deudas);
     private final Organization empresa = new Organization();
 

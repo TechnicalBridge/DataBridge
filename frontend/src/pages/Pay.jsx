@@ -272,8 +272,10 @@ export default function Pay() {
           {acreditado ? (
             <p className="hint">
               {Number(deuda.saldo) > 0
-                ? `Tu saldo quedó en ${dinero(deuda.saldo, moneda)}. ${deuda.acreedor} ya fue avisado.`
-                : `Pagaste todo. ${deuda.acreedor} ya fue avisado.`}
+                ? `Tu saldo quedó en ${dinero(deuda.saldo, moneda)}. ${deuda.acreedor} ya fue avisado. `
+                  + "El comprobante te llega al correo y queda en tu historial de pagos."
+                : `Pagaste todo. ${deuda.acreedor} ya fue avisado. `
+                  + "El comprobante y el certificado de deuda pagada te llegan al correo."}
             </p>
           ) : (
             <p className="esperando"><span className="girando" /> Conciliando el pago con tu deuda…</p>

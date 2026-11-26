@@ -65,8 +65,9 @@ import java.util.Optional;
  *
  * <p>El correo de un codigo y el de un recordatorio <b>dicen si no salieron</b>
  * ({@link CorreoNoSalio}): quien los pide es la cobranza, que no puede anotar
- * como hecha una gestion que nunca llego. El enlace y la invitacion salen en
- * segundo plano y solo dejan el fallo en el log.
+ * como hecha una gestion que nunca llego. El comprobante de un pago tambien:
+ * ms-debt anota en el deudor si su direccion no recibe. El enlace y la
+ * invitacion salen en segundo plano y solo dejan el fallo en el log.
  */
 @Service
 public class MailService {
@@ -371,6 +372,40 @@ public class MailService {
                 "entradaEnTrozos", List.of(direccion.split("(?=/)"))));
     }
 
+    /** Una fila del detalle del comprobante: "Medio de pago", "Webpay, operación wp-9f31c2". */
+    public record Fila(String nombre, String valor) {
+    }
+
+    /** Un PDF que va adjunto al correo. */
+    public record Adjunto(String nombre, byte[] contenido) {
+    }
+
+    /**
+     * El comprobante de un pago, con el PDF adjunto y, si la deuda quedo
+     * pagada, tambien el certificado (#541).
+     *
+     * <p>A diferencia del aviso y del recordatorio, si trae el detalle: el
+     * deudor acaba de pagar y es su constancia, con lo mismo que dice el PDF.
+     * Tampoco lleva enlaces. Los montos y las fechas vienen escritos por
+     * ms-debt, como en el PDF.
+     *
+     * @param queda lo que falta por pagar; no se usa si la deuda quedo pagada.
+     * @throws CorreoNoSalio si el servidor no lo acepto.
+     */
+    public void enviarComprobante(String to, String folio, String monto, String nota, String acreedor,
+                                  List<Fila> filas, boolean saldada, String queda, List<Adjunto> adjuntos) {
+        enviarODecirlo(to, saldada ? "Tu deuda quedó pagada" : "Recibimos tu pago", "comprobante", datos(
+                "folio", folio,
+                "monto", monto,
+                "nota", nota,
+                "acreedor", acreedor,
+                //  Como mapas: la plantilla los lee por nombre ({@code fila.nombre}).
+                "filas", filas.stream().map(f -> Map.of("nombre", f.nombre(), "valor", f.valor())).toList(),
+                "saldada", saldada,
+                "queda", saldada ? null : queda,
+                "certificado", adjuntos.stream().anyMatch(a -> a.nombre().startsWith("certificado"))), adjuntos);
+    }
+
     /** {@code 1 hora}, {@code 24 horas}. */
     private static String cuanto(long cantidad, String una, String varias) {
         return cantidad + " " + (cantidad == 1 ? una : varias);
@@ -502,11 +537,16 @@ public class MailService {
      * es un fallo: asi se pidio que fuera.
      */
     private void enviarODecirlo(String to, String asunto, String plantilla, Map<String, ?> datos) {
+        enviarODecirlo(to, asunto, plantilla, datos, List.of());
+    }
+
+    private void enviarODecirlo(String to, String asunto, String plantilla, Map<String, ?> datos,
+                                List<Adjunto> adjuntos) {
         if (!conServidor) {
             return;
         }
         try {
-            entregar(to, asunto, plantilla, datos);
+            entregar(to, asunto, plantilla, datos, adjuntos);
         } catch (Exception e) {
             String motivo = motivo(e);
             registrarFallo(e);
@@ -522,13 +562,18 @@ public class MailService {
      *         de desvio. Vacio si el modo de prueba no lo dejo salir.
      */
     private Optional<String> entregar(String to, String asunto, String plantilla, Map<String, ?> datos) {
+        return entregar(to, asunto, plantilla, datos, List.of());
+    }
+
+    private Optional<String> entregar(String to, String asunto, String plantilla, Map<String, ?> datos,
+                                      List<Adjunto> adjuntos) {
         Optional<ModoDePrueba.Destino> destino;
         if (!alBuzonDePrueba && DominiosReservados.es(to)) {
             //  Un dominio reservado no entrega correo: por el proveedor solo gastaria su cupo (#236).
             if (buzonDeReservados != null) {
                 //  El buzon de prueba es SMTP: el simbolo va dentro.
                 buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(to, asunto, false),
-                        escribir(plantilla, datos, true)));
+                        escribir(plantilla, datos, true), adjuntos));
                 log.info("Dominio reservado: el correo va al buzon de prueba, no al proveedor");
                 return Optional.of(direccionDelBuzon);
             }
@@ -549,7 +594,7 @@ public class MailService {
                     + "(CORREO_DESVIO_MAXIMO_POR_DIA)", topeDeDesvio.maximo());
             return Optional.empty();
         }
-        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos, incrustaLogo)));
+        mailSender.send(armar(mailSender, destino.get(), escribir(plantilla, datos, incrustaLogo), adjuntos));
         if (destino.get().desviado()) {
             log.info("Modo de prueba: el correo se desvio al buzon configurado");
         }
@@ -603,12 +648,16 @@ public class MailService {
      * el texto y despues el HTML, que es la que muestra quien puede. Si el HTML
      * lleva el simbolo dentro, va junto a el en un {@code multipart/related}.
      *
+     * <p>Con adjuntos (los PDF del comprobante, #541), todo eso va primero en un
+     * {@code multipart/mixed} y los PDF despues, como adjuntos.
+     *
      * <p>Un remitente mal escrito es de la configuracion de DataBridge y se
      * informa sin su causa: si la llevara, {@link #esDeLaDireccion} culparia a
      * la direccion del deudor. Un destinatario mal escrito, en cambio, si es de
      * la direccion.
      */
-    private MimeMessage armar(JavaMailSender servidor, ModoDePrueba.Destino destino, Carta carta) {
+    private MimeMessage armar(JavaMailSender servidor, ModoDePrueba.Destino destino, Carta carta,
+                              List<Adjunto> adjuntos) {
         InternetAddress de;
         InternetAddress[] responder;
         try {
@@ -635,21 +684,38 @@ public class MailService {
             texto.setText(carta.texto(), StandardCharsets.UTF_8.name());
             MimeBodyPart html = new MimeBodyPart();
             html.setText(carta.html(), StandardCharsets.UTF_8.name(), "html");
+            MimeMultipart versiones;
             if (!carta.html().contains("cid:" + LOGO_ID)) {
-                mensaje.setContent(new MimeMultipart("alternative", texto, html));
+                versiones = new MimeMultipart("alternative", texto, html);
+            } else {
+                //  Con el simbolo dentro: el HTML y la imagen van juntos (multipart/related), y el
+                //  texto aparte. Asi el cliente que muestra texto no ve un adjunto.
+                MimeBodyPart simbolo = new MimeBodyPart();
+                simbolo.setDataHandler(new jakarta.activation.DataHandler(
+                        new jakarta.mail.util.ByteArrayDataSource(LOGO_INCRUSTADO, "image/png")));
+                simbolo.setContentID("<" + LOGO_ID + ">");
+                simbolo.setDisposition(MimeBodyPart.INLINE);
+                simbolo.setFileName("databridge.png");
+                MimeBodyPart conSimbolo = new MimeBodyPart();
+                conSimbolo.setContent(new MimeMultipart("related", html, simbolo));
+                versiones = new MimeMultipart("alternative", texto, conSimbolo);
+            }
+            if (adjuntos.isEmpty()) {
+                mensaje.setContent(versiones);
                 return mensaje;
             }
-            //  Con el simbolo dentro: el HTML y la imagen van juntos (multipart/related), y el
-            //  texto aparte. Asi el cliente que muestra texto no ve un adjunto.
-            MimeBodyPart simbolo = new MimeBodyPart();
-            simbolo.setDataHandler(new jakarta.activation.DataHandler(
-                    new jakarta.mail.util.ByteArrayDataSource(LOGO_INCRUSTADO, "image/png")));
-            simbolo.setContentID("<" + LOGO_ID + ">");
-            simbolo.setDisposition(MimeBodyPart.INLINE);
-            simbolo.setFileName("databridge.png");
-            MimeBodyPart conSimbolo = new MimeBodyPart();
-            conSimbolo.setContent(new MimeMultipart("related", html, simbolo));
-            mensaje.setContent(new MimeMultipart("alternative", texto, conSimbolo));
+            MimeBodyPart cuerpo = new MimeBodyPart();
+            cuerpo.setContent(versiones);
+            MimeMultipart conAdjuntos = new MimeMultipart("mixed", cuerpo);
+            for (Adjunto adjunto : adjuntos) {
+                MimeBodyPart pdf = new MimeBodyPart();
+                pdf.setDataHandler(new jakarta.activation.DataHandler(
+                        new jakarta.mail.util.ByteArrayDataSource(adjunto.contenido(), "application/pdf")));
+                pdf.setDisposition(MimeBodyPart.ATTACHMENT);
+                pdf.setFileName(adjunto.nombre());
+                conAdjuntos.addBodyPart(pdf);
+            }
+            mensaje.setContent(conAdjuntos);
             return mensaje;
         } catch (MessagingException e) {
             throw new MailPreparationException("No se pudo armar el correo", e);

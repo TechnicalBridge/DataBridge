@@ -13,7 +13,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Lo que ms-debt le pide a ms-auth: emitir el codigo de acceso de un deudor.
+ * Lo que ms-debt le pide a ms-auth: emitir el codigo de acceso de un deudor, y
+ * mandarle el comprobante de un pago (#541).
  *
  * <p>ms-auth genera el codigo y lo manda al correo. La respuesta trae el
  * codigo, pero aca se lee solo cuando vence: el codigo nunca llega a quien lo
@@ -42,6 +43,19 @@ public class AuthClient {
     /** Lo unico que se lee de la respuesta. */
     public record CodigoEmitido(Instant expiraEn) {}
 
+    /**
+     * El comprobante de un pago para el correo del deudor (#541): lo mismo
+     * que dice el PDF, ya escrito, y los PDF. {@code queda} es lo que falta
+     * por pagar; si la deuda quedo pagada, no va.
+     */
+    public record PedidoDeComprobante(String correo, String folio, String monto, String nota, String acreedor,
+                                      List<Fila> filas, boolean saldada, String queda, List<Adjunto> adjuntos) {}
+
+    public record Fila(String nombre, String valor) {}
+
+    /** Un PDF. El contenido va en base64, como escribe Jackson un {@code byte[]}. */
+    public record Adjunto(String nombre, byte[] contenido) {}
+
     /** Lo que responde ms-auth cuando el correo no salio. */
     record CorreoNoEnviado(String error, String causa) {}
 
@@ -69,6 +83,29 @@ public class AuthClient {
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo emitir el codigo: el servicio de acceso no responde");
+        }
+    }
+
+    /**
+     * Le pide a ms-auth el correo del comprobante. Espera a saber si salio.
+     *
+     * @throws CorreoNoSalio si el servidor de correo no lo acepto.
+     */
+    public void enviarComprobante(PedidoDeComprobante pedido) {
+        try {
+            rest.post()
+                    .uri("/internal/correo/comprobante")
+                    .header("X-Internal-Key", internalKey)
+                    .body(pedido)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpServerErrorException.BadGateway noSalio) {
+            CorreoNoEnviado cuerpo = leer(noSalio);
+            throw new CorreoNoSalio(cuerpo == null ? null : cuerpo.error(),
+                    cuerpo != null && "direccion".equals(cuerpo.causa()));
+        } catch (RestClientException e) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo mandar el comprobante: el servicio de acceso no responde");
         }
     }
 

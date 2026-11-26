@@ -1,6 +1,7 @@
 package com.tbridge.auth.controller;
 
 import com.tbridge.auth.config.OpenApiConfig;
+import com.tbridge.auth.dto.request.ComprobanteRequest;
 import com.tbridge.auth.dto.request.EmitirCodigoRequest;
 import com.tbridge.auth.dto.response.CodigoEmitidoResponse;
 import com.tbridge.auth.dto.response.CorreoNoEnviadoResponse;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -34,7 +36,8 @@ import java.util.List;
  *
  * <p>Emitir un codigo no lo hace el deudor: lo hace la campana, y despues lo
  * manda por WhatsApp y por correo. Por eso va detras de la clave interna y el
- * gateway no lo expone.
+ * gateway no lo expone. Lo mismo el comprobante de un pago, que lo pide ms-debt
+ * al aplicarlo.
  */
 @RestController
 @Tag(name = "Interno", description = "Para los otros servicios, con la clave interna. El gateway no lo expone")
@@ -114,6 +117,37 @@ public class InternalController {
         String destino = Correo.normalizar(escrita).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
                 "Esa direccion no es un correo valido"));
         return correo.probar(destino);
+    }
+
+    @PostMapping("/internal/correo/comprobante")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Mandar el comprobante de un pago",
+            description = """
+                    Lo pide ms-debt cuando aplica un pago confirmado: el correo del deudor con el detalle del pago \
+                    y el comprobante en PDF adjunto y, si la deuda quedo pagada, tambien el certificado. Sin enlaces. \
+                    Pasa por el modo de prueba como cualquier correo, y la respuesta espera a saber si salio: si el \
+                    servidor de correo no lo acepta responde `502`.""")
+    @ApiResponse(responseCode = "204", description = "Entregado al servidor, o el modo de prueba no lo dejo salir")
+    @ApiResponse(responseCode = "400", description = "Falta un dato, o un adjunto no es un PDF",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "401", description = "Clave interna invalida",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "El correo no salio: lo que dijo el servidor, y de quien es la culpa",
+            content = @Content(schema = @Schema(implementation = CorreoNoEnviadoResponse.class)))
+    public void comprobante(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @Valid @RequestBody ComprobanteRequest pedido
+    ) {
+        exigirClave(clave);
+        if (!pedido.adjuntos().stream().allMatch(ComprobanteRequest.Adjunto::esPdf)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Un adjunto no es un PDF");
+        }
+        String destino = Correo.normalizar(pedido.correo()).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                "Esa direccion no es un correo valido"));
+        correo.enviarComprobante(destino, pedido.folio(), pedido.monto(), pedido.nota(), pedido.acreedor(),
+                pedido.filas().stream().map(f -> new MailService.Fila(f.nombre(), f.valor())).toList(),
+                pedido.saldada(), pedido.queda(),
+                pedido.adjuntos().stream().map(a -> new MailService.Adjunto(a.nombre(), a.contenido())).toList());
     }
 
     private void exigirClave(String clave) {

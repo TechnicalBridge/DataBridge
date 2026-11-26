@@ -42,6 +42,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
@@ -83,6 +84,7 @@ class DebtServiceTest {
     @Mock private ContactRepository contactos;
     @Mock private EventosService eventos;
     @Mock private DescuentoService descuentos;
+    @Mock private ApplicationEventPublisher avisos;
     @Spy private RepactationService repactation = new RepactationService();
     @Spy private ObjectMapper json = new ObjectMapper();
 
@@ -628,6 +630,18 @@ class DebtServiceTest {
         //  payment_applied y settled, de la primera vez. La segunda no anota nada.
         assertEquals(List.of(DebtEvent.Type.payment_applied, DebtEvent.Type.settled),
                 anotados.getAllValues().stream().map(DebtEvent::getType).toList());
+    }
+
+    @Test
+    void el_pago_aplicado_pide_su_comprobante_por_correo_una_sola_vez() {
+        //  #541: el aviso repetido no vuelve a aplicar el pago, y tampoco repite el correo.
+        servicio.onPagoConfirmado(aviso());
+        servicio.onPagoConfirmado(aviso());
+
+        DebtEvent aplicado = historia.stream()
+                .filter(e -> e.getType() == DebtEvent.Type.payment_applied).findFirst().orElseThrow();
+        verify(avisos).publishEvent(new ComprobantePorCorreo.PagoAplicado(aplicado.getId()));
+        verify(avisos, org.mockito.Mockito.times(1)).publishEvent(any(Object.class));
     }
 
     @Test

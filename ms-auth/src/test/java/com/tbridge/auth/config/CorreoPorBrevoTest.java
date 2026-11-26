@@ -228,6 +228,39 @@ class CorreoPorBrevoTest {
     }
 
     @Test
+    void los_pdf_del_comprobante_van_como_adjuntos_de_brevo() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+        MimeMessage mensaje = armado(brevo, "felipe.rojas@correo.cl", null);
+        //  Como lo arma MailService con adjuntos (#541): el correo y despues los PDF, en un multipart/mixed.
+        MimeBodyPart cuerpo = new MimeBodyPart();
+        cuerpo.setContent((MimeMultipart) mensaje.getContent());
+        MimeBodyPart pdf = new MimeBodyPart();
+        pdf.setDataHandler(new jakarta.activation.DataHandler(
+                new jakarta.mail.util.ByteArrayDataSource("%PDF-1.4 comprobante".getBytes(), "application/pdf")));
+        pdf.setDisposition(MimeBodyPart.ATTACHMENT);
+        pdf.setFileName("comprobante-57.pdf");
+        mensaje.setContent(new MimeMultipart("mixed", cuerpo, pdf));
+
+        brevo.send(mensaje);
+
+        JsonNode cuerpoEnviado = json.readTree(cuerpoRecibido.get());
+        assertEquals("<p>Tu código es <strong>K7M2QX</strong>.</p>", cuerpoEnviado.get("htmlContent").asText());
+        assertEquals(1, cuerpoEnviado.get("attachment").size());
+        assertEquals("comprobante-57.pdf", cuerpoEnviado.at("/attachment/0/name").asText());
+        assertEquals("%PDF-1.4 comprobante", new String(java.util.Base64.getDecoder()
+                .decode(cuerpoEnviado.at("/attachment/0/content").asText())));
+    }
+
+    @Test
+    void sin_adjuntos_no_manda_la_lista() throws Exception {
+        CorreoPorBrevo brevo = respondiendo(201, "{}");
+
+        brevo.send(armado(brevo, "felipe.rojas@correo.cl", null));
+
+        assertFalse(json.readTree(cuerpoRecibido.get()).has("attachment"));
+    }
+
+    @Test
     void sin_responder_a_no_manda_uno_aunque_jakarta_mail_devuelva_el_remitente() throws Exception {
         CorreoPorBrevo brevo = respondiendo(201, "{}");
 

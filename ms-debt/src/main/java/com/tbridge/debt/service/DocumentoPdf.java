@@ -3,6 +3,7 @@ package com.tbridge.debt.service;
 import com.lowagie.text.Document;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -41,7 +42,7 @@ final class DocumentoPdf {
     private static final Color GRIS = new Color(124, 114, 102);
     private static final Color LINEA = new Color(221, 210, 190);
 
-    private static final Font MARCA = new Font(Font.HELVETICA, 10, Font.BOLD, VERDE);
+    private static final Font MARCA = new Font(Font.HELVETICA, 14, Font.BOLD, TINTA);
     private static final Font TITULO = new Font(Font.HELVETICA, 22, Font.BOLD, TINTA);
     private static final Font TEXTO = new Font(Font.HELVETICA, 11, Font.NORMAL, TINTA);
     private static final Font ETIQUETA = new Font(Font.HELVETICA, 9, Font.NORMAL, GRIS);
@@ -49,7 +50,21 @@ final class DocumentoPdf {
     private static final Font GRANDE = new Font(Font.HELVETICA, 26, Font.BOLD, VERDE);
     private static final Font NOTA = new Font(Font.HELVETICA, 9, Font.NORMAL, GRIS);
 
+    /** El simbolo de DataBridge: el mismo {@code logo.png} del portal. */
+    private static final byte[] LOGO = leerLogo();
+
     private final Document documento = new Document(PageSize.LETTER, 64, 64, 64, 56);
+
+    private static byte[] leerLogo() {
+        try (var entrada = DocumentoPdf.class.getResourceAsStream("/documentos/logo.png")) {
+            if (entrada == null) {
+                throw new IllegalStateException("Falta documentos/logo.png en ms-debt");
+            }
+            return entrada.readAllBytes();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("No se pudo leer documentos/logo.png", e);
+        }
+    }
     private final ByteArrayOutputStream salida = new ByteArrayOutputStream();
 
     DocumentoPdf() {
@@ -57,8 +72,34 @@ final class DocumentoPdf {
         documento.open();
     }
 
+    /**
+     * Arriba, el simbolo y el nombre, como en el portal y en los correos (#541).
+     * El nombre es texto: se lee igual si el visor no muestra la imagen.
+     */
     DocumentoPdf encabezado(String titulo, String bajada) {
-        documento.add(new Paragraph("DataBridge", MARCA));
+        PdfPTable marca = new PdfPTable(new float[]{26, 300});
+        marca.setTotalWidth(326);
+        marca.setLockedWidth(true);
+        marca.setHorizontalAlignment(Element.ALIGN_LEFT);
+        Image simbolo;
+        try {
+            simbolo = Image.getInstance(LOGO);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo leer el simbolo de DataBridge", e);
+        }
+        simbolo.scaleToFit(22, 22);
+        PdfPCell conSimbolo = new PdfPCell(simbolo, false);
+        conSimbolo.setBorder(Rectangle.NO_BORDER);
+        conSimbolo.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        conSimbolo.setPadding(0);
+        marca.addCell(conSimbolo);
+        PdfPCell nombre = new PdfPCell(new Phrase("DataBridge", MARCA));
+        nombre.setBorder(Rectangle.NO_BORDER);
+        nombre.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        nombre.setPaddingLeft(4);
+        nombre.setPaddingBottom(4);
+        marca.addCell(nombre);
+        documento.add(marca);
         Paragraph encabezado = new Paragraph(titulo, TITULO);
         encabezado.setSpacingBefore(10);
         documento.add(encabezado);
