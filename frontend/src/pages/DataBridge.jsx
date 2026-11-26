@@ -8,9 +8,10 @@ import {
   totalDeLaDeuda,
 } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
-import BarraEstado, { etapaDe } from "../components/BarraEstado";
+import { etapaDe } from "../components/BarraEstado";
+import Tablones, { tablonesDe } from "../components/Tablones";
 import { EstadoCartera, RecuperadoPorDia } from "../components/Graficos";
-import { IconoCheck, IconoDescargar, IconoFlecha } from "../components/Iconos";
+import { IconoCheck, IconoDescargar, IconoDesplegar, IconoFlecha } from "../components/Iconos";
 import Paginas, { dePagina } from "../components/Paginas";
 
 /** De a cuantas deudas se ve la cartera (#280). */
@@ -26,6 +27,29 @@ function diasDesde(iso) {
 }
 
 const enDias = (n) => (n === 1 ? "1 día" : `${n} días`);
+
+const ORDEN_ESTADO = { disputed: 0, open: 1, repacted: 2, paid: 3, withdrawn: 4 };
+const ORDENES = {
+  deudor: (d) => (d.deudor || "").toLocaleLowerCase("es-CL"),
+  saldo: (d) => Number(d.saldo),
+  estado: (d) => [ORDEN_ESTADO[d.estado] ?? 9, -(Number(d.cuotasPagadas) || 0)],
+  fecha: (d) => d.actualizada || "",
+};
+function comparar(a, b) {
+  const x = Array.isArray(a) ? a : [a];
+  const y = Array.isArray(b) ? b : [b];
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] < y[i]) return -1;
+    if (x[i] > y[i]) return 1;
+  }
+  return 0;
+}
+
+/** El estado en pocas palabras, para la tabla: "En convenio, 1 de 3". */
+function estadoCorto(d) {
+  return d.estado === "repacted" ? `En convenio, ${d.cuotasPagadas ?? 0} de ${d.cuotasTotales ?? 0}`
+    : ESTADO_DEUDA[d.estado] || d.estado;
+}
 
 /**
  * Responder el reclamo de un deudor (#474): lo que dijo, cuanto lleva
@@ -111,6 +135,9 @@ export default function DataBridge() {
   const [soloCorreo, setSoloCorreo] = useState(false);
   const [respondiendo, setRespondiendo] = useState(null);
   const [referencias, setReferencias] = useState(null);
+  //  La deuda con su detalle abierto (#548), y el orden de la tabla.
+  const [abierta, setAbierta] = useState(null);
+  const [orden, setOrden] = useState({ campo: null, sube: true });
   const listaRef = useRef(null);
   const [error, setError] = useState("");
 
@@ -190,8 +217,21 @@ export default function DataBridge() {
   const reclamos = useMemo(() => deudas.filter((d) => d.estado === "disputed"), [deudas]);
   const sinCorreo = useMemo(() => new Set(deudas.filter((d) => (d.estado === "open" || d.estado === "repacted")
     && (d.correoFallido || d.sinCorreoValido)).map((d) => d.id)), [deudas]);
-  const visibles = buscadas.filter((d) => (filtro === "todas" || d.estado === filtro) && (!soloCorreo || sinCorreo.has(d.id)));
+  const filtradas = buscadas.filter((d) => (filtro === "todas" || d.estado === filtro) && (!soloCorreo || sinCorreo.has(d.id)));
+  const visibles = orden.campo
+    ? [...filtradas].sort((a, b) => {
+      //  Pesos y UF no se comparan: las deudas en UF van al final, se ordene hacia donde se ordene.
+      if (orden.campo === "saldo" && (a.moneda === "UF") !== (b.moneda === "UF")) return a.moneda === "UF" ? 1 : -1;
+      return comparar(ORDENES[orden.campo](a), ORDENES[orden.campo](b)) * (orden.sube ? 1 : -1);
+    })
+    : filtradas;
   const { enPagina, filas: deEstaPagina } = dePagina(visibles, pagina, POR_PAGINA);
+
+  /** Ordenar por una columna: la primera vez de menor a mayor, la segunda al reves. */
+  function ordenarPor(campo) {
+    setOrden((o) => ({ campo, sube: o.campo === campo ? !o.sube : true }));
+    setPagina(0);
+  }
 
   function filtrar(f) {
     setFiltro(f);
@@ -251,9 +291,11 @@ export default function DataBridge() {
     <div>
       <header className="topbar aparece">
         <div>
-          <span className="eyebrow">{resumen?.organizacion || "DataBridge"}</span>
           <h1>Cartera morosa</h1>
-          <p>Deudores en mora, y en qué va cada uno: por pagar, en convenio o pagada.</p>
+          <p>
+            {resumen?.organizacion ? `${resumen.organizacion}: d` : "D"}eudores en mora, y en qué va cada uno: por
+            pagar, en convenio o pagada.
+          </p>
         </div>
       </header>
       {error ? <div className="error">{error}</div> : null}
@@ -309,7 +351,11 @@ export default function DataBridge() {
               <span key={m.moneda}>{dinero(m.recuperado, m.moneda)}</span>
             ))}
           </b>
-          <small>{(resumen?.porMoneda || []).map((m) => `${porcentaje(m.tasaRecuperacion)} del monto original en ${m.moneda === "UF" ? "UF" : "pesos"}`).join(", ")}</small>
+          {(resumen?.porMoneda || []).map((m) => (
+            <small key={m.moneda}>
+              Se recuperó el {porcentaje(m.tasaRecuperacion)} de lo cargado en {m.moneda === "UF" ? "UF" : "pesos"}
+            </small>
+          ))}
           <small>
             Comisión sobre pagos del mes: {errorComision || (comision?.comision != null ? dinero(comision.comision) : "–")}
           </small>
@@ -362,11 +408,12 @@ export default function DataBridge() {
             <table className="table tabla-cartera">
               <thead>
                 <tr>
-                  <th>Deudor</th>
-                  <th>Acreedor</th>
-                  <th className="num">Saldo</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
+                  <Columna campo="deudor" orden={orden} onOrdenar={ordenarPor}>Deudor</Columna>
+                  <th>Deuda</th>
+                  <Columna campo="saldo" orden={orden} onOrdenar={ordenarPor} num>Saldo</Columna>
+                  <Columna campo="estado" orden={orden} onOrdenar={ordenarPor}>Estado</Columna>
+                  <Columna campo="fecha" orden={orden} onOrdenar={ordenarPor}>Actualizada</Columna>
+                  <th><span className="oculto">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -374,91 +421,111 @@ export default function DataBridge() {
                   const aviso = avisos[d.id];
                   const cobrable = d.estado === "open" || d.estado === "repacted";
                   const dias = d.estado === "disputed" ? diasDesde(d.disputa?.desde) : null;
+                  const abiertaEsta = abierta === d.id;
+                  const correoMal = d.sinCorreoValido ? "Sin correo válido"
+                    : d.correoFallido?.conProblemas ? "Correo con problemas" : null;
                   return (
                     <Fragment key={d.id}>
-                    <tr>
+                    <tr className={abiertaEsta ? "abierta" : undefined}>
                       <td data-campo="Deudor">
-                        {d.deudor}<span className="sub">{rutLegible(d.deudorRut)}</span>
-                        {d.sinCorreoValido ? <span className="tag tag-vencida">Sin correo válido</span> : null}
-                        {d.correoFallido?.conProblemas ? (
-                          <span className="tag tag-vencida"
-                                title="El servidor rechazó su dirección tres veces seguidas: ya no se le escribe solo hasta que llegue otro correo en la cartera. Puedes reenviarle el código a mano.">
-                            Correo con problemas
-                          </span>
-                        ) : null}
+                        <b>{d.deudor}</b> <span className="rut">{rutLegible(d.deudorRut)}</span>
+                        {correoMal ? <span className="tag tag-vencida">{correoMal}</span> : null}
                       </td>
-                      <td data-campo="Acreedor">{d.acreedor}<span className="sub">{d.concepto}, ref. {d.externalId}</span></td>
-                      <td className="num" data-campo="Saldo">
-                        {dinero(d.saldo, d.moneda)}
-                        <span className="sub">de {dinero(totalDeLaDeuda(d), d.moneda)}</span>
-                        {Number(d.interesMora) > 0 ? (
-                          <span className="sub">
-                            + {dinero(d.interesMora, d.moneda)} de mora, al {porcentaje(d.tasaInteresMensual)} mensual
-                          </span>
-                        ) : null}
+                      <td data-campo="Deuda">
+                        <span className="recorte" title={`${d.acreedor} · ${d.concepto}, ref. ${d.externalId}`}>
+                          {d.acreedor} · {d.concepto}
+                        </span>
                       </td>
+                      <td className="num" data-campo="Saldo">{dinero(d.saldo, d.moneda)}</td>
                       <td data-campo="Estado">
-                        <BarraEstado deuda={d} compacta />
-                        <span className="sub">{fecha(d.actualizada)}</span>
-                        {d.disputa ? (
-                          <span className="sub">
-                            <b>{MOTIVOS_DISPUTA[d.disputa.motivo] || d.disputa.motivo}</b>
-                            {d.disputa.detalle ? `: «${d.disputa.detalle}»` : ""}
-                          </span>
-                        ) : null}
+                        <span className="estado-celda">
+                          <Tablones estados={tablonesDe(d)} chico animar={false}
+                                    detenida={d.estado === "disputed" || d.estado === "withdrawn"} />
+                          <span>{estadoCorto(d)}</span>
+                        </span>
                         {dias != null ? (
                           <span className="tag tag-vencida">{dias === 0 ? "Reclamó hoy" : `Espera hace ${enDias(dias)}`}</span>
                         ) : null}
-                      </td>
-                      <td data-campo="Acciones">
-                        <button type="button" className="btn btn-ghost btn-sm"
-                                aria-expanded={referencias?.id === d.id}
-                                onClick={() => mostrarReferencias(d.id)}>
-                          {referencias?.id === d.id ? "Ocultar referencias" : "Ver referencias"}
-                        </button>
                         {d.estado === "disputed" ? (
-                          <button type="button" className="btn btn-primary btn-sm" aria-expanded={respondiendo === d.id}
+                          <button type="button" className="btn btn-primary btn-sm responder" aria-expanded={respondiendo === d.id}
                                   onClick={() => setRespondiendo(respondiendo === d.id ? null : d.id)}>
                             Responder reclamo
                           </button>
                         ) : null}
-                        {cobrable ? (
-                          <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
-                                  onClick={() => enviarCodigo(d)}>
-                            {aviso?.enviando ? <><span className="girando" /> Enviando…</>
-                              : d.codigoEnviado ? "Reenviar código" : "Enviar código"}
-                          </button>
-                        ) : null}
-                        {cobrable && !aviso ? (
-                          <span className="sub">
-                            {d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
-                          </span>
-                        ) : null}
-                        {cobrable && !aviso && d.correoFallido ? (
-                          <span className="sub" style={{ color: "var(--danger)" }}>
-                            No se pudo enviar el correo del {fecha(d.correoFallido.cuando)}: {d.correoFallido.motivo}
-                          </span>
-                        ) : null}
-                        {aviso?.ok ? <span className="sub">{aviso.ok}</span> : null}
-                        {aviso?.error ? <span className="sub" style={{ color: "var(--danger)" }}>{aviso.error}</span> : null}
+                      </td>
+                      <td data-campo="Fecha">{fecha(d.actualizada)}</td>
+                      <td data-campo="Acciones">
+                        <button type="button" className="btn btn-ghost btn-sm desplegar" aria-expanded={abiertaEsta}
+                                aria-controls={`detalle-${d.id}`} aria-label={`Detalle de la deuda de ${d.deudor}`}
+                                title="Detalle" onClick={() => setAbierta(abiertaEsta ? null : d.id)}>
+                          <IconoDesplegar size={18} />
+                        </button>
                       </td>
                     </tr>
-                    {referencias?.id === d.id ? (
-                      <tr><td colSpan={5}>
-                        {referencias.cargando ? "Cargando referencias…" : referencias.error
-                          ? <span role="alert">{referencias.error}</span>
-                          : Object.entries(referencias.datos).length
-                            ? <div><b>Referencias de la deuda</b>
-                              <ul>{Object.entries(referencias.datos).map(([clave, valor]) => (
-                                <li key={clave}>{clave}: {valor}</li>
-                              ))}</ul>
+                    {abiertaEsta ? (
+                      <tr className="fila-detalle" id={`detalle-${d.id}`}>
+                        <td colSpan={6}>
+                          <div className="detalle-deuda">
+                            <div>
+                              <b>{d.concepto}</b>
+                              <span className="sub">{d.acreedor}, ref. {d.externalId}</span>
+                              <span className="sub">
+                                Saldo {dinero(d.saldo, d.moneda)} de {dinero(totalDeLaDeuda(d), d.moneda)}
+                                {Number(d.interesMora) > 0
+                                  ? `, más ${dinero(d.interesMora, d.moneda)} de mora al ${porcentaje(d.tasaInteresMensual)} mensual`
+                                  : ""}
+                              </span>
+                              {d.disputa ? (
+                                <span className="sub">
+                                  Reclamo: <b>{MOTIVOS_DISPUTA[d.disputa.motivo] || d.disputa.motivo}</b>
+                                  {d.disputa.detalle ? `: «${d.disputa.detalle}»` : ""}
+                                </span>
+                              ) : null}
                             </div>
-                            : "Esta deuda no trae referencias adicionales."}
-                      </td></tr>
+                            <div>
+                              <b>Acceso del deudor</b>
+                              {cobrable && !aviso ? (
+                                <span className="sub">
+                                  {d.codigoEnviado ? `Último correo el ${fecha(d.codigoEnviado)}` : "Todavía sin invitar"}
+                                </span>
+                              ) : null}
+                              {cobrable && !aviso && d.correoFallido ? (
+                                <span className="sub" style={{ color: "var(--danger)" }}>
+                                  No se pudo enviar el correo del {fecha(d.correoFallido.cuando)}: {d.correoFallido.motivo}
+                                </span>
+                              ) : null}
+                              {aviso?.ok ? <span className="sub">{aviso.ok}</span> : null}
+                              {aviso?.error ? <span className="sub" style={{ color: "var(--danger)" }}>{aviso.error}</span> : null}
+                              {!cobrable ? <span className="sub">Ya no se cobra: no se le envían códigos.</span> : null}
+                              {cobrable ? (
+                                <button type="button" className="btn btn-ghost btn-sm" disabled={aviso?.enviando}
+                                        onClick={() => enviarCodigo(d)}>
+                                  {aviso?.enviando ? <><span className="girando" /> Enviando…</>
+                                    : d.codigoEnviado ? "Reenviar código" : "Enviar código"}
+                                </button>
+                              ) : null}
+                            </div>
+                            <div>
+                              <b>Referencias</b>
+                              {referencias?.id !== d.id ? (
+                                <button type="button" className="link-btn" onClick={() => mostrarReferencias(d.id)}>
+                                  Ver las referencias de la deuda
+                                </button>
+                              ) : referencias.cargando ? <span className="sub">Cargando referencias…</span>
+                                : referencias.error ? <span className="sub" role="alert">{referencias.error}</span>
+                                  : Object.entries(referencias.datos).length ? (
+                                    <ul className="referencias">{Object.entries(referencias.datos).map(([clave, valor]) => (
+                                      <li key={clave}>{clave}: {valor}</li>
+                                    ))}</ul>
+                                  ) : <span className="sub">Esta deuda no trae referencias adicionales.</span>}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     ) : null}
                     {respondiendo === d.id ? (
                       <tr className="fila-reclamo">
-                        <td colSpan={5}>
+                        <td colSpan={6}>
                           <PanelReclamo deuda={d} ocupado={aviso?.enviando}
                                         onResponder={(r, nota) => resolver(d, r, nota)}
                                         onCancelar={() => setRespondiendo(null)} />
@@ -480,5 +547,20 @@ export default function DataBridge() {
         </p>
       </div>
     </div>
+  );
+}
+
+/** El encabezado de una columna que ordena la cartera (#548). */
+function Columna({ campo, orden, onOrdenar, num = false, children }) {
+  const activa = orden.campo === campo;
+  return (
+    <th className={num ? "num" : undefined}
+        aria-sort={activa ? (orden.sube ? "ascending" : "descending") : "none"}>
+      <button type="button" className={`ordenar${activa ? " activa" : ""}${activa && !orden.sube ? " baja" : ""}`}
+              onClick={() => onOrdenar(campo)}>
+        {children}
+        <IconoDesplegar size={14} />
+      </button>
+    </th>
   );
 }
