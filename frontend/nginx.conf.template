@@ -34,6 +34,13 @@ upstream gateway {
     keepalive 64;
 }
 
+# La CSP pertenece al portal. El HTML de Webpay y Swagger lo sirve el backend
+# y conserva sus políticas propias: una cadena vacía no emite la cabecera.
+map $request_uri $portal_csp {
+    default "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'";
+    ~^/(api(?:/|$)|v3/api-docs|swagger-ui|webjars/) "";
+}
+
 server {
     #  Oculta la version tanto en respuestas normales como en errores de nginx.
     server_tokens off;
@@ -104,6 +111,10 @@ server {
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Content-Security-Policy $portal_csp always;
     }
 
     gzip              on;
@@ -114,4 +125,5 @@ server {
     add_header X-Content-Type-Options "nosniff"        always;
     add_header X-Frame-Options        "DENY"           always;
     add_header Referrer-Policy        "no-referrer"    always;
+    add_header Content-Security-Policy $portal_csp always;
 }
