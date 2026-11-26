@@ -73,12 +73,15 @@ class IdorPagosIntegracionTest extends BasePagosMySql {
     }
 
     @Test
-    void un_pago_inexistente_es_404() throws Exception {
+    //  Desde #404, lo que no existe responde igual que lo ajeno: asi no se sabe que existe.
+    void un_pago_inexistente_responde_igual_que_uno_ajeno() throws Exception {
         String tokenA = tokenDeudor(RUT_DEUDOR_A);
 
         mvc.perform(get("/api/payments/999999999").header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("No puedes ver este pago"));
         mvc.perform(get("/api/payments/999999999/historia").header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("No puedes ver este pago"));
     }
 }
