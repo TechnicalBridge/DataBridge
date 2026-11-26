@@ -12,6 +12,7 @@ import {
   IconoUsuario,
 } from "../components/Iconos";
 import { dinero, ESTADO_DEUDA } from "../utils/formato";
+import { CarteraDona, PagosPorPasarela, RecuperadoDiario } from "../components/GraficosAdmin";
 
 const numero = (n) => Number(n).toLocaleString("es-CL");
 const sumar = (valores = {}) => Object.values(valores).reduce((total, valor) => total + Number(valor), 0);
@@ -116,8 +117,36 @@ export default function AdminInicio() {
         />
       </section>
 
+      <section className="admin-inicio-graficos" aria-label="Recuperación y pagos">
+        <div className="admin-panel aparece" style={{ "--i": 5 }}>
+          <div className="admin-panel-cabecera">
+            <div>
+              <span className="eyebrow">Recuperación</span>
+              <h2>Recuperado por día</h2>
+            </div>
+            <Link to="/admin/empresas" className="admin-enlace-discreto">
+              Ver por empresa <IconoFlecha size={16} />
+            </Link>
+          </div>
+          <Cifra dato={cifras.debt} render={(r) => <RecuperadoDiario puntos={r.recuperadoPorDia} />} />
+        </div>
+
+        <div className="admin-panel aparece" style={{ "--i": 6 }}>
+          <div className="admin-panel-cabecera">
+            <div>
+              <span className="eyebrow">Pagos</span>
+              <h2>Por pasarela</h2>
+            </div>
+            <Link to="/admin/operacion" className="admin-enlace-discreto">
+              Ver operación <IconoFlecha size={16} />
+            </Link>
+          </div>
+          <Cifra dato={cifras.payments} render={(r) => <PagosPorPasarela hoy={r.pagosHoy} mes={r.pagosMes} />} />
+        </div>
+      </section>
+
       <section className="admin-inicio-contenido">
-        <div className="admin-panel admin-panel-cartera aparece" style={{ "--i": 5 }}>
+        <div className="admin-panel admin-panel-cartera aparece" style={{ "--i": 7 }}>
           <div className="admin-panel-cabecera">
             <div>
               <span className="eyebrow">Cartera</span>
@@ -132,7 +161,7 @@ export default function AdminInicio() {
           )} />
         </div>
 
-        <div className="admin-panel admin-panel-servicios aparece" style={{ "--i": 6 }}>
+        <div className="admin-panel admin-panel-servicios aparece" style={{ "--i": 8 }}>
           <div className="admin-panel-cabecera">
             <div>
               <span className="eyebrow">Sistema</span>
@@ -142,7 +171,7 @@ export default function AdminInicio() {
           <EstadoServicios estados={estados} />
         </div>
 
-        <div className="admin-panel admin-panel-atajos aparece" style={{ "--i": 7 }}>
+        <div className="admin-panel admin-panel-atajos aparece" style={{ "--i": 9 }}>
           <div className="admin-panel-cabecera">
             <div>
               <span className="eyebrow">Accesos rápidos</span>
@@ -163,6 +192,9 @@ export default function AdminInicio() {
               <span><b>Equipo</b><small>Administrar</small></span>
             </Link>
           </div>
+          <p className="admin-nota">
+            Los datos de un deudor se ven solo en su ficha, y abrirla queda en la bitácora.
+          </p>
         </div>
       </section>
     </div>
@@ -204,6 +236,7 @@ function CarteraPorEstado({ deudas = {} }) {
   return (
     <div className="admin-cartera-detalle">
       <div className="admin-cartera-total">
+        <CarteraDona deudas={deudas} />
         <div>
           <span>Total de la cartera</span>
           <b>{numero(total)}</b>

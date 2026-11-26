@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -90,6 +91,25 @@ public class ComisionService {
         return new ComisionesResponse(elMes.atDay(1), empresas,
                 empresas.stream().mapToLong(ComisionesResponse.Empresa::recuperado).sum(),
                 empresas.stream().mapToLong(ComisionesResponse.Empresa::comision).sum());
+    }
+
+    /**
+     * Lo que entro cada dia, de {@code desde} a {@code hasta} (los dos
+     * incluidos, dias en Chile), en pesos y de todas las empresas: la misma base
+     * que {@link #deTodas}, asi que los dias de un mes suman su recuperado (#544).
+     * Los dias sin pagos van en cero: un grafico que se los salta muestra una
+     * tendencia que no existe.
+     */
+    public Map<LocalDate, Long> porDia(LocalDate desde, LocalDate hasta) {
+        Map<LocalDate, Long> dias = new LinkedHashMap<>();
+        for (LocalDate dia = desde; !dia.isAfter(hasta); dia = dia.plusDays(1)) {
+            dias.put(dia, 0L);
+        }
+        for (DebtEvent pago : eventos.entre(DebtEvent.Type.payment_applied, desde.atStartOfDay(CHILE).toInstant(),
+                hasta.plusDays(1).atStartOfDay(CHILE).toInstant())) {
+            dias.merge(pago.getOccurredAt().atZone(CHILE).toLocalDate(), enPesos(pago), Long::sum);
+        }
+        return dias;
     }
 
     ComisionResponse respuesta(YearMonth mes, List<DebtEvent> pagos) {
