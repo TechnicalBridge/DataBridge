@@ -1197,9 +1197,32 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-atajo b { font-size: 13.5px; line-height: 1.1; }
 .admin-atajo small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 10.5px; font-weight: 500; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Los graficos del inicio (#544): lo recuperado por dia, los pagos por pasarela y la dona de la cartera. */
+.admin-inicio-graficos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr); gap: 12px; }
+.admin-grafico { display: grid; gap: 10px; min-width: 0; }
+.admin-grafico-total { margin: 0; color: var(--muted); font-size: 13.5px; }
+.admin-grafico-total b { margin-right: 4px; color: var(--ink); font-size: 21px; font-variant-numeric: tabular-nums; }
+.admin-grafico-lienzo { height: 220px; min-width: 0; }
+.admin-grafico-lienzo-bajo { height: 210px; }
+.admin-cartera-total .admin-dona { align-self: center; }
+.admin-dona { flex: none; width: 72px; height: 72px; transform: rotate(-90deg); }
+.admin-dona circle { fill: none; stroke-width: 15; }
+.admin-dona-fondo { stroke: var(--line); }
+.admin-dona-tramo { --estado-color: var(--brand); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
+.admin-dona-tramo.estado-repacted { --estado-color: var(--accent); }
+.admin-dona-tramo.estado-paid { --estado-color: var(--brand-2); }
+.admin-dona-tramo.estado-withdrawn { --estado-color: var(--muted); }
+.admin-dona-tramo.estado-disputed { --estado-color: var(--warn); }
+@keyframes admin-dona-entrada { from { opacity: 0; } to { opacity: 1; } }
+.admin-nota { margin: 14px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-dona-tramo { animation: none; }
+}
+
 @media (max-width: 980px) {
   .admin-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-inicio-contenido { grid-template-columns: 1fr; }
+  .admin-inicio-graficos { grid-template-columns: 1fr; }
   .admin-panel-cartera { grid-row: auto; }
 }
 
@@ -1209,8 +1232,8 @@ html:has(.portada) { scroll-behavior: smooth; }
   .admin-inicio-estado { justify-content: flex-start; }
   .admin-resumen { grid-template-columns: 1fr; gap: 9px; }
   .admin-resumen-tarjeta { min-height: 132px; gap: 18px; padding: 16px; }
-  .admin-cartera-total { align-items: flex-start; }
-  .admin-cartera-total p { max-width: 180px; }
+  .admin-cartera-total { align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 14px; }
+  .admin-cartera-total p { flex-basis: 100%; max-width: none; text-align: left; }
   .admin-estados-deuda { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-estado-deuda, .admin-estado-deuda:nth-last-child(-n + 2) { grid-column: span 1; }
   .admin-estado-deuda:last-child { grid-column: 1 / -1; }
@@ -1793,6 +1816,29 @@ html:has(.portada) { scroll-behavior: smooth; }
 .oferta b { color: var(--brand-2); }
 .oferta span { color: var(--ink-2); font-size: 14.5px; }
 .fila-descuento td { color: var(--brand); font-weight: 600; }
+
+/* Pagar (#547): el resumen va primero en el documento (en el telefono, arriba) y en escritorio queda a la
+   derecha, como antes. Lo que se paga, en lineas compactas en vez de una tabla. */
+.pagar-grid > .pegado { grid-column: 2; grid-row: 1; }
+.pagar-grid > .pagar-detalle { grid-column: 1; grid-row: 1; }
+@media (max-width: 980px) {
+  .pagar-grid > .pegado, .pagar-grid > .pagar-detalle { grid-column: auto; grid-row: auto; }
+}
+.pagar-detalle h2 { margin-bottom: 4px; }
+.detalle-pago { list-style: none; margin: 8px 0 14px; padding: 0; }
+.detalle-pago li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.detalle-pago li:last-child { border-bottom: 0; }
+.detalle-pago span { min-width: 0; color: var(--ink); }
+.detalle-pago small { display: block; margin-top: 1px; color: var(--muted); font-size: 14px; }
+.detalle-pago b { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+.detalle-pago .descuento span, .detalle-pago .descuento b { color: var(--brand); }
 
 /* Las fichas de una lista miden lo mismo para las tres pasarelas: el ancho sale del alto del logo. */
 .pasarela-logo {

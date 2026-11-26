@@ -466,4 +466,39 @@ class AuthServiceTest {
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertTrue(sesiones.filas.stream().allMatch(Session::revocada), "toda la familia queda revocada");
     }
+
+    @Test void codigo_de_campana_consulta_el_corte_antes_de_abrir_sesion() {
+        String code=emitir("16482337-7");
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.UNAUTHORIZED,"Acceso reemplazado"))
+                .when(deudas).exigirCredencialVigente(eq("16482337-7"), any(), org.mockito.ArgumentMatchers.nullable(Instant.class));
+        assertThrows(ApiException.class,()->auth.entrarConCodigo("16482337-7",code,"192.0.2.1"));
+        assertTrue(sesiones.filas.isEmpty());
+        assertNull(guardados.getLast().getConsumedAt());
+    }
+    @Test void enlace_de_deudor_consulta_el_corte_antes_de_abrir_sesion() {
+        MagicLink link=new MagicLink();link.setDebtorRut("16482337-7");link.setEmail("antes@correo.cl");
+        link.setTokenHash(com.tbridge.auth.util.Hash.sha256("token"));link.setExpiresAt(Instant.now().plusSeconds(900));
+        link.setLinkEnabled(true);
+        when(enlaces.findByTokenHash(any())).thenReturn(Optional.of(link));
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.UNAUTHORIZED,"Acceso reemplazado"))
+                .when(deudas).exigirCredencialVigente(eq("16482337-7"), any());
+        assertThrows(ApiException.class,()->auth.entrarConEnlace("token","192.0.2.1"));
+        assertTrue(sesiones.filas.isEmpty());
+    }
+    @Test void renovacion_anterior_no_sobrevive_al_cambio() {
+        String code=emitir("16482337-7");
+        var opened=auth.entrarConCodigo("16482337-7",code,"192.0.2.1");
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.UNAUTHORIZED,"Acceso reemplazado"))
+                .when(deudas).exigirCredencialVigente(eq("16482337-7"), org.mockito.ArgumentMatchers.nullable(Instant.class));
+        assertThrows(ApiException.class,()->auth.renovar(opened.llave().valor(),"192.0.2.1"));
+        assertTrue(sesiones.filas.stream().allMatch(s -> s.getRevokedAt()!=null));
+    }
+
+
+    @Test void nuevo_acceso_utiliza_el_correo_vigente_de_ms_debt() {
+        when(deudas.correoDelDeudor("16482337-7")).thenReturn(Optional.of("nuevo@correo.cl"));
+        auth.pedirCodigo("16482337-7",null,"192.0.2.1");
+        verify(correo).enviarAcceso(eq("nuevo@correo.cl"),anyString(),org.mockito.ArgumentMatchers.isNull(),eq(15L));
+    }
+
 }

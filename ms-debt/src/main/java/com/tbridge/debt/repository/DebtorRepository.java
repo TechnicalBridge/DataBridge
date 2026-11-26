@@ -13,6 +13,10 @@ public interface DebtorRepository extends JpaRepository<Debtor, Long> {
 
     Optional<Debtor> findByRut(String rut);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Debtor d where d.rut = :rut")
+    Optional<Debtor> bloquearPorRut(@Param("rut") String rut);
+
     /**
      * Los deudores que calzan con lo que busco el admin del panel, en todas las
      * empresas (#434): por el comienzo del RUT sin guion, o por un pedazo del

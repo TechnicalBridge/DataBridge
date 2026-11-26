@@ -171,6 +171,13 @@ public class DebtService {
         return debtors.findByRut(normalizado).map(Debtor::getEmail).filter(c -> c != null && c.contains("@"));
     }
 
+    public record ContactoVigente(String correo, Instant emailUpdatedAt) {}
+    public ContactoVigente contactoVigente(String rut) {
+        Debtor d = debtors.findByRut(Rut.normalizar(rut)).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "Sin datos registrados"));
+        return new ContactoVigente(d.getEmail(), d.getEmailUpdatedAt());
+    }
+
     /** El deudor detras del token, por RUT: es lo unico que trae su sesion. */
     Debtor deudorDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {
