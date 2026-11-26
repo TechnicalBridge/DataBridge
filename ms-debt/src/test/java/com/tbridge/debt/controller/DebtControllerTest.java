@@ -50,6 +50,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class DebtControllerTest {
 
+    @Test
+    void seg_dat_007_respuesta_http_neutra_para_ids_correlativos() throws Exception {
+        for (long id : new long[]{40L, 41L}) {
+            when(debts.getFor(any(), eq(id))).thenThrow(
+                    new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+            mvc.perform(get("/api/debts/" + id).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+        }
+    }
+
     @TestConfiguration
     static class Proxy {
         @Bean
@@ -132,6 +143,18 @@ class DebtControllerTest {
                 .andExpect(jsonPath("$._links.certificado.href").value("http://localhost/api/debts/3/certificate"))
                 .andExpect(jsonPath("$._links.deudas.href").value("http://localhost/api/debts"))
                 .andExpect(jsonPath("$._links.pagar").doesNotExist());
+    }
+
+    @Test
+    void el_detalle_incluye_las_referencias_de_la_cartera_para_deudor_y_empresa() throws Exception {
+        when(debts.getFor(any(), eq(3L))).thenReturn(new DebtDetailResponse(deuda(Debt.Status.open),
+                List.of(), List.of(), List.of(), java.util.Map.of("contrato", "CTR-45")));
+
+        for (String sesion : List.of(deudor(), empresa())) {
+            mvc.perform(get("/api/debts/3").header("Authorization", sesion))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.referencias.contrato").value("CTR-45"));
+        }
     }
 
     @Test

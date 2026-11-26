@@ -89,10 +89,12 @@ class AuthServiceTest {
             bitacora.add(llamada.getArgument(0));
             return llamada.getArgument(0);
         });
-        when(registro.findByIpHashAndOccurredAtAfter(any(), any()))
+        when(registro.countByIpHashAndOccurredAtAfterAndOutcomeNot(any(), any(), any()))
                 .thenAnswer(llamada -> bitacora.stream()
                         .filter(r -> llamada.getArgument(0).equals(r.getIpHash()))
-                        .toList());
+                        .filter(r -> r.getOccurredAt().isAfter(llamada.getArgument(1)))
+                        .filter(r -> r.getOutcome() != llamada.getArgument(2))
+                        .count());
         when(personal.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
         when(enlaces.findByTokenHash(any())).thenReturn(Optional.empty());
 

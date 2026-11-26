@@ -1,6 +1,7 @@
 package com.tbridge.debt.controller;
 
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.ContactoEstadoResponse;
 import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.config.SecurityConfig;
 import com.tbridge.debt.dto.response.AccionResponse;
@@ -23,6 +24,7 @@ import com.tbridge.debt.service.AvisosService;
 import com.tbridge.debt.service.BitacoraService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
+import com.tbridge.debt.service.PasadasDeContacto;
 import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.SuscripcionesAdminService;
 import com.tbridge.debt.service.ReglasService;
@@ -58,6 +60,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -100,11 +103,16 @@ class AdminControllerTest {
     @Test
     void campanas_solo_admin_y_sin_datos_personales() throws Exception {
         when(resumen.campanas()).thenReturn(List.of(
-                new CampanaAdminResponse(1L, "Cobranza", "Agencia", "running", 8)));
+                new CampanaAdminResponse(1L, "Cobranza", "Agencia", "Acreedor", "running",
+                        LocalDate.of(2026, 11, 1), null, 8, 5, 2, 9)));
         mvc.perform(get("/api/admin/debt/campanas").header("Authorization", admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].deudas").value(8))
-                .andExpect(jsonPath("$[0].nombre").value("Cobranza"));
+                .andExpect(jsonPath("$[0].nombre").value("Cobranza"))
+                .andExpect(jsonPath("$[0].acreedor").value("Acreedor"))
+                .andExpect(jsonPath("$[0].deudasAbiertas").value(5))
+                .andExpect(jsonPath("$[0].contactosHoy").value(2))
+                .andExpect(jsonPath("$[0].contactosSemana").value(9));
         mvc.perform(get("/api/admin/debt/campanas").header("Authorization", empresa()))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/debt/campanas").header("Authorization", deudor()))
@@ -113,6 +121,26 @@ class AdminControllerTest {
     @MockitoBean private DeudoresAdminService deudoresAdmin;
     @MockitoBean private ReclamosAdminService reclamosAdmin;
     @MockitoBean private SuscripcionesAdminService suscripcionesAdmin;
+    @MockitoBean private PasadasDeContacto pasadas;
+
+    @Test
+    void el_estado_del_contacto_lo_ve_solo_el_admin() throws Exception {
+        Instant inicio = Instant.parse("2026-11-20T12:00:00Z");
+        when(pasadas.estado()).thenReturn(new ContactoEstadoResponse(inicio.minusSeconds(3600),
+                new ContactoEstadoResponse.Pasada(inicio, inicio.plusSeconds(2), true, 3, 1, 2, null), null,
+                inicio.plusSeconds(900), false, true, true));
+        mvc.perform(get("/api/admin/debt/contacto/estado").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ultima.enviados").value(3))
+                .andExpect(jsonPath("$.ultima.pendientes").value(2))
+                .andExpect(jsonPath("$.atrasada").value(false))
+                .andExpect(jsonPath("$.horarioLegal").value(true))
+                .andExpect(jsonPath("$.limiteSemanal").value(true));
+        mvc.perform(get("/api/admin/debt/contacto/estado").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/debt/contacto/estado").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -132,6 +160,24 @@ class AdminControllerTest {
                 List.of(new EmpresaResponse.Monto("CLP", new BigDecimal("4250000"))),
                 List.of(new EmpresaResponse.Mandato("cobra_para", "76418902-7", "Patrimonio Inmuebles",
                         LocalDate.of(2026, 1, 1), null, true, "vigente")));
+    }
+
+    @Test
+    void corregir_empresa_solo_admin_y_valida_los_nombres() throws Exception {
+        String ruta = EMPRESAS + "/77305118-6";
+        String datos = "{\"razonSocial\":\"APOFYX Limitada\",\"nombre\":\"APOFYX\"}";
+        when(empresas.corregir(eq("77305118-6"), any(), eq("admin@databridge.cl"))).thenReturn(apofyx());
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content(datos)).andExpect(status().isOk()).andExpect(jsonPath("$.rut").value("77305118-6"));
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"razonSocial\":\" \",\"nombre\":\"APOFYX\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch(ruta).header("Authorization", empresa()).contentType(MediaType.APPLICATION_JSON)
+                        .content(datos)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).header("Authorization", deudor()).contentType(MediaType.APPLICATION_JSON)
+                        .content(datos)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).contentType(MediaType.APPLICATION_JSON).content(datos))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

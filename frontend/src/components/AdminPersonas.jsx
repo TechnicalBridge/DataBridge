@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TablaDeslizable from "./TablaDeslizable";
 import { fecha, fechaHora } from "../utils/formato";
 
 function UltimoIngreso({ valor }) {
@@ -17,8 +18,33 @@ function UltimoIngreso({ valor }) {
  */
 
 /** Las personas, con lo que se puede hacer con cada una segun los enlaces que trae. */
-export function TablaPersonas({ personas, tuCorreo, alCambiar, vacio }) {
+export function TablaPersonas({ personas, tuCorreo, alCambiar, alCorregir, vacio }) {
   const [ocupada, setOcupada] = useState(null);
+  const [editando, setEditando] = useState(null);
+  const [nombre, setNombre] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [error, setError] = useState("");
+
+  function editar(persona) {
+    setEditando(persona.id);
+    setNombre(persona.nombre);
+    setCorreo(persona.correo);
+    setError("");
+  }
+
+  async function guardar(e) {
+    e.preventDefault();
+    setOcupada(editando);
+    setError("");
+    try {
+      await alCorregir(editando, { nombre: nombre.trim(), correo: correo.trim() });
+      setEditando(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOcupada(null);
+    }
+  }
 
   async function cambiar(persona, accion) {
     setOcupada(persona.id);
@@ -32,7 +58,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, vacio }) {
   if (personas.length === 0) return <div className="empty">{vacio}</div>;
 
   return (
-    <div className="tabla-scroll">
+    <TablaDeslizable nombre="Personas y accesos">
       <table className="table">
         <thead>
           <tr><th>Persona</th><th>Último ingreso</th><th>Acceso</th><th /></tr>
@@ -43,9 +69,30 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, vacio }) {
               <td>
                 {p.nombre}{p.correo === tuCorreo ? " (tú)" : ""}
                 <span className="sub">{p.correo}</span>
+                {editando === p.id ? (
+                  <form id={`corregir-persona-${p.id}`} onSubmit={guardar}>
+                    {error ? <span className="error" role="alert">{error}</span> : null}
+                    <label htmlFor={`nombre-${p.id}`}>Nombre</label>
+                    <input id={`nombre-${p.id}`} value={nombre} maxLength={160} required
+                      onChange={(e) => setNombre(e.target.value)} />
+                    <label htmlFor={`correo-${p.id}`}>Correo</label>
+                    <input id={`correo-${p.id}`} type="email" value={correo} maxLength={254} required
+                      onChange={(e) => setCorreo(e.target.value)} />
+                    <span className="sub">Cambiar el correo cierra sus sesiones y anula enlaces y códigos pendientes.</span>
+                  </form>
+                ) : null}
               </td>
               <td><UltimoIngreso valor={p.ultimoAcceso} /></td>
               <td>
+                {editando === p.id ? (
+                  <>
+                    <button type="submit" form={`corregir-persona-${p.id}`} className="btn btn-primary btn-sm"
+                      disabled={ocupada === p.id}>Guardar</button>
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      onClick={() => setEditando(null)}>Cancelar</button>
+                  </>
+                ) : <button type="button" className="btn btn-ghost btn-sm" onClick={() => editar(p)}
+                    disabled={ocupada !== null}>Corregir</button>}
                 {p.habilitada
                   ? <span className="badge badge-ok">Con acceso</span>
                   : <span className="badge badge-muted">Sin acceso</span>}
@@ -69,7 +116,7 @@ export function TablaPersonas({ personas, tuCorreo, alCambiar, vacio }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </TablaDeslizable>
   );
 }
 
@@ -119,16 +166,33 @@ const QUE_SE_HIZO = {
   empresa_creada: () => "Dio de alta a la empresa",
   empresa_suspendida: () => "Suspendió a la empresa",
   empresa_reactivada: () => "Reactivó a la empresa",
+  empresa_corregida: () => "Corrigió los nombres de la empresa",
+  persona_corregida: (a) => `Corrigió los datos de ${a.sobre}`,
   persona_creada: (a) => `Le dio acceso a ${a.sobre}`,
   admin_creado: (a) => `Dio de alta como admin a ${a.sobre}`,
   persona_deshabilitada: (a) => `Le quitó el acceso a ${a.sobre}`,
   persona_habilitada: (a) => `Le devolvió el acceso a ${a.sobre}`,
+  sesion_cerrada: (a) => `Cerró a distancia una sesión de ${a.sobre}`,
   aviso_reintentado: (a) => `Reintentó ${a.sobre}`,
   suscripcion_activada: (a) => `Activó ${a.sobre}`,
   suscripcion_desactivada: (a) => `Desactivó ${a.sobre}`,
   suscripcion_secreto_cambiado: (a) => `Le cambió el secreto a ${a.sobre}`,
   suscripcion_probada: (a) => `Probó ${a.sobre}`,
 };
+
+const NOMBRES_CAMPO = { nombre: "Nombre", correo: "Correo", razonSocial: "Razón social" };
+function Cambios({ accion }) {
+  if (!accion.anteriores || !accion.nuevos) return null;
+  try {
+    const anteriores = JSON.parse(accion.anteriores);
+    const nuevos = JSON.parse(accion.nuevos);
+    return <div className="sub">{Object.keys(nuevos).map((campo) => (
+      <div key={campo}>{NOMBRES_CAMPO[campo] || campo}: {anteriores[campo]} → {nuevos[campo]}</div>
+    ))}</div>;
+  } catch {
+    return null;
+  }
+}
 
 /** Lo que se hizo desde el panel, quien y cuando. Lo mas reciente primero. */
 export function Historial({ acciones }) {
@@ -140,6 +204,7 @@ export function Historial({ acciones }) {
           <div className="fila-que">
             <b>{(QUE_SE_HIZO[a.accion] || (() => a.accion))(a)}</b>
             <span>{a.quien} · {fechaHora(a.cuando)}</span>
+            <Cambios accion={a} />
           </div>
         </div>
       ))}

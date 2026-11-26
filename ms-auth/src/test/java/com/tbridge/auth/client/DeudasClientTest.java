@@ -19,7 +19,25 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /** El correo registrado sale de ms-debt, con la clave interna; si no responde, no hay correo. */
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class DeudasClientTest {
+
+    @Test
+    void errores_http_no_registran_datos_y_conservan_resultados(org.springframework.boot.test.system.CapturedOutput salida) {
+        servidor.expect(requestTo("http://ms-debt:8083/internal/deudores/16482337-7/correo"))
+                .andRespond(withServerError().body("persona@example.org /privado/16482337-7"));
+        servidor.expect(requestTo("http://ms-debt:8083/internal/organizaciones/77305118-6"))
+                .andRespond(withServerError().body("persona@example.org /privado/77305118-6"));
+        assertEquals(Optional.empty(), cliente.correoDelDeudor("16482337-7"));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE,
+                assertThrows(ApiException.class, () -> cliente.empresa("77305118-6")).getStatus());
+        servidor.verify();
+        org.junit.jupiter.api.Assertions.assertTrue(salida.getAll().contains("category=DEBT_SERVICE_ERROR"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("persona@example.org"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("/privado/"));
+        org.junit.jupiter.api.Assertions.assertFalse(java.util.regex.Pattern
+                .compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}").matcher(salida.getAll()).find());
+    }
 
     private MockRestServiceServer servidor;
     private DeudasClient cliente;
