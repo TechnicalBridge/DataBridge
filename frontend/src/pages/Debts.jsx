@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import { descargarCertificado, disputar, listarDeudas, listarVencimientos } from "../api/deudas";
 import { dinero, fechaLarga, hoyEnChile, MOTIVOS_DISPUTA, porcentaje, porMoneda, rutLegible, totalDeLaDeuda } from "../utils/formato";
 import { useAuth } from "../store/authStore";
-import BarraEstado from "../components/BarraEstado";
+import Tablones, { avanceEnPalabras, tablonesDe } from "../components/Tablones";
 import Cargando from "../components/Cargando";
-import { CheckAnimado, IconoCalendario, IconoDocumento, IconoFlecha } from "../components/Iconos";
+import { CheckAnimado, IconoCalendario, IconoFlecha } from "../components/Iconos";
 
 const sePuedePagar = (d) => (d.estado === "open" || d.estado === "repacted") && !d.enPausa;
 
@@ -102,25 +102,32 @@ export default function Debts() {
 
   const nombre = deudas[0]?.deudor?.split(" ")[0];
   const toca = loQueToca(deudas, cuotas);
-  const orden = toca ? [toca.deuda, ...deudas.filter((d) => d !== toca.deuda)] : deudas;
+  //  Lo que toca va primero y destacado en su propia tarjeta: un solo Pagar por deuda (#546). Las pagadas, al final.
+  const pendientes = deudas.filter((d) => d.estado !== "paid");
+  const orden = toca ? [toca.deuda, ...pendientes.filter((d) => d !== toca.deuda)] : pendientes;
+  const pagadas = deudas.filter((d) => d.estado === "paid");
 
   return (
     <div>
       <header className="topbar aparece">
         <div>
-          <span className="eyebrow">RUT {rutLegible(user?.rut)}</span>
           <h1>{nombre ? `Hola, ${nombre}` : "Hola"}</h1>
+          <p className="sub">RUT {rutLegible(user?.rut)}</p>
         </div>
       </header>
       {error ? <div className="error">{error}</div> : null}
 
-      {toca ? <TocaAhora toca={toca} deudas={deudas} /> : <NadaQuePagar deudas={deudas} />}
+      {toca ? <Resumen toca={toca} deudas={deudas} /> : <NadaQuePagar deudas={deudas} />}
 
-      {deudas.length ? (
+      {orden.length ? (
         <section className="deudas">
-          {orden.map((d, i) => <TarjetaDeuda key={d.id} deuda={d} i={i + 2} onCambio={cargar} />)}
+          {orden.map((d, i) => (
+            <TarjetaDeuda key={d.id} deuda={d} i={i + 1} toca={d === toca?.deuda ? toca : null} onCambio={cargar} />
+          ))}
         </section>
       ) : null}
+
+      {pagadas.length ? <YaPagaste deudas={pagadas} i={orden.length + 1} /> : null}
     </div>
   );
 }
@@ -129,43 +136,44 @@ function deudasEnPalabras(n) {
   return n === 1 ? "1 deuda" : `${n} deudas`;
 }
 
-/** Arriba de todo: cuanto, a quien y el boton. Debajo, en chico, lo demas, solo si hay algo. */
-function TocaAhora({ toca, deudas }) {
-  const { deuda } = toca;
-  const otras = deudas.filter((d) => sePuedePagar(d) && d !== deuda);
+/** Una linea bajo el saludo, solo si hay mas de una deuda: cuantas mas, cuanto suman, y las ya pagadas. */
+function Resumen({ toca, deudas }) {
+  const otras = deudas.filter((d) => sePuedePagar(d) && d !== toca.deuda);
   const pagadas = deudas.filter((d) => d.estado === "paid").length;
+  if (!otras.length && !pagadas) return null;
   //  Pesos y UF no se suman entre si.
   const totalOtras = porMoneda(otras, "totalHoy").map(([moneda, total]) => dinero(total, moneda)).join(" y ");
-
   return (
-    <>
-      <section className="card ahora aparece" style={{ "--i": 1 }} aria-labelledby="toca-ahora">
-        <div>
-          <span className="eyebrow">{toca.titulo}</span>
-          <h2 id="toca-ahora">
-            {toca.monto === null ? `Tu convenio con ${deuda.acreedor}`
-              : <><b>{dinero(toca.monto, deuda.moneda)}</b> a {deuda.acreedor}</>}
-          </h2>
-          <p>{deuda.concepto}{toca.detalle ? ` · ${toca.detalle}` : ""}</p>
-          {toca.descuento > 0 ? (
-            <p>
-              Ya tiene {dinero(toca.descuento, deuda.moneda)} de descuento, por pagar todo
-              {deuda.descuentoHasta ? ` antes del ${diaDe(deuda.descuentoHasta)}` : " ahora"}.
-            </p>
-          ) : null}
-        </div>
-        <Link className="btn btn-primary" to={toca.destino}>
-          {toca.boton}
-          <IconoFlecha size={16} />
-        </Link>
-      </section>
-      {otras.length || pagadas ? (
-        <p className="hint ahora-mas aparece" style={{ "--i": 1 }}>
-          {otras.length ? `Tienes ${deudasEnPalabras(otras.length)} más: ${totalOtras}. ` : ""}
-          {pagadas ? `Ya pagaste ${deudasEnPalabras(pagadas)}.` : ""}
-        </p>
-      ) : null}
-    </>
+    <p className="hint ahora-mas aparece">
+      {otras.length ? `Además tienes ${deudasEnPalabras(otras.length)} más por pagar: ${totalOtras}. ` : ""}
+      {pagadas ? `Ya pagaste ${deudasEnPalabras(pagadas)}.` : ""}
+    </p>
+  );
+}
+
+/** Las deudas ya pagadas, al final y con menos peso: lo que queda de ellas es el certificado. */
+function YaPagaste({ deudas, i }) {
+  return (
+    <section className="ya-pagaste aparece" style={{ "--i": i }} aria-labelledby="ya-pagaste">
+      <h2 id="ya-pagaste">Ya pagaste</h2>
+      <div className="lista">
+        {deudas.map((d) => (
+          <div key={d.id} className="fila pagada">
+            <div className="fila-que">
+              <b>{d.concepto}</b>
+              <span>{d.acreedor} · Ref. {d.externalId}</span>
+              <Tablones estados={tablonesDe(d)} chico animar={false} />
+            </div>
+            <div className="fila-monto">
+              <b>{dinero(d.pagado, d.moneda)}</b>
+              <button className="link-btn" type="button" onClick={() => descargarCertificado(d.id)}>
+                Certificado de pago
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -202,41 +210,44 @@ function NadaQuePagar({ deudas }) {
   );
 }
 
-function TarjetaDeuda({ deuda: d, i, onCambio }) {
+function TarjetaDeuda({ deuda: d, i, toca, onCambio }) {
   const pagada = d.estado === "paid";
   const cobrable = d.estado === "open" || d.estado === "repacted";
   //  La empresa que la cobra esta suspendida: no se paga ni se repacta, pero se puede reclamar (#152).
   const enPausa = !!d.enPausa;
   const abonado = Number(d.pagado) > 0 && !pagada;
   const [disputando, setDisputando] = useState(false);
+  const saldo = d.totalHoy ?? d.saldo;
+  //  Si lo que toca es todo el saldo, el monto se dice una sola vez: en lo que toca.
+  const saldoAparte = !toca || toca.monto === null || Number(toca.monto) !== Number(saldo);
 
   return (
-    <article className="card deuda lift aparece" style={{ "--i": i }}>
+    <article className={`card deuda aparece${toca ? " toca" : " lift"}`} style={{ "--i": i }}
+             aria-labelledby={`deuda-${d.id}`}>
       <div className="deuda-cab">
         <div>
-          <span className="eyebrow">{d.acreedor}</span>
-          <h2>{d.concepto}</h2>
-          <span className="sub">Ref. {d.externalId}</span>
-          {d.estado === "repacted" && d.cuotasVencidas > 0 ? (
-            <span className="tag tag-vencida" style={{ marginTop: 8 }}>
-              {d.cuotasVencidas === 1 ? "Una cuota vencida" : `${d.cuotasVencidas} cuotas vencidas`}
-            </span>
-          ) : null}
+          <h2 id={`deuda-${d.id}`}>{d.concepto}</h2>
+          <span className="sub">{d.acreedor} · Ref. {d.externalId}</span>
         </div>
-        <div className="deuda-monto">
-          <span>{pagada ? "Pagaste" : "Saldo"}</span>
-          <b>{dinero(pagada ? d.pagado : d.totalHoy ?? d.saldo, d.moneda)}</b>
-          {abonado ? <small>de {dinero(totalDeLaDeuda(d), d.moneda)}</small> : null}
-          {!pagada && Number(d.interesMora) > 0 ? (
-            <small>
-              Incluye {dinero(d.interesMora, d.moneda)} de intereses por mora ({porcentaje(d.tasaInteresMensual)}{" "}
-              mensual)
-            </small>
-          ) : null}
-        </div>
+        {saldoAparte ? (
+          <div className="deuda-monto">
+            <span>{pagada ? "Pagaste" : "Saldo"}</span>
+            <b>{dinero(pagada ? d.pagado : saldo, d.moneda)}</b>
+            {abonado ? <small>de {dinero(totalDeLaDeuda(d), d.moneda)}</small> : null}
+          </div>
+        ) : null}
       </div>
 
-      {!pagada && Number(d.descuentoDisponible) > 0 ? (
+      {toca ? <LoQueToca toca={toca} /> : null}
+
+      {!pagada && Number(d.interesMora) > 0 ? (
+        <p className="deuda-nota">
+          El saldo incluye {dinero(d.interesMora, d.moneda)} de intereses por mora ({porcentaje(d.tasaInteresMensual)}{" "}
+          mensual).
+        </p>
+      ) : null}
+
+      {!pagada && !toca && Number(d.descuentoDisponible) > 0 ? (
         <div className="oferta">
           <b>
             Si pagas todo{d.descuentoHasta ? ` antes del ${fechaLarga(d.descuentoHasta)}` : " ahora"}, te
@@ -246,7 +257,8 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
         </div>
       ) : null}
 
-      <BarraEstado deuda={d} />
+      <Tablones estados={tablonesDe(d)} texto={avanceEnPalabras(d)}
+                detenida={d.estado === "disputed" || d.estado === "withdrawn" || enPausa} />
 
       {d.estado === "disputed" ? (
         <div className="aviso-revision">
@@ -270,10 +282,9 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
       ) : null}
 
       <div className="deuda-acciones">
-        {pagada ? (
-          <button className="btn btn-soft btn-sm" type="button" onClick={() => descargarCertificado(d.id)}>
-            <IconoDocumento size={16} />
-            Certificado de pago
+        {cobrable && !disputando ? (
+          <button type="button" className="link-btn" onClick={() => setDisputando(true)}>
+            No reconozco esta deuda
           </button>
         ) : null}
         {d.estado === "open" && !enPausa ? (
@@ -282,12 +293,7 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
             Pagar en cuotas
           </Link>
         ) : null}
-        {cobrable && !disputando ? (
-          <button type="button" className="link-btn" onClick={() => setDisputando(true)}>
-            No reconozco esta deuda
-          </button>
-        ) : null}
-        {cobrable && !enPausa ? (
+        {cobrable && !enPausa && !toca ? (
           <Link className="btn btn-primary btn-sm" to={`/app/pagar/${d.id}`}>
             {d.estado === "repacted" ? "Pagar cuotas" : "Pagar"}
             <IconoFlecha size={16} />
@@ -295,6 +301,32 @@ function TarjetaDeuda({ deuda: d, i, onCambio }) {
         ) : null}
       </div>
     </article>
+  );
+}
+
+/** Dentro de la tarjeta de la deuda que toca: cuanto, desde cuando, el descuento si hay, y el unico Pagar. */
+function LoQueToca({ toca }) {
+  const { deuda } = toca;
+  return (
+    <div className="toca-ahora">
+      <div>
+        <p className="toca-cuanto">
+          {toca.monto === null ? toca.titulo
+            : <>{toca.titulo}: <b>{dinero(toca.monto, deuda.moneda)}</b></>}
+        </p>
+        {toca.detalle ? <p className="toca-detalle">{toca.detalle}</p> : null}
+        {toca.descuento > 0 ? (
+          <p className="toca-detalle">
+            Ya tiene {dinero(toca.descuento, deuda.moneda)} de descuento, por pagar todo
+            {deuda.descuentoHasta ? ` antes del ${diaDe(deuda.descuentoHasta)}` : " ahora"}.
+          </p>
+        ) : null}
+      </div>
+      <Link className="btn btn-primary" to={toca.destino}>
+        {toca.boton}
+        <IconoFlecha size={16} />
+      </Link>
+    </div>
   );
 }
 
