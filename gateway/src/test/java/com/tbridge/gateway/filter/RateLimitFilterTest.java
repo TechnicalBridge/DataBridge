@@ -1,5 +1,7 @@
 package com.tbridge.gateway.filter;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import io.github.bucket4j.Bucket;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +11,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
@@ -81,5 +84,14 @@ class RateLimitFilterTest {
         for (int i = 0; i < 10; i++) {
             assertNull(pedir("OPTIONS", "/api/auth/acceso", "203.0.113.7"));
         }
+    }
+
+    @Test
+    void la_cache_tiene_limite_y_elimina_ips_inactivas() {
+        @SuppressWarnings("unchecked")
+        Cache<String, Bucket> cache = (Cache<String, Bucket>) ReflectionTestUtils.getField(limitador, "buckets");
+        assertEquals(50_000, cache.policy().eviction().orElseThrow().getMaximum());
+        assertEquals(java.time.Duration.ofMinutes(10),
+                cache.policy().expireAfterAccess().orElseThrow().getExpiresAfter());
     }
 }

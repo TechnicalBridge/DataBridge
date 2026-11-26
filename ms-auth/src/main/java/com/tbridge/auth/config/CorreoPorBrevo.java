@@ -206,7 +206,7 @@ public class CorreoPorBrevo implements JavaMailSender {
      * El texto y el HTML del correo, donde sea que esten entre sus partes. Un
      * adjunto no cuenta, aunque sea de texto.
      */
-    private static void versiones(Part parte, String[] versiones) throws MessagingException, IOException {
+    static void versiones(Part parte, String[] versiones) throws MessagingException, IOException {
         Object contenido = parte.getContent();
         if (contenido instanceof Multipart partes) {
             for (int i = 0; i < partes.getCount(); i++) {

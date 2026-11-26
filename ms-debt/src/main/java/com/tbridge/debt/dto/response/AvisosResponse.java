@@ -13,7 +13,7 @@ import java.util.List;
 @Schema(description = "Los avisos a las empresas que no se han entregado, por destinatario")
 public record AvisosResponse(
         @Schema(description = "Cuantos esperan su proximo intento", example = "2") long pendientes,
-        @Schema(description = "Cuantos se rindieron despues del sexto intento y esperan un reintento a mano",
+        @Schema(description = "Cuantos se rindieron despues del septimo intento y esperan un reintento a mano",
                 example = "21") long fallidos,
         @Schema(description = "Por destinatario, el que tiene mas fallidos primero. Trae hasta los 500 mas recientes")
         List<Destino> destinos

@@ -22,15 +22,25 @@ equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un serv
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.
 
-**1320 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas de nuevo con #312):
+**1.512 pruebas**, todas en Java y sin fallos (con JDK 25; las cinco suites, medidas sobre `main` en #416):
 
 | Módulo | Pruebas |
 | --- | --- |
-| `gateway` | 25 |
-| `ms-auth` | 319 |
-| `ms-debt` | 532 |
-| `ms-payments` | 281 |
-| `ms-ai` | 163 |
+| `ms-debt` | 547 |
+| `ms-auth` | 374 |
+| `ms-payments` | 312 |
+| `ms-ai` | 225 |
+| `gateway` | 54 |
+
+Para **ms-ai (#336)**, corre `.\mvnw.cmd -f ms-ai\pom.xml clean test` desde la raíz:
+227 pruebas en 16 clases según Surefire en esta rama (el cuadro anterior conserva
+la medición histórica de `main` en #416). Hay pruebas de controlador y seguridad
+con JWT ficticio, ms-debt y LLM simulados (`AsistentePromptInjectionIntegrationTest`),
+de fallback HTTP (`ProviderHttpTest`) y de salud sin claves. La prueba
+`latencia_con_deuda_y_llm_simulados` calienta una vez y mide 15 solicitudes HTTP
+locales, imprime p50/p95 y exige p95 menor que cinco segundos. No mide el VPS,
+no usa proveedores reales y no es una prueba de carga. Para resultados
+comparables de producción se requiere el recorrido k6 por Caddy y gateway.
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -106,3 +116,6 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 </details>
 
 ---
+
+La [regresión de recursos privados por ID](../seguridad/recursos-privados.md) describe
+el contrato neutro de deudas, pagos y checkout del PR #404 y sus pruebas.

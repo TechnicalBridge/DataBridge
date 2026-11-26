@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { accesos, accesosDeHoy } from "../api/admin";
 import { fechaHora, hoyEnChile } from "../utils/formato";
+import { descargarCsv } from "../utils/exportar";
+import { IconoDescargar } from "../components/Iconos";
 import Cargando from "../components/Cargando";
 
-/** Cada resultado de la bitacora, como se lo nombra en el panel. */
-const RESULTADOS = {
+/** Cada resultado de la bitacora, como se lo nombra en el panel (tambien en la ficha del deudor). */
+export const RESULTADOS = {
   granted: { texto: "Entró", clase: "badge-ok", que: "Entró con su código o su enlace." },
   invalid: { texto: "No corresponde", clase: "badge-peligro", que: "El código no era el de ese RUT, o el enlace no existe o ya se usó." },
   expired: { texto: "Vencido", clase: "badge-warn", que: "El código ya había vencido." },
@@ -13,7 +15,7 @@ const RESULTADOS = {
   refused: { texto: "Rechazado", clase: "badge-peligro", que: "Lo pidió y no salió nada (el RUT no tiene correo registrado, o el correo no tiene cuenta), o su cuenta no tiene acceso." },
 };
 
-const METODOS = { code: "Código", magic_link: "Enlace" };
+export const METODOS = { code: "Código", magic_link: "Enlace" };
 
 const SIN_FILTROS = { resultado: "", metodo: "", desde: "", hasta: "" };
 
@@ -53,9 +55,46 @@ export default function AdminAccesos() {
       .catch(() => { setHoy(null); setSinTotales(true); });
   }, [vuelta]);
 
+  const [exportando, setExportando] = useState(false);
+
   function filtrar(cambio) {
     setFiltros((antes) => ({ ...antes, ...cambio }));
     setPagina(0);
+  }
+
+  async function exportar() {
+    if (!datos || total === 0 || exportando) return;
+    setExportando(true);
+    try {
+      let todasLasFilas = [];
+      const totalPaginas = datos?.pagina?.totalPages ?? 1;
+      if (totalPaginas <= 1) {
+        todasLasFilas = datos.filas || [];
+      } else {
+        const promesas = [];
+        for (let p = 0; p < totalPaginas; p++) {
+          if (p === pagina) {
+            promesas.push(Promise.resolve(datos.filas));
+          } else {
+            promesas.push(accesos({ ...filtros, pagina: p, porPagina: 50 }).then((res) => res.filas));
+          }
+        }
+        const paginasResultados = await Promise.all(promesas);
+        todasLasFilas = paginasResultados.flat();
+      }
+      descargarCsv(
+        `accesos-${hoyEnChile()}.csv`,
+        ["Fecha y hora", "Método", "RUT", "Resultado"],
+        todasLasFilas.map((a) => [
+          fechaHora(a.cuando),
+          METODOS[a.metodo] || a.metodo,
+          a.rut || "Sin RUT",
+          RESULTADOS[a.resultado]?.texto || a.resultado,
+        ])
+      );
+    } finally {
+      setExportando(false);
+    }
   }
 
   const hayFiltros = Object.values(filtros).some(Boolean);
@@ -138,8 +177,15 @@ export default function AdminAccesos() {
             <div className="tabla-scroll">
               <table className="table" style={{ opacity: cargando ? 0.6 : 1 }} aria-busy={cargando}>
                 <caption className="hint">
-                  {total.toLocaleString("es-CL")} {total === 1 ? "registro" : "registros"}
-                  {filtros.resultado ? ` · ${RESULTADOS[filtros.resultado].texto}` : ""}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <span>
+                      {total.toLocaleString("es-CL")} {total === 1 ? "registro" : "registros"}
+                      {filtros.resultado ? ` · ${RESULTADOS[filtros.resultado].texto}` : ""}
+                    </span>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={exportando} title="Exportar accesos a CSV">
+                      <IconoDescargar /> {exportando ? "Exportando…" : "Exportar"}
+                    </button>
+                  </div>
                 </caption>
                 <thead>
                   <tr><th scope="col">Cuándo y por dónde</th><th scope="col">RUT</th><th scope="col">Resultado</th></tr>

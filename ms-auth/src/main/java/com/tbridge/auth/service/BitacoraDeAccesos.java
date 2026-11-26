@@ -2,9 +2,11 @@ package com.tbridge.auth.service;
 
 import com.tbridge.auth.dto.response.AccesoResponse;
 import com.tbridge.auth.dto.response.AccesosDeHoyResponse;
+import com.tbridge.auth.dto.response.IngresoDeDeudorResponse;
 import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.repository.AccessLogRepository;
+import com.tbridge.auth.util.Rut;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +22,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -78,6 +81,21 @@ public class BitacoraDeAccesos {
         PageRequest orden = PageRequest.of(pagina, tamano,
                 Sort.by(Sort.Order.desc("occurredAt"), Sort.Order.desc("id")));
         return bitacora.buscar(inicio, fin, metodo, resultado, orden).map(AccesoResponse::from);
+    }
+
+    /**
+     * Los ultimos 50 pedidos e intentos de un deudor, para su ficha en el panel
+     * (#434): si le llego el codigo, si entro o si se le rechazo. La ficha la
+     * abre ms-debt, que la anota en la bitacora del panel.
+     */
+    @Transactional(readOnly = true)
+    public List<IngresoDeDeudorResponse> deUnDeudor(String rut) {
+        String normalizado = Rut.normalizar(rut);
+        if (!Rut.esValido(normalizado)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no valido");
+        }
+        return bitacora.findTop50ByDebtorRutOrderByOccurredAtDescIdDesc(normalizado).stream()
+                .map(IngresoDeDeudorResponse::de).toList();
     }
 
     /** Los totales de hoy, en Chile: cuantos entraron, cuantos rechazos y cuantos pedidos salieron. */
