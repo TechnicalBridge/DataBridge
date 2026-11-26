@@ -12,6 +12,9 @@ function tramo(t) {
  * El modelo de negocio, visto por la empresa (#200): lo que recupero en el mes, su porcentaje, lo que le paga
  * a DataBridge y lo que le queda, con la cuenta escrita en vez de la formula (#305). onDatos recibe la respuesta, para que Campañas
  * muestre lo que recuperó cada una.
+ *
+ * Va plegada en una linea con lo esencial del mes elegido (#472); al abrirla, el selector del mes, las cifras
+ * y los tramos.
  */
 export default function ComisionDelMes({ onDatos }) {
   const [mes, setMes] = useState(mesDeHoy());
@@ -36,10 +39,22 @@ export default function ComisionDelMes({ onDatos }) {
     return () => { vigente = false; };
   }, [mes, onDatos]);
 
+  const mesTexto = datos ? mesEnPalabras(datos.mes) : "";
+  const linea = datos
+    ? `${mesTexto.charAt(0).toUpperCase()}${mesTexto.slice(1)}: ${dinero(datos.recuperado)} recuperado`
+      + (datos.recuperado ? `, ${porcentaje(datos.porcentaje)}, pagas ${dinero(datos.comision)}` : ", no pagas nada")
+    : error ? "No se pudo cargar la comisión" : "Cargando la comisión…";
+
   return (
-    <section className="card aparece comision-del-mes" aria-labelledby="titulo-comision">
+    <details className="card aparece comision-del-mes plegable">
+      <summary>
+        <span className="resumen-linea">
+          <b id="titulo-comision">Lo que pagas a DataBridge</b>
+          <span className="sub" aria-live="polite">{linea}</span>
+        </span>
+        <span className="ver-detalle"><span className="si-cerrado">Ver detalle</span><span className="si-abierto">Ocultar</span></span>
+      </summary>
       <div className="card-cab">
-        <h2 id="titulo-comision">Lo que pagas a DataBridge</h2>
         <label className="selector-mes">
           Mes{" "}
           <input type="month" value={mes} max={mesDeHoy()} onChange={(e) => e.target.value && setMes(e.target.value)} />
@@ -53,7 +68,7 @@ export default function ComisionDelMes({ onDatos }) {
       {datos ? (
         <>
           <div className="cifras-revision" aria-live="polite">
-            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>Recuperado en {mesEnPalabras(datos.mes)}</span></div>
+            <div className="cifra"><b>{dinero(datos.recuperado)}</b><span>Ingresado por pagos en {mesEnPalabras(datos.mes)}</span></div>
             <div className="cifra"><b>{datos.recuperado ? porcentaje(datos.porcentaje) : "—"}</b><span>Tu porcentaje</span></div>
             <div className="cifra"><b>{dinero(datos.comision)}</b><span>Lo que pagas a DataBridge</span></div>
             <div className="cifra entran"><b>{dinero(datos.paraLaEmpresa)}</b><span>Lo que queda para tu empresa</span></div>
@@ -66,8 +81,8 @@ export default function ComisionDelMes({ onDatos }) {
           ) : null}
           <div className="tabla-scroll">
             <table className="table tramos">
-              <caption className="hint">Los tramos del modelo, sobre todo lo recuperado en el mes</caption>
-              <thead><tr><th scope="col">Lo recuperado en el mes</th><th scope="col">Porcentaje</th></tr></thead>
+              <caption className="hint">El porcentaje del tramo se aplica al total de pagos del mes</caption>
+              <thead><tr><th scope="col">Ingresado por pagos en el mes</th><th scope="col">Porcentaje</th></tr></thead>
               <tbody>
                 {datos.tramos.map((t) => (
                   <tr key={t.desde} className={t.vigente ? "vigente" : ""} aria-current={t.vigente ? "true" : undefined}>
@@ -80,6 +95,6 @@ export default function ComisionDelMes({ onDatos }) {
           </div>
         </>
       ) : null}
-    </section>
+    </details>
   );
 }

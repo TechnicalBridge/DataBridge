@@ -2,6 +2,9 @@ package com.tbridge.auth.service;
 
 import com.tbridge.auth.client.DeudasClient;
 import com.tbridge.auth.dto.request.NuevaPersonaRequest;
+import com.tbridge.auth.dto.request.CorregirPersonaRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.exception.ApiException;
@@ -24,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 
 /**
@@ -52,6 +57,7 @@ public class PersonalService {
     private final MailService correo;
     private final String publicUrl;
     private final long invitacionHoras;
+    private final ObjectMapper json = new ObjectMapper();
 
     public PersonalService(
             StaffUserRepository personal,
@@ -202,6 +208,58 @@ public class PersonalService {
         bitacora.save(AdminLog.de(admin.email(), AdminLog.Action.persona_habilitada, persona.getOrgRut(),
                 persona.getEmail()));
         return PersonaResponse.from(persona);
+    }
+
+    /** Corregir datos no cambia el rol ni la empresa; el correo anterior pierde todo acceso renovable. */
+    @Transactional
+    public PersonaResponse corregir(Long id, CorregirPersonaRequest pedido, JwtPrincipal admin) {
+        StaffUser persona = buscar(id);
+        String direccion = correoValido(pedido.correo());
+        String nombre = pedido.nombre().strip();
+        if (nombre.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta el nombre de la persona");
+        }
+        String anteriorCorreo = persona.getEmail();
+        if (!anteriorCorreo.equals(direccion)) {
+            personal.findByEmailIgnoreCase(direccion).ifPresent(existente -> {
+                if (!existente.getId().equals(id)) {
+                    throw new ApiException(HttpStatus.CONFLICT, "Ese correo ya tiene una cuenta");
+                }
+            });
+        }
+        Map<String, String> antes = new HashMap<>();
+        Map<String, String> despues = new HashMap<>();
+        if (!nombre.equals(persona.getFullName())) {
+            antes.put("nombre", persona.getFullName());
+            despues.put("nombre", nombre);
+            persona.setFullName(nombre);
+        }
+        if (!anteriorCorreo.equals(direccion)) {
+            antes.put("correo", anteriorCorreo);
+            despues.put("correo", direccion);
+            // Los enlaces incluyen también los códigos de acceso del personal (MagicLink).
+            enlaces.anularPendientesDe(anteriorCorreo, Instant.now());
+            sesiones.revocarDe(anteriorCorreo);
+            persona.setEmail(direccion);
+        }
+        if (!antes.isEmpty()) {
+            try {
+                personal.saveAndFlush(persona);
+            } catch (DataIntegrityViolationException repetida) {
+                throw new ApiException(HttpStatus.CONFLICT, "Ese correo ya tiene una cuenta");
+            }
+            bitacora.save(AdminLog.de(admin.email(), AdminLog.Action.persona_corregida, persona.getOrgRut(),
+                    direccion).conCambios(comoJson(antes), comoJson(despues)));
+        }
+        return PersonaResponse.from(persona);
+    }
+
+    private String comoJson(Map<String, String> cambios) {
+        try {
+            return json.writeValueAsString(cambios);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudieron registrar los cambios", e);
+        }
     }
 
     // ------------------------------------------------------------------

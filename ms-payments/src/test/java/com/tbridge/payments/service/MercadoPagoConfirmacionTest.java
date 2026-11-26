@@ -248,7 +248,7 @@ class MercadoPagoConfirmacionTest {
 
     @Test
     void el_checkout_entrega_un_retorno_firmado_para_el_cobro() {
-        when(deudas.obtener(3L, null)).thenReturn(new DebtClient.DebtSnapshot(3L, "76000000-0", "16482337-7",
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(new DebtClient.DebtSnapshot(3L, "76000000-0", "16482337-7",
                 "CLP", new BigDecimal("410000"), 12L, List.of(12L), new BigDecimal("410000"), BigDecimal.ZERO));
         when(pagos.save(any())).thenAnswer(llamada -> {
             Payment nuevo = llamada.getArgument(0);

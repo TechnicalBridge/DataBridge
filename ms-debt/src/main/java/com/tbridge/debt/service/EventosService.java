@@ -199,7 +199,7 @@ public class EventosService {
                 "X-Firma: v1=HMAC-SHA256(secreto, X-Timestamp + \".\" + cuerpo), en hex");
     }
 
-    private static String nuevoSecreto() {
+    static String nuevoSecreto() {
         byte[] azar = new byte[32];
         AZAR.nextBytes(azar);
         return "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(azar);

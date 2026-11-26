@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -236,6 +237,33 @@ class AsistentePromptInjectionIntegrationTest {
         assertTrue(pedido.contains("Empresa-Propia"), pedido);
         assertFalse(pedido.contains("19.230.418-0"), pedido);
         assertFalse(pedido.contains("carolina@example.com"), pedido);
+    }
+
+    @Test
+    void salud_es_publica_y_no_muestra_claves() {
+        ResponseEntity<String> respuesta = http.getForEntity("/api/ai/salud", String.class);
+        assertEquals(200, respuesta.getStatusCode().value());
+        assertFalse(respuesta.getBody().contains("fake-provider-key"));
+        assertFalse(respuesta.getBody().contains("apiKey"));
+        assertTrue(peticionesAlLlm.isEmpty());
+    }
+
+    @Test
+    void latencia_con_deuda_y_llm_simulados() {
+        //  No es un benchmark del VPS: mide HTTP local y los dos stubs, sin llamadas externas.
+        preguntar("¿Cuánto debo?", List.of()); // calentamiento
+        long[] milisegundos = new long[15];
+        for (int i = 0; i < milisegundos.length; i++) {
+            long inicio = System.nanoTime();
+            ResponseEntity<Map> respuesta = preguntar("¿Cuánto debo?", List.of());
+            milisegundos[i] = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - inicio);
+            assertEquals(200, respuesta.getStatusCode().value());
+        }
+        Arrays.sort(milisegundos);
+        System.out.printf("ms-ai HTTP simulado: n=%d, p50=%d ms, p95=%d ms%n",
+                milisegundos.length, milisegundos[7], milisegundos[14]);
+        assertTrue(milisegundos[14] < 5_000, "p95 local simulado: " + milisegundos[14] + " ms");
+        assertEquals(16, peticionesAlLlm.size());
     }
 
     private ResponseEntity<Map> preguntar(String mensaje, List<Map<String, Object>> historia) {

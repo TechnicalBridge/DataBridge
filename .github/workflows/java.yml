@@ -5,8 +5,8 @@
 #  servicio se compila y se prueba solo, con su propio pom, y deja en el
 #  resumen de la corrida cuantas pruebas pasaron, clase por clase.
 #
-#  Ninguna prueba necesita base de datos: son unitarias (JUnit y Mockito, con
-#  los repositorios simulados) y de controlador (@WebMvcTest).
+#  Las pruebas unitarias y de controlador no necesitan base de datos.
+#  La prueba de concurrencia de claves API usa un MySQL efímero en ms-debt.
 # =============================================================================
 name: Java
 
@@ -48,11 +48,39 @@ jobs:
         if: inputs.modulo == 'ms-debt' || inputs.modulo == 'ms-payments'
         run: cmp ms-debt/src/test/resources/contratos/pago-confirmado.json ms-payments/src/test/resources/contratos/pago-confirmado.json
 
+      - name: MySQL aislado para la prueba concurrente de claves API
+        if: inputs.modulo == 'ms-debt' && hashFiles('ms-debt/src/test/java/com/tbridge/debt/service/ApiKeyMySqlConcurrencyTest.java') != ''
+        run: |
+          set -euo pipefail
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          container=$(docker run --rm --detach --publish 127.0.0.1::3306 \
+            --env MYSQL_RANDOM_ROOT_PASSWORD=yes --env MYSQL_DATABASE=tb_debt_api_test \
+            --env MYSQL_USER=qa --env MYSQL_PASSWORD="$password" mysql:8.4 --skip-log-bin)
+          echo "API_TEST_CONTAINER=$container" >> "$GITHUB_ENV"
+          for attempt in {1..60}; do
+            if docker exec --env MYSQL_PWD="$password" "$container" \
+              mysql --protocol=TCP --host=127.0.0.1 --user=qa tb_debt_api_test --execute='SELECT 1' >/dev/null 2>&1; then
+              endpoint=$(docker port "$container" 3306/tcp)
+              echo "DB_API_TEST_URL=jdbc:mysql://$endpoint/tb_debt_api_test?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=UTC" >> "$GITHUB_ENV"
+              echo "DB_TEST_USER=qa" >> "$GITHUB_ENV"
+              echo "DB_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL no quedó listo para la prueba de claves API" >&2
+          exit 1
+
       #  mvn y no ./mvnw: el wrapper esta en git sin el bit de ejecucion (se
       #  commitea desde Windows), y en Linux daria "Permission denied". El
       #  runner de GitHub ya trae Maven.
       - name: Pruebas
         run: mvn -B -f "$MODULO/pom.xml" test
+
+      - name: Retirar MySQL de la prueba concurrente
+        if: always() && env.API_TEST_CONTAINER != ''
+        run: docker stop "$API_TEST_CONTAINER"
 
       - name: Resumen de las pruebas
         if: always()

@@ -26,7 +26,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Antes todo lo que no fuera ApiException respondia 500: un JSON mal escrito
  * parecia una caida del servicio.
  */
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class ApiExceptionHandlerTest {
+
+    @Test
+    void fallo_inesperado_no_registra_mensajes_personales_ni_causas(
+            org.springframework.boot.test.system.CapturedOutput salida) {
+        var respuesta = new ApiExceptionHandler().inesperado(new IllegalStateException(
+                "Fallo persona@example.org", new RuntimeException("destino@example.net")));
+        org.junit.jupiter.api.Assertions.assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, respuesta.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertEquals("Error interno", respuesta.getBody().error());
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("persona@example.org"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("destino@example.net"));
+    }
 
     record Pedido(@NotBlank(message = "Falta el RUT") String rut) {}
 

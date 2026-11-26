@@ -148,6 +148,20 @@ export const ESTADO_DEL_MANDATO = {
   terminado: ["Terminado", "badge-muted"],
 };
 
+/** Cada estado de un pago, como se nombra en el panel, con el color de su insignia (#434, #435). */
+export const ESTADO_DE_PAGO = {
+  created: { texto: "Abierto", clase: "badge-muted" },
+  authorized: { texto: "Autorizado", clase: "badge-muted" },
+  paid: { texto: "Pagado", clase: "badge-ok" },
+  failed: { texto: "Falló", clase: "badge-peligro" },
+  expired: { texto: "Vencido", clase: "badge-warn" },
+  refunded: { texto: "Devuelto", clase: "badge-muted" },
+  duplicated: { texto: "Duplicado", clase: "badge-warn" },
+};
+
+/** El nombre de cada pasarela, como lo conoce la gente. */
+export const PASARELA = { webpay: "Webpay", khipu: "Khipu", mercadopago: "Mercado Pago" };
+
 export const ESTADO_DEUDA = {
   open: "Por pagar",
   repacted: "En convenio",

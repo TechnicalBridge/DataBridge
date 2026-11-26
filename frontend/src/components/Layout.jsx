@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { resumenDeCartera } from "../api/analitica";
 import { listarEnRiesgo } from "../api/deudas";
 import { rutLegible } from "../utils/formato";
 import { useAuth } from "../store/authStore";
@@ -8,8 +9,9 @@ import Logo from "./Logo";
 import Chatbot, { BotonAsistente } from "./Chatbot";
 import TemaToggle from "./TemaToggle";
 import {
-  IconoAlerta, IconoAyuda, IconoCalendario, IconoCandado, IconoCartera, IconoDocumento, IconoEmpresa, IconoEquipo,
-  IconoMegafono, IconoPanel, IconoRecibo, IconoReglas, IconoSalir, IconoSubir, IconoUsuario,
+  IconoAlerta, IconoAviso, IconoAyuda, IconoBitacora, IconoCalendario, IconoChat, IconoCandado, IconoCartera,
+  IconoDocumento, IconoEmpresa, IconoEquipo, IconoMas, IconoMegafono, IconoPanel, IconoRecibo, IconoReglas,
+  IconoSalir, IconoSesion, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
 /** Cada enlace con su nombre largo (el menu) y el corto (la barra del telefono). */
@@ -22,7 +24,7 @@ const DEUDOR = [
 ];
 
 const EMPRESA = [
-  { to: "/databridge", label: "Cartera", corto: "Cartera", Icono: IconoCartera, end: true },
+  { to: "/databridge", label: "Cartera", corto: "Cartera", Icono: IconoCartera, end: true, reclamos: true },
   { to: "/databridge/pagos", label: "Pagos recibidos", corto: "Pagos", Icono: IconoRecibo },
   { to: "/databridge/en-riesgo", label: "Convenios en riesgo", corto: "En riesgo", Icono: IconoAlerta, riesgo: true },
   { to: "/databridge/cargar", label: "Cargar cartera", corto: "Cargar", Icono: IconoSubir },
@@ -34,17 +36,94 @@ const EMPRESA = [
 const ADMIN = [
   { to: "/admin", label: "Inicio", corto: "Inicio", Icono: IconoPanel, end: true },
   { to: "/admin/empresas", label: "Empresas", corto: "Empresas", Icono: IconoEmpresa },
+  { to: "/admin/deudores", label: "Deudores", corto: "Deudores", Icono: IconoUsuario },
+  { to: "/admin/pagos", label: "Pagos", corto: "Pagos", Icono: IconoRecibo },
+  { to: "/admin/reclamos", label: "Reclamos", corto: "Reclamos", Icono: IconoChat },
+  { to: "/admin/campanas", label: "Campañas", corto: "Campañas", Icono: IconoMegafono },
   { to: "/admin/operacion", label: "Operación", corto: "Operación", Icono: IconoAlerta },
+  { to: "/admin/suscripciones", label: "Suscripciones", corto: "Avisos", Icono: IconoAviso },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },
+  { to: "/admin/sesiones", label: "Sesiones abiertas", corto: "Sesiones", Icono: IconoSesion },
+  { to: "/admin/bitacora", label: "Bitácora", corto: "Bitácora", Icono: IconoBitacora },
   { to: "/admin/reglas", label: "Reglas", corto: "Reglas", Icono: IconoReglas },
 ];
 
 const PORTALES = {
   debtor: { links: DEUDOR, marca: "DataBridge", sub: "Portal de pago" },
   creditor: { links: EMPRESA, marca: "DataBridge", sub: "Portal de empresas" },
-  admin: { links: ADMIN, marca: "DataBridge", sub: "Panel de administración" },
+  //  El panel tiene mas entradas de las que caben en la barra del telefono: van 4 y "Mas" (#436).
+  admin: { links: ADMIN, marca: "DataBridge", sub: "Panel de administración", enLaBarra: 4 },
 };
+
+/**
+ * La barra de abajo en el telefono. Si el portal tiene mas entradas de las que
+ * caben, muestra las primeras y "Mas", que abre una lista con el resto: se
+ * cierra al elegir, con Esc o tocando afuera, y el foco vuelve al boton.
+ */
+function BarraDelTelefono({ links, enLaBarra }) {
+  const sobran = enLaBarra && links.length > enLaBarra + 1 ? links.slice(enLaBarra) : [];
+  const visibles = sobran.length ? links.slice(0, enLaBarra) : links;
+  const [abierto, setAbierto] = useState(false);
+  const { pathname } = useLocation();
+  const boton = useRef(null);
+  const lista = useRef(null);
+  //  Si la pagina abierta es una de las de "Mas", el boton se marca: asi se sabe donde se esta.
+  const aqui = sobran.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
+
+  useEffect(() => { setAbierto(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!abierto) return undefined;
+    lista.current?.querySelector("a")?.focus({ preventScroll: true });
+    const alTeclado = (e) => {
+      if (e.key !== "Escape") return;
+      setAbierto(false);
+      boton.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", alTeclado);
+    return () => document.removeEventListener("keydown", alTeclado);
+  }, [abierto]);
+
+  function cerrar() {
+    setAbierto(false);
+    boton.current?.focus({ preventScroll: true });
+  }
+
+  return (
+    <>
+      {abierto ? (
+        <>
+          <div className="mas-fondo" onClick={cerrar} aria-hidden="true" />
+          <nav className="mas-lista" id="mas-lista" ref={lista} aria-label="Más secciones">
+            {sobran.map(({ to, label, end, Icono }) => (
+              <NavLink key={to} to={to} end={end} onClick={() => setAbierto(false)}
+                       className={({ isActive }) => (isActive ? "active" : "")}>
+                <Icono size={20} />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      ) : null}
+      <nav className="mobile-bar">
+        {visibles.map(({ to, corto, end, Icono }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
+            <Icono size={20} />
+            {corto}
+          </NavLink>
+        ))}
+        {sobran.length ? (
+          <button type="button" ref={boton} className={aqui || abierto ? "active" : ""} aria-expanded={abierto}
+                  aria-controls="mas-lista" onClick={() => (abierto ? cerrar() : setAbierto(true))}>
+            <IconoMas size={20} />
+            Más
+          </button>
+        ) : null}
+      </nav>
+    </>
+  );
+}
 
 /** Las iniciales para el circulo del usuario: "Camila Reyes" -> "CR". */
 function iniciales(nombre) {
@@ -61,8 +140,10 @@ export default function Layout({ variant }) {
   const esEmpresa = variant === "creditor";
   //  El usuario de una empresa y el admin tienen nombre y correo; el deudor, solo su RUT.
   const conCuenta = variant !== "debtor";
-  const { links, marca, sub } = PORTALES[variant] || PORTALES.debtor;
+  const { links, marca, sub, enLaBarra } = PORTALES[variant] || PORTALES.debtor;
   const [enRiesgo, setEnRiesgo] = useState(0);
+  //  Los reclamos que esperan respuesta: van como numero al lado de Cartera (#474).
+  const [enRevision, setEnRevision] = useState(0);
   //  En el computador, el asistente abierto toma una columna y la pagina se angosta: no tapa nada (#303).
   const conAsistente = useAsistente((s) => s.abierto) && variant === "debtor";
 
@@ -72,8 +153,17 @@ export default function Layout({ variant }) {
     listarEnRiesgo().then((c) => setEnRiesgo(c.length)).catch(() => setEnRiesgo(0));
   }, [esEmpresa]);
 
+  useEffect(() => {
+    if (!esEmpresa) return undefined;
+    const contar = () => resumenDeCartera().then((r) => setEnRevision(r.enRevision || 0)).catch(() => setEnRevision(0));
+    contar();
+    //  La cartera avisa cuando se responde un reclamo, y el numero se pone al dia.
+    window.addEventListener("cartera-cambio", contar);
+    return () => window.removeEventListener("cartera-cambio", contar);
+  }, [esEmpresa]);
+
   return (
-    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`}>
+    <div className={`app-shell${conAsistente ? " con-asistente" : ""}`} data-portal={variant}>
       <aside className="sidebar">
         <div className="brand-row">
           <Logo size={40} />
@@ -84,13 +174,18 @@ export default function Layout({ variant }) {
         </div>
         {/* El asistente se abre desde arriba, no con una burbuja que tape la pagina (#303). */}
         {variant === "debtor" ? <BotonAsistente conTexto /> : null}
-        {links.map(({ to, label, end, Icono, aparte, riesgo }) => (
+        {links.map(({ to, label, end, Icono, aparte, riesgo, reclamos }) => (
           <div key={to}>
             {aparte ? <div className="nav-separador" /> : null}
             <NavLink to={to} end={end} className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
               <Icono />
               {label}
               {riesgo && enRiesgo > 0 ? <span className="cuenta" aria-label={`${enRiesgo} en riesgo`}>{enRiesgo}</span> : null}
+              {reclamos && enRevision > 0 ? (
+                <span className="cuenta" aria-label={`${enRevision} ${enRevision === 1 ? "reclamo espera" : "reclamos esperan"} tu respuesta`}>
+                  {enRevision}
+                </span>
+              ) : null}
             </NavLink>
           </div>
         ))}
@@ -136,14 +231,7 @@ export default function Layout({ variant }) {
 
       {/* El asistente responde sobre las deudas de quien pregunta: es solo del deudor. */}
       {variant === "debtor" ? <Chatbot /> : null}
-      <nav className="mobile-bar">
-        {links.map(({ to, corto, end, Icono }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
-            <Icono size={20} />
-            {corto}
-          </NavLink>
-        ))}
-      </nav>
+      <BarraDelTelefono links={links} enLaBarra={enLaBarra} />
     </div>
   );
 }

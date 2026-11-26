@@ -16,6 +16,11 @@ public interface MandateRepository extends JpaRepository<Mandate, Long> {
 
     List<Mandate> findByAgencyAndStatus(Organization agency, Mandate.Status status);
 
+    @Query("select m from Mandate m where m.status = :estado and exists "
+            + "(select 1 from Debt d join d.campaign c where d.id in :ids "
+            + "and c.agency = m.agency and c.creditor = m.creditor)")
+    List<Mandate> paraCampanasDeDeudas(@Param("ids") List<Long> ids, @Param("estado") Mandate.Status estado);
+
     /** Todos los de una agencia, con su acreedor: lo que ve en su portal (#234). */
     @Query("select m from Mandate m join fetch m.creditor where m.agency = :agencia order by m.validFrom desc, m.id desc")
     List<Mandate> deLaAgencia(@Param("agencia") Organization agencia);

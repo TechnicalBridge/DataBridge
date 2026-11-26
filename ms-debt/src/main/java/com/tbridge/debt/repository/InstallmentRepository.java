@@ -14,6 +14,8 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long> 
 
     List<Installment> findByDebtOrderByNumberAsc(Debt debt);
 
+    List<Installment> findByDebtInOrderByNumberAsc(Collection<Debt> debts);
+
     List<Installment> findByDebtAndStatus(Debt debt, Installment.Status status);
 
     /**
