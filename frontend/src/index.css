@@ -25,10 +25,19 @@
   --on-brand: #fffdf8;
   --accent: #c8764b;
   --accent-soft: #f7e6da;
+  /* El terracota para texto sobre --accent-soft: el --accent da 2,8:1 y este 4,9:1 (#557). */
+  --accent-ink: #9a4f2a;
   --warn: #9c6412;
   --warn-soft: #faefd6;
   --danger: #b0443a;
   --danger-soft: #f8e3df;
+  /* Un color por estado de deuda, el mismo en los tres portales y en los graficos (#557). La paleta de
+     components/Graficos.jsx repite estos valores: si cambian aca, cambian alla. */
+  --estado-open: var(--accent);
+  --estado-repacted: #d9a441;
+  --estado-paid: var(--brand);
+  --estado-withdrawn: var(--muted);
+  --estado-disputed: var(--danger);
   --ring: rgba(62, 123, 79, 0.25);
   --tile: #ffffff;
   --shadow: 0 1px 2px rgba(70, 50, 20, 0.05), 0 8px 24px -14px rgba(70, 50, 20, 0.22);
@@ -61,10 +70,12 @@
   --on-brand: #10170f;
   --accent: #e09a72;
   --accent-soft: rgba(224, 154, 114, 0.13);
+  --accent-ink: #e09a72;
   --warn: #e7bd64;
   --warn-soft: rgba(231, 189, 100, 0.13);
   --danger: #f08a84;
   --danger-soft: rgba(240, 138, 132, 0.13);
+  --estado-repacted: #e7bd64;
   --ring: rgba(125, 189, 140, 0.6);
   --tile: #ece7de;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -16px rgba(0, 0, 0, 0.7);
@@ -939,7 +950,6 @@ html:has(.portada) { scroll-behavior: smooth; }
   box-shadow: var(--shadow);
   transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s ease;
 }
-.card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .card h2 { margin: 0 0 14px; font-size: 19px; }
 .card-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .card-cab h2 { margin: 0; }
@@ -1022,7 +1032,6 @@ html:has(.portada) { scroll-behavior: smooth; }
 
 .admin-inicio-contenido { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr); gap: 12px; align-items: start; }
 .admin-panel { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); transition: border-color 0.25s ease, box-shadow 0.25s ease; }
-.admin-panel:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
 .admin-panel-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .admin-panel-cabecera h2 { margin: 3px 0 0; font-size: 19px; }
 .admin-enlace-discreto { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); font-size: 14px; font-weight: 600; }
@@ -1045,7 +1054,7 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-cartera-total p { max-width: 245px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; text-align: right; }
 .admin-estados-deuda { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
 .admin-estado-deuda {
-  --estado-color: var(--brand);
+  --estado-color: var(--estado-open);
   grid-column: span 2;
   display: grid;
   gap: 11px;
@@ -1082,10 +1091,10 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-estado-deuda:nth-child(3) .admin-estado-deuda-barra i { animation-delay: 0.16s; }
 .admin-estado-deuda:nth-child(4) .admin-estado-deuda-barra i { animation-delay: 0.24s; }
 .admin-estado-deuda:nth-child(5) .admin-estado-deuda-barra i { animation-delay: 0.32s; }
-.admin-estado-deuda.estado-repacted { --estado-color: var(--accent); }
-.admin-estado-deuda.estado-paid { --estado-color: var(--brand-2); }
-.admin-estado-deuda.estado-withdrawn { --estado-color: var(--muted); }
-.admin-estado-deuda.estado-disputed { --estado-color: var(--warn); }
+.admin-estado-deuda.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-estado-deuda.estado-paid { --estado-color: var(--estado-paid); }
+.admin-estado-deuda.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-estado-deuda.estado-disputed { --estado-color: var(--estado-disputed); }
 
 @keyframes admin-barra-cartera {
   from { width: 0; }
@@ -1208,11 +1217,11 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-dona { flex: none; width: 72px; height: 72px; transform: rotate(-90deg); }
 .admin-dona circle { fill: none; stroke-width: 15; }
 .admin-dona-fondo { stroke: var(--line); }
-.admin-dona-tramo { --estado-color: var(--brand); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
-.admin-dona-tramo.estado-repacted { --estado-color: var(--accent); }
-.admin-dona-tramo.estado-paid { --estado-color: var(--brand-2); }
-.admin-dona-tramo.estado-withdrawn { --estado-color: var(--muted); }
-.admin-dona-tramo.estado-disputed { --estado-color: var(--warn); }
+.admin-dona-tramo { --estado-color: var(--estado-open); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
+.admin-dona-tramo.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-dona-tramo.estado-paid { --estado-color: var(--estado-paid); }
+.admin-dona-tramo.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-dona-tramo.estado-disputed { --estado-color: var(--estado-disputed); }
 @keyframes admin-dona-entrada { from { opacity: 0; } to { opacity: 1; } }
 .admin-nota { margin: 14px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) {
@@ -1273,7 +1282,7 @@ html:has(.portada) { scroll-behavior: smooth; }
   white-space: nowrap;
 }
 .badge-ok { background: var(--brand-soft); color: var(--brand-2); }
-.badge-wait { background: var(--accent-soft); color: var(--accent); }
+.badge-wait { background: var(--accent-soft); color: var(--accent-ink); }
 .badge-warn { background: var(--warn-soft); color: var(--warn); }
 .badge-peligro { background: var(--danger-soft); color: var(--danger); }
 .badge-muted { background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); }
@@ -2383,7 +2392,8 @@ html:has(.portada) { scroll-behavior: smooth; }
   box-shadow: none;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
-[data-portal="admin"] .card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
+/*  Solo reacciona al mouse lo que se puede pulsar (#557). */
+[data-portal="admin"] :is(a, button).card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
 [data-portal="admin"] .card h2 { font-size: 19px; }
 /* Las cifras, como los mosaicos del inicio: el titulo arriba y el numero grande abajo. */
 [data-portal="admin"] .card.stat {
