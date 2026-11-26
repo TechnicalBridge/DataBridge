@@ -2222,6 +2222,45 @@ html:has(.portada) { scroll-behavior: smooth; }
   .buscador { max-width: none; }
 }
 
+/* ---- El panel con el lenguaje de su inicio (#549) ---------------------------------------------
+   Las pantallas del admin usan las mismas piezas (encabezado, tarjetas, cifras y estados): aqui toman el
+   estilo del inicio nuevo (#542), sin tocar que muestra cada una. */
+[data-portal="admin"] .topbar { margin-bottom: 22px; padding-bottom: 4px; }
+[data-portal="admin"] .topbar h1 { margin: 3px 0 7px; font-size: clamp(30px, 4vw, 42px); letter-spacing: -0.035em; }
+[data-portal="admin"] .card {
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+[data-portal="admin"] .card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
+[data-portal="admin"] .card h2 { font-size: 19px; }
+/* Las cifras, como los mosaicos del inicio: el titulo arriba y el numero grande abajo. */
+[data-portal="admin"] .card.stat {
+  min-height: 132px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+[data-portal="admin"] .stat > span { color: var(--muted); font-size: 14px; font-weight: 600; }
+[data-portal="admin"] .stat b { font-size: clamp(25px, 3vw, 32px); line-height: 1; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+[data-portal="admin"] .stat small { font-size: 13.5px; line-height: 1.35; }
+/* Los estados con el punto de color del inicio. */
+[data-portal="admin"] .badge::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+[data-portal="admin"] .badge { padding: 4px 10px 4px 9px; }
+[data-portal="admin"] .table th { font-size: 13.5px; }
+@media (max-width: 620px) {
+  [data-portal="admin"] .card { padding: 17px; }
+  [data-portal="admin"] .card.stat { min-height: 112px; }
+}
+
 /* Quien pidio menos movimiento al sistema, lo tiene. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
