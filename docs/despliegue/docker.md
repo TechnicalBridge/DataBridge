@@ -42,15 +42,18 @@ despliegue real, cada servicio puede ir en su propio nodo detrás del gateway, c
 
 ### En un servidor
 
-La demo corre en un VPS de Namecheap, en `https://technicalbridge.site`, hasta diciembre (#172, #173):
+La demo corre en una máquina de Azure (Azure for Students), en
+`https://databridge.brazilsouth.cloudapp.azure.com`, y se prende y se apaga cuando hace falta (#468, #470):
 
 | Pieza | Qué hace |
 | --- | --- |
 | [`docker-compose.prod.yml`](../../docker-compose.prod.yml) | Se suma al compose de siempre. Caddy va delante y es lo único que publica puertos (80 y 443); las tres bases, RabbitMQ y el portal quedan cerrados; el buzón de prueba no se levanta, y los servicios usan las imágenes de GHCR |
-| [`deploy/Caddyfile`](../../deploy/Caddyfile) | El HTTPS del dominio con Let's Encrypt, que Caddy renueva solo, y la IP del visitante hacia nginx |
-| [`deploy/preparar-servidor.sh`](../../deploy/preparar-servidor.sh) | Prepara el VPS una vez: Docker, firewall, swap, el usuario que despliega y un `.env` con claves nuevas |
-| [`deploy/respaldar.sh`](../../deploy/respaldar.sh) | Un respaldo de cada base, en su propio archivo, cada madrugada: los últimos 7 días |
-| [`.github/workflows/desplegar.yml`](../../.github/workflows/desplegar.yml) | Compila las seis imágenes, las publica en GHCR y, por SSH, el servidor las descarga y se actualiza. **Apagado hasta que exista la variable `DESPLIEGUE_HOST`** |
+| [`deploy/Caddyfile`](../../deploy/Caddyfile) y [`deploy/Caddyfile.sin-www`](../../deploy/Caddyfile.sin-www) | El HTTPS del dominio con Let's Encrypt, que Caddy renueva solo, y la IP del visitante hacia nginx. El segundo es para un nombre sin www, como el de Azure (`CADDYFILE` en el `.env`) |
+| [`deploy/preparar-servidor.sh`](../../deploy/preparar-servidor.sh) | Prepara el servidor una vez: Docker, firewall, fail2ban, swap, el usuario que despliega, un `.env` con claves nuevas y la pareja de llaves de las sesiones |
+| [`deploy/respaldar.sh`](../../deploy/respaldar.sh) | Un respaldo de cada base, en su propio archivo, cada madrugada y antes de cada despliegue: los últimos 7 días |
+| [`deploy/actualizar.sh`](../../deploy/actualizar.sh) | Respalda, descarga las imágenes de una versión y la levanta; si no queda sana, vuelve a la anterior. Lo corren el workflow y, al prender la máquina, [`deploy/databridge-actualizar.service`](../../deploy/databridge-actualizar.service) |
+| [`deploy/azure/servidor.ps1`](../../deploy/azure/servidor.ps1) | El interruptor: prende o apaga (desasigna) la máquina de Azure |
+| [`.github/workflows/desplegar.yml`](../../.github/workflows/desplegar.yml) | Compila las seis imágenes, las publica en GHCR y, por SSH, el servidor se actualiza; después, una prueba de humo y, si falla, vuelve a la versión anterior. Solo corre si existe la variable `DESPLIEGUE_HOST`, y si la máquina está apagada no falla: se pone al día al prenderla |
 
 La guía completa está en [`docs/despliegue`](README.md).
 
@@ -92,7 +95,7 @@ no es secreto sí tiene un valor de desarrollo.
 
 | Variable | Por omisión | Para qué |
 | --- | --- | --- |
-| `JWT_KEY_DIRECTORY` | obligatoria | Ruta absoluta a PKCS#8/SPKI y publicas de rotacion, montada solo en auth |
+| `JWT_KEY_DIRECTORY` | `./.secrets/jwt` | La carpeta con la pareja PKCS#8/SPKI y las públicas de rotación, montada solo en auth. En Docker sirve la ruta relativa; fuera de Docker hace falta la absoluta ([`docs/seguridad/jwt.md`](../seguridad/jwt.md)) |
 | `AUTH_JWKS_URI` | local con Maven, interna en Compose | JWKS publico de auth para verificar ES256 |
 | `INTERNAL_KEY` | el `.env` | Autentica las llamadas entre servicios |
 | `CIFRADO_LLAVE` | el `.env` | Cifra en la base el secreto de las suscripciones. Se cambia sin perderlos, como dice [Cambiar `CIFRADO_LLAVE`](#cambiar-cifrado_llave) |

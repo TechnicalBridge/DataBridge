@@ -51,8 +51,7 @@ public class PrimerAdmin implements CommandLineRunner {
         }
         //  Un admin es solo de DataBridge: a una persona de una empresa no se le da ese rol.
         if (personal.findByEmailIgnoreCase(correo).isPresent()) {
-            log.error("ADMIN_CORREO ({}) ya es de una persona de una empresa: no se le da el rol admin. Usa otro correo.",
-                    correo);
+            log.error("ADMIN_CORREO ya es de una persona de una empresa: no se le da el rol admin. Usa otro correo.");
             return;
         }
         StaffUser admin = new StaffUser();
@@ -60,6 +59,6 @@ public class PrimerAdmin implements CommandLineRunner {
         admin.setFullName("Administrador de DataBridge");
         admin.setRole(StaffUser.Role.admin);
         personal.save(admin);
-        log.info("Primer admin de DataBridge: {}, entra con enlace al correo", correo);
+        log.info("Primer admin de DataBridge configurado; entra con enlace al correo");
     }
 }

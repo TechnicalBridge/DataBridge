@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         //  Donde se consigue la sesion: no puede exigirla.
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/resend").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         //  El gateway no expone /internal: lo protege la clave interna.
                         .requestMatchers("/internal/**").permitAll()

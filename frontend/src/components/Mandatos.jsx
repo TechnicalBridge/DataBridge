@@ -97,11 +97,23 @@ export default function Mandatos({ onCambio }) {
     hacer(() => terminarMandato(m.id), (r) => `Terminó el mandato con ${r.acreedor}.`);
   }
 
+  const vigentes = datos.mandatos.filter((m) => m.estado === "vigente").length;
+
   return (
-    <div className="card bloque aparece" id="mandatos" style={{ "--i": 1, marginBottom: 16 }}>
+    //  Plegados, con cuantos hay vigentes a la vista (#472): son contratos, no el trabajo del dia.
+    <details className="card bloque aparece plegable" id="mandatos" style={{ "--i": 2 }}>
+      <summary>
+        <span className="resumen-linea">
+          <b>Mandatos</b>
+          <span className="sub">
+            {datos.mandatos.length === 0 ? "Todavía no tienes mandatos"
+              : `${vigentes} ${vigentes === 1 ? "vigente" : "vigentes"} de ${datos.mandatos.length}`}
+          </span>
+        </span>
+        <span className="ver-detalle"><span className="si-cerrado">Ver mandatos</span><span className="si-abierto">Ocultar</span></span>
+      </summary>
       <div className="campana-cabeza">
         <div>
-          <h2>Mandatos</h2>
           <p className="hint" style={{ marginTop: 0 }}>
             Por cuenta de qué acreedores cobras. Con un mandato vigente le creas campañas y cargas su cartera.
           </p>
@@ -257,6 +269,6 @@ export default function Mandatos({ onCambio }) {
           })}
         </div>
       )}
-    </div>
+    </details>
   );
 }

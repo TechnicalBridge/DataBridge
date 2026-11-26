@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,11 +46,11 @@ public class ChatController {
     @ApiResponse(responseCode = "404", description = "Deudor no registrado")
     @ApiResponse(responseCode = "502", description = "Protocolo de deuda invalido")
     @ApiResponse(responseCode = "503", description = "Dependencia temporalmente no disponible")
-    public Respuesta chat(@RequestBody Pregunta pregunta,
+    public Respuesta chat(@Valid @RequestBody Pregunta pregunta,
                           @Parameter(hidden = true)
                           @org.springframework.security.core.annotation.AuthenticationPrincipal com.tbridge.ai.security.JwtPrincipal principal,
                           org.springframework.security.core.Authentication authentication) {
         if (!principal.isDebtor()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para esto");
-        return asistente.responder(pregunta, "Bearer " + authentication.getCredentials());
+        return asistente.responder(pregunta, "Bearer " + authentication.getCredentials(), principal.rut());
     }
 }
