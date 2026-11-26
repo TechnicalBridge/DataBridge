@@ -1,6 +1,7 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
+import com.tbridge.debt.dto.request.CorregirEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.exception.ApiException;
@@ -85,6 +86,29 @@ class EmpresaServiceTest {
 
     private EmpresaResponse de(String rut) {
         return servicio.listar().stream().filter(e -> e.rut().equals(rut)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void corregir_nombres_conserva_rut_y_tipo_y_audita_los_valores_enteros() {
+        var cambios = new CorregirEmpresaRequest("APOFYX Cobranza SpA", "APOFYX nueva");
+        var resultado = servicio.corregir(apofyx.getRut(), cambios, ADMIN);
+
+        assertEquals("APOFYX Cobranza SpA", resultado.razonSocial());
+        assertEquals("APOFYX nueva", resultado.nombre());
+        assertEquals(Organization.Kind.agency, apofyx.getKind());
+        assertEquals("77305118-6", apofyx.getRut());
+        ArgumentCaptor<AdminLog> anotada = ArgumentCaptor.forClass(AdminLog.class);
+        verify(bitacora).save(anotada.capture());
+        assertEquals(AdminLog.Action.empresa_corregida, anotada.getValue().getAction());
+        assertTrue(anotada.getValue().getPreviousValues().contains("\"razonSocial\":\"APOFYX SpA\""));
+        assertTrue(anotada.getValue().getNewValues().contains("\"nombre\":\"APOFYX nueva\""));
+        assertEquals(ADMIN, anotada.getValue().getAdminEmail());
+    }
+
+    @Test
+    void sin_cambios_no_escribe_bitacora() {
+        servicio.corregir(apofyx.getRut(), new CorregirEmpresaRequest("APOFYX SpA", "APOFYX"), ADMIN);
+        verify(bitacora, never()).save(any());
     }
 
     // ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 package com.tbridge.auth.integration;
 
 import com.tbridge.auth.dto.response.PruebaDeCorreoResponse;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -241,6 +242,64 @@ class IntegracionControladoresTest extends BaseIntegracionMySql {
                 .andExpect(status().isConflict());
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM staff_users WHERE email = ?", Integer.class, nuevo)).isEqualTo(1);
+    }
+
+    @Test
+    void el_admin_ve_la_sesion_de_una_persona_la_cierra_y_ya_no_se_renueva() throws Exception {
+        //  La persona entra y renueva una vez: la sesion funciona.
+        String codigo = pedirCodigoDePersonal(EMPRESA_EMAIL);
+        MvcResult entrada = mvc.perform(post("/api/auth/acceso")
+                        .with(origen())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpoJson(Map.of("correo", EMPRESA_EMAIL, "codigo", codigo))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie llave = entrada.getResponse().getCookie("tb_renovacion");
+        MvcResult renovada = mvc.perform(post("/api/auth/refresh").with(origen()).cookie(llave))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie siguiente = renovada.getResponse().getCookie("tb_renovacion");
+
+        //  Un deudor con sesion abierta no sale en la lista del personal.
+        mvc.perform(post("/api/auth/acceso")
+                        .with(origen())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpoJson(Map.of("rut", RUT_DEUDOR, "codigo", codigoInterno(RUT_DEUDOR)))))
+                .andExpect(status().isOk());
+
+        String token = tokenAdmin();
+        MvcResult lista = mvc.perform(get("/api/admin/auth/sesiones").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$._embedded.sesiones[0].correo").value(EMPRESA_EMAIL))
+                .andExpect(jsonPath("$._embedded.sesiones[0].empresaRut").value(RUT_EMPRESA))
+                .andExpect(jsonPath("$._embedded.sesiones[0].rol").value("usuario"))
+                .andExpect(jsonPath("$._embedded.sesiones[0].renovada", not(blankOrNullString())))
+                .andExpect(jsonPath("$._embedded.sesiones[0].tuya").value(false))
+                .andReturn();
+        String familia = json.readTree(lista.getResponse().getContentAsString())
+                .at("/_embedded/sesiones/0/familia").asText();
+        assertThat(lista.getResponse().getContentAsString()).doesNotContain("ipHash").doesNotContain("refreshHash");
+
+        mvc.perform(post("/api/admin/auth/sesiones/" + familia + "/revocar").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correo").value(EMPRESA_EMAIL))
+                .andExpect(jsonPath("$.accesoHasta", not(blankOrNullString())));
+
+        //  La llave que la persona tiene ya no renueva, y la sesion no sale en la lista.
+        mvc.perform(post("/api/auth/refresh").with(origen()).cookie(siguiente))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/auth/sesiones").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM admin_log
+                WHERE action = 'sesion_cerrada' AND subject = ? AND org_rut = ? AND admin_email = ?
+                """, Integer.class, EMPRESA_EMAIL, RUT_EMPRESA, ADMIN_EMAIL)).isEqualTo(1);
+
+        //  Otra vez: ya esta cerrada.
+        mvc.perform(post("/api/admin/auth/sesiones/" + familia + "/revocar").header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
     }
 
     // ------------------------------------------------------------------

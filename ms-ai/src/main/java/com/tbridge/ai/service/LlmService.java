@@ -136,7 +136,8 @@ public class LlmService implements DisposableBean {
         for (Map<String, Object> item : historia.subList(Math.max(0, historia.size() - HISTORIA), historia.size())) {
             Object contenido = Valor.primero(item.get("content"), item.get("message"));
             if (item.get("role") instanceof String rol && ROLES.contains(rol) && contenido != null) {
-                mensajes.add(new Mensaje(rol, String.valueOf(contenido)));
+                String texto = String.valueOf(contenido);
+                mensajes.add(new Mensaje(rol, texto.substring(0, Math.min(texto.length(), 1000))));
             }
         }
         return mensajes;

@@ -60,8 +60,7 @@ export default function ComisionesDelMes() {
         </div>
       </div>
       <p className="hint" style={{ marginTop: -6 }}>
-        A cada empresa, un porcentaje de lo que recuperó en el mes: 6, 10, 12 o 15 % según el tramo, sobre todo lo
-        recuperado.
+        A cada empresa se le aplica un 6, 10, 12 o 15 % sobre el total ingresado por pagos en el mes, según el tramo.
       </p>
       {error ? <div className="error">{error}</div> : null}
       {cargando ? <p className="hint" role="status">Cargando comisiones…</p> : null}
@@ -73,8 +72,8 @@ export default function ComisionesDelMes() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Empresa</th><th scope="col" className="num">Recuperado (G)</th>
-                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión (P)</th>
+                <th scope="col">Empresa</th><th scope="col" className="num">Ingresado por pagos</th>
+                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión</th>
               </tr>
             </thead>
             <tbody>

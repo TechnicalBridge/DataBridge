@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { crearAdmin, devolverAcceso, historialDeAdmins, listarAdmins, quitarAcceso } from "../api/admin";
+import { crearAdmin, corregirPersona, devolverAcceso, historialDeAdmins, listarAdmins, quitarAcceso } from "../api/admin";
 import { useAuth } from "../store/authStore";
 import Cargando from "../components/Cargando";
 import { FormPersona, Historial, TablaPersonas } from "../components/AdminPersonas";
@@ -52,6 +52,12 @@ export default function AdminEquipo() {
     }
   }
 
+  async function guardarPersona(id, datos) {
+    await corregirPersona(id, datos);
+    await cargar();
+    setAviso("Se corrigieron los datos de la persona.");
+  }
+
   if (admins === null) return <Cargando tarjetas={2} />;
 
   return (
@@ -70,6 +76,7 @@ export default function AdminEquipo() {
           <div className="card bloque aparece" style={{ "--i": 1 }}>
             <h2>Admins</h2>
             <TablaPersonas personas={admins} tuCorreo={user?.correo} alCambiar={cambiarAcceso}
+                           alCorregir={guardarPersona}
                            vacio="No hay ningún admin." />
           </div>
           <div className="card aparece" style={{ "--i": 3 }}>

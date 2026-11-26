@@ -64,27 +64,28 @@ public class AnalyticsService {
         int pagadas = 0;
         int retiradas = 0;
         int enConvenio = 0;
+        int enRevision = 0;
 
         for (Debt deuda : cartera) {
             BigDecimal saldo = servicio.saldo(deuda);
-            BigDecimal pagado = deuda.getOriginalAmount().subtract(saldo);
+            BigDecimal diferenciaConMontoOriginal = deuda.getOriginalAmount().subtract(saldo);
             String moneda = deuda.getCurrency().name();
 
             BigDecimal[] acumulado = porMoneda.computeIfAbsent(moneda,
                     k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
             acumulado[0] = acumulado[0].add(saldo);
-            acumulado[1] = acumulado[1].add(pagado);
+            acumulado[1] = acumulado[1].add(diferenciaConMontoOriginal);
 
-            //  Para una agencia que cobra a varios acreedores: cuanto queda y
-            //  cuanto se recupero de cada uno, por moneda.
+            // Para cada acreedor: saldo y diferencia con el monto original, por moneda.
             porAcreedor.merge(deuda.getCreditor().getRut() + "|" + moneda,
-                    new ResumenResponse.PorAcreedor(deuda.getCreditor().getTradeName(), moneda, saldo, pagado),
+                    new ResumenResponse.PorAcreedor(deuda.getCreditor().getTradeName(), moneda, saldo, diferenciaConMontoOriginal),
                     (antes, esta) -> antes.sumar(esta.saldo(), esta.recuperado()));
 
             switch (deuda.getStatus()) {
                 case paid -> pagadas++;
                 case withdrawn -> retiradas++;
                 case repacted -> { enConvenio++; activas++; }
+                case disputed -> { enRevision++; activas++; }
                 default -> activas++;
             }
         }
@@ -99,7 +100,7 @@ public class AnalyticsService {
         });
 
         return new ResumenResponse(organizacion.getTradeName(), organizacion.getRut(), cartera.size(), activas,
-                enConvenio, pagadas, retiradas, monedas, new ArrayList<>(porAcreedor.values()),
+                enConvenio, pagadas, retiradas, enRevision, monedas, new ArrayList<>(porAcreedor.values()),
                 recuperadoPorDia(cartera));
     }
 

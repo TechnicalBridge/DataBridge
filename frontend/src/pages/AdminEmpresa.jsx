@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
-  crearPersona, devolverAcceso, historialDeEmpresa, listarPersonal, obtenerEmpresa, quitarAcceso,
+  crearPersona, corregirEmpresa, corregirPersona, devolverAcceso, historialDeEmpresa, listarPersonal, obtenerEmpresa, quitarAcceso,
   reactivarEmpresa, suspenderEmpresa,
 } from "../api/admin";
 import { ESTADO_DEL_MANDATO, TIPO_DE_EMPRESA, dinero, fecha, rutLegible } from "../utils/formato";
@@ -25,6 +25,10 @@ export default function AdminEmpresa() {
   const [aviso, setAviso] = useState(llegada?.aviso || "");
   const [error, setError] = useState(llegada?.error || "");
   const [noExiste, setNoExiste] = useState(false);
+  const [editandoEmpresa, setEditandoEmpresa] = useState(false);
+  const [razonSocial, setRazonSocial] = useState("");
+  const [nombreEmpresa, setNombreEmpresa] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   //  La empresa viene de ms-debt; sus personas y su historia, de ms-auth. Si
   //  una parte falla, la otra se muestra igual.
@@ -48,6 +52,28 @@ export default function AdminEmpresa() {
     await crearPersona(rut, persona);
     setAviso(`A ${persona.correo} le llegó su invitación para entrar al portal de empresas.`);
     await cargarPersonas();
+  }
+
+  async function guardarEmpresa(e) {
+    e.preventDefault();
+    setGuardando(true);
+    setError("");
+    try {
+      setEmpresa(await corregirEmpresa(rut, { razonSocial: razonSocial.trim(), nombre: nombreEmpresa.trim() }));
+      setEditandoEmpresa(false);
+      setAviso("Se corrigieron los nombres de la empresa.");
+      setAcciones(await historialDeEmpresa(rut));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function guardarPersona(id, datos) {
+    await corregirPersona(id, datos);
+    await cargarPersonas();
+    setAviso("Se corrigieron los datos de la persona.");
   }
 
   async function cambiarAcceso(persona, accion) {
@@ -142,6 +168,30 @@ export default function AdminEmpresa() {
       {aviso ? <div className="notice" role="status">{aviso}</div> : null}
 
       {empresa ? (
+        <section className="card bloque">
+          <h2>Datos de la empresa</h2>
+          {!editandoEmpresa ? (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+              setRazonSocial(empresa.razonSocial);
+              setNombreEmpresa(empresa.nombre);
+              setEditandoEmpresa(true);
+            }}>Corregir nombres</button>
+          ) : (
+            <form onSubmit={guardarEmpresa}>
+              <div className="field"><label htmlFor="empresa-razon">Razón social</label>
+                <input id="empresa-razon" value={razonSocial} maxLength={160} required
+                  onChange={(e) => setRazonSocial(e.target.value)} /></div>
+              <div className="field"><label htmlFor="empresa-nombre">Nombre de fantasía</label>
+                <input id="empresa-nombre" value={nombreEmpresa} maxLength={120} required
+                  onChange={(e) => setNombreEmpresa(e.target.value)} /></div>
+              <button className="btn btn-primary btn-sm" disabled={guardando}>Guardar</button>{" "}
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditandoEmpresa(false)}>Cancelar</button>
+            </form>
+          )}
+        </section>
+      ) : null}
+
+      {empresa ? (
         <section className="grid-3 stats bloque">
           <div className="card stat aparece" style={{ "--i": 1 }}>
             <span>Deudas en gestión</span>
@@ -170,6 +220,7 @@ export default function AdminEmpresa() {
           <div className="card bloque aparece" style={{ "--i": 4 }}>
             <h2>Quiénes entran por esta empresa</h2>
             <TablaPersonas personas={personas} tuCorreo={user?.correo} alCambiar={cambiarAcceso}
+                           alCorregir={guardarPersona}
                            vacio="Nadie tiene acceso todavía. Dale acceso a su primera persona." />
           </div>
 
