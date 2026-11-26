@@ -1759,6 +1759,29 @@ html:has(.portada) { scroll-behavior: smooth; }
 .oferta span { color: var(--ink-2); font-size: 14.5px; }
 .fila-descuento td { color: var(--brand); font-weight: 600; }
 
+/* Pagar (#547): el resumen va primero en el documento (en el telefono, arriba) y en escritorio queda a la
+   derecha, como antes. Lo que se paga, en lineas compactas en vez de una tabla. */
+.pagar-grid > .pegado { grid-column: 2; grid-row: 1; }
+.pagar-grid > .pagar-detalle { grid-column: 1; grid-row: 1; }
+@media (max-width: 980px) {
+  .pagar-grid > .pegado, .pagar-grid > .pagar-detalle { grid-column: auto; grid-row: auto; }
+}
+.pagar-detalle h2 { margin-bottom: 4px; }
+.detalle-pago { list-style: none; margin: 8px 0 14px; padding: 0; }
+.detalle-pago li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.detalle-pago li:last-child { border-bottom: 0; }
+.detalle-pago span { min-width: 0; color: var(--ink); }
+.detalle-pago small { display: block; margin-top: 1px; color: var(--muted); font-size: 14px; }
+.detalle-pago b { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+.detalle-pago .descuento span, .detalle-pago .descuento b { color: var(--brand); }
+
 /* Las fichas de una lista miden lo mismo para las tres pasarelas: el ancho sale del alto del logo. */
 .pasarela-logo {
   display: inline-flex;
