@@ -70,6 +70,29 @@ public class Debtor {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    @Version
+    @Column(name = "contact_version", nullable = false)
+    private long contactVersion;
+
+    @Column(name = "email_updated_at")
+    private Instant emailUpdatedAt;
+    @Column(name = "phone_updated_at")
+    private Instant phoneUpdatedAt;
+
+    // Nullable timestamp means imported; a timestamp identifies a debtor edit.
+    public Instant getEmailUpdatedAt() { return emailUpdatedAt; }
+    public Instant getPhoneUpdatedAt() { return phoneUpdatedAt; }
+    public void actualizarCorreo(String email, Instant at) {
+        setEmail(email);
+        emailUpdatedAt = at;
+        updatedAt = at;
+    }
+    public void actualizarTelefono(String phone, Instant at) {
+        this.phone = phone;
+        phoneUpdatedAt = at;
+        updatedAt = at;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getRut() { return rut; }

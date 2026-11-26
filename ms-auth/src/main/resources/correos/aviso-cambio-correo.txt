@@ -1,0 +1,16 @@
+Hola,
+
+Se cambió el correo con que entras a DataBridge. Si fuiste tú, no tienes que hacer nada.
+
+Si no fuiste tú, entra a [(${portal})], toca "¿Te cambiaron el correo?" en la entrada y escribe tu RUT y este código:
+
+    [(${codigo})]
+
+El código vale 7 días. Al usarlo, tu acceso vuelve a este correo y se cierran todas las sesiones abiertas.
+
+Este correo no trae ningún enlace, a propósito. Escribe tú la dirección del portal. Nadie de DataBridge te va a pedir este código.
+
+DataBridge
+
+--
+Te llegó porque este era el correo de tu acceso a DataBridge.

@@ -16,11 +16,18 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Las unitarias y de capa web no necesitan base de datos ni internet**, así que corren en
-segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un
-servidor HTTP local. La excepción son las pruebas de integración con MySQL (Testcontainers o
-`DB_TEST_URL`, ver #416): se omiten si no hay base. Las de rendimiento no viven en `src/test/java`:
+código. **Salvo la integración de `ms-debt`, ninguna necesita base de datos ni internet**, así que
+corren en segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se
+reemplazan por un servidor HTTP local. Las de rendimiento no viven en `src/test/java`:
 están en `performance-tests/k6/` y se corren a mano contra una pila local.
+
+`ms-debt` tiene además `IntegracionControladoresTest`, que levanta el contexto completo contra un
+MySQL real: en CI con Testcontainers (`mysql:8.4`) y Flyway desde una base vacía; en local con
+`DB_TEST_URL`, `DB_TEST_USER` y `DB_TEST_PASSWORD`, siempre que el nombre de la base termine en
+`_pruebas` o `_test`, porque la prueba confirma empresas y campañas. Sin esas variables y fuera de
+CI, la clase se omite y `mvn test` sigue rápido. Cubre deuda, carga idempotente por lote, campañas,
+mandatos, cuotas, administración, analítica, historial, datos personales, integración y clave
+interna, además de los rechazos `401`, `403` y `404` de seguridad.
 
 > Usa `clean`. El editor de VS Code compila por su cuenta dentro de `target/`, y sin `clean`
 > Maven puede dar por buena una clase vieja.

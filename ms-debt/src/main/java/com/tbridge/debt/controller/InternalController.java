@@ -100,6 +100,14 @@ public class InternalController {
         return debts.snapshotInterno(id, installmentIds);
     }
 
+    @GetMapping("/deudores/{rut}/contacto")
+    @Operation(summary = "Contacto y fecha de corte de credenciales; solo ms-auth")
+    public com.tbridge.debt.service.DebtService.ContactoVigente contactoVigente(
+            @RequestHeader(value = "X-Internal-Key", required = false) String clave, @PathVariable String rut) {
+        exigirClave(clave);
+        return debts.contactoVigente(rut);
+    }
+
     @GetMapping("/debts/{id}/checkout")
     @Operation(summary = "Monto para checkout, después de autorizar al propietario",
             description = "El RUT procede de la sesión verificada por ms-payments, nunca del cuerpo público.")

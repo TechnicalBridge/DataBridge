@@ -173,7 +173,7 @@ class DeudoresAdminServiceTest {
                 "Camila Fuentes Rojas", "16482337-7", "Arriendo", Debt.Currency.UF,
                 new BigDecimal("115.50"), new BigDecimal("96.25"), new BigDecimal("19.25"), Debt.Status.repacted,
                 Instant.parse("2026-11-01T12:00:00Z"), 1, 6, true, 0, null, null, null, BigDecimal.ZERO,
-                new BigDecimal("96.25"), null, null, false, null, null, false);
+                new BigDecimal("96.25"), null, null, false, null, null, false, null, null);
     }
 
     @Test
