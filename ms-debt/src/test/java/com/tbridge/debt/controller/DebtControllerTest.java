@@ -146,6 +146,18 @@ class DebtControllerTest {
     }
 
     @Test
+    void el_detalle_incluye_las_referencias_de_la_cartera_para_deudor_y_empresa() throws Exception {
+        when(debts.getFor(any(), eq(3L))).thenReturn(new DebtDetailResponse(deuda(Debt.Status.open),
+                List.of(), List.of(), List.of(), java.util.Map.of("contrato", "CTR-45")));
+
+        for (String sesion : List.of(deudor(), empresa())) {
+            mvc.perform(get("/api/debts/3").header("Authorization", sesion))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.referencias.contrato").value("CTR-45"));
+        }
+    }
+
+    @Test
     void sin_sesion_es_401_y_con_la_deuda_de_otro_403() throws Exception {
         mvc.perform(get("/api/debts")).andExpect(status().isUnauthorized());
 

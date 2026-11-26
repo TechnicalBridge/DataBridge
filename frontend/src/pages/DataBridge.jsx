@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { comisionDelMes, resumenDeCartera } from "../api/analitica";
-import { enviarCodigo as pedirCodigo, listarDeudas, listarEnRiesgo, resolverDisputa } from "../api/deudas";
+import { enviarCodigo as pedirCodigo, listarDeudas, listarEnRiesgo, obtenerDeuda, resolverDisputa } from "../api/deudas";
 import { listarParaDevolver } from "../api/pagos";
 import {
   dinero, ESTADO_DEUDA, fecha, hoyEnChile, mesDeHoy, MOTIVOS_DISPUTA, paraBuscar, porcentaje, rutLegible,
@@ -110,8 +110,20 @@ export default function DataBridge() {
   //  Desde la bandeja: solo los deudores a los que no les llega el correo.
   const [soloCorreo, setSoloCorreo] = useState(false);
   const [respondiendo, setRespondiendo] = useState(null);
+  const [referencias, setReferencias] = useState(null);
   const listaRef = useRef(null);
   const [error, setError] = useState("");
+
+  async function mostrarReferencias(id) {
+    if (referencias?.id === id) { setReferencias(null); return; }
+    setReferencias({ id, cargando: true });
+    try {
+      const detalle = await obtenerDeuda(id);
+      setReferencias((actual) => actual?.id === id ? { id, datos: detalle.referencias || {} } : actual);
+    } catch (err) {
+      setReferencias((actual) => actual?.id === id ? { id, error: err.message } : actual);
+    }
+  }
 
   async function refrescar() {
     const [r, d] = await Promise.all([resumenDeCartera(), listarDeudas()]);
@@ -399,6 +411,11 @@ export default function DataBridge() {
                         ) : null}
                       </td>
                       <td data-campo="Acciones">
+                        <button type="button" className="btn btn-ghost btn-sm"
+                                aria-expanded={referencias?.id === d.id}
+                                onClick={() => mostrarReferencias(d.id)}>
+                          {referencias?.id === d.id ? "Ocultar referencias" : "Ver referencias"}
+                        </button>
                         {d.estado === "disputed" ? (
                           <button type="button" className="btn btn-primary btn-sm" aria-expanded={respondiendo === d.id}
                                   onClick={() => setRespondiendo(respondiendo === d.id ? null : d.id)}>
@@ -426,6 +443,19 @@ export default function DataBridge() {
                         {aviso?.error ? <span className="sub" style={{ color: "var(--danger)" }}>{aviso.error}</span> : null}
                       </td>
                     </tr>
+                    {referencias?.id === d.id ? (
+                      <tr><td colSpan={5}>
+                        {referencias.cargando ? "Cargando referencias…" : referencias.error
+                          ? <span role="alert">{referencias.error}</span>
+                          : Object.entries(referencias.datos).length
+                            ? <div><b>Referencias de la deuda</b>
+                              <ul>{Object.entries(referencias.datos).map(([clave, valor]) => (
+                                <li key={clave}>{clave}: {valor}</li>
+                              ))}</ul>
+                            </div>
+                            : "Esta deuda no trae referencias adicionales."}
+                      </td></tr>
+                    ) : null}
                     {respondiendo === d.id ? (
                       <tr className="fila-reclamo">
                         <td colSpan={5}>
