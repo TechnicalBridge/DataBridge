@@ -81,9 +81,15 @@ public class ResumenAdminService {
             estados.put(estado.name(), 0L);
         }
         deudas.contarPorEstado().forEach(fila -> estados.put(fila.estado().name(), fila.deudas()));
-        ComisionesResponse mes = comisiones.deTodas(YearMonth.now(CHILE));
+        LocalDate hoy = LocalDate.now(reloj.withZone(CHILE));
+        ComisionesResponse mes = comisiones.deTodas(YearMonth.from(hoy));
+        List<ResumenAdminResponse.PuntoDiario> porDia = comisiones.porDia(hoy.minusDays(DIAS - 1L), hoy).entrySet()
+                .stream().map(d -> new ResumenAdminResponse.PuntoDiario(d.getKey(), d.getValue())).toList();
         return new ResumenAdminResponse(empresas.countByStatus(Organization.Status.active),
                 empresas.countByStatus(Organization.Status.suspended), estados, mes.mes(),
-                mes.recuperado(), mes.comision());
+                mes.recuperado(), mes.comision(), porDia);
     }
+
+    /** Cuantos dias muestra el grafico de lo recuperado (#544), como el de la empresa. */
+    static final int DIAS = 30;
 }

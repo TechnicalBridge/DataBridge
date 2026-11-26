@@ -88,6 +88,24 @@ class ComisionServiceTest {
     }
 
     @Test
+    void por_dia_suma_los_pesos_de_cada_dia_de_chile_y_deja_en_cero_los_dias_sin_pagos() {
+        //  #544: las 02:30 UTC del 7 todavia son el 6 en Chile.
+        DebtEvent tarde = pago(apofyx, arriendos, "350000", Debt.Currency.CLP, "{\"pagoId\":1,\"montoClp\":350000}");
+        tarde.setOccurredAt(Instant.parse("2026-10-07T02:30:00Z"));
+        when(eventos.entre(eq(DebtEvent.Type.payment_applied), eq(Instant.parse("2026-10-05T03:00:00Z")),
+                eq(Instant.parse("2026-10-08T03:00:00Z")))).thenReturn(List.of(
+                pago(apofyx, arriendos, "350000", Debt.Currency.CLP, "{\"pagoId\":2,\"montoClp\":350000}"),
+                pago(patrimonio, null, "12.5", Debt.Currency.UF, "{\"pagoId\":3,\"montoClp\":493571}"),
+                tarde));
+
+        var dias = servicio.porDia(LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 7));
+
+        assertEquals(List.of(LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 7)),
+                List.copyOf(dias.keySet()));
+        assertEquals(List.of(0L, 1_193_571L, 0L), List.copyOf(dias.values()));
+    }
+
+    @Test
     void lo_recuperado_en_el_mes_decide_el_tramo_y_cada_campana_muestra_su_parte() {
         when(eventos.entre(eq(DebtEvent.Type.payment_applied), any(), any())).thenReturn(List.of(
                 pago(apofyx, arriendos, "350000", Debt.Currency.CLP, "{\"pagoId\":1,\"montoClp\":350000}"),
