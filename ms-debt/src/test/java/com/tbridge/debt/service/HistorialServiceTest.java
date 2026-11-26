@@ -72,6 +72,18 @@ class HistorialServiceTest {
     }
 
     @Test
+    void comprobante_ajeno_e_inexistente_responden_igual() {
+        when(events.findById(40L)).thenReturn(Optional.of(pago("webpay:x", null)));
+        when(debts.requireVisible(felipe, 3L)).thenThrow(
+                new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+        ApiException ajeno = assertThrows(ApiException.class, () -> historial.pago(felipe, 40L));
+        ApiException ausente = assertThrows(ApiException.class, () -> historial.pago(felipe, 41L));
+        assertEquals(HttpStatus.FORBIDDEN, ajeno.getStatus());
+        assertEquals(ajeno.getStatus(), ausente.getStatus());
+        assertEquals(ajeno.getMessage(), ausente.getMessage());
+    }
+
+    @Test
     void cada_pago_dice_que_cuotas_cubrio_y_por_donde() {
         when(events.findTop300ByDebtInAndTypeOrderByOccurredAtDesc(List.of(deuda), DebtEvent.Type.payment_applied))
                 .thenReturn(List.of(pago("webpay:wp-9f31c2", """
@@ -124,7 +136,7 @@ class HistorialServiceTest {
                 DebtEvent.de(deuda, DebtEvent.Type.repacted, DebtEvent.Actor.debtor)));
 
         ApiException error = assertThrows(ApiException.class, () -> historial.pago(felipe, 58L));
-        assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
     }
 
     @Test

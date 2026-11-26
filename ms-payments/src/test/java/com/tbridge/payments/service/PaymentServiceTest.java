@@ -95,8 +95,36 @@ class PaymentServiceTest {
     }
 
     @Test
+    void seg_dat_007_pago_ajeno_e_inexistente_son_indistinguibles() {
+        Payment ajeno = new Payment();
+        ajeno.setId(40L);
+        ajeno.setDebtId(3L);
+        ajeno.setDebtorRut("otro");
+        ajeno.setCreditorRut("otra");
+        when(payments.findById(40L)).thenReturn(Optional.of(ajeno));
+        when(payments.paraCerrar(40L)).thenReturn(Optional.of(ajeno));
+        JwtPrincipal empresa = new JwtPrincipal("empresa", null, "CREDITOR", null, "empresa");
+        when(deudas.cartera("empresa")).thenReturn(List.of());
+        for (java.util.function.LongConsumer consulta : List.<java.util.function.LongConsumer>of(
+                id -> servicio.get(DEUDOR, id),
+                id -> servicio.get(empresa, id),
+                id -> servicio.cancelarIntento(DEUDOR, id),
+                id -> servicio.historia(DEUDOR, id),
+                id -> servicio.historia(empresa, id),
+                id -> servicio.registrarDevolucion(empresa, id, "ref"))) {
+            ApiException extranjero = assertThrows(ApiException.class, () -> consulta.accept(40L));
+            ApiException ausente = assertThrows(ApiException.class, () -> consulta.accept(41L));
+            assertEquals(HttpStatus.FORBIDDEN, extranjero.getStatus());
+            assertEquals(extranjero.getStatus(), ausente.getStatus());
+            assertEquals("No puedes ver este pago", extranjero.getMessage());
+            assertEquals(extranjero.getMessage(), ausente.getMessage());
+        }
+        verify(payments, never()).save(any());
+    }
+
+    @Test
     void el_monto_lo_pone_ms_debt_y_no_la_peticion() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         PaymentResponse pago = servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -108,7 +136,7 @@ class PaymentServiceTest {
 
     @Test
     void la_mora_que_informa_ms_debt_queda_fija_en_el_cobro() {
-        when(deudas.obtener(3L, null)).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
                 new BigDecimal("416150"), 12L, List.of(12L), new BigDecimal("410000"), new BigDecimal("6150")));
         ArgumentCaptor<Payment> guardado = ArgumentCaptor.forClass(Payment.class);
 
@@ -122,7 +150,7 @@ class PaymentServiceTest {
     @Test
     void el_descuento_por_pronto_pago_tambien_queda_fijo_en_el_cobro() {
         //  El ejemplo del contrato: $900.000 + $18.800 de mora - $9.400 de descuento.
-        when(deudas.obtener(3L, null)).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
                 new BigDecimal("909400"), 12L, List.of(12L), new BigDecimal("900000"), new BigDecimal("9400"),
                 new BigDecimal("9400")));
         ArgumentCaptor<Payment> guardado = ArgumentCaptor.forClass(Payment.class);
@@ -137,7 +165,7 @@ class PaymentServiceTest {
 
     @Test
     void sin_descuento_el_cobro_no_lo_guarda() {
-        when(deudas.obtener(3L, null)).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
                 new BigDecimal("416150"), 12L, List.of(12L), new BigDecimal("410000"), new BigDecimal("6150"),
                 BigDecimal.ZERO));
         ArgumentCaptor<Payment> guardado = ArgumentCaptor.forClass(Payment.class);
@@ -150,7 +178,7 @@ class PaymentServiceTest {
 
     @Test
     void las_cuotas_elegidas_viajan_a_ms_debt_que_es_quien_pone_el_monto() {
-        when(deudas.obtener(3L, List.of(12L, 13L))).thenReturn(deudaDe(FELIPE, "CLP", "280000"));
+        when(deudas.obtenerParaCheckout(3L, List.of(12L, 13L), "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "280000"));
 
         PaymentResponse pago = servicio.checkout(DEUDOR, new CheckoutRequest(3L, List.of(12L, 13L), "webpay"));
 
@@ -159,7 +187,7 @@ class PaymentServiceTest {
 
     @Test
     void en_uf_los_pesos_se_fijan_al_abrir_con_la_uf_del_dia() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "UF", "38.50"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "UF", "38.50"));
         when(uf.delDia(any())).thenReturn(new UfValue(null, new BigDecimal("39876.54"), "manual"));
         when(uf.aPesos(new BigDecimal("38.50"), new BigDecimal("39876.54"))).thenReturn(1535247L);
 
@@ -170,8 +198,30 @@ class PaymentServiceTest {
     }
 
     @Test
+    void checkout_denegado_no_consulta_pagos_ni_pasarelas() {
+        for (Long id : List.of(40L, 41L)) {
+            when(deudas.obtenerParaCheckout(id, List.of(99L), FELIPE))
+                    .thenThrow(new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+            ApiException error = assertThrows(ApiException.class,
+                    () -> servicio.checkout(DEUDOR, new CheckoutRequest(id, List.of(99L), "webpay")));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+            assertEquals("No puedes ver esta deuda", error.getMessage());
+        }
+        org.mockito.Mockito.verifyNoInteractions(payments, eventos, avisos, uf, khipu, webpay, mercadopago);
+    }
+
+    @Test
+    void checkout_conserva_los_conflictos_del_propietario() {
+        ApiException conflicto = new ApiException(HttpStatus.CONFLICT, "Esa deuda no tiene saldo por pagar");
+        when(deudas.obtenerParaCheckout(3L, null, FELIPE)).thenThrow(conflicto);
+        assertEquals(conflicto, assertThrows(ApiException.class,
+                () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"))));
+        org.mockito.Mockito.verifyNoInteractions(payments, eventos, khipu, webpay, mercadopago);
+    }
+
+    @Test
     void nadie_paga_la_deuda_de_otro() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe("18905214-6", "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe("18905214-6", "CLP", "410000"));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay")));
@@ -257,7 +307,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_y_queda_anotado() {
+    void un_aviso_con_firma_falsa_y_pasarela_distinta_responde_401_sin_escribir_eventos() {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
@@ -265,14 +315,11 @@ class PaymentServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
-        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
-        verify(eventos).save(libro.capture());
-        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
-        assertFalse(libro.getValue().getSignatureOk());
+        verify(eventos, never()).save(any());
     }
 
     @Test
-    void un_aviso_con_firma_falsa_no_se_aplica_pero_queda_anotado() {
+    void un_aviso_con_firma_falsa_no_se_aplica_ni_guarda_eventos() {
         Payment pago = pagoAbierto();
 
         ApiException error = assertThrows(ApiException.class,
@@ -280,10 +327,7 @@ class PaymentServiceTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatus());
         assertEquals(Payment.Status.created, pago.getStatus());
-        ArgumentCaptor<PaymentEvent> libro = ArgumentCaptor.forClass(PaymentEvent.class);
-        verify(eventos).save(libro.capture());
-        assertEquals(PaymentEvent.Type.failed, libro.getValue().getType());
-        assertFalse(libro.getValue().getSignatureOk());
+        verify(eventos, never()).save(any());
     }
 
     @Test
@@ -309,7 +353,7 @@ class PaymentServiceTest {
         when(khipu.real()).thenReturn(true);
         when(khipu.crear(any(), any(), anyLong(), any(), any(), any(), any()))
                 .thenReturn(new KhipuClient.Cobro(KHIPU_ID, "https://khipu.com/payment/info/" + KHIPU_ID));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
         return servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "khipu"));
     }
 
@@ -457,7 +501,7 @@ class PaymentServiceTest {
 
     @Test
     void sin_llave_khipu_sigue_simulada() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         PaymentResponse pago = servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "khipu"));
 
@@ -600,7 +644,7 @@ class PaymentServiceTest {
         Payment enVerificacion = abierto();
         when(payments.findByDebtIdAndStatus(3L, Payment.Status.created)).thenReturn(List.of(enVerificacion));
         when(khipu.estado(KHIPU_ID)).thenReturn(estado("verifying", "pending", "410000", "TB-41"));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay")));
@@ -617,7 +661,7 @@ class PaymentServiceTest {
         when(payments.findByDebtIdAndStatus(3L, Payment.Status.created)).thenReturn(List.of(olvidado));
         when(khipu.estado(KHIPU_ID)).thenReturn(estado("pending", "pending", "410000", "TB-41"));
         when(khipu.anular(KHIPU_ID)).thenReturn(true);
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         PaymentResponse nuevo = servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -631,7 +675,7 @@ class PaymentServiceTest {
         Payment olvidado = abiertoEnMercadoPago();
         when(payments.findByDebtIdAndStatus(3L, Payment.Status.created)).thenReturn(List.of(olvidado));
         when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia(null));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -642,7 +686,7 @@ class PaymentServiceTest {
     @Test
     void cuotas_ya_pagadas_que_ms_debt_todavia_no_abona_no_se_cobran_de_nuevo() {
         when(payments.findByDebtIdAndStatus(3L, Payment.Status.paid)).thenReturn(List.of(pagadoAntes(40L, 12L)));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay")));
@@ -653,7 +697,7 @@ class PaymentServiceTest {
 
     @Test
     void el_cobro_guarda_las_cuotas_que_cubre() {
-        when(deudas.obtener(3L, List.of(12L, 13L))).thenReturn(
+        when(deudas.obtenerParaCheckout(3L, List.of(12L, 13L), "16482337-7")).thenReturn(
                 new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP", new BigDecimal("280000"), null,
                         List.of(12L, 13L), new BigDecimal("280000"), BigDecimal.ZERO));
         ArgumentCaptor<Payment> guardado = ArgumentCaptor.forClass(Payment.class);
@@ -855,7 +899,7 @@ class PaymentServiceTest {
         when(webpay.createTransaction(any(), any(), anyLong(), any()))
                 .thenReturn(new WebpayCreateResponse(TOKEN, "https://webpay3gint.transbank.cl/webpayserver/initTransaction"));
         when(webpay.paginaDePago()).thenReturn("https://webpay3gint.transbank.cl/webpayserver/initTransaction");
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
         return servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
     }
 
@@ -1162,7 +1206,7 @@ class PaymentServiceTest {
                 anterior.getStatus() == Payment.Status.paid ? List.of(anterior) : List.of());
         when(webpay.estado(TOKEN)).thenReturn(estadoDeWebpay("INITIALIZED", "TSY"));
         when(webpay.commitTransaction(TOKEN)).thenReturn(confirmacion("AUTHORIZED", 0, 410000, "ORD41T123"));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay")));
@@ -1179,7 +1223,7 @@ class PaymentServiceTest {
         when(webpay.estado(TOKEN)).thenReturn(estadoDeWebpay("INITIALIZED", null));
         when(webpay.createTransaction(any(), any(), anyLong(), any()))
                 .thenReturn(new WebpayCreateResponse("tok-nuevo", "https://webpay3gint.transbank.cl/webpayserver/initTransaction"));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -1194,7 +1238,7 @@ class PaymentServiceTest {
         when(webpay.estado(TOKEN)).thenThrow(new ApiException(HttpStatus.BAD_GATEWAY, "Webpay no respondio"));
         when(webpay.createTransaction(any(), any(), anyLong(), any()))
                 .thenReturn(new WebpayCreateResponse("tok-nuevo", "https://webpay3gint.transbank.cl/webpayserver/initTransaction"));
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -1221,7 +1265,7 @@ class PaymentServiceTest {
 
     @Test
     void en_modo_simulado_webpay_no_sale_a_transbank() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
 
         PaymentResponse pago = servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));
 
@@ -1232,7 +1276,7 @@ class PaymentServiceTest {
 
     @Test
     void checkout_con_mercadopago_crea_preferencia_y_devuelve_init_point() {
-        when(deudas.obtener(3L, null)).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(deudaDe(FELIPE, "CLP", "410000"));
         when(mercadopago.real()).thenReturn(true);
         when(mercadopago.testMode()).thenReturn(true);
         when(mercadopago.crearPreferencia(any(), any(), anyLong(), any(), any(), any()))
@@ -1343,6 +1387,140 @@ class PaymentServiceTest {
         servicio.conciliarPendientes();
 
         assertEquals(Payment.Status.created, pago.getStatus(), "Mercado Pago todavia lo puede aprobar");
+    }
+
+    // ------------------------------------------------------------------
+    //  El admin libera un cobro trabado (#453)
+    // ------------------------------------------------------------------
+
+    private Payment trabadoEnMercadoPago() {
+        Payment pago = abiertoEnMercadoPago();
+        pago.setCreatedAt(Instant.now().minus(java.time.Duration.ofHours(9)));
+        when(payments.paraCerrar(41L)).thenReturn(Optional.of(pago));
+        return pago;
+    }
+
+    @Test
+    void liberar_vence_un_cobro_de_mercadopago_en_proceso_con_origen_manual() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("in_process"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("in_process", "410000", "41"));
+
+        assertEquals(Payment.Status.expired, servicio.liberar(41L).getStatus());
+
+        verify(eventos).save(argThat(e -> e.getType() == PaymentEvent.Type.expired
+                && e.getSource() == PaymentEvent.Source.manual));
+        verify(avisos, never()).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void liberar_no_vence_lo_que_la_pasarela_ya_cobro_queda_pagado() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
+
+        assertEquals(Payment.Status.paid, servicio.liberar(41L).getStatus());
+
+        verify(avisos).save(any(DebtNotification.class));
+        verify(eventos, never()).save(argThat(e -> e.getType() == PaymentEvent.Type.expired));
+    }
+
+    @Test
+    void liberar_un_cobro_de_menos_de_una_hora_se_rechaza_sin_preguntarle_a_la_pasarela() {
+        Payment pago = trabadoEnMercadoPago();
+        pago.setCreatedAt(Instant.now().minus(java.time.Duration.ofMinutes(20)));
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        assertEquals(Payment.Status.created, pago.getStatus());
+        verify(mercadopago, never()).consultarPreferencia(any());
+    }
+
+    @Test
+    void liberar_un_cobro_que_ya_no_esta_abierto_se_rechaza() {
+        trabadoEnMercadoPago().setStatus(Payment.Status.expired);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(eventos, never()).save(any());
+    }
+
+    @Test
+    void liberar_un_cobro_que_no_existe_es_404() {
+        when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.liberar(99L));
+
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
+    }
+
+    // ------------------------------------------------------------------
+    //  El admin verifica un pago abierto con su pasarela (#435)
+    // ------------------------------------------------------------------
+
+    @Test
+    void verificar_como_admin_confirma_lo_que_la_pasarela_ya_cobro_una_sola_vez() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("approved"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("approved", "410000", "41"));
+
+        assertEquals(Payment.Status.paid, servicio.verificarComoAdmin(41L).getStatus());
+
+        verify(avisos, times(1)).save(any(DebtNotification.class));
+        assertEquals(Payment.Status.paid, pago.getStatus());
+    }
+
+    @Test
+    void verificar_como_admin_deja_abierto_lo_que_sigue_en_curso_y_no_lo_vence() {
+        Payment pago = trabadoEnMercadoPago();
+        when(mercadopago.consultarPreferencia("pref_123")).thenReturn(preferencia("in_process"));
+        when(mercadopago.consultarPago("999")).thenReturn(pagoEnMp("in_process", "410000", "41"));
+
+        assertEquals(Payment.Status.created, servicio.verificarComoAdmin(41L).getStatus());
+
+        verify(eventos, never()).save(argThat(e -> e.getType() == PaymentEvent.Type.expired));
+        verify(avisos, never()).save(any(DebtNotification.class));
+        assertEquals(Payment.Status.created, pago.getStatus());
+    }
+
+    @Test
+    void verificar_como_admin_con_la_pasarela_simulada_no_pregunta_a_nadie_y_lo_deja_abierto() {
+        //  La simulada se confirma solo con su aviso firmado: no hay a quien preguntarle.
+        for (Payment.Gateway pasarela : Payment.Gateway.values()) {
+            Payment pago = abiertoEnMercadoPago();
+            pago.setGateway(pasarela);
+            pago.setGatewayTxnId(null);
+            when(mercadopago.real()).thenReturn(false);
+            when(payments.paraCerrar(41L)).thenReturn(Optional.of(pago));
+
+            assertEquals(Payment.Status.created, servicio.verificarComoAdmin(41L).getStatus(), pasarela.name());
+        }
+
+        verify(khipu, never()).estado(any());
+        verify(mercadopago, never()).consultarPreferencia(any());
+        verify(webpay, never()).estado(any());
+        verify(eventos, never()).save(any());
+        verify(avisos, never()).save(any(DebtNotification.class));
+    }
+
+    @Test
+    void verificar_como_admin_un_pago_que_ya_no_esta_abierto_es_409_sin_preguntarle_a_la_pasarela() {
+        trabadoEnMercadoPago().setStatus(Payment.Status.paid);
+
+        ApiException error = assertThrows(ApiException.class, () -> servicio.verificarComoAdmin(41L));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(mercadopago, never()).consultarPreferencia(any());
+    }
+
+    @Test
+    void verificar_como_admin_un_pago_que_no_existe_es_404() {
+        when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND,
+                assertThrows(ApiException.class, () -> servicio.verificarComoAdmin(99L)).getStatus());
     }
 
     @Test
@@ -1611,10 +1789,10 @@ class PaymentServiceTest {
     }
 
     @Test
-    void cancelar_un_pago_que_no_existe_es_404() {
+    void cancelar_un_pago_que_no_existe_es_403_neutro() {
         when(payments.paraCerrar(99L)).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.NOT_FOUND,
+        assertEquals(HttpStatus.FORBIDDEN,
                 assertThrows(ApiException.class, () -> servicio.cancelarIntento(DEUDOR, 99L)).getStatus());
     }
 }

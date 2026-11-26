@@ -17,7 +17,8 @@ public class AdminLog {
 
     //  aviso_reintentado: un aviso de pago a ms-debt que se volvio a poner en cola.
     //  uf_cargada: la UF de un dia, cargada a mano.
-    public enum Action { aviso_reintentado, uf_cargada }
+    //  pago_verificado: el admin le volvio a preguntar a la pasarela por un pago abierto (#435).
+    public enum Action { aviso_reintentado, uf_cargada, cobro_liberado, pago_verificado }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

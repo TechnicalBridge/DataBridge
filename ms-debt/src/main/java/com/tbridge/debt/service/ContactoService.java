@@ -73,10 +73,11 @@ public class ContactoService {
     private final InvitacionService invitaciones;
     private final ObjectMapper json;
     private final HorarioDeContacto horario;
+    private final PasadasDeContacto pasadas;
 
     public ContactoService(CampaignRepository campaigns, DebtRepository debts, ContactRepository contactos,
                            AuthClient auth, LimiteDeContacto limite, InvitacionService invitaciones, ObjectMapper json,
-                           HorarioDeContacto horario) {
+                           HorarioDeContacto horario, PasadasDeContacto pasadas) {
         this.campaigns = campaigns;
         this.debts = debts;
         this.contactos = contactos;
@@ -85,11 +86,25 @@ public class ContactoService {
         this.invitaciones = invitaciones;
         this.json = json;
         this.horario = horario;
+        this.pasadas = pasadas;
     }
 
+    //  La pasada entera va en una transaccion, como las demas tareas programadas. Llamar a contactar() desde
+    //  aqui no pasa por el proxy de Spring, asi que su @Transactional no corre: sin transaccion (y con
+    //  open-in-view apagado) Debt.congelada() no alcanza a leer la empresa, que es LAZY, y la pasada se caia (#338).
+    //  Cada pasada queda en PasadasDeContacto, tambien si se cae: asi el panel ve cuando fue la ultima (#441).
     @Scheduled(cron = "${app.contacto.cron:0 */15 * * * *}", zone = "America/Santiago")
+    @Transactional
     public void pasar() {
-        ContactosResponse hecho = contactar(LocalDateTime.now(CHILE), null);
+        pasadas.empezo();
+        ContactosResponse hecho;
+        try {
+            hecho = contactar(LocalDateTime.now(CHILE), null);
+        } catch (RuntimeException e) {
+            pasadas.fallo(e);
+            throw e;
+        }
+        pasadas.termino(hecho);
         if (hecho.enviados() + hecho.invitados() > 0) {
             log.info("Campanas: {} toque(s) enviados, {} pendientes; {} invitacion(es) pendientes que salieron",
                     hecho.enviados(), hecho.omitidos(), hecho.invitados());

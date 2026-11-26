@@ -54,6 +54,7 @@ class OperacionServiceTest {
     private UfValueRepository ufs;
     private UfService uf;
     private AdminLogRepository bitacora;
+    private PaymentService cobros;
     private OperacionService operacion;
 
     @BeforeEach
@@ -64,7 +65,9 @@ class OperacionServiceTest {
         ufs = mock(UfValueRepository.class);
         uf = mock(UfService.class);
         bitacora = mock(AdminLogRepository.class);
-        operacion = new OperacionService(pagos, eventos, avisos, ufs, uf, bitacora, Clock.fixed(AHORA, ZoneOffset.UTC));
+        cobros = mock(PaymentService.class);
+        operacion = new OperacionService(pagos, eventos, avisos, ufs, uf, bitacora, cobros,
+                Clock.fixed(AHORA, ZoneOffset.UTC));
     }
 
     private static DebtNotification aviso(long pago, int fallos) {
@@ -73,6 +76,53 @@ class OperacionServiceTest {
             aviso.fallo("Connection refused");
         }
         return aviso;
+    }
+
+    private static Payment cobro(Payment.Status estado) {
+        Payment pago = new Payment();
+        pago.setId(2488L);
+        pago.setDebtId(1309L);
+        pago.setAmountClp(173395L);
+        pago.setGateway(Payment.Gateway.mercadopago);
+        pago.setStatus(estado);
+        pago.setCreatedAt(AHORA.minusSeconds(9 * 3600));
+        return pago;
+    }
+
+    @Test
+    void lista_los_cobros_abiertos_hace_mas_de_una_hora_sin_datos_del_deudor() {
+        when(ufs.findById(any())).thenReturn(Optional.empty());
+        when(pagos.findTop50ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(Payment.Status.created,
+                AHORA.minusSeconds(3600))).thenReturn(List.of(cobro(Payment.Status.created)));
+
+        List<OperacionResponse.CobroAbierto> abiertos = operacion.operacion().cobrosAbiertos();
+
+        assertEquals(1, abiertos.size());
+        assertEquals(2488L, abiertos.get(0).id());
+        assertEquals("mercadopago", abiertos.get(0).pasarela());
+        assertEquals(1309L, abiertos.get(0).deuda());
+        assertEquals(173395L, abiertos.get(0).montoClp());
+    }
+
+    @Test
+    void liberar_un_cobro_lo_anota_con_quien_lo_hizo() {
+        when(cobros.liberar(2488L)).thenReturn(cobro(Payment.Status.expired));
+
+        OperacionResponse.CobroLiberado liberado = operacion.liberarCobro(2488L, "admin@databridge.cl");
+
+        assertEquals("expired", liberado.estado());
+        verify(bitacora).save(org.mockito.ArgumentMatchers.argThat(r -> r.getAction() == AdminLog.Action.cobro_liberado
+                && "admin@databridge.cl".equals(r.getAdminEmail()) && r.getSubject().contains("2488")));
+    }
+
+    @Test
+    void si_la_pasarela_ya_lo_habia_cobrado_queda_pagado_y_no_se_anota_como_liberado() {
+        when(cobros.liberar(2488L)).thenReturn(cobro(Payment.Status.paid));
+
+        OperacionResponse.CobroLiberado liberado = operacion.liberarCobro(2488L, "admin@databridge.cl");
+
+        assertEquals("paid", liberado.estado());
+        verify(bitacora, never()).save(any());
     }
 
     @Test
@@ -117,14 +167,14 @@ class OperacionServiceTest {
     void los_avisos_a_ms_debt_sin_entregar_con_su_pago_y_sin_datos_del_deudor() {
         when(ufs.findById(any())).thenReturn(Optional.empty());
         when(avisos.countByStatus(DebtNotification.Status.failed)).thenReturn(1L);
-        when(avisos.findTop200ByStatusInOrderByIdDesc(any())).thenReturn(List.of(aviso(58, 6), aviso(59, 2)));
+        when(avisos.findTop200ByStatusInOrderByIdDesc(any())).thenReturn(List.of(aviso(58, 7), aviso(59, 2)));
 
         OperacionResponse.Avisos sinEntregar = operacion.operacion().avisos();
 
         assertEquals(1, sinEntregar.fallidos());
         assertEquals(58L, sinEntregar.lista().getFirst().pago());
         assertEquals("failed", sinEntregar.lista().getFirst().estado());
-        assertEquals(6, sinEntregar.lista().getFirst().intentos());
+        assertEquals(7, sinEntregar.lista().getFirst().intentos());
         assertNull(sinEntregar.lista().getFirst().proximoIntento());
         assertEquals("pending", sinEntregar.lista().get(1).estado());
         assertEquals(6, OperacionResponse.Aviso.class.getRecordComponents().length, "solo el pago, sin el deudor");
@@ -145,7 +195,7 @@ class OperacionServiceTest {
 
     @Test
     void reintentar_un_aviso_lo_deja_en_cola_y_lo_anota() {
-        DebtNotification fallido = aviso(58, 6);
+        DebtNotification fallido = aviso(58, 7);
         when(avisos.findById(3L)).thenReturn(Optional.of(fallido));
 
         OperacionResponse.Aviso enCola = operacion.reintentarAviso(3L, "admin@databridge.cl");

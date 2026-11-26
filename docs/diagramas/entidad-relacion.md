@@ -6,9 +6,9 @@ DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su p
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
-| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal |
-| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel |
+| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha · `V9` eventos de entrega de Resend · `V11` cerrar sesiones desde el panel |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal · `V14` ficha del deudor en el panel · `V15` suscripciones desde el panel |
+| [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel · `V7` liberar cobro · `V8` verificar un pago desde el panel |
 
 ![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
 
@@ -53,7 +53,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada o persona_habilitada"
+        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada, persona_habilitada o sesion_cerrada"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -102,7 +102,7 @@ Las 6 tablas no se relacionan entre sí con llaves foráneas: cada una se consul
 | --- | --- |
 | `access_codes` | El código con que entra un deudor. Un solo uso, con vencimiento y con tope de intentos. |
 | `access_log` | Cada intento de entrar y cada enlace pedido: por dónde, cómo resultó y desde qué origen. |
-| `admin_log` | Lo que un admin de DataBridge hizo con las personas desde su panel: altas, y accesos quitados y devueltos. |
+| `admin_log` | Lo que un admin de DataBridge hizo con las personas desde su panel: altas, accesos quitados y devueltos, y sesiones cerradas a distancia. |
 | `magic_links` | El código solicitado y su enlace opcional de respaldo en los tres portales. Comparten uso, vencimiento e intentos. También conserva los enlaces anteriores y las invitaciones, sin código. |
 | `sessions` | Las llaves de renovación de cada sesión, en familias. Es lo único de una sesión que se puede revocar. |
 | `staff_users` | Las personas con cuenta: los usuarios de las empresas y los admin de DataBridge. |
@@ -119,7 +119,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `access_codes` | `ck_access_code_vigencia` | `(expires_at > issued_at)` |
 | `access_log` | `ck_access_log_method` | `(method in ('code','magic_link'))` |
 | `access_log` | `ck_access_log_outcome` | `(outcome in ('granted','expired','invalid','exhausted','sent','refused'))` |
-| `admin_log` | `ck_admin_log_action` | `(action in ('persona_creada','admin_creado','persona_deshabilitada','persona_habilitada'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('persona_creada','admin_creado','persona_deshabilitada','persona_habilitada','persona_corregida','sesion_cerrada'))` |
 | `magic_links` | `ck_magic_link_vigencia` | `(expires_at > issued_at)` |
 | `magic_links` | `ck_magic_link_intentos` | `(attempts <= max_attempts)` |
 | `sessions` | `ck_session_identidad` | `(((role = 'DEBTOR') and (rut is not null)) or ((role in ('CREDITOR','ADMIN')) and (email is not null)))` |
@@ -201,7 +201,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "empresa_creada, aviso_reintentado, empresa_suspendida o empresa_reactivada"
+        varchar(40) action "empresa_creada, aviso_reintentado, empresa_suspendida, empresa_reactivada, deudor_consultado o suscripcion_*"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -413,7 +413,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
-| `admin_log` | `ck_admin_log_action` | `(action in ('empresa_creada','aviso_reintentado','empresa_suspendida','empresa_reactivada'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('empresa_creada','aviso_reintentado','empresa_suspendida','empresa_reactivada','deudor_consultado','suscripcion_activada','suscripcion_desactivada','suscripcion_secreto_cambiado','suscripcion_probada'))` |
 | `batches` | `ck_batch_source` | `(source in ('api','file'))` |
 | `batches` | `ck_batch_status` | `(status in ('processed','rejected'))` |
 | `campaigns` | `ck_campaign_attempts` | `(attempts between 1 and 10)` |
@@ -516,7 +516,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "aviso_reintentado o uf_cargada"
+        varchar(40) action "aviso_reintentado, uf_cargada, cobro_liberado o pago_verificado"
         varchar(254) subject "opcional · el aviso de qué pago, o el día y el valor de la UF"
         datetime occurred_at
     }
@@ -541,7 +541,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 
 | Tabla | Regla | Qué exige |
 | --- | --- | --- |
-| `admin_log` | `ck_admin_log_action` | `(action in ('aviso_reintentado','uf_cargada'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('aviso_reintentado','uf_cargada','cobro_liberado','pago_verificado'))` |
 | `debt_notifications` | `ck_debt_notification_status` | `(status in ('pending','delivered','failed'))` |
 | `payment_events` | `ck_payment_event_source` | `(source in ('portal','webhook','manual'))` |
 | `payment_events` | `ck_payment_event_type` | `(type in ('created','authorized','paid','failed','expired','refunded','duplicated'))` |

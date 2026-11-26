@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { obtenerDeuda } from "../api/deudas";
 import { abrirCobro, cancelarPago, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
@@ -25,6 +25,10 @@ const porVencimiento = (a, b) => a.vencimiento.localeCompare(b.vencimiento) || a
 export default function Pay() {
   const { id } = useParams();
   const [parametros] = useSearchParams();
+  const { state, pathname, search } = useLocation();
+  const navigate = useNavigate();
+  //  Recien aceptado un convenio (#473): se avisa una vez, y no vuelve a salir al recargar.
+  const [convenio] = useState(() => state?.convenio || null);
   const [deuda, setDeuda] = useState(null);
   const [pasarela, setPasarela] = useState("webpay");
   //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
@@ -41,10 +45,24 @@ export default function Pay() {
   const [acreditado, setAcreditado] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const esperandoRef = useRef(null);
 
   useEffect(() => {
     obtenerDeuda(id).then(setDeuda).catch((err) => setError(err.message));
   }, [id]);
+
+  //  En el telefono la barra fija se va al abrir el cobro (#475): lo que sigue (esperar, abrir la ventana de
+  //  nuevo o cancelar) se trae a la vista, para no tener que buscarlo al volver de la pasarela.
+  useEffect(() => {
+    if (pago?.id && window.matchMedia?.("(max-width: 980px)").matches) {
+      esperandoRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [pago?.id]);
+
+  useEffect(() => {
+    if (state?.convenio) navigate(`${pathname}${search}`, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mientras la pasarela no confirma, se consulta el pago. Fallido (Khipu lo
   // rechazo, o el deudor lo anulo) o vencido, no hay nada mas que esperar. El
@@ -215,8 +233,11 @@ export default function Pay() {
     }
   }
 
+  //  En el telefono, el total y Pagar van en una barra fija sobre la navegacion mientras no hay un cobro abierto.
+  const conBarraFija = !pago;
+
   return (
-    <div>
+    <div className={conBarraFija ? "con-pagar-fija" : undefined}>
       <header className="topbar aparece">
         <div>
           <span className="eyebrow">{deuda.acreedor}</span>
@@ -232,6 +253,12 @@ export default function Pay() {
         </Link>
       </header>
       {error ? <div className="error">{error}</div> : null}
+      {convenio ? (
+        <div className="notice aparece" role="status">
+          <b>Quedó tu convenio de {convenio.cuotas} {convenio.cuotas === 1 ? "cuota" : "cuotas"}</b>
+          {convenio.primera ? `: la primera vence el ${fecha(convenio.primera)}.` : "."}
+        </div>
+      ) : null}
 
       {pago?.status === "paid" ? (
         <div className="card success aparece">
@@ -255,7 +282,8 @@ export default function Pay() {
         </div>
       ) : (
         <>
-          <div className="card bloque aparece" style={{ "--i": 1 }}>
+          {/* En el telefono no ayuda a decidir nada y empuja Pagar hacia abajo (#475). */}
+          <div className="card bloque aparece solo-escritorio" style={{ "--i": 1 }}>
             <BarraEstado deuda={deuda} />
           </div>
           <div className="grid-2">
@@ -380,16 +408,18 @@ export default function Pay() {
                   {porcentaje(deuda.tasaInteresMensual)} mensual que pactaste con {deuda.acreedor}.
                 </p>
               ) : null}
-              <div className="methods">
+              <div className="methods" role="radiogroup" aria-label="Medio de pago">
                 {Object.entries(PASARELAS).map(([id, p]) => (
-                  <button key={id} type="button" className={`method${pasarela === id ? " on" : ""}`}
+                  <button key={id} type="button" role="radio" aria-checked={pasarela === id}
+                          className={`method${pasarela === id ? " on" : ""}`}
                           disabled={!!pago} onClick={() => setPasarela(id)} aria-label={p.nombre}>
                     <LogoPasarela id={id} alto={24} />
                     <span>{p.detalle}</span>
                   </button>
                 ))}
               </div>
-              <button className="btn btn-primary btn-block" disabled={busy || monto <= 0 || !!pago} onClick={pagar}>
+              <button className="btn btn-primary btn-block pagar-en-tarjeta" disabled={busy || monto <= 0 || !!pago}
+                      onClick={pagar}>
                 {busy ? <><span className="girando" /> Abriendo…</> : <>Pagar {dinero(monto, moneda)} <IconoFlecha size={16} /></>}
               </button>
               {pago?.status === "failed" || pago?.status === "expired" ? (
@@ -405,7 +435,7 @@ export default function Pay() {
                   devolución: la empresa te devolverá el dinero en {nombreDePasarela(pago.gateway)}.
                 </div>
               ) : pago ? (
-                <div className="esperando" aria-live="polite">
+                <div className="esperando" aria-live="polite" ref={esperandoRef}>
                   {ventanaCerrada ? (
                     <span className="ventana-cerrada">
                       <b>¿Cerraste la ventana de pago?</b> Si no alcanzaste a pagar, cancela este intento y elige de
@@ -440,6 +470,17 @@ export default function Pay() {
               )}
             </div>
           </div>
+          {conBarraFija ? (
+            <div className="pagar-fija" role="region" aria-label="Total y pago">
+              <div className="pagar-fija-total">
+                <span>{enConvenio ? (k === 1 ? "1 cuota" : `${k} cuotas`) : "Total a pagar"}</span>
+                <b>{dinero(monto, moneda)}</b>
+              </div>
+              <button type="button" className="btn btn-primary" disabled={busy || monto <= 0} onClick={pagar}>
+                {busy ? <><span className="girando" /> Abriendo…</> : <>Pagar con {nombreDePasarela(pasarela)} <IconoFlecha size={16} /></>}
+              </button>
+            </div>
+          ) : null}
         </>
       )}
     </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cargarCartera, descargarPlantillaExcel, opcionesDeCarga, revisarCartera } from "../api/deudas";
-import { dinero } from "../utils/formato";
+import { dinero, paraBuscar } from "../utils/formato";
 import { descargarPlantilla, idDeCarga } from "../utils/plantillaCartera";
+import { mensajesCarga } from "../utils/resultadoCarga";
 import FormCampana from "../components/FormCampana";
 import Cargando from "../components/Cargando";
 
@@ -208,6 +209,12 @@ function PasoCampana({
 }) {
   const acreedores = opciones?.acreedores || [];
   const pausada = disponibles.find((c) => c.idExterno === campana)?.estado === "pausada";
+  const [buscar, setBuscar] = useState("");
+  //  Sin fijarse en tildes, mayusculas, puntos ni guiones, como en la cartera (#414). La que esta marcada se ve
+  //  aunque no calce, para no perderla de vista: Seguir la usa igual.
+  const texto = paraBuscar(buscar);
+  const mostradas = disponibles.filter((c) => !texto || c.idExterno === campana
+    || [c.nombre, c.idExterno].some((v) => paraBuscar(v).includes(texto)));
   if (acreedores.length === 0) {
     return (
       <div className="empty">
@@ -250,20 +257,31 @@ function PasoCampana({
           {disponibles.length === 0 ? (
             <p className="hint" style={{ marginTop: 0 }}>Todavía no hay campañas en curso para {elegido?.nombre}. Crea la primera.</p>
           ) : (
-            <fieldset className="opciones-campana">
-              <legend className="sr-only">Campañas</legend>
-              {disponibles.map((c) => (
-                <label key={c.idExterno} className={`opcion${campana === c.idExterno ? " on" : ""}`}>
-                  <input type="radio" name="campana" value={c.idExterno} checked={campana === c.idExterno}
-                         onChange={() => setCampana(c.idExterno)} />
-                  <span>
-                    <b>{c.nombre}</b>
-                    <span className="mono">{c.idExterno}</span>
-                  </span>
-                  {c.estado === "pausada" ? <span className="badge badge-warn">Pausada</span> : null}
-                </label>
-              ))}
-            </fieldset>
+            <>
+              {disponibles.length > 1 ? (
+                <input className="buscador buscador-campanas" type="search" value={buscar}
+                       placeholder="Buscar por nombre o ID" aria-label="Buscar campaña"
+                       onChange={(e) => setBuscar(e.target.value)} />
+              ) : null}
+              {mostradas.length === 0 ? (
+                <div className="empty">Ninguna campaña calza con la búsqueda.</div>
+              ) : (
+                <fieldset className="opciones-campana">
+                  <legend className="sr-only">Campañas</legend>
+                  {mostradas.map((c) => (
+                    <label key={c.idExterno} className={`opcion${campana === c.idExterno ? " on" : ""}`}>
+                      <input type="radio" name="campana" value={c.idExterno} checked={campana === c.idExterno}
+                             onChange={() => setCampana(c.idExterno)} />
+                      <span>
+                        <b>{c.nombre}</b>
+                        <span className="mono">{c.idExterno}</span>
+                      </span>
+                      {c.estado === "pausada" ? <span className="badge badge-warn">Pausada</span> : null}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+            </>
           )}
           {pausada ? (
             <p className="hint">
@@ -401,18 +419,18 @@ function PasoRevision({ revision, campana, busy, onConfirmar, onOtroArchivo }) {
 }
 
 function PasoListo({ resultado, campana, onOtra }) {
-  const aceptadas = resultado.aceptadas ?? 0;
+  const mensajes = mensajesCarga(resultado, campana?.nombre);
   return (
     <>
       <h2>Listo</h2>
       <div className="notice">
-        {resultado.repetido ? "Esa planilla ya estaba cargada: no se duplicó nada. " : ""}
-        <b>{aceptadas} {aceptadas === 1 ? "deuda quedó" : "deudas quedaron"}</b> en {campana?.nombre || "la campaña"}
-        {resultado.rechazadas ? `, y ${resultado.rechazadas} no entraron` : ""}.
+        {mensajes.join(" ")}
       </div>
-      <p className="hint">
-        Cada deudor nuevo recibe su invitación con su código de acceso, dentro del horario que permite la ley.
-      </p>
+      {!resultado.repetido && resultado.resultados?.some((fila) => fila.resultado === "registrada") ? (
+        <p className="hint">
+          Cada deudor nuevo recibe su invitación con su código de acceso, dentro del horario que permite la ley.
+        </p>
+      ) : null}
       <div className="acciones-fila" style={{ marginTop: 12 }}>
         <Link className="btn btn-primary btn-sm" to="/databridge">Ver la cartera</Link>
         <Link className="btn btn-ghost btn-sm" to="/databridge/campanas">Ver las campañas</Link>

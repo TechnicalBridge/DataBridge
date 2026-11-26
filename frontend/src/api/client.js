@@ -54,6 +54,7 @@ export function renovarSesion() {
         setSessionToken(res.data.token);
         return res.data;
       })
+      .catch((err) => { throw comoError(err); })
       .finally(() => {
         renovando = null;
       });
@@ -67,11 +68,11 @@ export function renovarSesion() {
  * necesita el texto y, si una planilla trae varios problemas, cada uno
  * (error.detalles).
  */
-function comoError(err) {
+export function comoError(err) {
   const data = err.response?.data;
-  const mensaje =
-    data?.error?.mensaje || (typeof data?.error === "string" ? data.error : null) ||
-    data?.message || err.message || "Error de red";
+  const texto = (valor) => typeof valor === "string" && valor.trim() ? valor : null;
+  const mensaje = texto(data?.error?.mensaje) || texto(data?.error) || texto(data?.message) ||
+    "No pudimos conectarnos con DataBridge. Intenta de nuevo en unos minutos.";
   const error = new Error(mensaje);
   error.status = err.response?.status;
   error.detalles = Array.isArray(data?.error?.detalles) ? data.error.detalles : [];

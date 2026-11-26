@@ -316,6 +316,11 @@ classDiagram
             <<service>>
             +reglas() ReglasResponse
         }
+        class SesionesDelPersonal {
+            <<service>>
+            +abiertas(int, int, JwtPrincipal) Page~SesionAbiertaResponse~
+            +cerrar(String, JwtPrincipal) SesionCerradaResponse
+        }
         class BitacoraDeAccesos {
             <<service>>
             +buscar(LocalDate, LocalDate, Method, Outcome, int, int) Page~AccesoResponse~
@@ -463,6 +468,10 @@ classDiagram
     AdminController --> PersonalService
     AdminController --> ReglasService
     AdminController --> BitacoraDeAccesos
+    AdminController --> SesionesDelPersonal
+    SesionesDelPersonal --> SessionRepository
+    SesionesDelPersonal --> StaffUserRepository
+    SesionesDelPersonal --> AdminLogRepository
     BitacoraDeAccesos --> AccessLogRepository
     InternalController --> AuthService
     InternalController --> MailService
@@ -489,11 +498,12 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta y las reglas de acceso y correo. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta, sus sesiones abiertas y las reglas de acceso y correo. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
+| `SesionesDelPersonal` | `service` | Las sesiones abiertas del personal, para el panel: verlas sin IP ni llaves y cerrarlas a distancia, revocando su familia de llaves. Anota cada cierre. Las de los deudores no salen (#439). |
 | `ReglasService` | `service` | Las reglas de acceso y de correo que rigen, para la pantalla Reglas del panel. Del correo dice por dónde y en qué modo: ninguna clave ni dirección entera. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
@@ -507,7 +517,7 @@ classDiagram
 | `MagicLinkRepository` | `repository` | Los enlaces. |
 | `StaffUserRepository` | `repository` | Las personas con cuenta. |
 | `AccessLogRepository` | `repository` | La bitácora de acceso. |
-| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar. |
+| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar, y las abiertas del personal para el panel. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
 
 ### Seguridad, arranque y errores
@@ -1006,6 +1016,11 @@ classDiagram
             aviso_reintentado
             empresa_suspendida
             empresa_reactivada
+            deudor_consultado
+            suscripcion_activada
+            suscripcion_desactivada
+            suscripcion_secreto_cambiado
+            suscripcion_probada
         }
     }
     Organization ..> Organization_Kind
@@ -1652,6 +1667,13 @@ classDiagram
             +pasar() void
             +contactar(LocalDateTime, String) ContactosResponse
         }
+        class PasadasDeContacto {
+            <<component>>
+            +empezo() void
+            +termino(ContactosResponse) void
+            +fallo(Throwable) void
+            +estado() ContactoEstadoResponse
+        }
         class RecordatorioService {
             <<service>>
             +programado() void
@@ -1818,6 +1840,9 @@ classDiagram
     ContactoService --> LimiteDeContacto
     ContactoService --> InvitacionService
     ContactoService --> HorarioDeContacto
+    ContactoService --> PasadasDeContacto
+    PasadasDeContacto --> HorarioDeContacto
+    PasadasDeContacto --> LimiteDeContacto
     ContactoService ..> CorreoNoSalio
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
@@ -1844,6 +1869,7 @@ classDiagram
 | `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
 | `TopeDeInvitaciones` | `service` | Cuántas invitaciones salen cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`): una carga grande no las manda todas juntas, y lo que pasa del tope sale en las pasadas siguientes (#236). |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
+| `PasadasDeContacto` | `service` | La última pasada de contacto, en memoria: lo que hizo o con qué error se cayó, la próxima y si se detuvo, para el panel (#441). |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
@@ -1879,9 +1905,38 @@ classDiagram
             +reintentarDestino(JwtPrincipal, Long) Reintentados
             +suspender(JwtPrincipal, String) EmpresaResponse
             +reactivar(JwtPrincipal, String) EmpresaResponse
+            +buscarDeudores(String, int, int) PagedModel~DeudorEncontradoResponse~
+            +fichaDeDeudor(JwtPrincipal, String) FichaDeudorResponse
+            +deuda(Long) DeudaAdminResponse
+            +reclamosAbiertos(int, int) PagedModel~ReclamoAdminResponse~
+            +reclamosResueltos(LocalDate, LocalDate, int, int) PagedModel~ReclamoAdminResponse~
+            +suscripciones() CollectionModel~SuscripcionAdminResponse~
+            +activarSuscripcion(JwtPrincipal, Long) ResponseEntity
+            +desactivarSuscripcion(JwtPrincipal, Long) ResponseEntity
+            +cambiarSecretoDeSuscripcion(JwtPrincipal, Long) SecretoNuevoResponse
+            +probarSuscripcion(JwtPrincipal, Long) PruebaSuscripcionResponse
         }
     }
     namespace service {
+        class DeudoresAdminService {
+            <<service>>
+            +buscar(String, int, int) Page~DeudorEncontradoResponse~
+            +ficha(String, String) FichaDeudorResponse
+            +deuda(Long) DeudaAdminResponse
+        }
+        class SuscripcionesAdminService {
+            <<service>>
+            +listar() List~SuscripcionAdminResponse~
+            +activar(Long, String) void
+            +desactivar(Long, String) void
+            +cambiarSecreto(Long, String) SecretoNuevoResponse
+            +probar(Long, String) PruebaSuscripcionResponse
+        }
+        class ReclamosAdminService {
+            <<service>>
+            +abiertos(int, int) Page~ReclamoAdminResponse~
+            +resueltos(LocalDate, LocalDate, int, int) Page~ReclamoAdminResponse~
+        }
         class AvisosService {
             <<service>>
             +sinEntregar() AvisosResponse
@@ -1951,12 +2006,23 @@ classDiagram
         class DebtRepository {
             <<repository>>
         }
+        class DebtEventRepository {
+            <<repository>>
+        }
     }
     EmpresaService ..> EmpresaService_Totales
     AdminController --> EmpresaService
     AdminController --> ReglasService
     AdminController --> AvisosService
     AdminController ..> HorarioDeContacto
+    AdminController --> DeudoresAdminService
+    DeudoresAdminService --> DebtRepository
+    DeudoresAdminService --> AdminLogRepository
+    AdminController --> ReclamosAdminService
+    ReclamosAdminService --> DebtEventRepository
+    AdminController --> SuscripcionesAdminService
+    SuscripcionesAdminService --> OutboxEventRepository
+    SuscripcionesAdminService --> AdminLogRepository
     AvisosService --> OutboxEventRepository
     AvisosService --> AdminLogRepository
     EmpresaService --> OrganizationRepository
@@ -1973,7 +2039,10 @@ classDiagram
 
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-debt: las empresas, los deudores, los reclamos, las reglas de cobranza y los avisos sin entregar. Solo para el admin. |
+| `DeudoresAdminService` | `service` | Buscar a un deudor en todas las empresas y abrir su ficha, que queda en la bitácora del panel ([#434](https://github.com/TechnicalBridge/DataBridge/issues/434)), y una deuda sin datos del deudor para el detalle de un pago ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)). |
+| `ReclamosAdminService` | `service` | Los reclamos de todas las empresas para el panel ([#436](https://github.com/TechnicalBridge/DataBridge/issues/436)): los abiertos con los días que llevan sin respuesta y los que se cerraron en un período, y cómo, leídos de la historia de las deudas. Sin datos del deudor. |
+| `SuscripcionesAdminService` | `service` | Las suscripciones de avisos de las empresas para el panel ([#438](https://github.com/TechnicalBridge/DataBridge/issues/438)): verlas sin su secreto, activarlas o desactivarlas, cambiarles el secreto (que se muestra una vez) y mandarles un evento de prueba firmado. Cada acción queda en la historia de la empresa. |
 | `AvisosService` | `service` | Los avisos a las empresas que no se entregaron, por destinatario y sin su contenido, y volver a ponerlos en cola. Lo que se reintenta queda en la historia de la empresa. |
 | `EmpresaService` | `service` | Las empresas para el panel: verlas con los totales de su cartera, dar de alta una empresa usuaria, y suspenderla o reactivarla. |
 | `ReglasService` | `service` | Las reglas de cobranza y de contacto que rigen, para la pantalla Reglas del panel. Los feriados son los de `HorarioDeContacto`. |
@@ -2499,6 +2568,8 @@ classDiagram
             <<enumeration>>
             aviso_reintentado
             uf_cargada
+            cobro_liberado
+            pago_verificado
         }
     }
     namespace events {
@@ -2586,6 +2657,11 @@ classDiagram
             +estado() EstadoResponse
             +operacion() OperacionResponse
             +reintentarAviso(JwtPrincipal, Long) OperacionResponse.Aviso
+            +liberarCobro(JwtPrincipal, Long) OperacionResponse.CobroLiberado
+            +pagos(String, String, String, LocalDate, LocalDate, boolean, int, int) PagedModel~PagoAdminResponse~
+            +pago(Long) PagoAdminDetalleResponse
+            +verificarPago(JwtPrincipal, Long) PagoVerificadoResponse
+            +pagosDeDeudor(String) List~PagoDeDeudorResponse~
             +cargarUf(JwtPrincipal, UfManualRequest) UfResponse
         }
     }
@@ -2667,6 +2743,12 @@ classDiagram
             +reintentarAviso(Long, String) OperacionResponse.Aviso
             +cargarUf(LocalDate, BigDecimal, String) UfResponse
         }
+        class PagosAdminService {
+            <<service>>
+            +buscar(String, String, String, LocalDate, LocalDate, boolean, int, int) Page~PagoAdminResponse~
+            +detalle(Long) PagoAdminDetalleResponse
+            +verificar(Long, String) PagoVerificadoResponse
+        }
     }
     namespace repository {
         class PaymentRepository {
@@ -2709,6 +2791,11 @@ classDiagram
     InternalController --> UfLoader
     AdminController --> ReglasService
     AdminController --> OperacionService
+    AdminController --> PagosAdminService
+    PagosAdminService --> PaymentRepository
+    PagosAdminService --> PaymentEventRepository
+    PagosAdminService --> AdminLogRepository
+    PagosAdminService --> PaymentService
     OperacionService --> PaymentRepository
     OperacionService --> PaymentEventRepository
     OperacionService --> DebtNotificationRepository
@@ -2739,8 +2826,9 @@ classDiagram
 | `PaymentController` | `controller` | Los pagos del portal, la página de la pasarela, la ida y vuelta de Webpay y Mercado Pago, y el aviso de Khipu. |
 | `WebhookController` | `controller` | Donde avisa la pasarela simulada, con firma. |
 | `InternalController` | `controller` | Cargar la UF a mano o desde el Banco Central. Con la clave interna. |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago y la operación. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-payments: las reglas de pago, la operación y los pagos. Solo para el admin. |
 | `OperacionService` | `service` | La operación de los pagos para el panel ([#139](https://github.com/TechnicalBridge/DataBridge/issues/139)): los totales, la UF de hoy en Chile y los avisos a ms-debt sin entregar; reintentar uno y cargar la UF a mano, anotando quién lo hizo. |
+| `PagosAdminService` | `service` | Los pagos de todas las empresas para el panel ([#435](https://github.com/TechnicalBridge/DataBridge/issues/435)): por páginas y con filtros, cada uno con su historia, y verificar con su pasarela uno abierto, anotando quién lo hizo. Sin datos del deudor. |
 | `PaymentModelAssembler` | `assembler` | Los enlaces HATEOAS de un pago. |
 | `PaymentService` | `service` | El cobro: abrirlo, confirmarlo con la pasarela, vencerlo y dejar el aviso. |
 | `ConciliacionPasarelas` | `service` | Cada 10 segundos pregunta a las pasarelas por los cobros abiertos, y cada 5 minutos por los vencidos. |

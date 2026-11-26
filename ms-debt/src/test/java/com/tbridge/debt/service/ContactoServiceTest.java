@@ -21,7 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -30,12 +32,15 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,6 +64,7 @@ class ContactoServiceTest {
     @Mock private AuthClient auth;
     @Mock private LimiteDeContacto limite;
     @Mock private InvitacionService invitaciones;
+    @Mock private PasadasDeContacto pasadas;
 
     private ContactoService servicio;
     private Campaign campana;
@@ -69,7 +75,7 @@ class ContactoServiceTest {
     @BeforeEach
     void preparar() {
         servicio = new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones, new ObjectMapper(),
-                new HorarioDeContacto("2026-10-12"));
+                new HorarioDeContacto("2026-10-12"), pasadas);
         when(invitaciones.invitarPendientes(any(), any())).thenReturn(new InvitacionService.Pasada(0, false));
 
         Organization patrimonio = new Organization();
@@ -326,5 +332,42 @@ class ContactoServiceTest {
 
         deuda.getCreditor().setStatus(Organization.Status.active);
         assertEquals(1, el(6, 11).enviados(), "reactivada, sale el toque que esperaba");
+    }
+
+    @Test
+    void la_pasada_programada_corre_en_una_transaccion() throws Exception {
+        //  #338: pasar() llama a contactar() dentro de la misma clase, sin pasar por el proxy de Spring, asi
+        //  que la transaccion tiene que venir de la propia tarea programada. Se le pregunta a Spring lo mismo
+        //  que se pregunta al correrla.
+        Method pasar = ContactoService.class.getMethod("pasar");
+        assertNotNull(new AnnotationTransactionAttributeSource().getTransactionAttribute(pasar, ContactoService.class),
+                "sin transaccion, Debt.congelada() no alcanza a leer la empresa y la pasada se cae");
+    }
+
+    @Test
+    void la_pasada_programada_queda_anotada_para_el_panel() {
+        servicio.pasar();
+
+        verify(pasadas).empezo();
+        verify(pasadas).termino(any(ContactosResponse.class));
+        verify(pasadas, never()).fallo(any());
+    }
+
+    @Test
+    void si_la_pasada_se_cae_queda_anotado_el_error_y_el_error_sigue() {
+        //  #441: una pasada que se cae como en #338 se tiene que ver desde el panel, y la tarea igual falla.
+        HorarioDeContacto siempre = mock(HorarioDeContacto.class);
+        when(siempre.permite(any())).thenReturn(true);
+        ContactoService conHorario = new ContactoService(campaigns, debts, contactos, auth, limite, invitaciones,
+                new ObjectMapper(), siempre, pasadas);
+        IllegalStateException caida = new IllegalStateException("no se pudo leer la empresa");
+        when(invitaciones.invitarPendientes(any(), any())).thenThrow(caida);
+
+        IllegalStateException lanzada = assertThrows(IllegalStateException.class, conHorario::pasar);
+
+        assertSame(caida, lanzada);
+        verify(pasadas).empezo();
+        verify(pasadas).fallo(caida);
+        verify(pasadas, never()).termino(any());
     }
 }

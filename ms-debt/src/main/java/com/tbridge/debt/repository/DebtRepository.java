@@ -6,6 +6,7 @@ import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DebtRepository extends JpaRepository<Debt, Long> {
+
+    @Query("select new com.tbridge.debt.repository.ConteoPorEstado(d.status, count(d)) "
+            + "from Debt d group by d.status")
+    List<ConteoPorEstado> contarPorEstado();
 
     /** Las deudas de un mandato que siguen en gestion: las que se cobran aunque el mandato termine (#234). */
     long countByMandateAndStatusIn(Mandate mandate, Collection<Debt.Status> estados);
@@ -34,6 +39,14 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     @Query("select d from Debt d where d.creditor = :org or d.lastBatch.sender = :org "
             + "order by d.updatedAt desc")
     List<Debt> carteraDe(@Param("org") Organization org);
+
+    @EntityGraph(attributePaths = {"debtor", "creditor", "campaign.agency", "campaign.creditor", "mandate.agency"})
+    @Query("select d from Debt d where d.creditor = :org or d.lastBatch.sender = :org order by d.updatedAt desc")
+    List<Debt> carteraParaListado(@Param("org") Organization org);
+
+    @EntityGraph(attributePaths = {"debtor", "creditor", "campaign.agency", "campaign.creditor", "mandate.agency"})
+    @Query("select d from Debt d where d.debtor = :debtor order by d.updatedAt desc")
+    List<Debt> delDeudorParaListado(@Param("debtor") Debtor debtor);
 
     /**
      * Cuantas deudas hay, por acreedor, por quien las entrego y por estado.
@@ -56,6 +69,11 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     List<SaldoPendiente> saldoPorEmpresa();
 
     List<Debt> findByDebtorOrderByUpdatedAtDesc(Debtor debtor);
+
+    /** Cuantas deudas tiene cada deudor con cada acreedor: la lista de la busqueda del panel (#434). */
+    @Query("select new com.tbridge.debt.repository.DeudasDelDeudor(d.debtor.id, d.creditor.tradeName, count(d)) "
+            + "from Debt d where d.debtor in :deudores group by d.debtor.id, d.creditor.tradeName")
+    List<DeudasDelDeudor> porDeudorYAcreedor(@Param("deudores") Collection<Debtor> deudores);
 
     List<Debt> findByCampaign(Campaign campaign);
 

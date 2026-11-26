@@ -8,18 +8,22 @@
 #
 #    gunzip -c /var/backups/databridge/2026-10-20-tb_debt.sql.gz \
 #      | docker exec -i -e MYSQL_PWD="$DB_DEBT_ROOT_PASSWORD" tbridge-db-debt mysql -uroot
+#
+#  Antes de cada despliegue, deploy/actualizar.sh lo corre con ETIQUETA (por
+#  ejemplo 2026-11-18-0130-antes-de-1a2b3c4), para no pisar el del dia (#470).
 # =============================================================================
 set -euo pipefail
 
 DESTINO=/var/backups/databridge
 ENV=/opt/databridge/.env
+ETIQUETA="${ETIQUETA:-$(date +%F)}"
 mkdir -p "$DESTINO"
 chmod 700 "$DESTINO"
 
 respaldar() {  # respaldar BASE CONTENEDOR VARIABLE_DE_LA_CLAVE
   local clave archivo
   clave=$(grep -E "^$3=" "$ENV" | cut -d= -f2-)
-  archivo="$DESTINO/$(date +%F)-$1.sql.gz"
+  archivo="$DESTINO/$ETIQUETA-$1.sql.gz"
   docker exec -e MYSQL_PWD="$clave" "$2" \
     mysqldump -uroot --single-transaction --routines --triggers --hex-blob --databases "$1" \
     | gzip > "$archivo.tmp"
