@@ -35,12 +35,19 @@ ruta afectados. Las firmas y la idempotencia del servicio siguen siendo
 obligatorias. También hay que probar cuerpos grandes permitidos para cartera,
 cabeceras de firmas y respuestas de 401/403/429 legítimas.
 
+Esta comprobación queda pendiente mientras no exista una decisión de desplegar
+un WAF. **Validar sin bloqueo los callbacks reales de integración de Khipu y
+Mercado Pago es una condición obligatoria antes de habilitar cualquier regla
+en modo de bloqueo.** La evidencia debe registrar qué reglas se activaron y
+las excepciones mínimas aplicadas por regla y ruta.
+
 ## Decisión y comprobaciones pendientes
 
-**No activar todavía un WAF en modo bloqueo en el VPS.** El sistema ya tiene
-límites y validaciones por servicio; sin una línea base de memoria/latencia ni
-tráfico representativo, añadir CRS al mismo host pequeño puede causar más
-interrupciones que beneficio. Primero:
+**No activar todavía un WAF en modo bloqueo en el VPS.** Tampoco se debe
+activar hasta completar la validación de callbacks indicada arriba. El sistema
+ya tiene límites y validaciones por servicio; sin una línea base de
+memoria/latencia ni tráfico representativo, añadir CRS al mismo host pequeño
+puede causar más interrupciones que beneficio. Primero:
 
 1. Documentar rutas y límites de cuerpo concretos, y medir con las pruebas
    existentes de `performance-tests/k6/` contra Caddy (p95/p99, CPU, RSS y

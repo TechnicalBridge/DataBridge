@@ -310,8 +310,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .brand-name { font-weight: 700; font-size: 20px; line-height: 1.15; }
 .brand-sub { color: var(--muted); font-size: 14px; }
 .hero-copy { max-width: 560px; }
-.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; }
-.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; }
+.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; text-wrap: balance; }
+.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; text-wrap: pretty; }
 .muestra { margin-top: 30px; max-width: 520px; }
 .muestra .card { padding: 20px 22px; }
 .muestra-pie { margin: 10px 2px 0; color: var(--muted); font-size: 14px; }
@@ -341,135 +341,375 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .opciones-entrada { display: grid; gap: 12px; }
 .volver-link { align-self: flex-start; }
 
-/* ---- Portada (#278) ----------------------------------------------------------------------------
-   Que es DataBridge, como funciona, por que es seguro y que hace por una empresa. Todo sale de las
-   variables del tema; la franja de empresas usa --brand-2 de fondo para que el texto pase AA en los
-   dos temas, y la letra chica mezcla --muted con --ink para que, siendo chica, se lea. */
+/* La entrada continua el puente de la portada (#539): el puente abajo del panel, y en la del deudor los cuatro
+   tablones con el segundo marcado. Las piezas quedan sobre el puente, con aire para que no lo toquen. */
+.auth-hero { position: relative; overflow: hidden; padding-bottom: calc(clamp(150px, 15vw, 210px) + 28px); }
+.auth-hero > :not(.puente) { position: relative; z-index: 1; }
+.auth-hero .puente-entrada {
+  /* Sin la fila y la columna de la grilla de la portada (que viene despues en este archivo): aqui va por
+     posicion. */
+  grid-row: auto;
+  grid-column: auto;
+  margin: 0;
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  height: clamp(150px, 15vw, 210px);
+}
+.entrada-pasos { max-width: 560px; }
+.entrada-pasos .tablones { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; }
+.entrada-pasos .tablon b { font-size: 17px; }
+.entrada-pasos .tablon[aria-current] b { color: var(--ink); }
+.entrada-pasos .entrada-aqui {
+  display: inline-block;
+  justify-self: start;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: var(--brand-soft);
+  color: var(--brand-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.entrada-paso-corto { display: none; margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-2); }
 
-.portada { min-height: 100vh; background: var(--bg); }
-.portada-barra, .portada-hero, .portada-seccion, .portada-empresas-dentro, .portada-pie {
-  max-width: 1180px;
+/* ---- Portada (#536): las dos orillas ---------------------------------------------------------
+   Un puente colgante visto de costado cruza la primera pantalla: el deudor en la orilla grande, la
+   empresa en la otra. El puente se dibuja al cargar (trazos con pathLength 1) y los tablones se
+   encienden al bajar; mas abajo, cada paso se arma con una pieza del portal. Todo sale de las
+   variables del tema. Las piezas solo se esconden antes de entrar en pantalla cuando hay JavaScript y
+   movimiento (.con-movimiento): sin eso se ven quietas y completas. */
+
+.portada { min-height: 100vh; background: var(--bg); overflow-x: clip; }
+/* Los enlaces del menu bajan suave hasta su seccion (solo en la portada), y la seccion llega con aire arriba.
+   Con movimiento reducido, la regla general vuelve a auto. */
+html:has(.portada) { scroll-behavior: smooth; }
+.portada [id] { scroll-margin-top: 20px; }
+.saltar {
+  position: absolute;
+  left: 16px;
+  top: -64px;
+  z-index: 20;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-2);
+  color: var(--on-brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+.saltar:focus { top: 12px; }
+
+.portada-barra, .cruce, .portada-seccion, .otra-orilla-dentro, .cierre, .portada-pie {
+  max-width: 1228px;
   margin-inline: auto;
   padding-inline: 24px;
 }
-.portada-barra { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 18px; }
+.portada-barra { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 20px; }
 .portada-marca { gap: 10px; color: var(--ink); text-decoration: none; }
-.portada-nav { display: flex; gap: 26px; }
-.portada-nav a { color: var(--ink-2); font-size: 15px; font-weight: 500; text-decoration: none; }
+.portada-nav { display: flex; gap: 28px; }
+.portada-nav a { color: var(--ink-2); font-size: 15.5px; font-weight: 500; text-decoration: none; }
 .portada-nav a:hover { color: var(--brand); }
 .portada-barra-acciones { display: flex; align-items: center; gap: 10px; }
 
-.portada-hero {
+/* La primera pantalla: una grilla con el puente a todo el ancho. En el telefono el orden es el del
+   documento: el deudor, el puente, los tablones y al final la orilla de la empresa. */
+.orillas {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 56px;
-  align-items: center;
-  padding-block: 56px 80px;
+  /* Margen, deudor, empresa, margen, por numero de linea. Las del medio con min(): con minmax(0, ...) los
+     margenes 1fr se llevan todo el espacio. */
+  grid-template-columns:
+    minmax(24px, 1fr) min(860px, calc(100% - 368px)) 320px minmax(24px, 1fr);
+  padding-top: clamp(20px, 4.5vh, 48px);
 }
-.portada-hero h1 {
-  font-size: clamp(38px, 5vw, 60px);
-  line-height: 1.04;
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin: 0 0 20px;
+.orilla-deudor { grid-column: 2 / 3; grid-row: 1; position: relative; z-index: 1; }
+.orilla-deudor h1 {
+  font-size: clamp(42px, 5.9vw, 86px);
+  line-height: 0.97;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 0 0 22px;
+  max-width: 13.5ch;
   text-wrap: balance;
 }
-.portada-bajada { font-size: 19px; line-height: 1.6; color: var(--ink-2); margin: 0; max-width: 54ch; }
-.portada-acciones { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-.portada-aviso { margin: 24px 0 0; max-width: 54ch; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
-.portada-ejemplo { margin: 0; padding: 28px; border-radius: 28px; background: var(--brand-soft); }
-.portada-ejemplo .card { padding: 22px 24px; box-shadow: var(--shadow-lg); }
-.portada-ejemplo-acreedor { display: block; font-size: 15px; color: var(--muted); }
-.card .portada-ejemplo-titulo { margin: 2px 0 0; font-size: 20px; }
-.portada-ejemplo figcaption { margin-top: 14px; font-size: 14px; color: var(--ink-2); }
-
-.portada-seccion { padding-block: 76px; border-top: 1px solid var(--line); }
-.portada-seccion h2, .portada-empresas h2 {
-  font-size: clamp(28px, 3vw, 38px);
-  line-height: 1.12;
-  letter-spacing: -0.015em;
-  margin: 0 0 12px;
+.portada-bajada { font-size: clamp(17px, 1.45vw, 21px); line-height: 1.5; color: var(--ink-2); margin: 0; max-width: 46ch; text-wrap: pretty; }
+.portada-cta { margin-top: 28px; padding: 15px 24px; font-size: 17.5px; gap: 10px; }
+.orilla-empresa {
+  grid-column: 3 / 4;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+  width: 100%;
+  margin-top: 34px;
+  position: relative;
+  z-index: 1;
 }
-.portada-intro { font-size: 18px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; margin: 0 0 34px; }
+.orilla-empresa h2 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+.orilla-empresa p { margin: 0 0 16px; color: var(--ink-2); font-size: 16.5px; line-height: 1.5; text-wrap: pretty; }
 
-.portada-pasos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
-.portada-pasos li { position: relative; }
-.portada-pasos li:not(:last-child)::after {
+.puente {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: clamp(8px, 2vh, 28px);
+}
+.puente-trazo {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trazo 0.9s var(--ease) both;
+}
+.puente-tablero { stroke: var(--brand-2); stroke-width: 9; animation-duration: 0.8s; animation-delay: 0.1s; }
+.puente-torre { stroke: var(--brand-2); stroke-width: 14; animation-duration: 0.7s; animation-delay: calc(0.35s + var(--d, 0s)); }
+.puente-cable { stroke: var(--brand); stroke-width: 4.5; animation-duration: 1s; animation-delay: calc(0.8s + var(--d, 0s)); }
+.puente-tirante { stroke: var(--brand); stroke-width: 2; opacity: 0.55; animation-duration: 0.45s; animation-delay: calc(1.35s + var(--d, 0s)); }
+.puente-agua { fill: var(--brand-soft); }
+.puente-sol { fill: var(--accent); transform-box: fill-box; transform-origin: center; animation: salir-sol 0.9s var(--ease) 1.7s both; }
+@keyframes salir-sol { from { opacity: 0; transform: translateY(26px) scale(0.7); } to { opacity: 1; transform: none; } }
+
+.tablones {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0 0 56px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+}
+.tablon { position: relative; padding-top: 14px; border-top: 4px solid var(--line-2); }
+.tablon::before {
   content: "";
   position: absolute;
-  top: 20px;
-  left: 56px;
-  right: -18px;
-  height: 2px;
-  background: var(--line-2);
+  inset: -4px 0 auto;
+  height: 4px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.8s var(--ease);
 }
-.portada-paso-n {
+.tablon.encendido::before { transform: scaleX(1); }
+.tablon b { display: block; font-size: 19px; line-height: 1.25; text-wrap: balance; color: var(--ink-2); transition: color 0.5s var(--ease); }
+.tablon.encendido b { color: var(--ink); }
+.tablon span { display: block; margin-top: 4px; text-wrap: pretty; font-size: 15.5px; line-height: 1.45; color: var(--muted); }
+
+/* Como funciona: cruzar el puente. Cada paso es un tablon con su pieza del portal. */
+.cruce { padding-block: 88px 40px; }
+.cruce-cab { max-width: 640px; margin-bottom: 24px; }
+.cruce h2, .portada-seccion h2, .otra-orilla h2, .cierre h2 {
+  font-size: clamp(32px, 3.6vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  font-weight: 800;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+.portada-intro { font-size: 18.5px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; margin: 0 0 34px; text-wrap: pretty; }
+.cruce-pasos { list-style: none; margin: 0; padding: 0; }
+.cruce-paso {
+  position: relative;
   display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 18px;
-  border-radius: 50%;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(28px, 6vw, 88px);
+  align-items: center;
+  padding-block: 52px;
+  border-top: 4px solid var(--line-2);
+}
+.cruce-paso::before {
+  content: "";
+  position: absolute;
+  inset: -4px 0 auto;
+  height: 4px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1s var(--ease);
+}
+.cruce-paso.visto::before { transform: scaleX(1); }
+.cruce-paso:nth-child(even) .cruce-texto { order: 2; }
+.cruce-n {
+  display: block;
+  font-size: clamp(56px, 6vw, 84px);
+  line-height: 0.9;
+  font-weight: 800;
+  color: var(--brand);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 14px;
+}
+.cruce-texto h3 { font-size: clamp(24px, 2.4vw, 32px); line-height: 1.1; letter-spacing: -0.015em; margin: 0 0 10px; }
+.cruce-texto p { margin: 0; font-size: 18px; line-height: 1.55; color: var(--ink-2); max-width: 38ch; text-wrap: pretty; }
+.cruce-pieza { margin: 0; justify-self: center; width: min(460px, 100%); }
+.cruce-pieza figcaption { margin-top: 16px; font-size: 15px; line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
+.cruce-ejemplo { color: var(--muted); }
+
+/* Las piezas: pedazos del portal, con los colores del tema. */
+.pieza {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px 26px;
+  /* Sombra corta y con caida: un borde fino con una sombra ancha es el recurso de siempre. */
+  box-shadow: 0 1px 2px rgba(70, 50, 20, 0.06), 0 14px 28px -18px rgba(70, 50, 20, 0.35);
+}
+:root[data-theme="dark"] .pieza { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 30px -18px rgba(0, 0, 0, 0.8); }
+.pieza p { margin: 0; }
+.pieza-titulo { font-size: 21px; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.pieza-texto { margin-top: 8px !important; font-size: 16px; line-height: 1.5; color: var(--ink-2); }
+.pieza-correo { transform: rotate(-1.6deg); }
+.pieza-correo-cab {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--muted);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.pieza-codigo {
+  margin: 14px 0 6px !important;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand-2);
+  text-align: center;
+  font: 700 clamp(30px, 3vw, 38px)/1 var(--mono);
+  letter-spacing: 0.22em;
+}
+.pieza-codigo span { display: inline-block; transition: opacity 0.3s var(--ease), transform 0.4s var(--ease); transition-delay: calc(0.25s + var(--i) * 0.09s); }
+.pieza-etiqueta { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.pieza-campo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--borde-campo, var(--line-2));
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 18px;
+  color: var(--ink);
+}
+.pieza-campo svg { color: var(--brand); transition: opacity 0.3s var(--ease) 1.9s; }
+.pieza-escribe { display: inline-block; white-space: nowrap; transition: clip-path 0.9s steps(12, end); clip-path: inset(0 0 0 0); }
+.pieza-escribe-codigo { font-family: var(--mono); font-weight: 700; letter-spacing: 0.18em; color: var(--brand-2); transition-timing-function: steps(6, end); transition-delay: 1s; }
+.pieza-boton {
+  display: block;
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: var(--radius-sm);
   background: var(--brand);
   color: var(--on-brand);
   font-weight: 700;
-  font-size: 17px;
-  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-.portada-pasos h3, .portada-garantias h3 { font-size: 19px; margin: 0 0 6px; }
-.portada-pasos p, .portada-garantias p { margin: 0; color: var(--ink-2); line-height: 1.55; }
+.pieza-boton-sec { background: transparent; color: var(--ink); border: 1px solid var(--line-2); font-weight: 600; }
+.pieza-deuda .deuda-cab { margin-bottom: 18px; }
+.pieza-acreedor { display: block; font-size: 15px; color: var(--muted); }
+.pieza-deuda .deuda-monto b { font-size: 24px; }
+.pieza-plazo { margin-top: 14px; }
+.pieza-plazo-riel { display: block; position: relative; height: 8px; margin: 10px 0; border-radius: 99px; background: var(--line); }
+.pieza-plazo-relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct);
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 0.9s var(--ease) 0.3s;
+}
+.pieza-plazo-relleno::after {
+  content: "";
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--brand);
+  box-shadow: var(--shadow);
+}
+.pieza-pago .chip { cursor: default; transition: background-color 0.45s var(--ease) 0.3s, color 0.45s var(--ease) 0.3s, border-color 0.45s var(--ease) 0.3s; }
+.pieza-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Los cinco atajos en una fila; en el telefono se parten 3 y 2, parejos. */
+.pieza-pago .atajos { flex-wrap: nowrap; gap: 6px; }
+.pieza-pago .atajos .chip { flex: 1 1 0; text-align: center; padding-inline: 4px; white-space: nowrap; }
+/* Sin caja dentro de la pieza: una tarjeta dentro de otra sobra. */
+.pieza-cifras .cifra, .pieza-cifras .cifra.principal { border: 0; background: none; padding: 0; }
+.pieza-pasarelas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 
-.portada-seguro { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
+/* Antes de entrar en pantalla, y solo con movimiento: el codigo sin letras, los campos sin escribir y
+   la pieza un poco mas abajo. Al verla, se arma. */
+.con-movimiento .cruce-pieza { transition: opacity 0.7s var(--ease), transform 0.8s var(--ease); }
+.con-movimiento .cruce-paso:not(.visto) .cruce-pieza,
+.con-movimiento .cierre:not(.visto) .cruce-pieza { opacity: 0; transform: translateY(28px); }
+/* La orilla lejana se dibuja recien al verla. */
+.con-movimiento .otra-orilla:not(.visto) .puente-trazo { animation: none; }
+.con-movimiento .cruce-paso:not(.visto) .pieza-codigo span { opacity: 0; transform: translateY(10px); }
+.con-movimiento .cruce-paso:not(.visto) .pieza-escribe { clip-path: inset(0 100% 0 0); }
+.con-movimiento .cruce-paso:not(.visto) .pieza-campo svg { opacity: 0; transition-delay: 0s; }
+
+/* Pagas seguro */
+.portada-seccion { padding-block: 88px; border-top: 1px solid var(--line); }
+.portada-seguro { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 64px; align-items: start; }
 .portada-seguro .portada-intro { margin-bottom: 24px; }
 .portada-pasarelas { display: flex; flex-wrap: wrap; gap: 10px; }
 .portada-garantias { list-style: none; margin: 0; padding: 0; }
-.portada-garantias li {
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 14px;
-  padding: 22px 0;
-  border-bottom: 1px solid var(--line);
-}
-.portada-garantias li:first-child { padding-top: 4px; }
-.portada-garantias li:last-child { border-bottom: 0; }
-.portada-check {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--brand-soft);
-  color: var(--brand);
-}
+.portada-garantias { display: grid; gap: 26px; }
+.portada-garantias li { position: relative; padding-top: 16px; border-top: 4px solid var(--brand); }
+.portada-garantias h3 { font-size: 21px; line-height: 1.25; margin: 0 0 6px; text-wrap: balance; }
+.portada-garantias p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 16.5px; max-width: 56ch; text-wrap: pretty; }
 
-.portada-empresas { background: var(--brand-2); color: var(--on-brand); }
-.portada-empresas-dentro {
+/* La otra orilla: la de las empresas. En oscuro es un verde profundo, no un bloque claro. */
+.otra-orilla { background: var(--brand-2); color: var(--on-brand); padding-top: 28px; }
+.orilla-lejana { display: block; width: 100%; height: clamp(72px, 8.5vw, 120px); }
+.lejana-tablero { stroke: currentColor; stroke-width: 6; animation-duration: 0.8s; animation-delay: 0.1s; }
+.lejana-torre { stroke: currentColor; stroke-width: 10; animation-duration: 0.6s; animation-delay: 0.45s; }
+.lejana-cable { stroke: currentColor; stroke-width: 3.5; opacity: 0.85; animation-duration: 0.9s; animation-delay: calc(0.75s + var(--d, 0s)); }
+.lejana-tirante { stroke: currentColor; stroke-width: 1.5; opacity: 0.5; animation-duration: 0.4s; animation-delay: calc(1.25s + var(--d, 0s)); }
+.otra-orilla-dentro {
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
-  gap: 56px;
+  gap: 64px;
   align-items: start;
-  padding-block: 80px;
+  padding-block: 40px 88px;
 }
-.portada-empresas h2, .portada-empresas .portada-intro { color: var(--on-brand); }
-.portada-empresas .portada-intro { margin-bottom: 28px; }
+.otra-orilla h2, .otra-orilla .portada-intro { color: inherit; }
+.otra-orilla .portada-intro { margin-bottom: 28px; opacity: 0.92; }
 .portada-btn-claro { background: var(--on-brand); color: var(--brand-2); }
 .portada-btn-claro:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
-.portada-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
-.portada-lista li { position: relative; padding-left: 28px; font-size: 17px; line-height: 1.55; }
+.portada-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
+.portada-lista li { position: relative; padding-left: 30px; font-size: 17.5px; line-height: 1.55; text-wrap: pretty; }
 .portada-lista li::before {
   content: "";
   position: absolute;
-  left: 2px;
-  top: 0.62em;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  left: 0;
+  top: 0.72em;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
   background: currentColor;
 }
+:root[data-theme="dark"] .otra-orilla { background: #17241b; color: var(--ink); }
+:root[data-theme="dark"] .portada-btn-claro { background: var(--brand); color: var(--on-brand); }
 
 .portada-preguntas .preguntas { max-width: 780px; }
 
-.portada-pie { padding-block: 40px 52px; border-top: 1px solid var(--line); }
+/* El cierre: del otro lado del puente, la deuda pagada. El ultimo tablon va encendido de borde a borde. */
+.cierre {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 6vw, 88px);
+  align-items: center;
+  padding-block: 72px 96px;
+  border-top: 4px solid var(--brand);
+}
+.cierre .portada-intro { margin-bottom: 0; }
+
+.portada-pie { padding-block: 44px 56px; border-top: 1px solid var(--line); }
 .portada-pie-fila {
   display: flex;
   flex-wrap: wrap;
@@ -479,33 +719,55 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   margin-bottom: 26px;
 }
 .portada-pie-enlaces { display: flex; flex-wrap: wrap; gap: 22px; }
-.portada-pie-enlaces a { color: var(--ink-2); font-size: 15px; }
+.portada-pie-enlaces a { color: var(--ink-2); font-size: 15px; text-underline-offset: 3px; }
 .letra-chica {
   margin: 0 0 8px;
-  max-width: 96ch;
+  max-width: 64ch;
   font-size: 12.5px;
   line-height: 1.55;
+  text-wrap: pretty;
   color: color-mix(in srgb, var(--muted) 70%, var(--ink));
 }
 
 @media (max-width: 980px) {
   .portada-nav { display: none; }
-  .portada-hero, .portada-seguro, .portada-empresas-dentro { grid-template-columns: 1fr; gap: 36px; }
-  .portada-hero { padding-block: 32px 56px; }
-  .portada-pasos { grid-template-columns: repeat(2, 1fr); }
-  .portada-pasos li::after { display: none; }
-  .portada-seccion { padding-block: 56px; }
-  .portada-empresas-dentro { padding-block: 56px; }
+  .portada-seguro, .otra-orilla-dentro { grid-template-columns: 1fr; gap: 36px; }
+  .tablones { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 26px; }
+  .cruce-paso { grid-template-columns: 1fr; padding-block: 40px; }
+  .cruce-paso:nth-child(even) .cruce-texto { order: 0; }
+  .cruce-pieza { justify-self: start; }
+  .portada-seccion { padding-block: 64px; }
+  .otra-orilla-dentro { padding-block: 32px 64px; }
+  .cierre { grid-template-columns: 1fr; padding-block: 56px 72px; }
+  .cierre-pieza { justify-self: start; }
+}
+
+@media (max-width: 720px) {
+  .orillas { grid-template-columns: 16px calc(100% - 32px) 16px; padding-top: 12px; }
+  .orilla-deudor { grid-column: 2 / 3; }
+  .tablones { grid-column: 2 / 3; }
+  .orilla-deudor h1 { font-size: clamp(38px, 11vw, 48px); max-width: none; }
+  .portada-cta { width: 100%; justify-content: center; }
+  .puente { height: 150px; max-height: none; }
+  .tablones { padding-bottom: 32px; gap: 16px; }
+  .tablon b { font-size: 17px; }
+  .tablon span { font-size: 14.5px; }
+  .orilla-empresa {
+    grid-column: 2 / 3;
+    grid-row: 4;
+    justify-self: stretch;
+    margin: 0 0 8px;
+    padding: 22px 0 36px;
+    border-top: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 620px) {
-  .portada-barra, .portada-hero, .portada-seccion, .portada-empresas-dentro, .portada-pie { padding-inline: 16px; }
-  .portada-solo-ancho { display: none; }
-  .portada-hero h1 { font-size: 36px; }
-  .portada-bajada { font-size: 17px; }
-  .portada-acciones .btn { flex: 1 1 100%; }
-  .portada-ejemplo { padding: 16px; border-radius: 22px; }
-  .portada-pasos { grid-template-columns: 1fr; gap: 26px; }
+  .pieza-pago .atajos { flex-wrap: wrap; }
+  .pieza-pago .atajos .chip { flex: 1 1 28%; }
+  .portada-barra, .cruce, .portada-seccion, .otra-orilla-dentro, .cierre, .portada-pie { padding-inline: 16px; }
+  .cruce { padding-top: 56px; }
+  .pieza { padding: 20px; }
 }
 
 /* ---- La cartera de la empresa (#280): la busqueda, cuantas hay en cada filtro y, en pantallas
@@ -725,6 +987,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .tabla-suscripciones .sub { overflow-wrap: anywhere; }
 .tabla-suscripciones td:last-child { width: 40%; }
 .tabla-suscripciones .notice, .tabla-suscripciones .aviso, .tabla-suscripciones .error { margin: 10px 0 0; }
+.tabla-sesiones .sub { overflow-wrap: anywhere; }
+.tabla-sesiones td:last-child { width: 44%; }
+.tabla-sesiones td:first-child .badge { margin-left: 6px; }
+.tabla-sesiones .error { margin: 10px 0 0; }
+.tabla-campanas-admin .sub { overflow-wrap: anywhere; }
+.tabla-campanas-admin td:last-child { width: 42%; }
+.tabla-campanas-admin td:last-child .badge + .badge { margin-left: 6px; }
 .secreto-nuevo { display: grid; gap: 6px; }
 .secreto-nuevo code { overflow-wrap: anywhere; user-select: all; }
 .ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; margin: 0; }
@@ -1405,9 +1674,46 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   list-style: none;
 }
 .preguntas summary::-webkit-details-marker { display: none; }
-.preguntas summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--muted); transition: transform 0.25s var(--ease); }
-.preguntas details[open] summary::after { transform: rotate(45deg); }
-.preguntas details p { margin: 0 2px 16px; color: var(--ink-2); max-width: 70ch; }
+.preguntas summary::after {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 6px 4px 16px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.25s var(--ease);
+}
+.preguntas details[open] summary::after { transform: translateY(4px) rotate(-135deg); }
+.preguntas details p {
+  margin: 0 2px 16px;
+  color: var(--ink-2);
+  max-width: 70ch;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.3s var(--ease) 0.06s, transform 0.4s var(--ease);
+}
+.preguntas details[open] p { opacity: 1; transform: none; }
+/* Abrir y cerrar con movimiento (#536): el contenido crece desde 0 hasta su alto. Edge y Chrome lo hacen con
+   ::details-content e interpolate-size; donde no existen, se abre de golpe como antes. Con movimiento reducido,
+   la regla general deja las transiciones en 0. */
+.preguntas details { interpolate-size: allow-keywords; }
+.preguntas details::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition: block-size 0.4s var(--ease), content-visibility 0.4s allow-discrete;
+}
+.preguntas details[open]::details-content { block-size: auto; }
+/* La regla general de movimiento reducido no alcanza a ::details-content: va aparte. */
+@media (prefers-reduced-motion: reduce) {
+  .preguntas details::details-content { transition: none; }
+}
+.preguntas summary { transition: color 0.2s var(--ease); }
+/* Solo con mouse: en el telefono el hover queda pegado despues de tocar. */
+@media (hover: hover) {
+  .preguntas summary:hover { color: var(--brand-2); }
+}
 .columnas-csv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .columnas-csv code { padding: 2px 8px; border-radius: 6px; background: var(--paper-2); border: 1px solid var(--line); }
 .columnas-csv code.opcional { border-style: dashed; color: var(--muted); }
@@ -1513,6 +1819,12 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .muestra { display: none; }
   .auth-panel { order: 3; padding: 24px 16px 20px; }
   .auth-hero > .brand-sub, .auth-hero > .volver-link { order: 4; justify-self: start; margin-bottom: 28px; }
+  .entrada-pasos { order: 2; margin-top: 18px; }
+  .entrada-pasos .tablones { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .entrada-pasos .tablon { padding-top: 0; }
+  .entrada-pasos .tablon b, .entrada-pasos .entrada-aqui { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .entrada-paso-corto { display: block; margin-top: 10px; }
+  .auth-hero > .puente-entrada { order: 2; position: static; margin: 14px 0 0; height: 96px; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
