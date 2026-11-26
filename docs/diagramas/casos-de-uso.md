@@ -401,10 +401,12 @@ Cada caso de uso de arriba termina en uno o más de estos **129 endpoints**. La 
 | `POST /api/auth/enlace` | Pedir código y enlace en un único correo | Deudor, usuario o admin | Ninguna | Sí | `AuthController.enlace` |
 | `POST /api/auth/verify` | Canjear el enlace del correo por una sesión | Deudor, usuario o admin | Ninguna | Sí | `AuthController.verify` |
 | `POST /api/auth/refresh` | Renovar la sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.refresh` |
+| `POST /api/auth/contacto/sesion` | Abrir una sesión nueva tras confirmar el cambio de correo y cerrar las demás del deudor | Deudor con sesión | La cookie de renovación | Sí | `AuthController.sesionTrasCambioDeCorreo` |
 | `POST /api/auth/logout` | Cerrar sesión | Quien tenga sesión | La cookie de renovación | Sí | `AuthController.logout` |
 | `GET /api/me` | Quién soy | Quien tenga sesión | JWT | Sí | `AuthController.me` |
 | `POST /internal/codigos` | Emitir un código de acceso | ms-debt | Clave interna | No | `InternalController.emitir` |
 | `POST /internal/correo/prueba` | Mandar un correo de prueba | Operación de DataBridge | Clave interna | No | `InternalController.probarCorreo` |
+| `POST /internal/contacto/sesiones` | Cerrar todas las sesiones de un deudor tras deshacer un cambio de correo | ms-debt | Clave interna | No | `ContactoInternoController.cerrarSesiones` |
 | `GET /.well-known/jwks.json` | Las llaves públicas con que se verifican las sesiones | ms-debt y ms-payments | Ninguna | No | `JwksController.keys` |
 | `POST /api/webhooks/resend` | Recibir de Resend si un correo salió, se entregó, se atrasó, rebotó o se marcó como spam | Resend | Firma Svix | Sí | `ResendWebhookController.recibir` |
 
@@ -463,6 +465,7 @@ Cada caso de uso de arriba termina en uno o más de estos **129 endpoints**. La 
 | `POST /api/debts/{id}/disputa` | No reconozco esta deuda | Deudor | JWT | Sí | `DebtController.disputar` |
 | `POST /api/debts/{id}/disputa/resolucion` | Resolver una disputa | Usuario de una empresa | JWT | Sí | `DebtController.resolverDisputa` |
 | `POST /api/debts/{id}/codigo` | Hacerle llegar al deudor su código de acceso | Usuario de una empresa | JWT | Sí | `DebtController.codigo` |
+| `POST /api/debts/publico/correo/deshacer` | Deshacer un cambio de correo que el deudor no pidió | Deudor con el código enviado al correo anterior | RUT y código de ocho caracteres | Sí | `DeshacerCorreoController.deshacer` |
 | `GET /api/debts/{id}/certificate` | Certificado de deuda pagada (PDF) | Deudor y usuario de una empresa | JWT | Sí | `DebtController.certificate` |
 | `GET /api/debts/pagos` | Los pagos de quién pregunta | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.pagos` |
 | `GET /api/debts/pagos/{id}/comprobante` | El comprobante de un pago (PDF) | Deudor y usuario de una empresa | JWT | Sí | `HistorialController.comprobante` |
@@ -528,3 +531,12 @@ Cada caso de uso de arriba termina en uno o más de estos **129 endpoints**. La 
 | `POST /api/ai/chat` | Preguntarle al asistente | Deudor | JWT | Sí | `ChatController.chat` |
 | `GET /api/ai/salud` | Estado del asistente | Monitoreo | Ninguna | Sí | `SaludController.salud` |
 
+
+
+## Corregir contacto desde Mis datos (#471)
+
+Actor: deudor autenticado. Desde `/app/mis-datos` guarda un teléfono chileno o solicita
+verificación de un correo nuevo y confirma el código recibido. Puede cancelar la solicitud.
+El correo anterior permanece vigente durante la espera. No permite editar nombre/RUT ni
+recuperar una cuenta sin sesión. La empresa ve origen y fecha del cambio en su propia cartera.
+Ver [reglas de contacto](../negocio/reglas-negocio.md#contacto-corregido-por-el-deudor-471).

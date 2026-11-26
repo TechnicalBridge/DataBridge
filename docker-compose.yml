@@ -264,6 +264,8 @@ services:
       #  Cifra en la base el secreto de las suscripciones a los avisos. La
       #  anterior, solo mientras se cambia (preparar-env.ps1 -Cambiar CIFRADO_LLAVE).
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
+      CONTACT_VERIFICATION_KEY: ${CONTACT_VERIFICATION_KEY:-}
+      CONTACT_TRUSTED_PROXIES: ${CONTACT_TRUSTED_PROXIES:-}
       CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-}
       DEMO_DATOS: ${DEMO_DATOS:-false}
       EVENTS_RABBIT: "true"

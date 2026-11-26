@@ -379,6 +379,8 @@ export default function DataBridge() {
                     <tr>
                       <td data-campo="Deudor">
                         {d.deudor}<span className="sub">{rutLegible(d.deudorRut)}</span>
+                        {d.correoActualizadoPorDeudorEn ? <span className="sub">Correo: actualizado por el deudor · {fecha(d.correoActualizadoPorDeudorEn)}</span> : null}
+                        {d.telefonoActualizadoPorDeudorEn ? <span className="sub">Teléfono: actualizado por el deudor · {fecha(d.telefonoActualizadoPorDeudorEn)}</span> : null}
                         {d.sinCorreoValido ? <span className="tag tag-vencida">Sin correo válido</span> : null}
                         {d.correoFallido?.conProblemas ? (
                           <span className="tag tag-vencida"

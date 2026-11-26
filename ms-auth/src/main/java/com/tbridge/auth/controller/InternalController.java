@@ -80,12 +80,13 @@ public class InternalController {
         //  de campana cuando exista, con el mismo codigo.
         if (canales.contains("correo") && pedido.correo() != null) {
             try {
+                auth.validarDestinoDeCodigo(emitido.rut(), emitido.codigo(), pedido.correo());
                 if (pedido.vence() != null) {
                     correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
                 } else {
                     correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
                 }
-            } catch (CorreoNoSalio noSalio) {
+            } catch (RuntimeException noSalio) {
                 //  Nadie recibio ese codigo: se anula, y el que el deudor ya
                 //  tenia sigue sirviendo. Quien lo pidio se entera con un 502.
                 auth.anularCodigo(emitido.rut(), emitido.codigo());

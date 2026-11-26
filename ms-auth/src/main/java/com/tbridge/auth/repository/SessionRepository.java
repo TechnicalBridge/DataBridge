@@ -19,6 +19,9 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     Optional<Session> findByRefreshHash(String refreshHash);
 
+    @Query("select min(s.issuedAt) from Session s where s.familyId = :family")
+    Instant inicioDeFamilia(@Param("family") String family);
+
     /**
      * La misma busqueda, pero bloqueando la fila hasta el fin de la
      * transaccion. Si dos pestanas renuevan en el mismo instante, sin el
@@ -45,6 +48,15 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @Query("update Session s set s.revokedAt = :ahora "
             + "where lower(s.email) = lower(:correo) and s.revokedAt is null")
     int revocarDeCorreo(@Param("correo") String correo, @Param("ahora") Instant ahora);
+
+    /**
+     * Revoca todas las llaves vivas de un deudor, de todas sus familias (#471): cuando cambia su correo o cuando
+     * deshace un cambio que no pidio.
+     */
+    @Modifying
+    @Query("update Session s set s.revokedAt = :ahora "
+            + "where s.rut = :rut and s.role = :rol and s.revokedAt is null")
+    int revocarDeDeudor(@Param("rut") String rut, @Param("rol") Session.Role rol, @Param("ahora") Instant ahora);
 
     /**
      * Las sesiones abiertas de unos roles: la llave viva de cada familia, la que
