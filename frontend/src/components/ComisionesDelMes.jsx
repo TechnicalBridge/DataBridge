@@ -80,7 +80,7 @@ export default function ComisionesDelMes() {
             <tbody>
               {datos.empresas.map((e) => (
                 <tr key={e.rut}>
-                  <td><b>{e.nombre}</b><div className="hint mono">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
+                  <td><b>{e.nombre}</b><div className="hint">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
                   <td className="num">{dinero(e.recuperado)}</td>
                   <td className="num">{porcentaje(e.porcentaje)}</td>
                   <td className="num"><b>{dinero(e.comision)}</b></td>
