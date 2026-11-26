@@ -1458,7 +1458,7 @@ html:has(.portada) { scroll-behavior: smooth; }
   .ahora .btn { justify-content: center; }
 }
 .deuda { padding: 22px 24px; }
-.deuda-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 22px; }
+.deuda-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
 .deuda-cab h2 { margin: 2px 0 2px; font-size: 22px; }
 .deuda-monto { text-align: right; }
 .deuda-monto span { display: block; color: var(--muted); font-size: 14px; }
@@ -1511,6 +1511,75 @@ html:has(.portada) { scroll-behavior: smooth; }
 .al-dia .check-animado { margin: 0 auto 12px; }
 .al-dia h2 { font-size: 22px; margin: 0 0 6px; }
 .al-dia p { color: var(--muted); margin: 0; }
+
+/* El avance de una deuda como los tablones del puente de la portada (#546): reglas de 4 px, una por cuota.
+   Verdes las pagadas (se encienden de izquierda a derecha al llegar), terracota las vencidas, apagadas las que
+   faltan. El gap se achica con muchas cuotas, para que 24 quepan en un telefono. */
+.tablas { display: grid; gap: 9px; margin-top: 18px; }
+.tablas-fila {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: clamp(2px, calc(36px / var(--n)), 8px);
+  /* El largo sale de cuantas cuotas son: un tablon solo no se confunde con una linea divisoria. */
+  max-width: max(150px, min(100%, calc(var(--n) * 64px)));
+}
+.tabla { position: relative; height: 4px; overflow: hidden; border-radius: 1px; background: var(--line-2); }
+.tabla::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.tabla.pagado::before { transform: scaleX(1); }
+.tabla.vencido { background: var(--accent); }
+.tabla.marcado { background: var(--ink-2); }
+.tablas.animada .tabla.pagado::before {
+  animation: tabla-encender 0.5s var(--ease) both;
+  animation-delay: calc(0.3s + min(var(--j) * 0.06s, 0.9s));
+}
+@keyframes tabla-encender { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tablas.detenida .tabla.pagado::before { background: var(--muted); }
+.tablas-texto { margin: 0; color: var(--ink-2); font-size: 15px; text-wrap: pretty; }
+.tablas.chico { gap: 6px; margin-top: 8px; max-width: 260px; }
+.tablas.chico .tabla { height: 3px; }
+
+/* La deuda que toca: su tarjeta lleva lo que toca y el unico Pagar, en una franja verde suave. */
+.deuda.toca { border-color: var(--line-2); }
+.toca-ahora {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px 24px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+}
+.toca-cuanto { margin: 0; color: var(--ink-2); font-size: 16px; }
+.toca-cuanto b {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: clamp(30px, 4vw, 38px);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.toca-detalle { margin: 4px 0 0; color: var(--ink-2); font-size: 15px; }
+.toca-ahora .btn { flex: none; }
+.deuda-nota { margin: 12px 0 0; color: var(--muted); font-size: 14.5px; }
+@media (max-width: 620px) {
+  .toca-ahora { flex-direction: column; align-items: stretch; }
+  .toca-ahora .btn { justify-content: center; }
+}
+
+/* Las pagadas, al final y con menos peso: una lista, sin tarjeta por deuda. */
+.ya-pagaste { margin-top: 32px; }
+.ya-pagaste h2 { margin: 0 0 6px; color: var(--ink-2); font-size: 19px; }
+.ya-pagaste .fila-que b { font-weight: 600; }
+.ya-pagaste .fila-monto b { color: var(--ink-2); }
 
 /* ---- Listas: historial, vencimientos, pagos recibidos --------------------------------------- */
 

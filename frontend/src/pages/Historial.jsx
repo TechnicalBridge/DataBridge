@@ -3,6 +3,7 @@ import { descargarComprobante, listarDevueltos, listarPagos } from "../api/pagos
 import { dinero, porMoneda, queSePago } from "../utils/formato";
 import Cargando from "../components/Cargando";
 import LogoPasarela from "../components/LogoPasarela";
+import Tablones from "../components/Tablones";
 import { IconoDescargar } from "../components/Iconos";
 
 /**
@@ -83,6 +84,11 @@ export default function Historial() {
                   </div>
                   <div className="fila-que">
                     <b>{queSePago(p)}</b>
+                    {p.deCuotas > 1 && p.cuotas?.length ? (
+                      //  Como quedo el convenio con este pago (#546): las cuotas se pagan en orden.
+                      <Tablones chico animar={false} estados={Array.from({ length: p.deCuotas },
+                        (_, j) => (j < Math.max(...p.cuotas) ? "pagado" : ""))} />
+                    ) : null}
                     <span>{p.concepto} con {p.acreedor}, ref. {p.externalId}</span>
                     <div className="fila-acciones" style={{ justifyContent: "flex-start" }}>
                       <LogoPasarela id={p.pasarela} alto={18} />
