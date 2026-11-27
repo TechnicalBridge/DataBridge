@@ -149,9 +149,9 @@ public class AuthService {
     @Transactional
     public void validarDestinoDeCodigo(String rut, String codigo, String destino) {
         AccessCode issued=codigos.findFirstByDebtorRutOrderByIssuedAtDescIdDesc(rut).orElseThrow(() ->
-                new ApiException(HttpStatus.CONFLICT, "El codigo fue reemplazado"));
+                new ApiException(HttpStatus.CONFLICT, "El código fue reemplazado por uno más nuevo"));
         if (!Hash.igualesEnTiempoConstante(issued.getCodeHash(), huella(rut, codigo)))
-            throw new ApiException(HttpStatus.CONFLICT, "El codigo fue reemplazado");
+            throw new ApiException(HttpStatus.CONFLICT, "El código fue reemplazado por uno más nuevo");
         deudas.exigirCredencialVigente(rut, issued.getIssuedAt(), issued.getContactChangedAt());
         deudas.exigirDestinoVigente(rut, destino);
     }
@@ -188,22 +188,22 @@ public class AuthService {
         //  fueran distintos, se podria averiguar que RUT tienen deuda.
         if (registro == null || registro.getConsumedAt() != null) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT. Revisa los dos o pide uno nuevo.");
         }
         if (registro.getAttempts() >= registro.getMaxAttempts()) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.exhausted, ipHash);
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Demasiados intentos con ese codigo. Pide uno nuevo.");
+                    "Demasiados intentos con ese código. Pide uno nuevo.");
         }
         if (Instant.now().isAfter(registro.getExpiresAt())) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.expired, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código expiró. Pide uno nuevo.");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código venció. Pide uno nuevo.");
         }
         if (!Hash.igualesEnTiempoConstante(registro.getCodeHash(), huella(rut, codigo))) {
             registro.fallo();
             codigos.save(registro);
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT. Revisa los dos o pide uno nuevo.");
         }
 
         deudas.exigirCredencialVigente(rut, registro.getIssuedAt(), registro.getContactChangedAt());
@@ -225,7 +225,7 @@ public class AuthService {
                 .orElse(null);
         if (pedido == null) {
             anotar(null, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos. Revísalos o pide uno nuevo.");
         }
         return consumirCodigoPedido(pedido, normalizarCodigo(codigo), ipHash);
     }
@@ -238,14 +238,14 @@ public class AuthService {
         }
         if (!pedido.vigente()) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde, venció o ya se usó");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde, venció o ya se usó. Pide uno nuevo.");
         }
         String identidad = rut == null ? pedido.getEmail() : rut;
         if (!Hash.igualesEnTiempoConstante(pedido.getCodeHash(), huella(identidad, codigo))) {
             pedido.fallo();
             enlaces.save(pedido);
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a esos datos. Revísalos o pide uno nuevo.");
         }
         return abrirSesionDePedido(pedido, AccessLog.Method.code, ipHash);
     }
@@ -339,7 +339,7 @@ public class AuthService {
         if (enlace == null || !enlace.isLinkEnabled() || !enlace.vigente()) {
             anotar(enlace == null ? null : enlace.getDebtorRut(),
                     AccessLog.Method.magic_link, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace inválido o vencido");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El enlace ya no sirve: venció o ya se usó. Pide uno nuevo.");
         }
         return abrirSesionDePedido(enlace, AccessLog.Method.magic_link, ipHash);
     }
@@ -369,10 +369,10 @@ public class AuthService {
         //  Codigo o enlace no reemplazan la habilitacion actual del personal.
         StaffUser staff = personal.findByEmailIgnoreCase(enlace.getEmail()).orElse(null);
         if (staff == null || !staff.habilitado()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso. Si trabajas en una empresa cliente, pide que te inviten.");
         }
         if (!staff.esAdmin() && deudas.empresa(staff.getOrgRut()).filter(DeudasClient.Empresa::activa).isEmpty()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese correo no tiene acceso. Si trabajas en una empresa cliente, pide que te inviten.");
         }
         staff.setLastLoginAt(Instant.now());
         personal.save(staff);
@@ -408,7 +408,7 @@ public class AuthService {
         StaffUser staff = personal.findByEmailIgnoreCase(renovada.email()).orElse(null);
         if (staff == null || !staff.habilitado() || rolDeSesion(staff) != renovada.role()) {
             sesiones.revocarFamilia(renovada.familia());
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no está habilitado");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no está habilitado. Vuelve a entrar.");
         }
         //  La gente de una empresa suspendida pierde la sesion en cuanto vence su JWT (#152).
         if (!staff.esAdmin() && sinEmpresaActiva(staff)) {
@@ -521,7 +521,7 @@ public class AuthService {
     static String normalizarRut(String crudo) {
         String rut = Rut.normalizar(crudo);
         if (!Rut.esValido(rut)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "RUT no valido");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ese RUT no es válido. Revisa el dígito verificador.");
         }
         return rut;
     }
@@ -552,7 +552,7 @@ public class AuthService {
     }
 
     private static String correoValido(String email) {
-        return Correo.normalizar(email).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Correo no valido"));
+        return Correo.normalizar(email).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Ese correo no es válido. Revísalo."));
     }
 
     private static String normalizarCodigo(String codigo) {

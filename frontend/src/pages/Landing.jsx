@@ -83,16 +83,24 @@ function OrillaLejana() {
 }
 
 /** Las piezas del portal que acompanan cada paso. Son ejemplos: no son datos de nadie. */
+
+/**
+ * El correo de una campana, con las mismas palabras que el de verdad (correos/codigo.html de ms-auth): quien
+ * sospecha un fraude compara los dos, y tienen que calzar (#558).
+ */
 function PiezaCorreo() {
   return (
     <div className="pieza pieza-correo">
       <div className="pieza-correo-cab"><span>De: DataBridge</span><span>Hoy, 10:42</span></div>
       <p className="pieza-titulo">Tu código de acceso</p>
-      <p className="pieza-texto">Entra al portal con tu RUT o correo y este código:</p>
+      <p className="pieza-texto">
+        Tu acreedor te dejó un mensaje sobre un pago pendiente. Para verlo, entra al portal y escribe tu RUT y este
+        código:
+      </p>
       <p className="pieza-codigo" aria-label={`Código de ejemplo ${CODIGO}`}>
         {CODIGO.split("").map((c, i) => <span key={i} style={{ "--i": i }}>{c}</span>)}
       </p>
-      <p className="pieza-texto">Vence en 15 minutos y sirve una sola vez.</p>
+      <p className="pieza-texto">Este correo no trae ningún enlace, a propósito.</p>
     </div>
   );
 }

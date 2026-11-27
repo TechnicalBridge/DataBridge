@@ -345,7 +345,7 @@ export default function DataBridge() {
           </small>
         </div>
         <div className="card stat aparece" style={{ "--i": 3 }}>
-          <span>Diferencia con el monto original</span>
+          <span>Recuperado</span>
           <b className="totales">
             {(resumen?.porMoneda || []).map((m) => (
               <span key={m.moneda}>{dinero(m.recuperado, m.moneda)}</span>
