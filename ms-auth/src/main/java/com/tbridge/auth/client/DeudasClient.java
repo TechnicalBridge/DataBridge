@@ -59,7 +59,7 @@ public class DeudasClient {
         } catch (HttpClientErrorException.NotFound sinCorreo) {
             return Optional.empty();
         } catch (RestClientException fallo) {
-            log.warn("ms-debt no respondio por el correo de un deudor: {}", fallo.getMessage());
+            log.warn("ms-debt no respondio por el correo de un deudor: category=DEBT_SERVICE_ERROR");
             return Optional.empty();
         }
     }
@@ -80,7 +80,7 @@ public class DeudasClient {
         } catch (HttpClientErrorException.NotFound noExiste) {
             return Optional.empty();
         } catch (RestClientException fallo) {
-            log.warn("ms-debt no respondio por una empresa: {}", fallo.getMessage());
+            log.warn("ms-debt no respondio por una empresa: category=DEBT_SERVICE_ERROR");
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo comprobar la empresa: el servicio de deudas no responde. Intenta de nuevo.");
         }
@@ -89,5 +89,36 @@ public class DeudasClient {
     /** Una empresa registrada en ms-debt: su RUT, como se la conoce y si puede operar. */
     public record Empresa(String rut, String nombre, boolean activa) {}
 
+    public record Contacto(String correo, java.time.Instant emailUpdatedAt) {}
+
+    /** Comprueba en linea el corte de credenciales, aunque no se hayan entregado los avisos. */
+    public void exigirCredencialVigente(String rut, java.time.Instant emitidoEn) {
+        Contacto contactoActual = contacto(rut);
+        if (contactoActual.emailUpdatedAt() != null && (emitidoEn == null || !emitidoEn.isAfter(contactoActual.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un código nuevo.");
+    }
+    public java.time.Instant fechaCambioCorreo(String rut) { return contacto(rut).emailUpdatedAt(); }
+    public void exigirCredencialVigente(String rut, java.time.Instant emitidoEn, java.time.Instant versionContacto) {
+        Contacto contactoActual=contacto(rut);
+        if (!java.util.Objects.equals(contactoActual.emailUpdatedAt(), versionContacto)
+                || contactoActual.emailUpdatedAt()!=null && (emitidoEn==null || !emitidoEn.isAfter(contactoActual.emailUpdatedAt())))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El acceso fue reemplazado. Pide un código nuevo.");
+    }
+    public void exigirDestinoVigente(String rut, String correo) {
+        Contacto contactoActual = contacto(rut);
+        if (contactoActual.correo() == null || !contactoActual.correo().equalsIgnoreCase(correo))
+            throw new ApiException(HttpStatus.CONFLICT, "El destino de acceso ya no está vigente");
+    }
+    private Contacto contacto(String rut) {
+        try {
+            Contacto contactoActual = rest.get().uri("/internal/deudores/{rut}/contacto", rut)
+                    .header("X-Internal-Key", internalKey).retrieve().body(Contacto.class);
+            if (contactoActual == null) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso");
+            return contactoActual;
+        } catch (RestClientException fallo) {
+            // No incluir cuerpos, URL, causas ni direcciones en errores de seguridad.
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "No se pudo verificar el acceso. Reintenta.");
+        }
+    }
     record Correo(String correo) {}
 }

@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * El descuento por pronto pago (contrato §7.1): cuanto de los intereses de
@@ -59,6 +60,11 @@ public class DescuentoService {
      * ofrece descuento.
      */
     public BigDecimal porcentaje(Debt deuda, long diasDeMora, LocalDate hoy) {
+        return porcentaje(deuda, diasDeMora, hoy,
+                () -> tope(deuda.getCampaign().getAgency(), deuda.getCampaign().getCreditor(), hoy));
+    }
+
+    BigDecimal porcentaje(Debt deuda, long diasDeMora, LocalDate hoy, Supplier<BigDecimal> tope) {
         Campaign campana = deuda.getCampaign();
         if (campana == null || campana.getMoraDiscount() == null || diasDeMora <= 0
                 || campana.getStatus() != Campaign.Status.running
@@ -67,7 +73,37 @@ public class DescuentoService {
             return BigDecimal.ZERO;
         }
         BigDecimal delTramo = porTramo(campana).getOrDefault(tramoDe(diasDeMora), BigDecimal.ZERO);
-        return delTramo.min(tope(campana.getAgency(), campana.getCreditor(), hoy));
+        return delTramo.min(tope.get());
+    }
+
+    record Empresas(Long agencia, Long acreedor) {
+        static Empresas de(Campaign campana) {
+            return new Empresas(campana.getAgency().getId(), campana.getCreditor().getId());
+        }
+    }
+
+    Map<Empresas, BigDecimal> topesParaListado(List<Debt> deudas, LocalDate hoy) {
+        List<Long> ids = deudas.stream().filter(deuda -> {
+            Campaign campana = deuda.getCampaign();
+            return campana != null && campana.getMoraDiscount() != null
+                    && !campana.getAgency().getId().equals(campana.getCreditor().getId());
+        }).map(Debt::getId).toList();
+        if (ids.isEmpty()) return Map.of();
+
+        Map<Empresas, Mandate> vigentes = new HashMap<>();
+        mandates.paraCampanasDeDeudas(ids, Mandate.Status.active).stream().filter(m -> m.vigenteAl(hoy))
+                .forEach(m -> vigentes.merge(new Empresas(m.getAgency().getId(), m.getCreditor().getId()),
+                        m, (a, b) -> b.getValidFrom().isAfter(a.getValidFrom()) ? b : a));
+        Map<Empresas, BigDecimal> topes = new HashMap<>();
+        vigentes.forEach((par, mandato) -> {
+            if (mandato.getMaxMoraDiscount() != null) topes.put(par, mandato.getMaxMoraDiscount());
+        });
+        return topes;
+    }
+
+    BigDecimal topeParaListado(Campaign campana, Map<Empresas, BigDecimal> topes) {
+        Empresas par = Empresas.de(campana);
+        return par.agencia().equals(par.acreedor()) ? CIEN : topes.getOrDefault(par, BigDecimal.ZERO);
     }
 
     /**

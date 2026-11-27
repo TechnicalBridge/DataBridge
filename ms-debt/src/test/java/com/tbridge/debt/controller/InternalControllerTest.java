@@ -43,6 +43,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class InternalControllerTest {
+    @Autowired private InternalController controlador;
+
+    @Test
+    void configuracion_interna_ausente_o_vacia_no_concede_acceso() {
+        Object original = org.springframework.test.util.ReflectionTestUtils.getField(controlador, "internalKey");
+        try {
+            for (String configurada : new String[]{null, "", " "}) {
+                org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", configurada);
+                for (String recibida : new String[]{null, "", " ", "clave-interna-de-prueba"}) {
+                    var error = org.junit.jupiter.api.Assertions.assertThrows(com.tbridge.debt.exception.ApiException.class,
+                            () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                    controlador, "exigirClave", recibida));
+                    org.junit.jupiter.api.Assertions.assertEquals(org.springframework.http.HttpStatus.UNAUTHORIZED, error.getStatus());
+                }
+            }
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", original);
+        }
+    }
 
     private static final String CLAVE = "clave-interna-de-prueba";
 
@@ -53,6 +72,28 @@ class InternalControllerTest {
     @MockitoBean private RecordatorioService recordatorios;
     @MockitoBean private ContactoService contactos;
     @MockitoBean private EmpresaService empresas;
+
+    @Test
+    void checkout_exige_clave_y_transmite_la_identidad_verificada() throws Exception {
+        mvc.perform(get("/internal/debts/3/checkout").param("debtorRut", "18905214-6"))
+                .andExpect(status().isUnauthorized());
+        verify(debts, never()).snapshotCheckout(any(), any(), any());
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE)
+                .param("debtorRut", "18905214-6").param("installmentIds", "12", "13"))
+                .andExpect(status().isOk());
+        verify(debts).snapshotCheckout(3L, List.of(12L, 13L), "18905214-6");
+        mvc.perform(get("/internal/debts/3/checkout").header("X-Internal-Key", CLAVE))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void claves_vacias_prefijos_y_longitudes_distintas_no_revelan_empresas() throws Exception {
+        for (String clave : new String[]{"", " ", "clave-interna-de-prueb", CLAVE + "X", "otra"}) {
+            mvc.perform(get("/internal/organizaciones/77305118-6").header("X-Internal-Key", clave))
+                    .andExpect(status().isUnauthorized());
+        }
+        org.mockito.Mockito.verifyNoInteractions(empresas);
+    }
 
     @Test
     void ms_auth_pregunta_si_una_empresa_existe_antes_de_darle_una_persona() throws Exception {

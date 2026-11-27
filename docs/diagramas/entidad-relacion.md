@@ -2,19 +2,19 @@
 
 Vista lógica del [modelo 4+1](README.md), por el lado de los datos: qué se guarda y cómo se relaciona.
 
-DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su propia instancia de MySQL 8.4 (`db-auth`, `db-debt`, `db-payments`): **26 tablas de negocio** (más las 3 tablas `flyway_schema_history` con las que Flyway versiona cada base), **3 vistas** y **26 llaves foráneas** en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
+DataBridge no tiene una base, tiene **tres, una por servicio**, cada una en su propia instancia de MySQL 8.4 (`db-auth`, `db-debt`, `db-payments`): **32 tablas de negocio** (más las 3 tablas `flyway_schema_history` con las que Flyway versiona cada base), **3 vistas** y **29 llaves foráneas** en total. Cada servicio es dueño de la suya y ninguno lee la de otro: si ms-payments necesita saber cuánto se debe, se lo pregunta a ms-debt. Por eso **entre las tres no hay llaves foráneas**; se unen por el RUT y por el id de la deuda ([más abajo](#cómo-se-unen-las-tres-bases)).
 
 | Base | Servicio | Qué guarda | Tablas | Migraciones de Flyway |
 | --- | --- | --- | --- | --- |
-| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 6 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha |
-| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 15 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal · `V14` ficha del deudor en el panel · `V15` suscripciones desde el panel |
+| [`tb_auth`](#tb_auth--el-acceso) | ms-auth | El acceso | 7 | `V1` esquema inicial · `V2` sesiones · `V3` enlace pedido · `V4` roles admin y usuario · `V5` bitácora del panel · `V6` código y enlace compartidos · `V7` cerrar sesiones al migrar a ES256 · `V8` bitácora de acceso por fecha · `V9` eventos de entrega de Resend · `V11` cerrar sesiones desde el panel · `V12` avisos de cambio de correo |
+| [`tb_debt`](#tb_debt--la-cartera) | ms-debt | La cartera | 20 y 2 vistas | `V1` esquema inicial · `V2` recordatorios · `V3` secretos cifrados · `V4` intereses · `V5` descuento · `V6` bitácora del panel · `V7` contactos · `V8` correo que no sale · `V9` CAE del convenio · `V10` CAE de convenios anteriores · `V11` avisos reintentados desde el panel · `V12` suspender y reactivar una empresa · `V13` mandatos desde el portal · `V14` ficha del deudor en el panel · `V15` suscripciones desde el panel · `V16` correcciones del panel · `V17` contacto del deudor |
 | [`tb_payments`](#tb_payments--los-cobros) | ms-payments | Los cobros | 5 y 1 vista | `V1` esquema inicial · `V2` pago duplicado · `V3` interés del pago · `V4` Webpay una vez · `V5` descuento del pago · `V6` bitácora del panel · `V7` liberar cobro · `V8` verificar un pago desde el panel |
 
 ![Diagrama Entidad-Relación de las tres bases](img/entidad-relacion.png)
 
 > **Notas sobre el diagrama general y el esquema vigente en Flyway:**
 > - **Tres instancias independientes (`db-auth`, `db-debt`, `db-payments`):** Las tres tablas `flyway_schema_history` y las dos `admin_log` del diagrama corresponden a cada una de las bases por separado.
-> - **Llaves foráneas físicas vs. relaciones entre bases:** Las 26 llaves foráneas físicas existen únicamente dentro de `tb_debt` (24) y `tb_payments` (2); `tb_auth` no tiene llaves foráneas. Las líneas punteadas que en la vista consolidada cruzan entre tablas de distintas bases (`payments` con `debts`, `organizations` o `debtors`; `staff_users`, `access_codes`, `magic_links`, `sessions`, `access_log` o `admin_log` entre `tb_auth` y `tb_debt`) representan **referencias lógicas por RUT o por ID** que mantienen los microservicios en código ([ver detalle](#cómo-se-unen-las-tres-bases)).
+> - **Llaves foráneas físicas vs. relaciones entre bases:** Las 29 llaves foráneas físicas existen únicamente dentro de `tb_debt` (27) y `tb_payments` (2); `tb_auth` no tiene llaves foráneas. Las líneas punteadas que en la vista consolidada cruzan entre tablas de distintas bases (`payments` con `debts`, `organizations` o `debtors`; `staff_users`, `access_codes`, `magic_links`, `sessions`, `access_log` o `admin_log` entre `tb_auth` y `tb_debt`) representan **referencias lógicas por RUT o por ID** que mantienen los microservicios en código ([ver detalle](#cómo-se-unen-las-tres-bases)).
 > - **Columna `cae` en `repactations`:** Las migraciones `V9` y `V10` de `ms-debt` agregaron la columna `cae DECIMAL(6,2)` y la restricción `ck_repactation_cae` (`cae IS NULL OR cae >= 0`) para almacenar la Carga Anual Equivalente informada al aceptar el convenio (Ley 20.555 / D.S. 43).
 
 **Cómo leerlos.** Cada caja es una tabla, con el tipo y el nombre de cada columna. `PK` es la llave primaria, `FK` una llave foránea y `UK` un valor que no se repite. Una columna es obligatoria salvo que diga *opcional*. `decimal(18_2)` es un número de 18 dígitos con 2 decimales. En las líneas, `||` es *uno*, `o{` es *cero o muchos* y `|o` es *cero o uno*.
@@ -41,6 +41,7 @@ erDiagram
         smallint attempts "intentos fallidos"
         smallint max_attempts "el tope: 5"
         varchar(64) issued_for "opcional"
+        datetime contact_changed_at "opcional · correo cambiado desde que se emitió"
     }
     access_log {
         bigint id PK
@@ -53,7 +54,7 @@ erDiagram
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
-        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada o persona_habilitada"
+        varchar(40) action "persona_creada, admin_creado, persona_deshabilitada, persona_habilitada o sesion_cerrada"
         varchar(12) org_rut "opcional · la empresa sobre la que se hizo"
         varchar(254) subject "opcional · a qué o a quién"
         datetime occurred_at
@@ -70,6 +71,10 @@ erDiagram
         datetime issued_at
         datetime expires_at
         datetime consumed_at "opcional · cuándo se usó"
+    }
+    contact_notice_receipts {
+        varchar(36) event_id PK
+        varchar(10) state "SENDING o SENT"
     }
     sessions {
         bigint id PK
@@ -96,13 +101,14 @@ erDiagram
     }
 ```
 
-Las 6 tablas no se relacionan entre sí con llaves foráneas: cada una se consulta por su propia huella, o por el RUT o el correo de alguien.
+Las 7 tablas no se relacionan entre sí con llaves foráneas: cada una se consulta por su propia huella, o por el RUT o el correo de alguien.
 
 | Tabla | Qué guarda |
 | --- | --- |
 | `access_codes` | El código con que entra un deudor. Un solo uso, con vencimiento y con tope de intentos. |
 | `access_log` | Cada intento de entrar y cada enlace pedido: por dónde, cómo resultó y desde qué origen. |
-| `admin_log` | Lo que un admin de DataBridge hizo con las personas desde su panel: altas, y accesos quitados y devueltos. |
+| `contact_notice_receipts` | El estado de entrega del aviso privado de cambio de correo, para reconocer reintentos sin duplicar envíos aceptados. |
+| `admin_log` | Lo que un admin de DataBridge hizo con las personas desde su panel: altas, accesos quitados y devueltos, y sesiones cerradas a distancia. |
 | `magic_links` | El código solicitado y su enlace opcional de respaldo en los tres portales. Comparten uso, vencimiento e intentos. También conserva los enlaces anteriores y las invitaciones, sin código. |
 | `sessions` | Las llaves de renovación de cada sesión, en familias. Es lo único de una sesión que se puede revocar. |
 | `staff_users` | Las personas con cuenta: los usuarios de las empresas y los admin de DataBridge. |
@@ -119,7 +125,7 @@ Lo que la aplicación valida, la base lo vuelve a exigir: aunque alguien escriba
 | `access_codes` | `ck_access_code_vigencia` | `(expires_at > issued_at)` |
 | `access_log` | `ck_access_log_method` | `(method in ('code','magic_link'))` |
 | `access_log` | `ck_access_log_outcome` | `(outcome in ('granted','expired','invalid','exhausted','sent','refused'))` |
-| `admin_log` | `ck_admin_log_action` | `(action in ('persona_creada','admin_creado','persona_deshabilitada','persona_habilitada'))` |
+| `admin_log` | `ck_admin_log_action` | `(action in ('persona_creada','admin_creado','persona_deshabilitada','persona_habilitada','persona_corregida','sesion_cerrada'))` |
 | `magic_links` | `ck_magic_link_vigencia` | `(expires_at > issued_at)` |
 | `magic_links` | `ck_magic_link_intentos` | `(attempts <= max_attempts)` |
 | `sessions` | `ck_session_identidad` | `(((role = 'DEBTOR') and (rut is not null)) or ((role in ('CREDITOR','ADMIN')) and (email is not null)))` |
@@ -168,6 +174,9 @@ erDiagram
     subscriptions ||--o{ outbox : "recibe"
     debts ||--o{ repactations : "se repacta en"
     organizations ||--o{ subscriptions : "se suscribe con"
+    debtors ||--o{ contact_updates : "deja auditoría en"
+    debtors ||--o{ email_changes : "solicita"
+    debtors ||--o{ contact_reversions : "puede revertir"
 ```
 
 ### Con todas sus columnas
@@ -198,6 +207,9 @@ erDiagram
     subscriptions ||--o{ outbox : "recibe"
     debts ||--o{ repactations : "se repacta en"
     organizations ||--o{ subscriptions : "se suscribe con"
+    debtors ||--o{ contact_updates : "deja auditoría en"
+    debtors ||--o{ email_changes : "solicita"
+    debtors ||--o{ contact_reversions : "puede revertir"
     admin_log {
         bigint id PK
         varchar(254) admin_email "el admin que lo hizo"
@@ -290,6 +302,53 @@ erDiagram
         boolean reminders "si quiere el recordatorio de sus cuotas"
         datetime created_at
         datetime updated_at
+        datetime email_updated_at "opcional · cuándo confirmó su correo"
+        datetime phone_updated_at "opcional · cuándo cambió su teléfono"
+        bigint contact_version "versión para evitar que una escritura previa revierta el contacto"
+    }
+    contact_updates {
+        bigint id PK
+        bigint debtor_id FK
+        varchar(10) field "PHONE o EMAIL"
+        varchar(10) actor
+        varchar(30) action
+        datetime occurred_at
+    }
+    email_changes {
+        varchar(36) id PK
+        bigint debtor_id FK
+        varchar(12) rut
+        varchar(1024) new_email "cifrado"
+        varchar(64) code_hash
+        datetime issued_at
+        datetime expires_at
+        varchar(12) status "PENDING, FAILED, CONSUMED, CANCELLED o REPLACED"
+        int attempts
+    }
+    contact_rate_limits {
+        varchar(64) bucket_key PK
+        bigint window_id PK
+        int attempts
+    }
+    contact_notices {
+        varchar(36) id PK
+        varchar(1024) old_email "opcional · cifrado hasta la entrega"
+        varchar(1024) revert_code "opcional · código cifrado hasta la entrega"
+        int attempts
+        datetime next_attempt_at
+        datetime delivered_at "opcional"
+    }
+    contact_reversions {
+        varchar(36) id PK
+        bigint debtor_id FK
+        varchar(12) rut
+        varchar(1024) previous_email "opcional · cifrado"
+        varchar(64) code_hash "HMAC; el código no queda en claro"
+        datetime expires_at
+        varchar(12) status "PENDING, USED o CANCELLED"
+        int attempts
+        datetime created_at
+        datetime used_at "opcional"
     }
     debts {
         bigint id PK
@@ -390,8 +449,13 @@ erDiagram
 | `batches` | Cada cartera recibida, por la API o por archivo, con su huella para no procesarla dos veces y la respuesta que se dio. |
 | `campaigns` | La estrategia de contacto de una agencia para la cartera de un acreedor. La define la agencia y la ejecuta DataBridge. |
 | `contacts` | Cada vez que DataBridge le escribió a un deudor: la invitación, un toque de campaña, el recordatorio de una cuota o el código que reenvía la empresa. Es el registro de gestiones de cobranza que pide la ley, y con él se cuenta el límite de dos por semana. |
+| `contact_notices` | Avisos privados de cambio de correo que se entregan a la dirección anterior, con sus reintentos. |
+| `contact_reversions` | Reversiones pendientes del correo, con el correo anterior cifrado y una huella del código temporal. |
+| `contact_rate_limits` | Contadores compartidos por origen y deudor para limitar solicitudes de cambio de contacto. |
+| `contact_updates` | Auditoría de cambios de correo y teléfono, sin guardar los valores de contacto. |
 | `debt_charges` | El desglose con que llegó la deuda: cada cargo con su monto y su vencimiento. |
 | `debt_events` | La historia de cada deuda: qué pasó, quién lo hizo, cuánto y cuándo. Lo que se le escribe al deudor va aparte, en `contacts`. |
+| `email_changes` | Desafíos de verificación de correo, con la nueva dirección cifrada, la huella del código, vencimiento e intentos. |
 | `debtors` | Quien debe. Una fila por RUT, aunque le deba a varios acreedores. |
 | `debts` | Lo que un deudor le debe a un acreedor. |
 | `installments` | Las cuotas por pagar. Una deuda sin convenio tiene una sola; al repactar, las pendientes se anulan y se emiten las del convenio. |

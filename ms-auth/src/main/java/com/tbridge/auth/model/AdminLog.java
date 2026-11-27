@@ -15,7 +15,8 @@ import java.time.Instant;
 @Table(name = "admin_log")
 public class AdminLog {
 
-    public enum Action { persona_creada, admin_creado, persona_deshabilitada, persona_habilitada }
+    public enum Action { persona_creada, admin_creado, persona_deshabilitada, persona_habilitada, persona_corregida,
+        sesion_cerrada }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +36,12 @@ public class AdminLog {
     @Column(length = 254)
     private String subject;
 
+    @Column(name = "previous_values", columnDefinition = "text")
+    private String previousValues;
+
+    @Column(name = "new_values", columnDefinition = "text")
+    private String newValues;
+
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt = Instant.now();
 
@@ -47,10 +54,18 @@ public class AdminLog {
         return registro;
     }
 
+    public AdminLog conCambios(String anteriores, String nuevos) {
+        previousValues = anteriores;
+        newValues = nuevos;
+        return this;
+    }
+
     public Long getId() { return id; }
     public String getAdminEmail() { return adminEmail; }
     public Action getAction() { return action; }
     public String getOrgRut() { return orgRut; }
     public String getSubject() { return subject; }
+    public String getPreviousValues() { return previousValues; }
+    public String getNewValues() { return newValues; }
     public Instant getOccurredAt() { return occurredAt; }
 }

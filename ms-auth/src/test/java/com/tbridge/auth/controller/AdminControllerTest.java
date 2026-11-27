@@ -8,6 +8,8 @@ import com.tbridge.auth.dto.response.AccionResponse;
 import com.tbridge.auth.dto.response.BitacoraResponse;
 import com.tbridge.auth.dto.response.PersonaResponse;
 import com.tbridge.auth.dto.response.ReglasResponse;
+import com.tbridge.auth.dto.response.SesionAbiertaResponse;
+import com.tbridge.auth.dto.response.SesionCerradaResponse;
 import com.tbridge.auth.exception.ApiException;
 import com.tbridge.auth.model.AccessLog;
 import com.tbridge.auth.security.JwtPrincipal;
@@ -16,6 +18,7 @@ import com.tbridge.auth.service.BitacoraDeAccesos;
 import com.tbridge.auth.service.BitacoraService;
 import com.tbridge.auth.service.PersonalService;
 import com.tbridge.auth.service.ReglasService;
+import com.tbridge.auth.service.SesionesDelPersonal;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +50,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +72,7 @@ class AdminControllerTest {
     @MockitoBean private ReglasService reglas;
     @MockitoBean private BitacoraDeAccesos accesos;
     @MockitoBean private BitacoraService bitacora;
+    @MockitoBean private SesionesDelPersonal sesiones;
 
     private String admin() {
         return "Bearer " + jwt.issue("9", "admin@databridge.cl", "ADMIN", "Administrador de DataBridge", null);
@@ -84,6 +89,90 @@ class AdminControllerTest {
     private static PersonaResponse persona(long id, String correo, String rol, String empresa, boolean habilitada) {
         return new PersonaResponse(id, correo, "Alguien", rol, empresa, habilitada,
                 Instant.parse("2026-10-13T15:00:00Z"), null, habilitada ? null : Instant.parse("2026-10-13T16:00:00Z"));
+    }
+
+    // ------------------------------------------------------------------
+    //  Las sesiones abiertas del personal (#439)
+    // ------------------------------------------------------------------
+
+    private static final String FAMILIA = "6f1c2a0e-8d4b-4c1e-9a7f-2b3c4d5e6f70";
+
+    @Test
+    void las_sesiones_abiertas_las_ve_solo_el_admin_y_sin_ip_ni_huellas() throws Exception {
+        SesionAbiertaResponse sesion = new SesionAbiertaResponse(FAMILIA, "Ana Soto", "ana.soto@empresatest.cl",
+                "usuario", "76086428-5", Instant.parse("2026-11-19T12:00:00Z"), Instant.parse("2026-11-19T13:00:00Z"),
+                Instant.parse("2026-11-26T12:00:00Z"), false, 15);
+        when(sesiones.abiertas(eq(0), eq(20), any()))
+                .thenReturn(new PageImpl<>(List.of(sesion), PageRequest.of(0, 20), 1));
+
+        mvc.perform(get("/api/admin/auth/sesiones").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.sesiones[0].familia").value(FAMILIA))
+                .andExpect(jsonPath("$._embedded.sesiones[0].correo").value("ana.soto@empresatest.cl"))
+                .andExpect(jsonPath("$._embedded.sesiones[0].empresaRut").value("76086428-5"))
+                .andExpect(jsonPath("$._embedded.sesiones[0].tuya").value(false))
+                .andExpect(jsonPath("$._embedded.sesiones[0].ipHash").doesNotExist())
+                .andExpect(jsonPath("$._embedded.sesiones[0].refreshHash").doesNotExist())
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        mvc.perform(get("/api/admin/auth/sesiones").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/auth/sesiones").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cerrar_una_sesion_es_solo_del_admin_y_dice_hasta_cuando_dura_el_acceso() throws Exception {
+        when(sesiones.cerrar(eq(FAMILIA), any())).thenReturn(new SesionCerradaResponse(FAMILIA,
+                "ana.soto@empresatest.cl", Instant.parse("2026-11-19T15:15:00Z")));
+
+        mvc.perform(post("/api/admin/auth/sesiones/" + FAMILIA + "/revocar").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.familia").value(FAMILIA))
+                .andExpect(jsonPath("$.accesoHasta").value("2026-11-19T15:15:00Z"));
+        ArgumentCaptor<JwtPrincipal> quien = ArgumentCaptor.forClass(JwtPrincipal.class);
+        verify(sesiones).cerrar(eq(FAMILIA), quien.capture());
+        assertEquals("admin@databridge.cl", quien.getValue().email());
+
+        mvc.perform(post("/api/admin/auth/sesiones/" + FAMILIA + "/revocar").header("Authorization", empresa()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/auth/sesiones/" + FAMILIA + "/revocar").header("Authorization", deudor()))
+                .andExpect(status().isForbidden());
+        verify(sesiones, times(1)).cerrar(any(), any());
+    }
+
+    @Test
+    void cerrar_una_sesion_que_no_existe_o_ya_cerrada_responde_lo_que_dice_el_servicio() throws Exception {
+        when(sesiones.cerrar(eq("no-existe"), any()))
+                .thenThrow(new ApiException(HttpStatus.NOT_FOUND, "No hay ninguna sesión del personal con ese id"));
+        when(sesiones.cerrar(eq(FAMILIA), any()))
+                .thenThrow(new ApiException(HttpStatus.CONFLICT, "Esa sesión ya está cerrada"));
+
+        mvc.perform(post("/api/admin/auth/sesiones/no-existe/revocar").header("Authorization", admin()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("No hay ninguna sesión del personal con ese id"));
+        mvc.perform(post("/api/admin/auth/sesiones/" + FAMILIA + "/revocar").header("Authorization", admin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Esa sesión ya está cerrada"));
+    }
+
+    @Test
+    void corregir_persona_solo_admin_y_valida_el_cuerpo() throws Exception {
+        String ruta = "/api/admin/auth/personal/12";
+        when(personal.corregir(eq(12L), any(), any())).thenReturn(
+                persona(12, "nuevo@empresa.cl", "usuario", "76086428-5", true));
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"Ana Soto\",\"correo\":\"nuevo@empresa.cl\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.correo").value("nuevo@empresa.cl"));
+        mvc.perform(patch(ruta).header("Authorization", admin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\" \",\"correo\":\"nuevo@empresa.cl\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch(ruta).header("Authorization", empresa()).contentType(MediaType.APPLICATION_JSON)
+                        .content(ANA)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).header("Authorization", deudor()).contentType(MediaType.APPLICATION_JSON)
+                        .content(ANA)).andExpect(status().isForbidden());
+        mvc.perform(patch(ruta).contentType(MediaType.APPLICATION_JSON).content(ANA))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

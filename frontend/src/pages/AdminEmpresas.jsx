@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TablaDeslizable from "../components/TablaDeslizable";
 import { Link, useNavigate } from "react-router-dom";
 import { crearEmpresa, crearPersona, listarEmpresas } from "../api/admin";
 import { TIPO_DE_EMPRESA, dinero, rutLegible } from "../utils/formato";
@@ -84,7 +85,7 @@ export default function AdminEmpresas() {
           {empresas.length === 0 ? (
             <div className="empty">Todavía no hay empresas. Da de alta la primera.</div>
           ) : (
-            <div className="tabla-scroll">
+            <TablaDeslizable nombre="Empresas registradas">
               <table className="table">
                 <thead>
                   <tr><th>Empresa</th><th>Tipo</th><th className="num">Deudas en gestión</th><th className="num">Por cobrar</th><th /></tr>
@@ -112,7 +113,7 @@ export default function AdminEmpresas() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TablaDeslizable>
           )}
         </div>
 

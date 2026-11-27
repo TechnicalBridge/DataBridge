@@ -185,9 +185,9 @@ export default function FormCampana({ acreedores, editando = null, onGuardada, o
       {editando ? null : (
         <div className="field">
           <label htmlFor={id("id")}>Id en tu sistema (opcional)</label>
-           <input id={id("id")} value={form.id} maxLength={64} onChange={campo("id")}
-                  aria-describedby={id("id-ayuda")} />
-           <p className="hint" id={id("id-ayuda")}>Si no indicas uno, DataBridge lo genera.</p>
+          <input id={id("id")} value={form.id} maxLength={64} onChange={campo("id")}
+                 aria-describedby={id("id-ayuda")} />
+          <p className="hint" id={id("id-ayuda")}>Si no indicas uno, DataBridge lo genera.</p>
         </div>
       )}
       <button className="btn btn-primary btn-block" disabled={busy || !listo}>

@@ -11,7 +11,7 @@ import TemaToggle from "./TemaToggle";
 import {
   IconoAlerta, IconoAviso, IconoAyuda, IconoBitacora, IconoCalendario, IconoChat, IconoCandado, IconoCartera,
   IconoDocumento, IconoEmpresa, IconoEquipo, IconoMas, IconoMegafono, IconoPanel, IconoRecibo, IconoReglas,
-  IconoSalir, IconoSubir, IconoUsuario,
+  IconoSalir, IconoSesion, IconoSubir, IconoUsuario,
 } from "./Iconos";
 
 /** Cada enlace con su nombre largo (el menu) y el corto (la barra del telefono). */
@@ -44,6 +44,7 @@ const ADMIN = [
   { to: "/admin/suscripciones", label: "Suscripciones", corto: "Avisos", Icono: IconoAviso },
   { to: "/admin/equipo", label: "Equipo de DataBridge", corto: "Equipo", Icono: IconoEquipo },
   { to: "/admin/accesos", label: "Accesos", corto: "Accesos", Icono: IconoCandado },
+  { to: "/admin/sesiones", label: "Sesiones abiertas", corto: "Sesiones", Icono: IconoSesion },
   { to: "/admin/bitacora", label: "Bitácora", corto: "Bitácora", Icono: IconoBitacora },
   { to: "/admin/reglas", label: "Reglas", corto: "Reglas", Icono: IconoReglas },
 ];

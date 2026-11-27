@@ -50,7 +50,7 @@ export function rutLegible(rut) {
 export function fecha(iso) {
   if (!iso) return "";
   const d = new Date(String(iso).length === 10 ? `${iso}T12:00:00` : iso);
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Una fecha y su hora: 21 sept 2026, 18:45. */
@@ -118,7 +118,7 @@ export function porMoneda(filas, campo) {
  * ni espacios, asi un RUT o un nombre se encuentran escritos de cualquier forma
  * (#280, #299).
  */
-export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+export const paraBuscar = (texto) => String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
   .replace(/[.\-\s]/g, "");
 
 /** Hoy en Chile, como 2026-09-24. */

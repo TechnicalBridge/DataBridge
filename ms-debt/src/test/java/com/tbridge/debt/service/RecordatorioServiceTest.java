@@ -179,4 +179,11 @@ class RecordatorioServiceTest {
         assertEquals(1, pasada.omitidos());
         verify(contactos, never()).save(any());
     }
+
+    @Test void recordatorio_utiliza_el_correo_confirmado_por_el_deudor() {
+        deudor.actualizarCorreo("nuevo@correo.cl",java.time.Instant.now());
+        assertEquals(1,servicio.enviar(HOY).enviados());
+        verify(auth).emitirCodigo(org.mockito.ArgumentMatchers.argThat(p -> p.correo().equals("nuevo@correo.cl")));
+    }
+
 }
