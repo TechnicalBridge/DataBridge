@@ -15,6 +15,9 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, Long> {
     /** Intentos recientes desde un mismo origen, para frenar fuerza bruta. */
     List<AccessLog> findByIpHashAndOccurredAtAfter(String ipHash, Instant desde);
 
+    /** outcome es NOT NULL tanto en JPA como en las migraciones. */
+    long countByIpHashAndOccurredAtAfterAndOutcomeNot(String ipHash, Instant desde, AccessLog.Outcome outcome);
+
     /** Los ultimos 50 de un deudor: su ficha en el panel (#434). */
     List<AccessLog> findTop50ByDebtorRutOrderByOccurredAtDescIdDesc(String debtorRut);
 

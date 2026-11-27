@@ -312,3 +312,33 @@ correo queda fechado a esa hora.
 </details>
 
 ---
+
+
+## Contacto corregido por el deudor (#471)
+
+El contacto llega inicialmente con la cartera. Un deudor con sesión válida y rol `DEBTOR`
+puede corregir su teléfono chileno (móvil o fijo, normalizado a E.164) y proponer otro correo.
+Nombre y RUT siguen sin ser editables. La identidad proviene del JWT, nunca del cuerpo.
+
+El correo vigente no cambia hasta confirmar un código distinto del código de acceso,
+enviado directamente al buzón propuesto. Dura 15 minutos, admite cinco intentos y se usa
+una sola vez. Emitir otro reemplaza el anterior. Los límites compartidos en MySQL son
+3 solicitudes por deudor y 10 por origen cada ventana de 15 minutos. Una entrega bloqueada,
+desviada o capturada en Mailpit no acredita propiedad: la operación falla sin cambiar el correo.
+Estas solicitudes del propio deudor no son contactos de cobranza y no consumen sus cupos.
+
+Cada campo corregido tiene su propia fecha: su presencia significa «actualizado por el deudor».
+Ninguna cartera posterior de ningún acreedor sobrescribe ese campo. Los demás campos mantienen
+sus reglas. La ficha común sigue siendo una fila por RUT; las vistas empresariales conservan
+su autorización y solo agregan la procedencia y fecha, sin valores de contacto completos.
+
+La auditoría conserva deudor interno, actor DEBTOR, campo, acción CONTACT_UPDATED y fecha;
+no conserva valores completos ni códigos. El cambio de correo limpia el estado vigente de
+rechazos sin borrar contactos históricos. El aviso al correo previo no incluye información
+financiera y no condiciona el cambio confirmado.
+
+No es recuperación de cuenta: quien perdió el correo y no tiene sesión válida debe utilizar
+el canal oficial de soporte. Verificar el buzón nuevo no prueba que una sesión no fue robada.
+Los JWT vigentes siguen funcionando hasta expirar; los códigos/enlaces previos y la renovación
+de familias abiertas antes del cambio se rechazan mediante consulta al estado vigente en ms-debt,
+incluso si falla o se retrasa el aviso. Sin esa comprobación disponible no se abre/renueva acceso.

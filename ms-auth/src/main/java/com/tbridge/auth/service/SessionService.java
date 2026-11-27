@@ -94,13 +94,13 @@ public class SessionService {
         if (actual.rotada()) {
             if (Duration.between(actual.getRotatedAt(), ahora).compareTo(GRACIA) < 0) {
                 throw new ApiException(HttpStatus.CONFLICT,
-                        "La sesion se acaba de renovar en otra pestana. Reintenta.");
+                        "La sesión se acaba de renovar en otra pestaña. Reintenta.");
             }
             //  Alguien mas tiene esta llave: el dueno legitimo ya la habia
             //  cambiado por otra. Se corta todo, a los dos.
             sesiones.revocarFamilia(actual.getFamilyId(), ahora);
             throw new ApiException(HttpStatus.UNAUTHORIZED,
-                    "La sesion se cerro por seguridad. Vuelve a entrar.");
+                    "La sesión se cerró por seguridad. Vuelve a entrar.");
         }
         if (actual.vencida(ahora)) {
             throw invalida();
@@ -139,6 +139,33 @@ public class SessionService {
         return sesiones.revocarDeCorreo(correo, reloj.instant());
     }
 
+    @Transactional(readOnly = true)
+    public Instant inicioDeFamilia(String family) { return sesiones.inicioDeFamilia(family); }
+
+    /** Lo que se sabe de una llave vigente, sin gastarla ni rotarla. */
+    public record Vigente(Session.Role role, String rut, String familia) {}
+
+    /** La llave tiene que estar viva: ni revocada, ni ya cambiada por otra, ni vencida. */
+    @Transactional(readOnly = true)
+    public Vigente vigente(String valor) {
+        Session actual = sesiones.findByRefreshHash(huella(valor)).orElseThrow(SessionService::invalida);
+        if (actual.revocada() || actual.rotada() || actual.vencida(reloj.instant())) {
+            throw invalida();
+        }
+        return new Vigente(actual.getRole(), actual.getRut(), actual.getFamilyId());
+    }
+
+    /**
+     * Cierra todas las sesiones de un deudor, en todos sus navegadores (#471). Su JWT vigente dura a lo mas quince
+     * minutos (#428), y despues ya no tiene con que renovarlo.
+     *
+     * @return cuantas llaves se revocaron.
+     */
+    @Transactional
+    public int revocarDeDeudor(String rut) {
+        return sesiones.revocarDeDeudor(rut, Session.Role.DEBTOR, reloj.instant());
+    }
+
     private Llave emitir(String familia, Session.Role role, String rut, String email,
                          Instant venceEn, String ipHash) {
         //  256 bits al azar: adivinarla no es un problema de intentos por
@@ -165,7 +192,7 @@ public class SessionService {
      * le diria a quien prueba llaves cual de sus intentos estuvo cerca.
      */
     private static ApiException invalida() {
-        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no es valida. Vuelve a entrar.");
+        return new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no es válida. Vuelve a entrar.");
     }
 
     static String huella(String valor) {

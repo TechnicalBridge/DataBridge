@@ -61,11 +61,16 @@ public class AuthClient {
 
     private final RestClient rest;
     private final String internalKey;
+    private final RestClient contactoRest;
 
     public AuthClient(@Value("${app.auth-url}") String authUrl,
                       @Value("${app.internal-key}") String internalKey) {
         this.rest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).build();
         this.internalKey = internalKey;
+        var timeouts = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        timeouts.setConnectTimeout(2_000);
+        timeouts.setReadTimeout(15_000);
+        this.contactoRest = RestClient.builder().baseUrl(authUrl.replaceAll("/$", "")).requestFactory(timeouts).build();
     }
 
     public CodigoEmitido emitirCodigo(PedidoDeCodigo pedido) {
@@ -106,6 +111,28 @@ public class AuthClient {
         } catch (RestClientException e) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo mandar el comprobante: el servicio de acceso no responde");
+        }
+    }
+
+    private record Verificacion(String correo, String codigo) {}
+    private record Aviso(String eventoId, String correo, String codigo) {}
+    private record Sesiones(String rut) {}
+    public void verificarCorreo(String correo, String codigo) {
+        enviarContacto("/internal/contacto/verificacion", new Verificacion(correo, codigo));
+    }
+    /** El aviso al correo anterior, con el codigo para deshacer el cambio (#471). */
+    public void avisarCambio(String eventoId, String correo, String codigoParaDeshacer) {
+        enviarContacto("/internal/contacto/aviso", new Aviso(eventoId, correo, codigoParaDeshacer));
+    }
+    /** Cierra todas las sesiones del deudor en ms-auth, cuando deshace un cambio que no pidio (#471). */
+    public void revocarSesionesDeDeudor(String rut) {
+        enviarContacto("/internal/contacto/sesiones", new Sesiones(rut));
+    }
+    private void enviarContacto(String ruta, Object solicitud) {
+        try {
+            contactoRest.post().uri(ruta).header("X-Internal-Key", internalKey).body(solicitud).retrieve().toBodilessEntity();
+        } catch (RestClientException fallo) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "El servicio de correo no está disponible");
         }
     }
 

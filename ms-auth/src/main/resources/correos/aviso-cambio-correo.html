@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!--/*
+  El aviso al correo anterior cuando el deudor cambia el suyo (#471). Trae solo el codigo para deshacer el
+  cambio: sin RUT, deuda, acreedor, monto ni la direccion nueva, y sin ningun enlace.
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{base.html :: carta('Cambió el correo de tu acceso', 'Si no fuiste tú, puedes deshacerlo con el código de este correo.', ~{::contenido}, ~{::pie})}">
+<body>
+<div th:fragment="contenido">
+  <p class="tinta-2" style="margin:0 0 14px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Se cambió el correo con que entras a DataBridge. Si fuiste tú, no tienes que hacer nada.
+  </p>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Si no fuiste tú, entra a <strong class="tinta" style="color:#2e2a24;overflow-wrap:anywhere;word-break:break-word;" th:text="${portal}">databridge.cl</strong>,
+    toca <strong class="tinta" style="color:#2e2a24;">¿Te cambiaron el correo?</strong> en la entrada y escribe tu RUT y este código:
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0;">
+    <tr>
+      <td class="caja" align="center" bgcolor="#e4efe2" style="background-color:#e4efe2;border-radius:12px;padding:20px 12px;">
+        <span class="codigo" style="font-family:ui-monospace,'Cascadia Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:30px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#2f6140;"
+              th:text="${codigo}">K7M2QXR4</span>
+      </td>
+    </tr>
+  </table>
+  <p class="tinta-2" style="margin:0 0 20px 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    El código vale 7 días. Al usarlo, tu acceso vuelve a este correo y se cierran todas las sesiones abiertas.
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td class="aviso tinta-2" bgcolor="#f6efe2" style="background-color:#f6efe2;border-left:3px solid #c8764b;border-radius:8px;padding:14px 16px;font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#4b453c;">
+        <strong>Este correo no trae ningún enlace, a propósito.</strong>
+        Escribe tú la dirección del portal. Nadie de DataBridge te va a pedir este código.
+      </td>
+    </tr>
+  </table>
+</div>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">
+  Te llegó porque este era el correo de tu acceso a DataBridge.
+</p>
+</body>
+</html>

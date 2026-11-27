@@ -272,4 +272,19 @@ class ResendIntegrationTest {
         assertThat(carta != null).as("Resend simulado recibió un correo").isTrue();
         return carta;
     }
+
+    @Test void resend_entrega_verificacion_separada_y_aviso_sin_deuda() {
+        contexto().run(app -> {
+            MailService mail=app.getBean(MailService.class);
+            mail.enviarVerificacionDeCorreo(DESTINO,"K7M2QX");
+            JsonNode verification=cartaRecibida();
+            assertThat(verification.path("text").asText()).contains("K7M2QX", "No es un código de acceso");
+            assertThat(verification.path("to").get(0).asText()).isEqualTo(DESTINO);
+            mail.enviarAvisoDeCambio(DESTINO, "R7M2QXR4");
+            JsonNode notice=cartaRecibida();
+            assertThat(notice.path("text").asText()).contains("R7M2QXR4").doesNotContain("K7M2QX", "acreedor", "monto");
+            verify(telemetria,times(2)).aceptar(eq(idProveedor),any(Instant.class));
+        });
+    }
+
 }

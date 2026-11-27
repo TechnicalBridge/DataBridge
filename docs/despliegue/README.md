@@ -199,6 +199,32 @@ correos al día. El `.env.example` explica las demás opciones (`brevo`, `resend
 y en el `.env` del servidor, `CADDYFILE` vacía, para que Caddy también redirija `www`. Caddy saca el certificado apenas
 el DNS apunta al servidor, y lo renueva solo.
 
+### Dar acceso individual al equipo de administración (#208)
+
+Antes de invitar a nadie, acuerden fuera del repositorio quiénes necesitan
+el rol `admin`. No publiquen sus direcciones en issues, PR ni documentación.
+
+1. En **local**, define `ADMIN_CORREO` en el `.env` privado antes de iniciar
+   `ms-auth` con una base vacía. Solo crea al **primer** administrador; cambiar
+   la variable después no agrega a los demás. Entra en `/admin/login` con el
+   enlace que llegue a ese correo.
+2. Desde **Equipo de DataBridge** en el panel, invita a cada integrante con su
+   propio correo. Si usas un proveedor de correo real en modo de prueba,
+   incluye los destinatarios autorizados en `CORREO_SOLO_A` o configura
+   `CORREO_DESVIAR_A` y comprueba que pueden recibir su invitación. La
+   invitación de un solo uso vence a las 24 horas por omisión
+   (`INVITACION_TTL_HORAS`).
+3. Comprueba con cada cuenta que puede entrar y ver **Empresas**, **Equipo de
+   DataBridge** y **Reglas**. Prueba quitar el acceso a otra cuenta y
+   devolvérselo: la cuenta suspendida no debe entrar, y la reactivada sí.
+4. En el **servidor**, configura `ADMIN_CORREO` en el `.env` privado antes del
+   primer arranque con la base nueva. Tras el despliegue, el primer admin
+   invita a los demás desde el panel, igual que en local. No compartan la
+   sesión ni las credenciales de la primera cuenta.
+
+La lista de integrantes y la evidencia de las invitaciones y pruebas de
+acceso se conservan en las credenciales privadas del equipo, no en Git.
+
 ## 6. Encender el despliegue automático
 
 En GitHub, **Settings > Environments > New environment > `produccion`**, y ahí:

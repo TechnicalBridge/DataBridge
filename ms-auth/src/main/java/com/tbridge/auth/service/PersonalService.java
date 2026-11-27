@@ -133,7 +133,7 @@ public class PersonalService {
         DeudasClient.Empresa empresa = deudas.empresa(rut).orElseThrow(() -> new ApiException(
                 HttpStatus.NOT_FOUND, "No hay ninguna empresa con ese RUT"));
         if (!empresa.activa()) {
-            throw new ApiException(HttpStatus.CONFLICT, "Esa empresa esta suspendida: no se le agregan personas");
+            throw new ApiException(HttpStatus.CONFLICT, "Esa empresa está suspendida: no se le agregan personas");
         }
         personal.findByEmailIgnoreCase(direccion).ifPresent(existente -> {
             throw new ApiException(HttpStatus.CONFLICT, existente.esAdmin()

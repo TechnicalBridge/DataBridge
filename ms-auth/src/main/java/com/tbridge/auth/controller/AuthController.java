@@ -157,7 +157,7 @@ public class AuthController {
     public ResponseEntity<?> refresh(@Parameter(hidden = true) @CookieValue(name = COOKIE, required = false) String llave,
                                      HttpServletRequest peticion) {
         if (llave == null || llave.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError("No hay una sesion que renovar"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError("No hay una sesión que renovar. Vuelve a entrar."));
         }
         try {
             return responder(auth.renovar(llave, origen(peticion)));
@@ -170,6 +170,25 @@ public class AuthController {
             }
             return respuesta.body(new ApiError(e.getMessage()));
         }
+    }
+
+    @PostMapping("/api/auth/contacto/sesion")
+    @Operation(summary = "Sesion nueva despues de cambiar el correo",
+            description = """
+                    Lo pide el portal del deudor apenas confirma su correo nuevo (#471): este navegador recibe un JWT                     y una llave de una familia nueva, y todas las otras sesiones del deudor se cierran. Solo sirve                     si el correo cambio en los ultimos diez minutos y despues de que empezo esta sesion.""")
+    @Parameter(name = COOKIE, in = ParameterIn.COOKIE, description = "La llave de renovacion", required = true)
+    @ApiResponse(responseCode = "200", description = "JWT nuevo, y la llave de la familia nueva en la cookie")
+    @ApiResponse(responseCode = "401", description = "No hay sesion, o se revoco o vencio",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "No hay un cambio de correo reciente en esta sesion",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ResponseEntity<?> sesionTrasCambioDeCorreo(
+            @Parameter(hidden = true) @CookieValue(name = COOKIE, required = false) String llave,
+            HttpServletRequest peticion) {
+        if (llave == null || llave.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError("No hay una sesión que renovar. Vuelve a entrar."));
+        }
+        return responder(auth.sesionTrasCambioDeCorreo(llave, origen(peticion)));
     }
 
     @PostMapping("/api/auth/logout")

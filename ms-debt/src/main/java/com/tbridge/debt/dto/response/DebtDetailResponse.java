@@ -1,6 +1,9 @@
 package com.tbridge.debt.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
 import com.tbridge.debt.model.DebtCharge;
@@ -12,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Una deuda completa: lo de la lista, mas lo que la compone.
@@ -25,8 +30,34 @@ public record DebtDetailResponse(
         @JsonUnwrapped DebtSummaryResponse resumen,
         List<Cargo> cargos,
         List<Cuota> cuotas,
-        List<Suceso> historia
+        List<Suceso> historia,
+        @Schema(description = "Referencias de contrato o propiedad informadas por el acreedor")
+        Map<String, String> referencias
 ) {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    public DebtDetailResponse(DebtSummaryResponse resumen, List<Cargo> cargos, List<Cuota> cuotas,
+                              List<Suceso> historia) {
+        this(resumen, cargos, cuotas, historia, Map.of());
+    }
+
+    /** El JSON de la cartera es opcional; una fila antigua dañada no debe impedir ver la deuda. */
+    public static Map<String, String> referencias(String refs) {
+        if (refs == null || refs.isBlank()) return Map.of();
+        try {
+            JsonNode nodo = JSON.readTree(refs);
+            if (!nodo.isObject()) return Map.of();
+            Map<String, String> resultado = new LinkedHashMap<>();
+            nodo.properties().forEach(entrada -> {
+                if (entrada.getValue().isTextual()) {
+                    resultado.put(entrada.getKey(), entrada.getValue().textValue());
+                }
+            });
+            return resultado;
+        } catch (JacksonException error) {
+            return Map.of();
+        }
+    }
 
     public Long id() {
         return resumen.id();

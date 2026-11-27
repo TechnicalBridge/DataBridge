@@ -89,7 +89,7 @@ class CarteraIntakeServiceTest {
         when(organizations.findByRut("76418902-7")).thenReturn(Optional.of(patrimonio));
         when(batches.findBySenderAndExternalId(any(), any())).thenReturn(Optional.empty());
         when(debts.findByCreditorAndExternalId(any(), any())).thenReturn(Optional.empty());
-        when(debtors.findByRut(any())).thenReturn(Optional.empty());
+        when(debtors.bloquearPorRut(any())).thenReturn(Optional.empty());
         when(debtors.save(any(Debtor.class))).thenAnswer(llamada -> llamada.getArgument(0));
     }
 
@@ -131,7 +131,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("bajo_umbral_mora", resultado.errores().getFirst().codigo());
-        assertEquals("Tiene 13 dias de mora: DataBridge recibe deudas desde 30 dias de mora",
+        assertEquals("Tiene 13 días de mora: DataBridge recibe deudas desde 30 días de mora",
                 resultado.errores().getFirst().mensaje());
         verify(debts, never()).save(any());
     }
@@ -485,7 +485,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("tasa_sobre_maxima", resultado.errores().getFirst().codigo());
-        assertEquals("La tasa de 3.5% mensual supera la maxima permitida, 3.0%",
+        assertEquals("La tasa de 3.5% mensual supera la máxima permitida, 3.0%",
                 resultado.errores().getFirst().mensaje());
         verify(debts, never()).save(any());
     }
@@ -630,7 +630,7 @@ class CarteraIntakeServiceTest {
 
         assertEquals("rechazada", resultado.resultado());
         assertEquals("sin_canal_contacto", resultado.errores().getFirst().codigo());
-        assertEquals("El deudor no trae un correo valido ni telefono", resultado.errores().getFirst().mensaje());
+        assertEquals("El deudor no trae un correo válido ni teléfono", resultado.errores().getFirst().mensaje());
         assertEquals("correo_invalido", resultado.avisos().getFirst().codigo());
     }
 
@@ -651,11 +651,32 @@ class CarteraIntakeServiceTest {
         Debtor valentina = new Debtor();
         valentina.setRut("18905214-6");
         valentina.setEmail("valentina.soto@correo.cl");
-        when(debtors.findByRut("18905214-6")).thenReturn(Optional.of(valentina));
+        when(debtors.bloquearPorRut("18905214-6")).thenReturn(Optional.of(valentina));
 
         ResultadoDeuda resultado = recibir(conCorreo("valentina@correo", true));
 
         assertEquals("correo_invalido", resultado.avisos().getFirst().codigo());
         assertEquals("valentina.soto@correo.cl", deudorGuardado().getEmail());
+    }
+
+    @Test
+    void la_cartera_no_pisa_los_campos_del_deudor_y_actualiza_el_nombre() throws Exception {
+        Debtor d=new Debtor();d.setId(1L);d.setRut("18905214-6");d.setFullName("Antes");
+        d.actualizarCorreo("verificado@correo.cl",java.time.Instant.now());
+        d.actualizarTelefono("+56922222222",java.time.Instant.now());
+        when(debtors.bloquearPorRut(d.getRut())).thenReturn(Optional.of(d));
+        recibir(conCorreo("importado@correo.cl",true));
+        assertEquals("verificado@correo.cl",deudorGuardado().getEmail());
+        assertEquals("+56922222222",deudorGuardado().getPhone());
+        org.junit.jupiter.api.Assertions.assertNotEquals("Antes",d.getFullName());
+    }
+    @Test
+    void proteger_telefono_no_protege_un_correo_importado() throws Exception {
+        Debtor d=new Debtor();d.setId(1L);d.setRut("18905214-6");d.setEmail("antes@correo.cl");
+        d.actualizarTelefono("+56922222222",java.time.Instant.now());
+        when(debtors.bloquearPorRut(d.getRut())).thenReturn(Optional.of(d));
+        recibir(conCorreo("importado@correo.cl",true));
+        assertEquals("importado@correo.cl",deudorGuardado().getEmail());
+        assertEquals("+56922222222",deudorGuardado().getPhone());
     }
 }

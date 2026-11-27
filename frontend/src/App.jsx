@@ -4,6 +4,7 @@ import { useAuth } from "./store/authStore";
 import Layout from "./components/Layout";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import DeshacerCorreo from "./pages/DeshacerCorreo";
 import Magic from "./pages/Magic";
 import Debts from "./pages/Debts";
 import Repact from "./pages/Repact";
@@ -78,6 +79,14 @@ export default function App() {
         element={
           <PublicOnly>
             <Login portal="DATABRIDGE" />
+          </PublicOnly>
+        }
+      />
+      <Route
+        path="/deshacer-correo"
+        element={
+          <PublicOnly>
+            <DeshacerCorreo />
           </PublicOnly>
         }
       />

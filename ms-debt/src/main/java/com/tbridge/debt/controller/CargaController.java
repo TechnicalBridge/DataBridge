@@ -6,6 +6,7 @@ import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.response.CarteraResponse;
 import com.tbridge.debt.dto.response.OpcionesCargaResponse;
 import com.tbridge.debt.dto.response.RevisionResponse;
+import com.tbridge.debt.exception.CarteraInvalida;
 import com.tbridge.debt.exception.ErrorContrato;
 import com.tbridge.debt.service.CargaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,11 +16,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.poi.poifs.filesystem.FileMagic;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,6 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * La carga de cartera por archivo desde el portal de empresas (arrastrar y
@@ -60,6 +65,9 @@ public class CargaController {
     static final MediaType XLSX = MediaType.parseMediaType(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
+    private static final Set<String> TIPOS_CSV = Set.of("text/csv", "application/csv",
+            "text/plain", "application/vnd.ms-excel");
+
     @GetMapping("/plantilla")
     @Operation(summary = "Descargar la plantilla de la cartera en Excel",
             description = """
@@ -81,7 +89,8 @@ public class CargaController {
             description = """
                     La planilla de Excel (la de `GET /api/debts/cartera/plantilla`: una hoja de deudores y otra \
                     de deudas, una fila por mes) o el CSV del contrato (seccion 6.6: separador `;`, una fila por \
-                    cargo); se distinguen por su contenido. Toda carga entra en una \
+                    cargo). El nombre debe terminar en .xlsx o .csv y coincidir con el contenido. \
+                    Toda carga entra en una \
                     campana: sin `campana_id_externo` responde `400`, y en una terminada, `409`. Entra por la \
                     ingesta del contrato, con aceptacion parcial e idempotencia: cargar el mismo lote dos veces \
                     no duplica nada. Sin id de lote ni fecha de corte, se arman solos: el corte es hoy.""")
@@ -101,7 +110,7 @@ public class CargaController {
             @Parameter(example = "76418902-7") @RequestParam("acreedor_rut") String acreedorRut,
             @Parameter(example = "APX-CMP-8") @RequestParam(value = "campana_id_externo", required = false) String campana
     ) throws IOException {
-        return cargas.subir(user, archivo.getBytes(), loteId, fechaCorte, acreedorRut, campana);
+        return cargas.subir(user, leerPlanilla(archivo), loteId, fechaCorte, acreedorRut, campana);
     }
 
     @PostMapping(value = "/revision", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -126,6 +135,48 @@ public class CargaController {
             @Parameter(example = "76418902-7") @RequestParam("acreedor_rut") String acreedorRut,
             @Parameter(example = "APX-CMP-8") @RequestParam(value = "campana_id_externo", required = false) String campana
     ) throws IOException {
-        return cargas.revisar(user, archivo.getBytes(), loteId, fechaCorte, acreedorRut, campana);
+        return cargas.revisar(user, leerPlanilla(archivo), loteId, fechaCorte, acreedorRut, campana);
+    }
+
+    private byte[] leerPlanilla(MultipartFile archivo) throws IOException {
+        String extension = StringUtils.getFilenameExtension(archivo.getOriginalFilename());
+        String formato = extension == null ? "" : extension.toLowerCase(Locale.ROOT);
+        if (archivo.isEmpty() || !Set.of("csv", "xlsx").contains(formato)) {
+            throw formatoInvalido();
+        }
+        validarTipoDeclarado(archivo.getContentType(), formato);
+
+        byte[] bytes = archivo.getBytes();
+        FileMagic contenido = FileMagic.valueOf(bytes);
+        if ("xlsx".equals(formato) ? contenido != FileMagic.OOXML : contenido != FileMagic.UNKNOWN) {
+            throw formatoInvalido();
+        }
+        // El parser de cada formato comprueba la estructura y los encabezados.
+        return bytes;
+    }
+
+    private void validarTipoDeclarado(String declarado, String formato) {
+        if (declarado == null) {
+            return;
+        }
+        MediaType media;
+        try {
+            media = MediaType.parseMediaType(declarado);
+        } catch (IllegalArgumentException error) {
+            throw formatoInvalido();
+        }
+        String tipo = media.getType() + "/" + media.getSubtype();
+        // Algunos navegadores no identifican la planilla y usan el tipo genérico.
+        if (tipo.equals(MediaType.APPLICATION_OCTET_STREAM_VALUE)) {
+            return;
+        }
+        if ("xlsx".equals(formato) ? !tipo.equals(XLSX.toString()) : !TIPOS_CSV.contains(tipo)) {
+            throw formatoInvalido();
+        }
+    }
+
+    private CarteraInvalida formatoInvalido() {
+        return new CarteraInvalida("formato_archivo_invalido",
+                "El archivo debe ser una planilla .xlsx o un .csv del contrato, con el formato correspondiente");
     }
 }

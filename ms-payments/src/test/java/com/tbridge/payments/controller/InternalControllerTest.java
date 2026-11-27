@@ -31,12 +31,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, com.tbridge.payments.security.JwtTestConfig.class})
 @ActiveProfiles("test")
 class InternalControllerTest {
+    @Autowired private InternalController controlador;
+
+    @Test
+    void configuracion_interna_ausente_o_vacia_no_concede_acceso() {
+        Object original = org.springframework.test.util.ReflectionTestUtils.getField(controlador, "internalKey");
+        try {
+            for (String configurada : new String[]{null, "", " "}) {
+                org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", configurada);
+                for (String recibida : new String[]{null, "", " ", "clave-interna-de-prueba"}) {
+                    var error = org.junit.jupiter.api.Assertions.assertThrows(com.tbridge.payments.exception.ApiException.class,
+                            () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                                    controlador, "exigirClave", recibida));
+                    org.junit.jupiter.api.Assertions.assertEquals(org.springframework.http.HttpStatus.UNAUTHORIZED, error.getStatus());
+                }
+            }
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(controlador, "internalKey", original);
+        }
+    }
 
     private static final String CLAVE = "clave-interna-de-prueba";
 
     @Autowired private MockMvc mvc;
     @MockitoBean private UfService uf;
     @MockitoBean private UfLoader cargador;
+
+    @Test
+    void claves_vacias_prefijos_y_longitudes_distintas_no_cambian_uf() throws Exception {
+        for (String clave : new String[]{"", " ", "clave-interna-de-prueb", CLAVE + "X", "otra"}) {
+            mvc.perform(post("/internal/uf").header("X-Internal-Key", clave)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"dia\":\"2026-09-24\",\"valor\":\"39876.54\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+        org.mockito.Mockito.verifyNoInteractions(uf, cargador);
+    }
 
     @Test
     void sin_la_clave_nadie_cambia_la_uf() throws Exception {

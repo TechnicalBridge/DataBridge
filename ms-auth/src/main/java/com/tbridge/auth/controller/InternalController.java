@@ -1,5 +1,7 @@
 package com.tbridge.auth.controller;
 
+import com.tbridge.auth.util.Hash;
+
 import com.tbridge.auth.config.OpenApiConfig;
 import com.tbridge.auth.dto.request.ComprobanteRequest;
 import com.tbridge.auth.dto.request.EmitirCodigoRequest;
@@ -81,12 +83,13 @@ public class InternalController {
         //  de campana cuando exista, con el mismo codigo.
         if (canales.contains("correo") && pedido.correo() != null) {
             try {
+                auth.validarDestinoDeCodigo(emitido.rut(), emitido.codigo(), pedido.correo());
                 if (pedido.vence() != null) {
                     correo.enviarRecordatorio(pedido.correo(), emitido.codigo(), pedido.acreedor(), pedido.vence());
                 } else {
                     correo.enviarCodigo(pedido.correo(), emitido.codigo(), pedido.acreedor());
                 }
-            } catch (CorreoNoSalio noSalio) {
+            } catch (RuntimeException noSalio) {
                 //  Nadie recibio ese codigo: se anula, y el que el deudor ya
                 //  tenia sigue sirviendo. Quien lo pidio se entera con un 502.
                 auth.anularCodigo(emitido.rut(), emitido.codigo());
@@ -151,7 +154,8 @@ public class InternalController {
     }
 
     private void exigirClave(String clave) {
-        if (clave == null || !clave.equals(internalKey)) {
+        if (clave == null || clave.isBlank() || internalKey == null || internalKey.isBlank()
+                || !Hash.igualesEnTiempoConstante(Hash.sha256(internalKey), Hash.sha256(clave))) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
         }
     }

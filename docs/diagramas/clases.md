@@ -3388,3 +3388,24 @@ classDiagram
 | `RequestLogFilter` | `filter` | Anota cada petición y cuánto tardó. |
 | `RetornoDePasarela` | `filter` | Le quita el `Origin` a la vuelta desde la pasarela, para que CORS no la rechace. |
 | `ClienteReal` | `filter` | Decide cuál es la IP real del cliente detrás de los proxies de confianza. |
+
+
+## Extensión de contacto del deudor (#471)
+
+`Debtor` incorpora `emailUpdatedAt` y `phoneUpdatedAt` independientes, y versión optimista
+para detectar escrituras concurrentes de otras rutas. Timestamp nulo significa origen cartera;
+no se duplica un estado de procedencia. `ContactoPersonalService` valida y guarda el teléfono.
+`CorreoPersonalService` coordina desafíos `EmailChange`, límites MySQL, auditoría `ContactUpdate`
+y la bandeja privada `ContactNotice`, que no depende de suscripciones de acreedores.
+`ContactoHuella` calcula HMAC con clave externa independiente. `ContactoOrigen` solo acepta
+cabeceras reenviadas desde proxies configurados explícitamente.
+
+`ContactReversion` guarda la reversión pendiente, el correo anterior cifrado y la huella del código;
+`DeshacerCorreoController` recibe el RUT y el código en el endpoint público sin sesión.
+
+ms-auth mantiene `MailService` como único dueño del transporte. `ContactoInternoController`
+separa verificación y avisos de los OTP de acceso. `ContactNoticeService` reclama el identificador
+de evento en persistencia antes del envío para impedir duplicados ante aceptación ambigua.
+`AccessCode.contactChangedAt` vincula los códigos de campaña a la versión del contacto;
+`DeudasClient` comprueba el corte vigente. `SessionService.inicioDeFamilia` conserva el criterio
+sobre la emisión original aunque se hayan rotado las llaves de renovación.

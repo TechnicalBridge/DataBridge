@@ -77,7 +77,11 @@ public record DebtSummaryResponse(
         BigDecimal cae,
         @Schema(description = "La empresa que la cobra esta suspendida: por ahora no se paga ni se repacta, y no se "
                 + "le escribe al deudor. Vuelve sola cuando la reactivan", example = "false")
-        boolean enPausa
+        boolean enPausa,
+        @Schema(description = "Correo actualizado por el deudor en esta fecha; nulo si procede de cartera")
+        Instant correoActualizadoPorDeudorEn,
+        @Schema(description = "Telefono actualizado por el deudor en esta fecha; nulo si procede de cartera")
+        Instant telefonoActualizadoPorDeudorEn
 ) {
 
     /** El ultimo correo al deudor no salio. */
@@ -195,6 +199,6 @@ public record DebtSummaryResponse(
                 CorreoFallido.de(deuda.getDebtor()),
                 //  Solo en convenio: una deuda reabierta o retirada no informa la CAE de un convenio que ya no corre.
                 conConvenio ? cae : null,
-                deuda.congelada());
+                deuda.congelada(), deuda.getDebtor().getEmailUpdatedAt(), deuda.getDebtor().getPhoneUpdatedAt());
     }
 }

@@ -83,16 +83,24 @@ function OrillaLejana() {
 }
 
 /** Las piezas del portal que acompanan cada paso. Son ejemplos: no son datos de nadie. */
+
+/**
+ * El correo de una campana, con las mismas palabras que el de verdad (correos/codigo.html de ms-auth): quien
+ * sospecha un fraude compara los dos, y tienen que calzar (#558).
+ */
 function PiezaCorreo() {
   return (
     <div className="pieza pieza-correo">
       <div className="pieza-correo-cab"><span>De: DataBridge</span><span>Hoy, 10:42</span></div>
       <p className="pieza-titulo">Tu código de acceso</p>
-      <p className="pieza-texto">Entra al portal con tu RUT o correo y este código:</p>
+      <p className="pieza-texto">
+        Tu acreedor te dejó un mensaje sobre un pago pendiente. Para verlo, entra al portal y escribe tu RUT y este
+        código:
+      </p>
       <p className="pieza-codigo" aria-label={`Código de ejemplo ${CODIGO}`}>
         {CODIGO.split("").map((c, i) => <span key={i} style={{ "--i": i }}>{c}</span>)}
       </p>
-      <p className="pieza-texto">Vence en 15 minutos y sirve una sola vez.</p>
+      <p className="pieza-texto">Este correo no trae ningún enlace, a propósito.</p>
     </div>
   );
 }
@@ -251,13 +259,18 @@ export default function Landing() {
           <div className="orilla-deudor">
             <h1 id="titulo-portada" className="aparece">Ponte al día, sin llamadas ni filas</h1>
             <p className="portada-bajada aparece" style={{ "--i": 1 }}>
-              Entras con tu RUT y el código que te llegó por correo, ves cuánto debes y a quién, y pagas todo de una
-              vez o en cuotas.
+              Entras con tu RUT y el código que te llegó por correo. Ves cuánto debes y a quién, sea un arriendo, un
+              arancel o un tratamiento, y decides si pagas todo de una vez o en cuotas.
             </p>
             <Link className="btn btn-primary portada-cta aparece" style={{ "--i": 2 }} to="/login">
               Tengo un código de acceso
               <IconoFlecha size={18} />
             </Link>
+            <p className="hint aparece" style={{ "--i": 3 }}>
+              Los avisos de cobranza no incluyen montos ni enlaces para pagar. Si pides un acceso de respaldo,
+              puede llegar un enlace de un solo uso. Si recibes uno que no pediste, no lo abras: escribe tú la
+              dirección del portal.
+            </p>
           </div>
 
           <Puente />

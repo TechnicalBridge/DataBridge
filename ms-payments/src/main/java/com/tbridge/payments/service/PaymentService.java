@@ -173,7 +173,7 @@ public class PaymentService {
         //  que trae la sesion de un deudor, que entra con su codigo, sin
         //  cuenta ni correo.
         if (user == null || !user.isDebtor() || user.rut() == null || user.rut().isBlank()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "La sesion no identifica al deudor");
+            throw new ApiException(HttpStatus.FORBIDDEN, "La sesión no identifica al deudor");
         }
         Payment.Gateway gateway = pasarela(pedido.gateway());
 
@@ -542,7 +542,7 @@ public class PaymentService {
     @Transactional
     public PaymentResponse registrarDevolucion(JwtPrincipal user, Long id, String referencia) {
         if (user == null || !user.isCreditor() || user.rut() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolucion de un pago");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Solo una empresa puede registrar la devolución de un pago");
         }
         Payment pago = buscarPrivado(id);
         if (!deudas.cartera(user.rut()).contains(pago.getDebtId()) && !mismo(user.rut(), pago.getCreditorRut())) {
@@ -553,15 +553,15 @@ public class PaymentService {
         }
         if (pago.getStatus() != Payment.Status.duplicated) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Solo se puede registrar la devolucion de un pago duplicado");
+                    "Solo se puede registrar la devolución de un pago duplicado");
         }
         String ref = referencia == null ? "" : referencia.strip();
         if (ref.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolucion en la pasarela");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Falta la referencia de la devolución en la pasarela");
         }
         if (ref.length() > MAX_REFERENCIA) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "La referencia de la devolucion tiene mas de " + MAX_REFERENCIA + " caracteres");
+                    "La referencia de la devolución tiene más de " + MAX_REFERENCIA + " caracteres");
         }
         pago.setStatus(Payment.Status.refunded);
         payments.save(pago);
@@ -589,7 +589,7 @@ public class PaymentService {
      */
     public List<PaymentResponse> devueltos(JwtPrincipal user) {
         if (user == null || user.rut() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesion");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Sin sesión");
         }
         List<Payment> devueltos;
         if (user.isCreditor()) {
