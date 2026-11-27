@@ -25,10 +25,19 @@
   --on-brand: #fffdf8;
   --accent: #c8764b;
   --accent-soft: #f7e6da;
+  /* El terracota para texto sobre --accent-soft: el --accent da 2,8:1 y este 4,9:1 (#557). */
+  --accent-ink: #9a4f2a;
   --warn: #9c6412;
   --warn-soft: #faefd6;
   --danger: #b0443a;
   --danger-soft: #f8e3df;
+  /* Un color por estado de deuda, el mismo en los tres portales y en los graficos (#557). La paleta de
+     components/Graficos.jsx repite estos valores: si cambian aca, cambian alla. */
+  --estado-open: var(--accent);
+  --estado-repacted: #d9a441;
+  --estado-paid: var(--brand);
+  --estado-withdrawn: var(--muted);
+  --estado-disputed: var(--danger);
   --ring: rgba(62, 123, 79, 0.25);
   --tile: #ffffff;
   --shadow: 0 1px 2px rgba(70, 50, 20, 0.05), 0 8px 24px -14px rgba(70, 50, 20, 0.22);
@@ -61,10 +70,12 @@
   --on-brand: #10170f;
   --accent: #e09a72;
   --accent-soft: rgba(224, 154, 114, 0.13);
+  --accent-ink: #e09a72;
   --warn: #e7bd64;
   --warn-soft: rgba(231, 189, 100, 0.13);
   --danger: #f08a84;
   --danger-soft: rgba(240, 138, 132, 0.13);
+  --estado-repacted: #e7bd64;
   --ring: rgba(125, 189, 140, 0.6);
   --tile: #ece7de;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -16px rgba(0, 0, 0, 0.7);
@@ -939,7 +950,6 @@ html:has(.portada) { scroll-behavior: smooth; }
   box-shadow: var(--shadow);
   transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s ease;
 }
-.card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .card h2 { margin: 0 0 14px; font-size: 19px; }
 .card-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .card-cab h2 { margin: 0; }
@@ -987,7 +997,6 @@ html:has(.portada) { scroll-behavior: smooth; }
   font-weight: 600;
 }
 .admin-salud-punto { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-.admin-salud-punto { animation: admin-salud-pulso 2.8s ease-in-out infinite; }
 .admin-salud.con-alerta .admin-salud-punto { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 
 .admin-resumen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -1022,7 +1031,6 @@ html:has(.portada) { scroll-behavior: smooth; }
 
 .admin-inicio-contenido { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr); gap: 12px; align-items: start; }
 .admin-panel { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); transition: border-color 0.25s ease, box-shadow 0.25s ease; }
-.admin-panel:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
 .admin-panel-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .admin-panel-cabecera h2 { margin: 3px 0 0; font-size: 19px; }
 .admin-enlace-discreto { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); font-size: 14px; font-weight: 600; }
@@ -1045,7 +1053,7 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-cartera-total p { max-width: 245px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; text-align: right; }
 .admin-estados-deuda { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
 .admin-estado-deuda {
-  --estado-color: var(--brand);
+  --estado-color: var(--estado-open);
   grid-column: span 2;
   display: grid;
   gap: 11px;
@@ -1082,10 +1090,10 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-estado-deuda:nth-child(3) .admin-estado-deuda-barra i { animation-delay: 0.16s; }
 .admin-estado-deuda:nth-child(4) .admin-estado-deuda-barra i { animation-delay: 0.24s; }
 .admin-estado-deuda:nth-child(5) .admin-estado-deuda-barra i { animation-delay: 0.32s; }
-.admin-estado-deuda.estado-repacted { --estado-color: var(--accent); }
-.admin-estado-deuda.estado-paid { --estado-color: var(--brand-2); }
-.admin-estado-deuda.estado-withdrawn { --estado-color: var(--muted); }
-.admin-estado-deuda.estado-disputed { --estado-color: var(--warn); }
+.admin-estado-deuda.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-estado-deuda.estado-paid { --estado-color: var(--estado-paid); }
+.admin-estado-deuda.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-estado-deuda.estado-disputed { --estado-color: var(--estado-disputed); }
 
 @keyframes admin-barra-cartera {
   from { width: 0; }
@@ -1097,10 +1105,6 @@ html:has(.portada) { scroll-behavior: smooth; }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes admin-salud-pulso {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.22); }
-}
 
 .admin-servicios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .admin-servicio {
@@ -1208,11 +1212,11 @@ html:has(.portada) { scroll-behavior: smooth; }
 .admin-dona { flex: none; width: 72px; height: 72px; transform: rotate(-90deg); }
 .admin-dona circle { fill: none; stroke-width: 15; }
 .admin-dona-fondo { stroke: var(--line); }
-.admin-dona-tramo { --estado-color: var(--brand); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
-.admin-dona-tramo.estado-repacted { --estado-color: var(--accent); }
-.admin-dona-tramo.estado-paid { --estado-color: var(--brand-2); }
-.admin-dona-tramo.estado-withdrawn { --estado-color: var(--muted); }
-.admin-dona-tramo.estado-disputed { --estado-color: var(--warn); }
+.admin-dona-tramo { --estado-color: var(--estado-open); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
+.admin-dona-tramo.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-dona-tramo.estado-paid { --estado-color: var(--estado-paid); }
+.admin-dona-tramo.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-dona-tramo.estado-disputed { --estado-color: var(--estado-disputed); }
 @keyframes admin-dona-entrada { from { opacity: 0; } to { opacity: 1; } }
 .admin-nota { margin: 14px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) {
@@ -1273,7 +1277,7 @@ html:has(.portada) { scroll-behavior: smooth; }
   white-space: nowrap;
 }
 .badge-ok { background: var(--brand-soft); color: var(--brand-2); }
-.badge-wait { background: var(--accent-soft); color: var(--accent); }
+.badge-wait { background: var(--accent-soft); color: var(--accent-ink); }
 .badge-warn { background: var(--warn-soft); color: var(--warn); }
 .badge-peligro { background: var(--danger-soft); color: var(--danger); }
 .badge-muted { background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); }
@@ -1527,6 +1531,13 @@ html:has(.portada) { scroll-behavior: smooth; }
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.disputa-antes { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+.disputa fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.disputa legend { margin-bottom: 10px; padding: 0; font-weight: 700; }
+.disputa-campo { margin-bottom: -6px; font-weight: 600; font-size: 14.5px; }
+.disputa-campo .sub { display: inline; font-weight: 400; }
+/*  Una deuda en revision o retirada no tiene acciones: sin la raya de una fila vacia. */
+.deuda-acciones:empty { display: none; }
 .disputa-motivos { display: flex; flex-wrap: wrap; gap: 8px; }
 .disputa-motivos input { position: absolute; opacity: 0; pointer-events: none; }
 .disputa-motivos .chip:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -1728,6 +1739,10 @@ html:has(.portada) { scroll-behavior: smooth; }
 }
 .bandeja-texto b { display: block; }
 .bandeja-al-dia { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--brand-2); font-weight: 600; }
+/* En el inicio del panel (#554): lo que pone en riesgo la ley va en rojo, arriba de todo. */
+.bandeja-item.grave { border-color: var(--danger); }
+.bandeja-item.grave .bandeja-numero { background: var(--danger-soft); color: var(--danger); }
+.admin-pendientes h2 { margin-top: 0; }
 /* El panel para responder un reclamo, bajo su fila (#474). */
 .fila-reclamo > td { background: var(--paper-2); }
 .panel-reclamo { display: grid; gap: 12px; max-width: 720px; padding: 4px 0; }
@@ -1880,7 +1895,8 @@ html:has(.portada) { scroll-behavior: smooth; }
 .cuota-fila.elegida { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
 .cuota-fila.pagada { cursor: default; background: var(--paper-2); }
 .cuota-fila.pagada:hover { border-color: var(--line); }
-.cuota-fila.pagada .cuota-info, .cuota-fila.pagada .cuota-monto { opacity: 0.6; }
+/*  Las pagadas, en una fila que las resume (#556): el texto con su contraste completo, sin transparencia. */
+.cuota-fila.pagada .cuota-info span { color: var(--ink-2); }
 .casilla {
   width: 22px;
   height: 22px;
@@ -1905,6 +1921,27 @@ html:has(.portada) { scroll-behavior: smooth; }
 .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
 .tag-vencida { background: var(--warn-soft); color: var(--warn); }
 .atajos { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+/*  Cuantas cuotas pagar hoy (#556): un paso de una en una y los atajos, arriba de la lista. */
+.cuantas { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 16px; }
+.cuantas .atajos { margin: 0; }
+.cuantas-paso { display: inline-flex; align-items: center; border: 1px solid var(--borde-campo); border-radius: 999px; }
+.cuantas-boton {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cuantas-boton:hover:not(:disabled) { background: var(--paper-2); }
+.cuantas-boton:disabled { color: var(--muted); cursor: default; }
+.cuantas-boton:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cuantas-numero { min-width: 64px; text-align: center; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cuantas-numero b { color: var(--ink); font-size: 20px; }
+.cuotas-mas { margin-top: 10px; }
 
 .total-pagar {
   display: flex;
@@ -2383,7 +2420,8 @@ html:has(.portada) { scroll-behavior: smooth; }
   box-shadow: none;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
-[data-portal="admin"] .card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
+/*  Solo reacciona al mouse lo que se puede pulsar (#557). */
+[data-portal="admin"] :is(a, button).card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
 [data-portal="admin"] .card h2 { font-size: 19px; }
 /* Las cifras, como los mosaicos del inicio: el titulo arriba y el numero grande abajo. */
 [data-portal="admin"] .card.stat {

@@ -7,6 +7,8 @@ import com.tbridge.debt.exception.CarteraInvalida;
 import com.tbridge.debt.security.JwtTestIssuer;
 import com.tbridge.debt.service.CargaService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -22,6 +24,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -107,4 +110,22 @@ class CargaControllerTest {
                 //  Sin varios problemas, no hay lista: la forma del contrato no cambia.
                 .andExpect(jsonPath("$.error.detalles").doesNotExist());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/debts/cartera", "/api/debts/cartera/revision"})
+    void rechaza_archivos_fuera_de_los_formatos_del_portal(String ruta) throws Exception {
+        List<MockMultipartFile> archivos = List.of(
+                new MockMultipartFile("archivo", "cartera.txt", "text/plain", planilla.getBytes()),
+                new MockMultipartFile("archivo", "cartera.csv", "image/png", planilla.getBytes()),
+                new MockMultipartFile("archivo", "cartera.xlsx", "application/octet-stream", planilla.getBytes()));
+
+        for (MockMultipartFile archivo : archivos) {
+            mvc.perform(multipart(ruta).file(archivo).param("acreedor_rut", "76418902-7")
+                            .param("campana_id_externo", "CMP-1").header("Authorization", empresa()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.codigo").value("formato_archivo_invalido"));
+        }
+        verifyNoInteractions(cargas);
+    }
+
 }

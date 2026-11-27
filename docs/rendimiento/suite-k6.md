@@ -10,6 +10,10 @@ de la red, así que no hay que instalar k6 ni abrir puertos.
 > (`gateway/`, `ms-auth/`, `ms-debt/`, `ms-payments/`, `ms-ai/` y `portal/`)
 > siguen documentados en el [README](README.md), con sus corridas históricas.
 
+La suite completa tarda alrededor de **30 minutos** en esta máquina; la prueba de
+resistencia sola son 10 minutos (`DURACION_ENDURANCE`). La duración exacta depende
+de la máquina y de si `stress` encuentra el techo antes.
+
 ## Antes de correrla
 
 - Docker Desktop con la pila local. La suite **no se corre contra producción**:
@@ -171,6 +175,60 @@ Cada corrida escribe en `performance-tests/k6/reports/`:
 `reports/` está ignorado por git (`reports/.gitignore`). El JSON ya **no
 incluye `setup_data`**, así que no arrastra los tokens de las sesiones; aun
 así, no compartas reportes con datos de una base que no sea de demo.
+
+## Generación y visor local de evidencias
+
+Requiere Python 3.9 o posterior y no instala dependencias adicionales.
+Los scripts se versionan en `performance-tests/k6/scripts/`; los resultados
+siguen en `reports/`, ignorado por Git.
+
+Para generar los informes con los resultados existentes y abrir el visor,
+**sin ejecutar pruebas ni modificar Docker**:
+
+```powershell
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
+```
+
+El visor queda en <http://127.0.0.1:8766/evidencias/index.html>.
+Recargar una página actualiza los informes con las ejecuciones terminadas.
+Se escucha solo en la interfaz local; `Ctrl+C` detiene el servidor.
+`-Puerto 8770` permite elegir otro puerto y `-SinAbrir` evita abrir el navegador.
+
+Para ejecutar la suite, restaurar los límites y luego generar y abrir los
+informes automáticamente:
+
+```powershell
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 `
+  -Proyecto databridge
+```
+
+**Este comando recrea gateway y ms-auth** para aumentar temporalmente solo
+`RATE_GLOBAL_CAPACITY`, `RATE_AUTH_CAPACITY` y `AUTH_IDENTIFIER_LIMIT_CAPACITY`.
+Detecta el directorio del Compose activo mediante sus etiquetas, no copia el
+entorno de los contenedores a disco y verifica con `docker inspect` que los tres
+valores volvieron a los originales antes de iniciar el visor. Si la restauración
+falla, deja el detalle en `reports/suite-completa-ejecuciones.json` (sin secretos)
+e informa el error. Para una comprobación rápida, agrega `-Escenarios smoke`.
+Si antes usaste `run.ps1 -Levantar`, restaura primero los cupos siguiendo
+la sección anterior: de lo contrario, los valores altos ya serán la
+configuración inicial que esta suite conservará.
+No ejecutarlo simultáneamente con otra corrida ni interrumpirlo cerrando a
+la fuerza PowerShell. No reconstruye el despliegue ni instala datos de demo:
+estos deben existir previamente. IA, repactaciones y pasarelas de la suite
+quedan desactivadas. `-SinVisualizar` genera HTML sin iniciar un servidor.
+
+También se puede usar Python directamente:
+
+```powershell
+python performance-tests/k6/scripts/generar-evidencias.py --servir
+python performance-tests/k6/scripts/generar-evidencias.py --report-dir performance-tests/k6/reports
+python -m unittest discover -s performance-tests/k6/scripts -p test_generar_evidencias.py
+```
+
+Los HTML son una presentación propia de los JSON reales de k6, **no una interfaz
+nativa de k6**. Incluyen umbrales, código de salida y enlaces a las fuentes.
+Un escenario no se aprueba si falla un umbral o un check, si no hay peticiones
+o si su código de salida es distinto de cero.
 
 ## Datos de prueba
 

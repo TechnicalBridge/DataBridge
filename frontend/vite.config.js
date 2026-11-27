@@ -3,6 +3,11 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    include: ["tests/*.test.jsx"],
+    restoreMocks: true,
+  },
   server: {
     port: 5173,
     //  Igual que nginx en Docker: la API y su documentacion van al gateway.

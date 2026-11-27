@@ -34,6 +34,8 @@ export default function Pay() {
   //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
   //  deudor lo puede cambiar, y al cobrar ms-debt revisa las cuotas y decide el monto.
   const [cuantas, setCuantas] = useState(() => Math.max(1, Number.parseInt(parametros.get("cuotas"), 10) || 1));
+  //  La lista de cuotas muestra las proximas 3; el resto, a pedido (#556).
+  const [verTodas, setVerTodas] = useState(false);
   const [pago, setPago] = useState(null);
   // La ventana de la pasarela, para traerla al frente en vez de abrirla de nuevo.
   const ventana = useRef(null);
@@ -163,6 +165,11 @@ export default function Pay() {
 
   /** Marcar la cuota i marca todas las anteriores; desmarcarla, todas las que siguen. */
   const alternar = (i) => setCuantas(i < k ? i : i + 1);
+  //  Para elegir sin recorrer la lista (#556): las vencidas son las primeras pendientes, y la lista se corta en 3.
+  const vencidas = pendientes.filter((c) => c.vencimiento < hoy).length;
+  const visibles = verTodas ? pendientes.length : Math.min(pendientes.length, 3);
+  const marcadasOcultas = Math.max(0, k - visibles);
+  const ultimaPagada = pagadas.reduce((ultima, c) => (!ultima || (c.pagadaEn || "") > (ultima.pagadaEn || "") ? c : ultima), null);
 
   async function pagar() {
     setBusy(true);
@@ -390,25 +397,55 @@ export default function Pay() {
             <div className="card pagar-detalle aparece" style={{ "--i": 2 }}>
               {enConvenio ? (
                 <>
-                  <h2>Elige las cuotas</h2>
+                  <h2>¿Cuántas cuotas pagas hoy?</h2>
                   {delPlan.length > 1 ? <Tablones estados={estadosDelPlan} texto={textoDelPlan} /> : null}
+                  {pendientes.length > 1 ? (
+                    <div className="cuantas">
+                      <div className="cuantas-paso" role="group" aria-label="Cuántas cuotas pagas hoy">
+                        <button type="button" className="cuantas-boton" aria-label="Una cuota menos"
+                                disabled={!!pago || k <= 1} onClick={() => setCuantas(k - 1)}>−</button>
+                        <output className="cuantas-numero" aria-live="polite">
+                          <b>{k}</b> de {pendientes.length}
+                        </output>
+                        <button type="button" className="cuantas-boton" aria-label="Una cuota más"
+                                disabled={!!pago || k >= pendientes.length} onClick={() => setCuantas(k + 1)}>+</button>
+                      </div>
+                      <div className="atajos">
+                        <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={!!pago}
+                                onClick={() => setCuantas(1)}>
+                          La próxima
+                        </button>
+                        {vencidas > 1 && vencidas < pendientes.length ? (
+                          <button type="button" className={`chip${k === vencidas ? " on" : ""}`} disabled={!!pago}
+                                  onClick={() => setCuantas(vencidas)}>
+                            Ponerme al día ({vencidas})
+                          </button>
+                        ) : null}
+                        <button type="button" className={`chip${k === pendientes.length ? " on" : ""}`}
+                                disabled={!!pago} onClick={() => setCuantas(pendientes.length)}>
+                          Todas ({pendientes.length})
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="hint" style={{ margin: "14px 0" }}>
-                    Se pagan en orden, desde la que vence primero. Marca hasta donde quieras avanzar.
+                    Se pagan en orden, desde la que vence primero.
                   </p>
                   <div className="cuotas-lista">
-                    {pagadas.map((c, i) => (
-                      <div key={c.id} className="cuota-fila pagada" style={{ "--i": i }}>
+                    {ultimaPagada ? (
+                      <div className="cuota-fila pagada">
                         <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
                         <span className="cuota-info">
-                          <b>{lugar(c)}</b>
-                          <span>Pagada el {fecha(c.pagadaEn)}</span>
+                          <b>Ya pagaste {pagadas.length === 1 ? "1 cuota" : `${pagadas.length} cuotas`}</b>
+                          {ultimaPagada.pagadaEn ? (
+                            <span>{pagadas.length === 1 ? "El" : "La última, el"} {fecha(ultimaPagada.pagadaEn)}</span>
+                          ) : null}
                         </span>
-                        <span className="cuota-monto">{dinero(c.monto, moneda)}</span>
                       </div>
-                    ))}
-                    {pendientes.map((c, i) => (
+                    ) : null}
+                    {pendientes.slice(0, visibles).map((c, i) => (
                       <label key={c.id} className={`cuota-fila${i < k ? " elegida" : ""}`}
-                             style={{ "--i": i + pagadas.length }}>
+                             style={{ "--i": i + (ultimaPagada ? 1 : 0) }}>
                         <input type="checkbox" className="oculto" checked={i < k} disabled={!!pago}
                                onChange={() => alternar(i)} />
                         <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
@@ -426,17 +463,11 @@ export default function Pay() {
                       </label>
                     ))}
                   </div>
-                  {pendientes.length > 1 ? (
-                    <div className="atajos">
-                      <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={!!pago}
-                              onClick={() => setCuantas(1)}>
-                        Solo la próxima
-                      </button>
-                      <button type="button" className={`chip${k === pendientes.length ? " on" : ""}`}
-                              disabled={!!pago} onClick={() => setCuantas(pendientes.length)}>
-                        Todas ({pendientes.length})
-                      </button>
-                    </div>
+                  {visibles < pendientes.length ? (
+                    <button type="button" className="link-btn cuotas-mas" onClick={() => setVerTodas(true)}>
+                      Ver las demás ({pendientes.length - visibles}
+                      {marcadasOcultas ? `, ${marcadasOcultas === 1 ? "1 marcada" : `${marcadasOcultas} marcadas`}` : ""})
+                    </button>
                   ) : null}
                 </>
               ) : (

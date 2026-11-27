@@ -170,6 +170,11 @@ export const ESTADO_DEUDA = {
   disputed: "En revisión",
 };
 
+/** La etiqueta de cada estado, del mismo color que `--estado-*` (#557). */
+export const CLASE_DE_DEUDA = {
+  open: "badge-wait", repacted: "badge-warn", paid: "badge-ok", withdrawn: "badge-muted", disputed: "badge-peligro",
+};
+
 /** El mes de hoy, en Chile, como 2026-10: lo que pide la API y lo que usa el selector. */
 export function mesDeHoy() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" })
