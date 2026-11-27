@@ -57,6 +57,9 @@ $secretos = [ordered]@{
     INTERNAL_KEY        = 'cc9283bf0f8238f8dc57b9b97c24f62e132bc491e1b4a2b07c2840005f72b621'
     CIFRADO_LLAVE       = '774db0f5ff463139c885933a38068fec5a0648f9fc9f2605d6c786eeac406318'
     WEBHOOK_SECRET      = 'ec9ed8b11fa0ab12b53bcdca18a37def89e7c16c5d65248906469dc0972fb8f5'
+    #  La huella de los codigos para cambiar o deshacer un correo (#471). Sin ella, el deudor no puede
+    #  cambiarlo. Cambiarla deja sin efecto los codigos pendientes.
+    CONTACT_VERIFICATION_KEY = ''
 }
 
 #  De que base es cada clave, y en que contenedor vive: DB_DEBT_PASSWORD es de

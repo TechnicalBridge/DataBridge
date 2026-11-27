@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TablaDeslizable from "./TablaDeslizable";
 import { comisionesDelMes } from "../api/admin";
 import { dinero, porcentaje, rutLegible, mesDeHoy, mesEnPalabras } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
@@ -68,7 +69,7 @@ export default function ComisionesDelMes() {
         <div className="empty">Ninguna empresa recuperó pagos en {mesEnPalabras(datos.mes)}.</div>
       ) : null}
       {datos && datos.empresas.length ? (
-        <div className="tabla-scroll">
+        <TablaDeslizable nombre="Comisiones por empresa">
           <table className="table">
             <thead>
               <tr>
@@ -79,7 +80,7 @@ export default function ComisionesDelMes() {
             <tbody>
               {datos.empresas.map((e) => (
                 <tr key={e.rut}>
-                  <td><b>{e.nombre}</b><div className="hint mono">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
+                  <td><b>{e.nombre}</b><div className="hint">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
                   <td className="num">{dinero(e.recuperado)}</td>
                   <td className="num">{porcentaje(e.porcentaje)}</td>
                   <td className="num"><b>{dinero(e.comision)}</b></td>
@@ -90,7 +91,7 @@ export default function ComisionesDelMes() {
               <tr><th scope="row">Total</th><td className="num">{dinero(datos.recuperado)}</td><td /><td className="num"><b>{dinero(datos.comision)}</b></td></tr>
             </tfoot>
           </table>
-        </div>
+        </TablaDeslizable>
       ) : null}
     </section>
   );

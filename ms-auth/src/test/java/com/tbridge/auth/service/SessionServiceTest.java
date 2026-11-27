@@ -131,6 +131,21 @@ class SessionServiceTest {
     }
 
     @Test
+    void vigente_rechaza_llaves_revocadas_rotadas_y_vencidas() {
+        SessionService.Llave revocada = entrar();
+        base.filas.get(base.filas.size() - 1).setRevokedAt(reloj.instant());
+        assertEquals(HttpStatus.UNAUTHORIZED, estado(() -> sesiones.vigente(revocada.valor())));
+
+        SessionService.Llave rotada = entrar();
+        sesiones.renovar(rotada.valor(), null);
+        assertEquals(HttpStatus.UNAUTHORIZED, estado(() -> sesiones.vigente(rotada.valor())));
+
+        SessionService.Llave vencida = entrar();
+        reloj.avanzar(Duration.ofDays(7));
+        assertEquals(HttpStatus.UNAUTHORIZED, estado(() -> sesiones.vigente(vencida.valor())));
+    }
+
+    @Test
     void cerrar_sesion_la_cierra_en_el_servidor() {
         SessionService.Llave llave = entrar();
         SessionService.Renovada renovada = sesiones.renovar(llave.valor(), null);

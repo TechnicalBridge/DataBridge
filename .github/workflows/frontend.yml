@@ -71,6 +71,9 @@ jobs:
       - name: Seguridad de exportaciones
         working-directory: .
         run: node --test pruebas/exportar.test.cjs
+      - name: Formato de fechas
+        working-directory: .
+        run: node --test pruebas/formato.test.cjs
       - run: npm run build
       - name: Dependencias vulnerables
         run: npm audit --audit-level=high

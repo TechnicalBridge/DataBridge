@@ -937,3 +937,22 @@ lo único que le queda es el JWT vigente, que dura a lo más quince minutos.
 
 Otro admin se da de alta igual, por `POST /api/admin/auth/admins`, sin el paso de ms-debt: un admin no es de
 ninguna empresa.
+
+
+## Corregir contacto autenticado (#471)
+
+1. El portal envía el JWT y el teléfono nuevo a `PATCH /api/debts/mis-datos/telefono`.
+   ms-debt exige DEBTOR, bloquea su ficha, normaliza el teléfono y guarda fecha y auditoría.
+2. Para el correo, `POST /api/debts/mis-datos/correo/verificacion` guarda un desafío
+   cifrado, con HMAC vinculado a propósito, solicitud e identidad; no altera el contacto.
+3. ms-debt llama a `/internal/contacto/verificacion` con `X-Internal-Key`. ms-auth exige
+   entrega directa con el transporte configurado y usa una plantilla separada del acceso.
+4. `POST /api/debts/mis-datos/correo/confirmacion` bloquea la misma ficha, verifica
+   propietario, estado, caducidad, intentos y HMAC. En una transacción actualiza correo y
+   procedencia, consume el desafío, audita y deja el aviso previo en la bandeja privada.
+5. Un despachador entrega `/internal/contacto/aviso`. ms-auth deduplica por evento persistido;
+   una aceptación ambigua queda para revisión sin repetir ciegamente el envío.
+6. Al canjear códigos/enlaces o renovar la sesión, ms-auth consulta
+   `/internal/deudores/{rut}/contacto`: rechaza accesos anteriores al corte. Los códigos de
+   campaña además conservan la versión del contacto de emisión y validan el destino antes
+   del envío. Las carteras posteriores bloquean la ficha y respetan cada fecha de procedencia.

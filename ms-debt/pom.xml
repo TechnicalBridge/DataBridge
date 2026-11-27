@@ -97,7 +97,7 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- MySQL real y efimero para las pruebas de integracion (#364). -->
+    <!-- MySQL real, efimero y por contenedor, para las pruebas de integracion. -->
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>

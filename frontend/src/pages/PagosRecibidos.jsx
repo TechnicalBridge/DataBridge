@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import TablaDeslizable from "../components/TablaDeslizable";
 import { descargarComprobante, listarDevueltos, listarPagos, listarParaDevolver, registrarDevolucion } from "../api/pagos";
 import { dinero, fechaHora, paraBuscar, porMoneda, queSePago, rutLegible } from "../utils/formato";
 import { descargarCsv, montoParaExcel } from "../utils/exportar";
@@ -111,7 +112,7 @@ export default function PagosRecibidos() {
               </span>
             </div>
           </div>
-          <div className="tabla-scroll">
+          <TablaDeslizable nombre="Pagos duplicados por devolver">
             <table className="table">
               <thead>
                 <tr>
@@ -157,7 +158,7 @@ export default function PagosRecibidos() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TablaDeslizable>
           {errorDevolucion ? <div className="error">{errorDevolucion}</div> : null}
         </div>
       ) : null}
@@ -165,7 +166,7 @@ export default function PagosRecibidos() {
       {devueltos.length ? (
         <div className="card bloque aparece">
           <h2>{devueltos.length === 1 ? "Un pago devuelto" : `${devueltos.length} pagos devueltos`}</h2>
-          <div className="tabla-scroll">
+          <TablaDeslizable nombre="Pagos devueltos">
             <table className="table">
               <thead>
                 <tr>
@@ -190,7 +191,7 @@ export default function PagosRecibidos() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TablaDeslizable>
         </div>
       ) : null}
 
@@ -229,7 +230,7 @@ export default function PagosRecibidos() {
         {visibles.length === 0 ? (
           <div className="empty">{pagos.length ? "Ningún pago calza con el filtro." : "Todavía no entra ningún pago."}</div>
         ) : (
-          <div className="tabla-scroll">
+          <TablaDeslizable nombre="Pagos recibidos">
             <table className="table">
               <thead>
                 <tr>
@@ -265,7 +266,7 @@ export default function PagosRecibidos() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TablaDeslizable>
         )}
         <Paginas total={visibles.length} porPagina={POR_PAGINA} pagina={enPagina} alCambiar={setPagina}
                  etiqueta="Páginas de los pagos" />

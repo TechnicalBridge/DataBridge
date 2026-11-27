@@ -626,15 +626,17 @@ public class CarteraIntakeService {
 
     private Debtor guardarDeudor(String rut, String tipo, String nombre, String correo, boolean correoInvalido,
                                  String telefono) {
-        Debtor deudor = debtors.findByRut(rut).orElseGet(Debtor::new);
+        Debtor deudor = debtors.bloquearPorRut(rut).orElseGet(Debtor::new);
         deudor.setRut(rut);
         deudor.setKind("empresa".equals(tipo) ? Debtor.Kind.company : Debtor.Kind.person);
         deudor.setFullName(nombre);
         //  Un correo malo no borra el bueno que ya tenia: con el se le sigue escribiendo.
-        if (!correoInvalido) {
+        if (!correoInvalido && deudor.getEmailUpdatedAt() == null) {
             deudor.setEmail(correo);
         }
-        deudor.setPhone(vacio(telefono) ? null : telefono);
+        if (deudor.getPhoneUpdatedAt() == null) {
+            deudor.setPhone(vacio(telefono) ? null : telefono);
+        }
         deudor.setUpdatedAt(Instant.now());
         return debtors.save(deudor);
     }

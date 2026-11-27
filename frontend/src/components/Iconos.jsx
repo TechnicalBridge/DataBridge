@@ -17,6 +17,9 @@ export const IconoFlecha = (p) => <Trazo {...p}><path d="M5 12h14M13 6l6 6-6 6" 
 
 export const IconoVolver = (p) => <Trazo {...p}><path d="M19 12H5M11 18l-6-6 6-6" /></Trazo>;
 
+/** Para abrir y cerrar un detalle: apunta abajo, y se gira con CSS cuando esta abierto. */
+export const IconoDesplegar = (p) => <Trazo {...p}><path d="M6 9l6 6 6-6" /></Trazo>;
+
 export const IconoSol = (p) => (
   <Trazo {...p}>
     <circle cx="12" cy="12" r="4" />

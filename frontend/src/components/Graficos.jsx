@@ -21,7 +21,7 @@ const PALETA = {
   },
 };
 
-function usePaleta() {
+export function usePaleta() {
   const tema = useTema((s) => s.tema);
   const c = PALETA[tema];
   const tooltip = {

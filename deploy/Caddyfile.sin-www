@@ -8,6 +8,7 @@
 {$DOMINIO} {
 	encode zstd gzip
 	reverse_proxy portal:8080 {
+		# Conserva la CSP por ruta de nginx; no impone la del SPA a Webpay.
 		# nginx toma de aqui la IP del visitante: el limite de peticiones del
 		# gateway cuenta por IP, y sin esto todos serian una sola, la de Caddy.
 		header_up X-Real-IP {remote_host}

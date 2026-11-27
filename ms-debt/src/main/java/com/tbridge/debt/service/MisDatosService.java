@@ -23,9 +23,8 @@ import java.util.Map;
  * Lo que DataBridge sabe del deudor, y de parte de quien lo sabe.
  *
  * <p>Es la respuesta a "¿y ustedes como tienen mis datos?": los trajo el
- * acreedor en su cartera. Por eso el deudor no los edita aca; si estan mal, se
- * corrigen con el acreedor y llegan bien en la cartera siguiente. Lo unico que
- * decide el deudor son los recordatorios.
+ * acreedor en su cartera. El contacto puede corregirse desde la sesion del
+ * deudor; un correo nuevo requiere verificacion antes de guardarse.
  */
 @Service
 @Transactional(readOnly = true)
@@ -58,7 +57,7 @@ public class MisDatosService {
     }
 
     private Debtor deudor(JwtPrincipal user) {
-        if (user == null || user.isCreditor()) {
+        if (user == null || !user.isDebtor()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Estos datos son del deudor");
         }
         return debts.deudorDe(user);

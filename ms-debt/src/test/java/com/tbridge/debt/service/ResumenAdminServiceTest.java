@@ -51,6 +51,28 @@ class ResumenAdminServiceTest {
     }
 
     @Test
+    void trae_lo_recuperado_cada_dia_de_los_ultimos_30_en_chile() {
+        //  #544. El 1 de noviembre a las 02:00 UTC todavia es el 31 de octubre en Chile.
+        var comisiones = mock(ComisionService.class);
+        var hoy = LocalDate.of(2026, 10, 31);
+        when(comisiones.deTodas(YearMonth.of(2026, 10)))
+                .thenReturn(new ComisionesResponse(hoy.withDayOfMonth(1), List.of(), 350000, 21000));
+        var dias = new java.util.LinkedHashMap<LocalDate, Long>();
+        dias.put(hoy.minusDays(1), 0L);
+        dias.put(hoy, 350000L);
+        when(comisiones.porDia(hoy.minusDays(29), hoy)).thenReturn(dias);
+
+        var resultado = new ResumenAdminService(mock(OrganizationRepository.class), mock(DebtRepository.class),
+                comisiones, mock(CampaignRepository.class), mock(ContactRepository.class),
+                Clock.fixed(Instant.parse("2026-11-01T02:00:00Z"), ZoneOffset.UTC)).resumen();
+
+        assertEquals(350000, resultado.recuperado());
+        assertEquals(List.of(new com.tbridge.debt.dto.response.ResumenAdminResponse.PuntoDiario(hoy.minusDays(1), 0),
+                new com.tbridge.debt.dto.response.ResumenAdminResponse.PuntoDiario(hoy, 350000)),
+                resultado.recuperadoPorDia());
+    }
+
+    @Test
     void campanas_solo_exponen_totales_y_sus_contactos_de_hoy_y_de_la_semana() {
         var repositorio = mock(CampaignRepository.class);
         var contactos = mock(ContactRepository.class);
