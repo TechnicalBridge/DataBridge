@@ -1887,7 +1887,8 @@ html:has(.portada) { scroll-behavior: smooth; }
 .cuota-fila.elegida { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
 .cuota-fila.pagada { cursor: default; background: var(--paper-2); }
 .cuota-fila.pagada:hover { border-color: var(--line); }
-.cuota-fila.pagada .cuota-info, .cuota-fila.pagada .cuota-monto { opacity: 0.6; }
+/*  Las pagadas, en una fila que las resume (#556): el texto con su contraste completo, sin transparencia. */
+.cuota-fila.pagada .cuota-info span { color: var(--ink-2); }
 .casilla {
   width: 22px;
   height: 22px;
@@ -1912,6 +1913,27 @@ html:has(.portada) { scroll-behavior: smooth; }
 .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
 .tag-vencida { background: var(--warn-soft); color: var(--warn); }
 .atajos { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+/*  Cuantas cuotas pagar hoy (#556): un paso de una en una y los atajos, arriba de la lista. */
+.cuantas { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 16px; }
+.cuantas .atajos { margin: 0; }
+.cuantas-paso { display: inline-flex; align-items: center; border: 1px solid var(--borde-campo); border-radius: 999px; }
+.cuantas-boton {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cuantas-boton:hover:not(:disabled) { background: var(--paper-2); }
+.cuantas-boton:disabled { color: var(--muted); cursor: default; }
+.cuantas-boton:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cuantas-numero { min-width: 64px; text-align: center; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cuantas-numero b { color: var(--ink); font-size: 20px; }
+.cuotas-mas { margin-top: 10px; }
 
 .total-pagar {
   display: flex;
