@@ -14,6 +14,16 @@ import java.util.List;
 
 public interface DebtEventRepository extends JpaRepository<DebtEvent, Long> {
 
+    @Query("select e.debt.debtor.id as deudor, max(e.occurredAt) as cuando from DebtEvent e "
+            + "where e.debt in :deudas and e.type = :tipo group by e.debt.debtor.id")
+    List<UltimoIngreso> ultimoIngresoPorDeudor(@Param("deudas") Collection<Debt> deudas,
+                                              @Param("tipo") DebtEvent.Type tipo);
+
+    interface UltimoIngreso {
+        Long getDeudor();
+        Instant getCuando();
+    }
+
     List<DebtEvent> findByDebtOrderByOccurredAtAsc(Debt debt);
 
     List<DebtEvent> findByDebtInAndTypeAndOccurredAtAfter(Collection<Debt> debts, DebtEvent.Type type, Instant desde);

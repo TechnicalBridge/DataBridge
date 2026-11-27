@@ -202,19 +202,38 @@ public class DebtService {
                 : debts.delDeudorParaListado(deudorDe(user));
         List<DebtSummaryResponse> resultado = new ArrayList<>(visibles.size());
         LocalDate hoy = LocalDate.now(CHILE);
+
+        Map<Long, Instant> enviadoPorDeudor = Map.of();
+        Map<Long, Instant> ingresosPorDeudor = Map.of();
+        if (empresa && !visibles.isEmpty()) {
+            Map<Long, Instant> enviadoPorDeuda = new HashMap<>();
+            Map<Long, Instant> ingresos = new HashMap<>();
+            final int tamanoLote = 200;
+            for (int desde = 0; desde < visibles.size(); desde += tamanoLote) {
+                var lote = visibles.subList(desde, Math.min(desde + tamanoLote, visibles.size()));
+                for (UltimoContacto c : contactos.ultimoPorDeuda(lote)) {
+                    enviadoPorDeuda.put(c.deuda(), c.cuando());
+                }
+                for (var e : events.ultimoIngresoPorDeudor(lote, DebtEvent.Type.portal_entered)) {
+                    ingresos.merge(e.getDeudor(), e.getCuando(), (a, b) -> a.isAfter(b) ? a : b);
+                }
+            }
+            enviadoPorDeudor = contactosPorDeudor(visibles, enviadoPorDeuda);
+            ingresosPorDeudor = ingresos;
+        }
+
         // Limita los parámetros y las relaciones auxiliares de cada consulta.
         final int tamanoLote = 200;
         for (int desde = 0; desde < visibles.size(); desde += tamanoLote) {
             var lote = visibles.subList(desde, Math.min(desde + tamanoLote, visibles.size()));
             if (!empresa) anotarIngresos(lote, hoy);
-            agregarResumenes(resultado, lote, empresa, hoy);
+            agregarResumenes(resultado, lote, empresa, hoy, enviadoPorDeudor, ingresosPorDeudor);
         }
         return resultado;
     }
 
-    private void agregarResumenes(List<DebtSummaryResponse> resultado, List<Debt> lote, boolean empresa, LocalDate hoy) {
-        Map<Long, Instant> enviado = empresa ? contactos.ultimoPorDeuda(lote).stream()
-                .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando)) : Map.of();
+    private void agregarResumenes(List<DebtSummaryResponse> resultado, List<Debt> lote, boolean empresa, LocalDate hoy,
+                                  Map<Long, Instant> enviadoPorDeudor, Map<Long, Instant> ingresosPorDeudor) {
         Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(lote);
         Map<Long, BigDecimal> caes = caes(lote);
         var cuotasPorDeuda = installments.findByDebtInOrderByNumberAsc(lote).stream()
@@ -228,6 +247,7 @@ public class DebtService {
 
         for (Debt deuda : lote) {
             Long id = deuda.getId();
+            Long deudorId = deuda.getDebtor().getId();
             List<Installment> cuotas = cuotasPorDeuda.getOrDefault(id, List.of());
             List<DebtCharge> cargos = cargosPorDeuda.getOrDefault(id, List.of());
             BigDecimal mora = deuda.getInterestRate() == null ? BigDecimal.ZERO
@@ -235,8 +255,10 @@ public class DebtService {
             var oferta = oferta(deuda, cuotas, mora, hoy, () -> cargos,
                     dias -> descuentos.porcentaje(deuda, dias, hoy,
                             () -> descuentos.topeParaListado(deuda.getCampaign(), topes)));
-            resultado.add(DebtSummaryResponse.from(deuda, cuotas, enviado.get(id), disputas.get(id),
-                    mora, oferta, caes.get(id)));
+            Instant ultimoEnviado = empresa ? enviadoPorDeudor.get(deudorId) : null;
+            Instant ultimoIngreso = empresa ? ingresosPorDeudor.get(deudorId) : null;
+            resultado.add(DebtSummaryResponse.from(deuda, cuotas, ultimoEnviado, disputas.get(id),
+                    mora, oferta, caes.get(id), ultimoIngreso));
         }
     }
 
@@ -258,6 +280,17 @@ public class DebtService {
             porDeuda.put(d.getId(), resumen(d, enviado.get(d.getId()), disputas.get(d.getId()), caes.get(d.getId())));
         }
         return porDeuda;
+    }
+
+    /** Comparte solo contactos de deudas ya autorizadas; nunca consulta otra cartera. */
+    static Map<Long, Instant> contactosPorDeudor(List<Debt> visibles, Map<Long, Instant> porDeuda) {
+        Map<Long, Instant> resultado = new HashMap<>();
+        for (Debt deuda : visibles) {
+            Instant cuando = porDeuda.get(deuda.getId());
+            if (cuando != null) resultado.merge(deuda.getDebtor().getId(), cuando,
+                    (a, b) -> a.isAfter(b) ? a : b);
+        }
+        return resultado;
     }
 
     /**
@@ -830,10 +863,15 @@ public class DebtService {
     /** Con una sola consulta de cuotas: el saldo, la mora y el avance salen de la misma lista. */
     private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa,
                                         BigDecimal cae) {
+        return resumen(deuda, codigoEnviado, disputa, cae, null);
+    }
+
+    private DebtSummaryResponse resumen(Debt deuda, Instant codigoEnviado, DebtSummaryResponse.Disputa disputa,
+                                        BigDecimal cae, Instant accesoConfirmado) {
         List<Installment> cuotas = installments.findByDebtOrderByNumberAsc(deuda);
         BigDecimal moraTotal = Intereses.total(mora(deuda, cuotas));
         return DebtSummaryResponse.from(deuda, cuotas, codigoEnviado, disputa, moraTotal,
-                oferta(deuda, cuotas, moraTotal), cae);
+                oferta(deuda, cuotas, moraTotal), cae, accesoConfirmado);
     }
 
     private DebtDetailResponse detalle(Debt deuda) {

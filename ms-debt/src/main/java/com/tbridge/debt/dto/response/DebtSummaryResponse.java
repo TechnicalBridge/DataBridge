@@ -78,6 +78,9 @@ public record DebtSummaryResponse(
         @Schema(description = "La empresa que la cobra esta suspendida: por ahora no se paga ni se repacta, y no se "
                 + "le escribe al deudor. Vuelve sola cuando la reactivan", example = "false")
         boolean enPausa,
+        @Schema(description = "Último ingreso confirmado en alguna deuda visible para quien consulta. "
+                + "No implica entrega del correo ni expone actividad de otra cartera", nullable = true)
+        Instant accesoConfirmado,
         @Schema(description = "Correo actualizado por el deudor en esta fecha; nulo si procede de cartera")
         Instant correoActualizadoPorDeudorEn,
         @Schema(description = "Telefono actualizado por el deudor en esta fecha; nulo si procede de cartera")
@@ -151,6 +154,12 @@ public record DebtSummaryResponse(
     /** Y la CAE del convenio vigente, que se informa solo si la deuda esta en convenio. */
     public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
                                            Disputa disputa, BigDecimal interesMora, Oferta oferta, BigDecimal cae) {
+        return from(deuda, cuotas, codigoEnviado, disputa, interesMora, oferta, cae, null);
+    }
+
+    public static DebtSummaryResponse from(Debt deuda, List<Installment> cuotas, Instant codigoEnviado,
+                                           Disputa disputa, BigDecimal interesMora, Oferta oferta, BigDecimal cae,
+                                           Instant accesoConfirmado) {
         BigDecimal saldo = suma(cuotas, Installment.Status.pending);
         BigDecimal mora = interesMora == null ? BigDecimal.ZERO : interesMora;
         //  Lo pagado es lo que se pago por DataBridge. No sale de restar el saldo
@@ -199,6 +208,9 @@ public record DebtSummaryResponse(
                 CorreoFallido.de(deuda.getDebtor()),
                 //  Solo en convenio: una deuda reabierta o retirada no informa la CAE de un convenio que ya no corre.
                 conConvenio ? cae : null,
-                deuda.congelada(), deuda.getDebtor().getEmailUpdatedAt(), deuda.getDebtor().getPhoneUpdatedAt());
+                deuda.congelada(),
+                accesoConfirmado,
+                deuda.getDebtor().getEmailUpdatedAt(),
+                deuda.getDebtor().getPhoneUpdatedAt());
     }
 }

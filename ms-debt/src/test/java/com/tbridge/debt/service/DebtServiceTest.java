@@ -495,7 +495,35 @@ class DebtServiceTest {
         List<DebtSummaryResponse> cartera = servicio.listFor(empresa("77305118-6"));
 
         assertEquals(el("2026-10-06T10:00"), cartera.get(0).codigoEnviado());
-        assertEquals(null, cartera.get(1).codigoEnviado(), "todavia sin invitar");
+        assertEquals(cartera.get(0).codigoEnviado(), cartera.get(1).codigoEnviado(),
+                "el contacto es del deudor dentro de la cartera autorizada");
+        assertEquals(null, cartera.get(0).accesoConfirmado(), "enviar correo no prueba un ingreso");
+    }
+
+    @Test
+    void contactos_de_otra_cartera_o_deudor_no_se_comparten() {
+        Debtor otra = new Debtor();
+        otra.setId(99L);
+        Debt ajena = new Debt();
+        ajena.setId(999L);
+        ajena.setDebtor(otra);
+        Instant cuando = Instant.parse("2026-11-21T12:00:00Z");
+        assertEquals(java.util.Map.of(valentina.getId(), cuando),
+                DebtService.contactosPorDeudor(List.of(deuda), java.util.Map.of(deuda.getId(), cuando, 999L, cuando)));
+        assertEquals(java.util.Map.of(), DebtService.contactosPorDeudor(List.of(ajena),
+                java.util.Map.of(deuda.getId(), cuando)));
+    }
+
+    @Test
+    void ingreso_confirmado_se_comparte_solo_en_la_cartera_visible() {
+        when(debts.carteraParaListado(apofyx)).thenReturn(List.of(deuda));
+        var ingreso = org.mockito.Mockito.mock(DebtEventRepository.UltimoIngreso.class);
+        Instant cuando = Instant.parse("2026-11-21T12:00:00Z");
+        when(ingreso.getDeudor()).thenReturn(valentina.getId());
+        when(ingreso.getCuando()).thenReturn(cuando);
+        when(events.ultimoIngresoPorDeudor(List.of(deuda), DebtEvent.Type.portal_entered))
+                .thenReturn(List.of(ingreso));
+        assertEquals(cuando, servicio.listFor(empresa("77305118-6")).getFirst().accesoConfirmado());
     }
 
     @Test
