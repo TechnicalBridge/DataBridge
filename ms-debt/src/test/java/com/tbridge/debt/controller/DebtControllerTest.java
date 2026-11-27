@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -165,6 +166,17 @@ class DebtControllerTest {
         mvc.perform(get("/api/debts/9").header("Authorization", deudor()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+    }
+
+    @Test
+    void certificado_ajeno_responde_json_con_accept_pdf_o_json() throws Exception {
+        when(certificates.generate(any(), eq(9L))).thenThrow(new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+        for (MediaType aceptado : List.of(MediaType.APPLICATION_PDF, MediaType.APPLICATION_JSON)) {
+            mvc.perform(get("/api/debts/9/certificate").accept(aceptado).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+        }
     }
 
     @Test
