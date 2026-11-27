@@ -16,9 +16,10 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Salvo la integración de `ms-debt`, ninguna necesita base de datos ni internet**, así que
-corren en segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se
-reemplazan por un servidor HTTP local. Las de rendimiento no viven en `src/test/java`:
+código. **Las unitarias y de capa web no necesitan base de datos ni internet**: Transbank,
+Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local. Las pruebas de
+integración con MySQL de `ms-auth` (#416) y `ms-debt` (#413) usan Testcontainers en CI o
+`DB_TEST_URL` en local. Las de rendimiento no viven en `src/test/java`:
 están en `performance-tests/k6/` y se corren a mano contra una pila local.
 
 `ms-debt` tiene además `IntegracionControladoresTest`, que levanta el contexto completo contra un
