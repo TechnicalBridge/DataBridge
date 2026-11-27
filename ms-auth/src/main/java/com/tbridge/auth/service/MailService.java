@@ -343,7 +343,7 @@ public class MailService {
         }
         try {
             // Mantiene el proveedor y el renderizador de plantillas elegidos; no crea credenciales de acceso.
-            mailSender.send(armar(mailSender, destino.get(), escribir("cambio-correo", datos("codigo", codigo))));
+            mailSender.send(armar(mailSender, destino.get(), escribir("cambio-correo", datos("codigo", codigo), incrustaLogo), List.of()));
         } catch (RuntimeException fallo) {
             throw new com.tbridge.auth.exception.ApiException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo enviar la verificación de correo");
@@ -353,17 +353,19 @@ public class MailService {
     private Optional<String> entregarAvisoPrivado(String correo, String codigo) {
         String asunto = "Se modificó tu correo de contacto en DataBridge";
         //  El codigo para deshacer el cambio (#471), sin RUT, deuda, monto ni la direccion nueva.
-        var datosPlantilla = escribir("aviso-cambio-correo", Map.of("codigo", codigo, "portal", portal));
+        Map<String, String> datos = Map.of("codigo", codigo, "portal", portal);
         Optional<ModoDePrueba.Destino> destino;
         if (!alBuzonDePrueba && DominiosReservados.es(correo)) {
             if (buzonDeReservados != null) {
-                buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(correo, asunto, false), datosPlantilla));
+                //  El buzon de prueba es SMTP: el simbolo va dentro (#465).
+                buzonDeReservados.send(armar(buzonDeReservados, new ModoDePrueba.Destino(correo, asunto, false),
+                        escribir("aviso-cambio-correo", datos, true), List.of()));
                 return Optional.of(direccionDelBuzon);
             }
             destino = modo.desviar(correo, asunto);
         } else destino = modo.para(correo, asunto);
         if (destino.isEmpty() || (destino.get().desviado() && !topeDeDesvio.tomar())) return Optional.empty();
-        mailSender.send(armar(mailSender, destino.get(), datosPlantilla));
+        mailSender.send(armar(mailSender, destino.get(), escribir("aviso-cambio-correo", datos, incrustaLogo), List.of()));
         return Optional.of(destino.get().a());
     }
 
