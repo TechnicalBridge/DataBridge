@@ -223,7 +223,7 @@ function TarjetaDeuda({ deuda: d, i, toca, onCambio }) {
   const saldoAparte = !toca || toca.monto === null || Number(toca.monto) !== Number(saldo);
 
   return (
-    <article className={`card deuda aparece${toca ? " toca" : " lift"}`} style={{ "--i": i }}
+    <article className={`card deuda aparece${toca ? " toca" : ""}`} style={{ "--i": i }}
              aria-labelledby={`deuda-${d.id}`}>
       <div className="deuda-cab">
         <div>
