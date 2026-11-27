@@ -1,0 +1,20 @@
+Hola,
+
+[# th:if="${saldada}"]Con este pago, tu deuda con [(${acreedor})] quedó pagada por completo.[/][# th:unless="${saldada}"]Tu pago a [(${acreedor})] quedó abonado a tu deuda. Este es tu comprobante.[/]
+
+Monto pagado: [(${monto})][# th:if="${nota}"]
+[(${nota})][/]
+Folio: [(${folio})]
+[# th:each="fila : ${filas}"]
+[(${fila.nombre})]: [(${fila.valor})][/][# th:if="${queda}"]
+Queda por pagar: [(${queda})][/][# th:if="${saldada}"]
+Saldo: pagada por completo[/]
+
+[# th:if="${certificado}"]Te adjuntamos el comprobante en PDF y el certificado de deuda pagada. Guárdalos: son tu constancia ante [(${acreedor})].[/][# th:unless="${certificado}"]Te adjuntamos este comprobante en PDF. Guárdalo: es tu constancia ante [(${acreedor})].[/]
+
+Este correo no trae ningún enlace. Si quieres ver tus pagos, escribe tú la dirección del portal: [(${portal})].
+
+DataBridge
+
+--
+Te llegó porque pagaste en DataBridge una deuda con [(${acreedor})].

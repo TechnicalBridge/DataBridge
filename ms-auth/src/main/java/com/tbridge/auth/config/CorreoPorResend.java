@@ -5,7 +5,10 @@ import com.tbridge.auth.service.ResendDeliveryTelemetry;
 import jakarta.mail.Address;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +27,9 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,10 +81,44 @@ final class CorreoPorResend extends JavaMailSenderImpl {
             cuerpo.put("html", versiones[1] != null ? versiones[1]
                     : "<pre>" + HtmlUtils.htmlEscape(versiones[0] == null ? "" : versiones[0]) + "</pre>");
             if (mensaje.getHeader("Reply-To") != null) cuerpo.put("reply_to", direcciones(mensaje.getReplyTo()));
+            List<Map<String, Object>> adjuntos = new ArrayList<>();
+            adjuntos(mensaje, adjuntos);
+            if (!adjuntos.isEmpty()) cuerpo.put("attachments", adjuntos);
             return cuerpo;
         } catch (MessagingException | IOException e) {
             throw new MailSendException("No se pudo preparar el correo para Resend");
         }
+    }
+
+    /**
+     * Las imagenes que van dentro del correo, las que tienen {@code Content-ID}
+     * (el simbolo de DataBridge, #465): Resend las recibe como adjuntos con
+     * {@code content_id}, y el HTML las nombra con {@code cid:}. Y los
+     * adjuntos de verdad (los PDF del comprobante, #541), sin {@code content_id}.
+     */
+    static void adjuntos(Part parte, List<Map<String, Object>> salida) throws MessagingException, IOException {
+        //  Por el contenido y no por los encabezados: el correo llega aca sin saveChanges(), y hasta entonces
+        //  Content-Type no esta escrito (como en CorreoPorBrevo.versiones).
+        if (parte.getContent() instanceof Multipart partes) {
+            for (int i = 0; i < partes.getCount(); i++) {
+                adjuntos(partes.getBodyPart(i), salida);
+            }
+            return;
+        }
+        if (!(parte instanceof MimeBodyPart mime)) {
+            return;
+        }
+        boolean adjuntado = Part.ATTACHMENT.equalsIgnoreCase(mime.getDisposition());
+        if (mime.getContentID() == null && !adjuntado) {
+            return;
+        }
+        String id = mime.getContentID() == null ? null : mime.getContentID().replaceAll("^<|>$", "");
+        Map<String, Object> adjunto = new LinkedHashMap<>();
+        adjunto.put("filename", mime.getFileName() != null ? mime.getFileName() : id);
+        adjunto.put("content", Base64.getEncoder().encodeToString(mime.getInputStream().readAllBytes()));
+        adjunto.put("content_type", mime.getDataHandler().getContentType().split(";")[0].strip());
+        if (id != null) adjunto.put("content_id", id);
+        salida.add(adjunto);
     }
 
     private static List<String> direcciones(Address[] direcciones) {

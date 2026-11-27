@@ -18,9 +18,16 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -209,5 +216,74 @@ class InternalControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"canales\":[\"correo\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Falta el RUT"));
+    }
+
+    // ------------------------------------------------------------------
+    //  El comprobante de un pago (#541)
+    // ------------------------------------------------------------------
+
+    private static final String PDF = Base64.getEncoder().encodeToString("%PDF-1.4 un pdf".getBytes());
+
+    private static String comprobante(String adjuntos) {
+        return """
+                {"correo":"felipe.rojas@Correo.CL","folio":"57","monto":"$346.666","acreedor":"Patrimonio Inmuebles",
+                 "filas":[{"nombre":"Qué se pagó","valor":"Cuota 3 de 6"},{"nombre":"Medio de pago","valor":"Webpay"}],
+                 "saldada":false,"queda":"$693.332","adjuntos":%s}""".formatted(adjuntos);
+    }
+
+    @Test
+    void el_comprobante_pide_la_clave_interna() throws Exception {
+        mvc.perform(post("/internal/correo/comprobante").contentType(MediaType.APPLICATION_JSON)
+                        .content(comprobante("[{\"nombre\":\"comprobante-57.pdf\",\"contenido\":\"" + PDF + "\"}]")))
+                .andExpect(status().isUnauthorized());
+
+        verify(correo, never()).enviarComprobante(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void el_comprobante_sale_con_su_detalle_y_el_pdf() throws Exception {
+        mvc.perform(post("/internal/correo/comprobante").header("X-Internal-Key", "clave-interna-de-prueba")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(comprobante("[{\"nombre\":\"comprobante-57.pdf\",\"contenido\":\"" + PDF + "\"}]")))
+                .andExpect(status().isNoContent());
+
+        ArgumentCaptor<List<MailService.Adjunto>> adjuntos = ArgumentCaptor.captor();
+        verify(correo).enviarComprobante(eq("felipe.rojas@correo.cl"), eq("57"), eq("$346.666"), isNull(),
+                eq("Patrimonio Inmuebles"), eq(List.of(new MailService.Fila("Qué se pagó", "Cuota 3 de 6"),
+                        new MailService.Fila("Medio de pago", "Webpay"))), eq(false), eq("$693.332"), adjuntos.capture());
+        assertEquals("comprobante-57.pdf", adjuntos.getValue().getFirst().nombre());
+        assertEquals("%PDF-1.4 un pdf", new String(adjuntos.getValue().getFirst().contenido()));
+    }
+
+    @Test
+    void un_adjunto_que_no_es_pdf_o_con_otro_nombre_no_sale() throws Exception {
+        String noPdf = Base64.getEncoder().encodeToString("<html>no</html>".getBytes());
+        mvc.perform(post("/internal/correo/comprobante").header("X-Internal-Key", "clave-interna-de-prueba")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(comprobante("[{\"nombre\":\"comprobante-57.pdf\",\"contenido\":\"" + noPdf + "\"}]")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Un adjunto no es un PDF"));
+        mvc.perform(post("/internal/correo/comprobante").header("X-Internal-Key", "clave-interna-de-prueba")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(comprobante("[{\"nombre\":\"factura.exe\",\"contenido\":\"" + PDF + "\"}]")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/internal/correo/comprobante").header("X-Internal-Key", "clave-interna-de-prueba")
+                        .contentType(MediaType.APPLICATION_JSON).content(comprobante("[]")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Falta el comprobante"));
+
+        verify(correo, never()).enviarComprobante(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void si_el_comprobante_no_sale_responde_502_con_la_causa() throws Exception {
+        doThrow(new CorreoNoSalio("550 5.1.1 The email account that you tried to reach does not exist", true))
+                .when(correo).enviarComprobante(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
+
+        mvc.perform(post("/internal/correo/comprobante").header("X-Internal-Key", "clave-interna-de-prueba")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(comprobante("[{\"nombre\":\"comprobante-57.pdf\",\"contenido\":\"" + PDF + "\"}]")))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.causa").value("direccion"));
     }
 }

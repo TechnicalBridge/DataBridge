@@ -38,6 +38,10 @@ si hay un buzón de prueba configurado.
 
 ## Entrega y diagnóstico
 
+Cada correo lleva el símbolo de DataBridge como adjunto en línea (`attachments` con
+`content_id`), que el HTML nombra con `cid:logo-databridge` (#465). Así se ve aunque el
+cliente bloquee las imágenes de afuera. El panel de Resend no lo muestra en la vista previa.
+
 `mail_acceptance` registra la duración de la llamada y el ID opaco.
 `resend_acceptances` registra la hora del 2xx. `resend_delivery_events` registra
 `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`,

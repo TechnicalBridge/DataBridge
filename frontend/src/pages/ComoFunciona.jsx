@@ -56,7 +56,7 @@ function ParaDeudores() {
             ["Entras con tu RUT y el código", "El código sirve una vez. Los avisos de campaña duran 24 horas; los códigos pedidos desde el portal, 15 minutos."],
             ["Ves lo que debes", "Cada deuda con su monto, a quién se la debes y los meses que incluye."],
             ["Pagas como te acomode", "Todo de una vez, o en un convenio de 3 a 24 cuotas. En convenio puedes pagar una cuota o varias juntas, siempre desde la que vence primero."],
-            ["Queda pagada", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. Cada pago tiene su comprobante y, al terminar, descargas el certificado de deuda pagada."],
+            ["Queda pagada", "Cuando la pasarela confirma el pago, se abona a tu deuda y la empresa recibe el aviso. El comprobante de cada pago te llega al correo y, al terminar, también el certificado de deuda pagada. Los dos quedan además en el portal."],
           ]} />
         </div>
 

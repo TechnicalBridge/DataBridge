@@ -24,11 +24,13 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -121,7 +123,11 @@ class MailServiceTest {
 
     /** Lo que sale en un correo, leido del mensaje que recibio el servidor. */
     record Enviado(String de, List<String> para, String responderA, String asunto, String tipo, List<String> partes,
-                   String texto, String html) {
+                   String texto, String html, List<Incrustada> incrustadas) {
+    }
+
+    /** Una imagen dentro del correo: su Content-ID, su tipo, si va en linea y sus bytes. */
+    record Incrustada(String id, String tipo, String disposicion, byte[] bytes) {
     }
 
     private Enviado enviado() {
@@ -140,6 +146,7 @@ class MailServiceTest {
             String[] responder = mensaje.getHeader("Reply-To");
             Multipart versiones = (Multipart) mensaje.getContent();
             List<String> partes = new ArrayList<>();
+            List<Incrustada> incrustadas = new ArrayList<>();
             String texto = null;
             String html = null;
             for (int i = 0; i < versiones.getCount(); i++) {
@@ -149,11 +156,23 @@ class MailServiceTest {
                     texto = (String) parte.getContent();
                 } else if (parte.isMimeType("text/html")) {
                     html = (String) parte.getContent();
+                } else if (parte.isMimeType("multipart/related")) {
+                    //  El HTML con el simbolo dentro (#465): primero el HTML, despues las imagenes.
+                    Multipart juntas = (Multipart) parte.getContent();
+                    for (int j = 0; j < juntas.getCount(); j++) {
+                        var dentro = (jakarta.mail.internet.MimeBodyPart) juntas.getBodyPart(j);
+                        if (dentro.isMimeType("text/html")) {
+                            html = (String) dentro.getContent();
+                        } else {
+                            incrustadas.add(new Incrustada(dentro.getContentID(), dentro.getContentType().split(";")[0],
+                                    dentro.getDisposition(), dentro.getInputStream().readAllBytes()));
+                        }
+                    }
                 }
             }
             return new Enviado(((InternetAddress) mensaje.getFrom()[0]).toUnicodeString(), para,
                     responder == null ? null : InternetAddress.parseHeader(responder[0], false)[0].getAddress(),
-                    mensaje.getSubject(), mensaje.getContentType().split(";")[0], partes, texto, html);
+                    mensaje.getSubject(), mensaje.getContentType().split(";")[0], partes, texto, html, incrustadas);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -419,9 +438,38 @@ class MailServiceTest {
         Enviado mensaje = enviado();
         assertEquals("multipart/alternative", mensaje.tipo());
         //  En multipart/alternative el cliente muestra la ultima que entiende:
-        //  el que no muestra HTML se queda con el texto.
-        assertEquals(List.of("text/plain", "text/html"), mensaje.partes());
+        //  el que no muestra HTML se queda con el texto. El HTML va junto al
+        //  simbolo, en un multipart/related, para que el texto no vea un adjunto (#465).
+        assertEquals(List.of("text/plain", "multipart/related"), mensaje.partes());
         assertEquals("Tu código de acceso", mensaje.asunto());
+    }
+
+    @Test
+    void el_simbolo_va_dentro_del_correo_y_se_ve_aunque_el_portal_sea_localhost() {
+        correo("mailpit").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        Enviado mensaje = enviado();
+        assertTrue(mensaje.html().contains("src=\"cid:logo-databridge\""), mensaje.html());
+        assertFalse(mensaje.html().contains("localhost:8080/logo.png"), "no se carga del portal");
+        assertEquals(1, mensaje.incrustadas().size());
+        Incrustada simbolo = mensaje.incrustadas().get(0);
+        assertEquals("<logo-databridge>", simbolo.id());
+        assertEquals("image/png", simbolo.tipo());
+        assertEquals("inline", simbolo.disposicion(), "en linea, no como adjunto");
+        //  Es el mismo logo.png del portal.
+        assertTrue(Arrays.equals(MailService.LOGO_INCRUSTADO, simbolo.bytes()));
+        assertEquals((byte) 0x89, simbolo.bytes()[0]);
+        assertEquals("PNG", new String(simbolo.bytes(), 1, 3, StandardCharsets.US_ASCII));
+    }
+
+    @Test
+    void por_brevo_el_simbolo_se_carga_del_portal_porque_su_api_no_deja_incrustarlo() {
+        porBrevo("", "").enviarCodigo("felipe.rojas@correo.cl", "K7M2QX", "Patrimonio Inmuebles");
+
+        Enviado mensaje = enviado();
+        assertEquals(List.of("text/plain", "text/html"), mensaje.partes());
+        assertTrue(mensaje.html().contains("src=\"http://localhost:8080/logo.png\""), mensaje.html());
+        assertTrue(mensaje.incrustadas().isEmpty());
     }
 
     @Test
@@ -546,10 +594,14 @@ class MailServiceTest {
             assertTrue(mensaje.html().startsWith("<!DOCTYPE html>"), mensaje.asunto());
             assertTrue(mensaje.html().contains("<html lang=\"es\">"));
             assertTrue(mensaje.html().contains("@media (prefers-color-scheme: dark)"), "con su tema oscuro");
-            //  Una sola imagen, el simbolo del portal, y el nombre escrito: si se bloquea, la marca se lee igual (#274).
+            //  Una sola imagen, el simbolo dentro del correo, y el nombre escrito: si no se ve, la marca se lee
+            //  igual (#274, #465). Y el pie dice quien escribe y por que llego.
             assertEquals(1, mensaje.html().split("<img", -1).length - 1, "solo el logo: " + mensaje.asunto());
-            assertTrue(mensaje.html().contains("src=\"http://localhost:8080/logo.png\""), mensaje.asunto());
+            assertTrue(mensaje.html().contains("src=\"cid:logo-databridge\""), mensaje.asunto());
+            assertEquals(1, mensaje.incrustadas().size(), mensaje.asunto());
             assertTrue(mensaje.html().contains(">DataBridge</td>"), "el nombre, como texto");
+            assertTrue(mensaje.html().contains("Te escribe"), "el pie: " + mensaje.asunto());
+            assertTrue(mensaje.texto().contains("Te llegó porque"), "el porque, tambien en texto: " + mensaje.asunto());
         }
     }
 
@@ -566,13 +618,13 @@ class MailServiceTest {
     }
 
     /**
-     * El HTML sin la direccion del logo, la unica que puede llevar {@code http}:
-     * es una imagen, no un enlace, y es la misma para todos (no dice quien abrio
-     * el correo). Se saca una sola vez: si hubiera otra, la prueba la ve (#274).
+     * El HTML sin el simbolo: va dentro del correo ({@code cid:}, #465), asi que
+     * no trae ninguna direccion. Se saca una sola vez: si hubiera otra imagen,
+     * la prueba la ve.
      */
     private static String sinElLogo(String html) {
-        assertTrue(html.contains(" src=\"http://localhost:8080/logo.png\""), "con el logo");
-        return html.replaceFirst(" src=\"http://localhost:8080/logo\\.png\"", "");
+        assertTrue(html.contains(" src=\"cid:logo-databridge\""), "con el logo");
+        return html.replaceFirst(" src=\"cid:logo-databridge\"", "");
     }
 
     @Test
@@ -654,6 +706,9 @@ class MailServiceTest {
         Enviado carta = leer(mensaje.getValue());
         assertEquals("camila.reyes@example.com", carta.para().get(0), "llega a su direccion, en el buzon");
         assertEquals("Tu código de acceso", carta.asunto());
+        //  El buzon de prueba es SMTP: aunque el proveedor sea Brevo, aqui el simbolo va dentro.
+        assertTrue(carta.html().contains("src=\"cid:logo-databridge\""), carta.html());
+        assertEquals(1, carta.incrustadas().size());
         verify(smtp, never()).send(any(MimeMessage.class));
     }
 

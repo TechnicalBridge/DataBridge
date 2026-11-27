@@ -34,7 +34,7 @@ const TABLONES = [
 /** Por que es seguro pagar aqui: cada punto es algo que el sistema hace hoy. */
 const GARANTIAS = [
   ["El monto lo calcula DataBridge", "Sale de la deuda registrada por la empresa. Nadie lo escribe a mano en el camino."],
-  ["El pago se abona cuando la pasarela lo confirma", "Y de cada pago queda un comprobante. Al terminar, descargas el certificado de deuda pagada."],
+  ["El pago se abona cuando la pasarela lo confirma", "Y el comprobante de cada pago te llega al correo. Al terminar, también el certificado de deuda pagada."],
   ["Si no reconoces una deuda, la reclamas", "Desde el mismo portal. Mientras la empresa la revisa, no se te cobra."],
 ];
 

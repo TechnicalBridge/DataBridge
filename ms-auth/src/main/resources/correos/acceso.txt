@@ -14,3 +14,8 @@ Al usar el código o el enlace, el otro deja de servir.
 [/]
 
 Si no lo pediste, ignora este correo.
+
+DataBridge
+
+--
+Te llegó porque se pidió acceso a DataBridge con tus datos.

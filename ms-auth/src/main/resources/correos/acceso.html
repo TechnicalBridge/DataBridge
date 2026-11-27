@@ -1,32 +1,52 @@
 <!DOCTYPE html>
+<!--/*
+  El codigo que pide alguien para entrar, con o sin el enlace de respaldo.
+  Mismo estilo que los demas (#465): el codigo grande y facil de copiar, y el
+  enlace como boton, con la direccion escrita por si el boton no funciona.
+*/-->
 <html xmlns:th="http://www.thymeleaf.org"
       th:replace="~{base.html :: carta('Tu código de acceso', |Tu acceso a DataBridge, válido por ${dura}.|, ~{::contenido}, ~{::pie})}">
 <body>
 <div th:fragment="contenido">
-  <p class="tinta-2" style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#4b453c;">
-    Entra a <strong th:text="${portal}" style="overflow-wrap:anywhere;">localhost:8080</strong>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Entra a <strong class="tinta" style="color:#2e2a24;overflow-wrap:anywhere;word-break:break-word;" th:text="${portal}">localhost:8080</strong>
     con tu RUT o correo y este código:
   </p>
-  <p class="caja" style="margin:20px 0;padding:20px 12px;background:#e4efe2;border-radius:8px;text-align:center;">
-    <strong class="codigo" style="font-family:monospace;font-size:32px;line-height:1.2;color:#2f6140;"
-            th:text="${codigo}">K7M2QX</strong>
-  </p>
-  <p class="tinta-2" style="font-size:15px;line-height:1.5;color:#4b453c;">
-    Vence en <strong th:text="${dura}">15 minutos</strong> y sirve una sola vez. No lo compartas.
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0;">
+    <tr>
+      <td class="caja" align="center" bgcolor="#e4efe2" style="background-color:#e4efe2;border-radius:12px;padding:20px 12px;">
+        <span class="codigo" style="font-family:ui-monospace,'Cascadia Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:7px;color:#2f6140;-webkit-user-select:all;user-select:all;"
+              th:text="${codigo}">K7M2QX</span>
+      </td>
+    </tr>
+  </table>
+  <p class="tinta-2" style="margin:0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Vence en <strong class="tinta" style="color:#2e2a24;white-space:nowrap;" th:text="${dura}">15 minutos</strong>
+    y sirve una sola vez. No lo compartas.
   </p>
   <div th:if="${url != null}">
-    <p class="tinta-2" style="font-size:15px;line-height:1.5;color:#4b453c;">
+    <p class="tinta-2" style="margin:20px 0 0 0;font-size:16px;line-height:1.55;color:#4b453c;">
       También puedes entrar con este enlace de respaldo. Al usar el código o el enlace, el otro deja de servir.
     </p>
-    <p style="margin:24px 0;">
-      <a th:href="${url}" class="boton boton-texto"
-         style="display:inline-block;padding:13px 24px;border-radius:8px;background:#3e7b4f;color:#ffffff;font-weight:700;text-decoration:none;">Entrar a DataBridge</a>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;">
+      <tr>
+        <td class="boton" bgcolor="#3e7b4f" style="background-color:#3e7b4f;border-radius:10px;padding:13px 26px;">
+          <a class="boton-texto" th:href="${url}" href="#"
+             style="font-family:'Source Sans 3','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.2;font-weight:700;color:#fffdf8;text-decoration:none;">Entrar a DataBridge</a>
+        </td>
+      </tr>
+    </table>
+    <p class="tenue" style="margin:0;font-size:13px;line-height:1.5;color:#6f665b;">
+      Si el botón no funciona, copia esta dirección en tu navegador:<br>
+      <span class="tinta-2" style="color:#4b453c;word-break:break-all;" th:text="${url}">https://databridge.cl/magic?token=...</span>
     </p>
-    <p class="tenue" style="font-size:13px;line-height:1.5;color:#7c7266;overflow-wrap:anywhere;word-break:break-all;"
-       th:text="${url}">Enlace de respaldo</p>
   </div>
-  <p class="tenue" style="font-size:13px;line-height:1.5;color:#7c7266;">Si no lo pediste, ignora este correo.</p>
+  <p class="tinta-2" style="margin:20px 0 0 0;font-size:16px;line-height:1.55;color:#4b453c;">
+    Si no lo pediste, ignora este correo.
+  </p>
 </div>
-<p th:fragment="pie" class="tenue" style="margin:0;color:#7c7266;">Se solicitó acceso a DataBridge con tus datos.</p>
+<p th:fragment="pie" class="tenue" style="margin:0;color:#6f665b;">
+  Te llegó porque se pidió acceso a DataBridge con tus datos.
+</p>
 </body>
 </html>
