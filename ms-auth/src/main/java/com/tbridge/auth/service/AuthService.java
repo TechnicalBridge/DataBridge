@@ -188,7 +188,7 @@ public class AuthService {
         //  fueran distintos, se podria averiguar que RUT tienen deuda.
         if (registro == null || registro.getConsumedAt() != null) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
         }
         if (registro.getAttempts() >= registro.getMaxAttempts()) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.exhausted, ipHash);
@@ -197,13 +197,13 @@ public class AuthService {
         }
         if (Instant.now().isAfter(registro.getExpiresAt())) {
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.expired, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo expiro. Pide uno nuevo.");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código expiró. Pide uno nuevo.");
         }
         if (!Hash.igualesEnTiempoConstante(registro.getCodeHash(), huella(rut, codigo))) {
             registro.fallo();
             codigos.save(registro);
             anotar(rut, AccessLog.Method.code, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "El codigo no corresponde a ese RUT");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "El código no corresponde a ese RUT");
         }
 
         deudas.exigirCredencialVigente(rut, registro.getIssuedAt(), registro.getContactChangedAt());
@@ -339,7 +339,7 @@ public class AuthService {
         if (enlace == null || !enlace.isLinkEnabled() || !enlace.vigente()) {
             anotar(enlace == null ? null : enlace.getDebtorRut(),
                     AccessLog.Method.magic_link, AccessLog.Outcome.invalid, ipHash);
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace invalido o vencido");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Enlace inválido o vencido");
         }
         return abrirSesionDePedido(enlace, AccessLog.Method.magic_link, ipHash);
     }
@@ -408,7 +408,7 @@ public class AuthService {
         StaffUser staff = personal.findByEmailIgnoreCase(renovada.email()).orElse(null);
         if (staff == null || !staff.habilitado() || rolDeSesion(staff) != renovada.role()) {
             sesiones.revocarFamilia(renovada.familia());
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no esta habilitado");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Ese acceso ya no está habilitado");
         }
         //  La gente de una empresa suspendida pierde la sesion en cuanto vence su JWT (#152).
         if (!staff.esAdmin() && sinEmpresaActiva(staff)) {
