@@ -149,7 +149,7 @@ export function FormPersona({ prefijo, boton, alGuardar, ejemplo = "nombre@empre
       <div className="field">
         <label htmlFor={`${prefijo}-nombre`}>Nombre</label>
         <input id={`${prefijo}-nombre`} value={nombre} maxLength={160} autoComplete="off"
-               onChange={(e) => setNombre(e.target.value)} placeholder="Ana Soto" required />
+               onChange={(e) => setNombre(e.target.value)} placeholder="Nombre y apellido" required />
       </div>
       <div className="field">
         <label htmlFor={`${prefijo}-correo`}>Correo</label>

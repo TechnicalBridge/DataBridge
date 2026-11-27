@@ -251,13 +251,18 @@ export default function Landing() {
           <div className="orilla-deudor">
             <h1 id="titulo-portada" className="aparece">Ponte al día, sin llamadas ni filas</h1>
             <p className="portada-bajada aparece" style={{ "--i": 1 }}>
-              Entras con tu RUT y el código que te llegó por correo, ves cuánto debes y a quién, y pagas todo de una
-              vez o en cuotas.
+              Entras con tu RUT y el código que te llegó por correo. Ves cuánto debes y a quién, sea un arriendo, un
+              arancel o un tratamiento, y decides si pagas todo de una vez o en cuotas.
             </p>
             <Link className="btn btn-primary portada-cta aparece" style={{ "--i": 2 }} to="/login">
               Tengo un código de acceso
               <IconoFlecha size={18} />
             </Link>
+            <p className="hint aparece" style={{ "--i": 3 }}>
+              Los avisos de cobranza no incluyen montos ni enlaces para pagar. Si pides un acceso de respaldo,
+              puede llegar un enlace de un solo uso. Si recibes uno que no pediste, no lo abras: escribe tú la
+              dirección del portal.
+            </p>
           </div>
 
           <Puente />
