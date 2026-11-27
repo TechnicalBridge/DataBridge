@@ -21,7 +21,11 @@ public class CertificateService {
     }
 
     public byte[] generate(JwtPrincipal user, Long debtId) {
-        Debt debt = debts.requireVisible(user, debtId);
+        return de(debts.requireVisible(user, debtId));
+    }
+
+    /** El certificado de una deuda, sin preguntar quien lo pide: para el correo al deudor (#541). */
+    public byte[] de(Debt debt) {
         //  Por estado, no solo por saldo: una deuda retirada tambien queda en
         //  cero (sus cuotas se anulan), y certificar que se PAGO algo que el
         //  acreedor retiro, o que se disputo, seria un documento falso.

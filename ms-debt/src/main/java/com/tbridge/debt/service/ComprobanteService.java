@@ -33,8 +33,23 @@ public class ComprobanteService {
         this.historial = historial;
     }
 
+    /**
+     * Lo que dice el comprobante, ya escrito: lo mismo va en el PDF y en el
+     * correo que le llega al deudor (#541).
+     *
+     * @param pagadoPor quien pago, con su RUT. El correo no lo repite: le llega a el.
+     * @param filas     el detalle, sin {@code pagadoPor}.
+     */
+    public record Comprobante(Long folio, String monto, String nota, String acreedor, String pagadoPor,
+                              List<String[]> filas) {
+    }
+
     public byte[] generar(JwtPrincipal user, Long pagoId) {
-        DebtEvent evento = historial.pago(user, pagoId);
+        return pdf(armar(historial.pago(user, pagoId)));
+    }
+
+    /** El comprobante de un pago ya abonado, sin preguntar quien lo pide: para el correo al deudor. */
+    public Comprobante armar(DebtEvent evento) {
         PagoResponse pago = historial.respuesta(evento);
         Debt deuda = evento.getDebt();
 
@@ -45,8 +60,6 @@ public class ComprobanteService {
         }
 
         List<String[]> filas = new ArrayList<>();
-        filas.add(new String[]{"Pagado por", deuda.getDebtor().getFullName() + ", RUT "
-                + DocumentoPdf.rut(deuda.getDebtor().getRut())});
         filas.add(new String[]{"Acreedor", deuda.getCreditor().getTradeName() + ", RUT "
                 + DocumentoPdf.rut(deuda.getCreditor().getRut())});
         filas.add(new String[]{"Deuda", deuda.getConcept() + ", contrato " + deuda.getExternalId()});
@@ -66,13 +79,22 @@ public class ComprobanteService {
                     + (pago.referencia() == null ? "" : ", operación " + pago.referencia())});
         }
 
+        return new Comprobante(pago.id(), DocumentoPdf.dinero(pago.monto(), pago.moneda()), nota,
+                deuda.getCreditor().getTradeName(),
+                deuda.getDebtor().getFullName() + ", RUT " + DocumentoPdf.rut(deuda.getDebtor().getRut()), filas);
+    }
+
+    public byte[] pdf(Comprobante comprobante) {
+        List<String[]> filas = new ArrayList<>();
+        filas.add(new String[]{"Pagado por", comprobante.pagadoPor()});
+        filas.addAll(comprobante.filas());
         try {
             return new DocumentoPdf()
-                    .encabezado("Comprobante de pago", "Folio " + pago.id())
-                    .destacado("Monto pagado", DocumentoPdf.dinero(pago.monto(), pago.moneda()), nota)
+                    .encabezado("Comprobante de pago", "Folio " + comprobante.folio())
+                    .destacado("Monto pagado", comprobante.monto(), comprobante.nota())
                     .datos(filas.toArray(String[][]::new))
                     .pie("DataBridge emite este comprobante con el registro del pago. "
-                            + deuda.getCreditor().getTradeName() + " ya fue avisado.")
+                            + comprobante.acreedor() + " ya fue avisado.")
                     .cerrar();
         } catch (Exception e) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo generar el comprobante");

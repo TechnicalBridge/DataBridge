@@ -112,7 +112,7 @@ class DataSeederTest {
                 .filter(e -> e.getType() == i.getArgument(0)).toList());
         DescuentoService descuentos = new DescuentoService(mandatos, json);
         servicio = new DebtService(deudas, deudores, organizaciones, cargos, cuotas, convenios, eventos,
-                contactos, new RepactationService(), avisos, json, descuentos);
+                contactos, new RepactationService(), avisos, json, descuentos, publicador);
         CarteraIntakeService ingesta = new CarteraIntakeService(organizaciones, mandatos, campanas, lotes,
                 deudores, deudas, cargos, cuotas, eventos, json, avisos, publicador, 30, new BigDecimal("3.0"));
         seeder = construir(ingesta, descuentos, true);

@@ -112,4 +112,67 @@ class AuthClientTest {
         assertEquals(300, fallo.motivo().length());
         assertTrue(fallo.motivo().endsWith("..."));
     }
+
+    // ------------------------------------------------------------------
+    //  El comprobante de un pago (#541)
+    // ------------------------------------------------------------------
+
+    private final java.util.concurrent.atomic.AtomicReference<String> recibido = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** Un ms-auth de mentira para el comprobante: anota lo que recibe y responde siempre lo mismo. */
+    private AuthClient comprobanteRespondiendo(int codigo, String cuerpo) throws IOException {
+        servidor = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        servidor.createContext("/internal/correo/comprobante", intercambio -> {
+            recibido.set(intercambio.getRequestHeaders().getFirst("X-Internal-Key") + "\n"
+                    + new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] bytes = cuerpo.getBytes(StandardCharsets.UTF_8);
+            intercambio.getResponseHeaders().add("Content-Type", "application/json");
+            intercambio.sendResponseHeaders(codigo, bytes.length == 0 ? -1 : bytes.length);
+            try (OutputStream salida = intercambio.getResponseBody()) {
+                salida.write(bytes);
+            }
+        });
+        servidor.start();
+        return new AuthClient("http://127.0.0.1:" + servidor.getAddress().getPort(), "clave-interna");
+    }
+
+    private static AuthClient.PedidoDeComprobante comprobante() {
+        return new AuthClient.PedidoDeComprobante("felipe.rojas@correo.cl", "57", "$346.666", null,
+                "Patrimonio Inmuebles", List.of(new AuthClient.Fila("Qué se pagó", "Cuota 3 de 6")), false,
+                "$693.332", List.of(new AuthClient.Adjunto("comprobante-57.pdf", "%PDF-1.4".getBytes())));
+    }
+
+    @Test
+    void el_comprobante_va_con_la_clave_interna_y_el_pdf_en_base64() throws Exception {
+        comprobanteRespondiendo(204, "").enviarComprobante(comprobante());
+
+        String[] partes = recibido.get().split("\n", 2);
+        assertEquals("clave-interna", partes[0]);
+        var cuerpo = new com.fasterxml.jackson.databind.ObjectMapper().readTree(partes[1]);
+        assertEquals("57", cuerpo.get("folio").asText());
+        assertEquals("$693.332", cuerpo.get("queda").asText());
+        assertEquals("Cuota 3 de 6", cuerpo.at("/filas/0/valor").asText());
+        assertEquals("comprobante-57.pdf", cuerpo.at("/adjuntos/0/nombre").asText());
+        assertEquals("%PDF-1.4", new String(java.util.Base64.getDecoder()
+                .decode(cuerpo.at("/adjuntos/0/contenido").asText())));
+    }
+
+    @Test
+    void un_comprobante_que_no_sale_por_la_direccion_es_un_correo_que_no_salio() throws IOException {
+        AuthClient auth = comprobanteRespondiendo(502, """
+                {"error":"550 5.1.1 Recipient address rejected","causa":"direccion"}""");
+
+        CorreoNoSalio fallo = assertThrows(CorreoNoSalio.class, () -> auth.enviarComprobante(comprobante()));
+
+        assertTrue(fallo.deLaDireccion());
+    }
+
+    @Test
+    void si_ms_auth_no_esta_el_comprobante_no_salio_por_el_servicio() throws IOException {
+        AuthClient auth = new AuthClient("http://127.0.0.1:9", "clave-interna");
+
+        ApiException fallo = assertThrows(ApiException.class, () -> auth.enviarComprobante(comprobante()));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, fallo.getStatus());
+    }
 }

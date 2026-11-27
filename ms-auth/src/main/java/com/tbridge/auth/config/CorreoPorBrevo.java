@@ -27,6 +27,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -41,8 +42,8 @@ import java.util.regex.Pattern;
  * SMTP de salida. Para el resto del servicio es un {@link JavaMailSender} mas: el
  * modo de prueba, el correo de prueba y el manejo de lo que no sale siguen
  * igual, porque viven en {@code MailService}, encima de esto. De cada correo
- * toma el remitente, los destinatarios, el asunto y sus versiones en texto y
- * en HTML, y se los manda a Brevo en el JSON que pide.
+ * toma el remitente, los destinatarios, el asunto, sus versiones en texto y
+ * en HTML y sus adjuntos, y se los manda a Brevo en el JSON que pide.
  *
  * <p>Lo que no sale se distingue como en SMTP. Si Brevo rechaza al
  * destinatario, es un {@link MailParseException}, y la culpa es de la
@@ -116,7 +117,7 @@ public class CorreoPorBrevo implements JavaMailSender {
                 para.add(destinatario(destinatario));
             }
             enviar(cuerpo(remitente(mensaje.getFrom()), para, mensaje.getSubject(), mensaje.getText(), null,
-                    mensaje.getReplyTo()));
+                    mensaje.getReplyTo(), List.of()));
         }
     }
 
@@ -166,16 +167,18 @@ public class CorreoPorBrevo implements JavaMailSender {
         try {
             String[] versiones = new String[2];
             versiones(mensaje, versiones);
-            return cuerpo(de, para, mensaje.getSubject(), versiones[0], versiones[1], responderA(mensaje));
+            List<Map<String, Object>> adjuntos = new ArrayList<>();
+            adjuntos(mensaje, adjuntos);
+            return cuerpo(de, para, mensaje.getSubject(), versiones[0], versiones[1], responderA(mensaje), adjuntos);
         } catch (MessagingException | IOException e) {
             //  Sin la causa, como el remitente: el correo lo arma DataBridge.
             throw new MailSendException("No se pudo leer el correo para Brevo: " + e.getMessage());
         }
     }
 
-    /** El JSON que pide Brevo: el remitente con su nombre, los destinatarios, el asunto y el cuerpo. */
+    /** El JSON que pide Brevo: el remitente con su nombre, los destinatarios, el asunto, el cuerpo y los adjuntos. */
     private String cuerpo(InternetAddress de, List<String> para, String asunto, String texto, String html,
-                          String responderA) {
+                          String responderA, List<Map<String, Object>> adjuntos) {
         Map<String, Object> cuerpo = new LinkedHashMap<>();
         cuerpo.put("sender", persona(de));
         List<Map<String, Object>> destinatarios = new ArrayList<>();
@@ -194,6 +197,9 @@ public class CorreoPorBrevo implements JavaMailSender {
                         + HtmlUtils.htmlEscape(texto == null ? "" : texto) + "</div>");
         if (responderA != null && !responderA.isBlank()) {
             cuerpo.put("replyTo", Map.of("email", responderA.strip()));
+        }
+        if (!adjuntos.isEmpty()) {
+            cuerpo.put("attachment", adjuntos);
         }
         try {
             return json.writeValueAsString(cuerpo);
@@ -220,6 +226,25 @@ public class CorreoPorBrevo implements JavaMailSender {
             if (cual >= 0 && versiones[cual] == null) {
                 versiones[cual] = texto;
             }
+        }
+    }
+
+    /**
+     * Los adjuntos del correo (los PDF del comprobante, #541), como los pide
+     * Brevo: nombre y contenido en base64. La imagen incrustada no cuenta: por
+     * Brevo el simbolo se carga del portal.
+     */
+    static void adjuntos(Part parte, List<Map<String, Object>> salida) throws MessagingException, IOException {
+        Object contenido = parte.getContent();
+        if (contenido instanceof Multipart partes) {
+            for (int i = 0; i < partes.getCount(); i++) {
+                adjuntos(partes.getBodyPart(i), salida);
+            }
+        } else if (Part.ATTACHMENT.equalsIgnoreCase(parte.getDisposition()) && parte.getFileName() != null) {
+            Map<String, Object> adjunto = new LinkedHashMap<>();
+            adjunto.put("name", parte.getFileName());
+            adjunto.put("content", Base64.getEncoder().encodeToString(parte.getInputStream().readAllBytes()));
+            salida.add(adjunto);
         }
     }
 

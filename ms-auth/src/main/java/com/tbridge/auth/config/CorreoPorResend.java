@@ -81,9 +81,9 @@ final class CorreoPorResend extends JavaMailSenderImpl {
             cuerpo.put("html", versiones[1] != null ? versiones[1]
                     : "<pre>" + HtmlUtils.htmlEscape(versiones[0] == null ? "" : versiones[0]) + "</pre>");
             if (mensaje.getHeader("Reply-To") != null) cuerpo.put("reply_to", direcciones(mensaje.getReplyTo()));
-            List<Map<String, Object>> incrustadas = new ArrayList<>();
-            incrustadas(mensaje, incrustadas);
-            if (!incrustadas.isEmpty()) cuerpo.put("attachments", incrustadas);
+            List<Map<String, Object>> adjuntos = new ArrayList<>();
+            adjuntos(mensaje, adjuntos);
+            if (!adjuntos.isEmpty()) cuerpo.put("attachments", adjuntos);
             return cuerpo;
         } catch (MessagingException | IOException e) {
             throw new MailSendException("No se pudo preparar el correo para Resend");
@@ -93,26 +93,31 @@ final class CorreoPorResend extends JavaMailSenderImpl {
     /**
      * Las imagenes que van dentro del correo, las que tienen {@code Content-ID}
      * (el simbolo de DataBridge, #465): Resend las recibe como adjuntos con
-     * {@code content_id}, y el HTML las nombra con {@code cid:}.
+     * {@code content_id}, y el HTML las nombra con {@code cid:}. Y los
+     * adjuntos de verdad (los PDF del comprobante, #541), sin {@code content_id}.
      */
-    static void incrustadas(Part parte, List<Map<String, Object>> salida) throws MessagingException, IOException {
+    static void adjuntos(Part parte, List<Map<String, Object>> salida) throws MessagingException, IOException {
         //  Por el contenido y no por los encabezados: el correo llega aca sin saveChanges(), y hasta entonces
         //  Content-Type no esta escrito (como en CorreoPorBrevo.versiones).
         if (parte.getContent() instanceof Multipart partes) {
             for (int i = 0; i < partes.getCount(); i++) {
-                incrustadas(partes.getBodyPart(i), salida);
+                adjuntos(partes.getBodyPart(i), salida);
             }
             return;
         }
-        if (!(parte instanceof MimeBodyPart mime) || mime.getContentID() == null) {
+        if (!(parte instanceof MimeBodyPart mime)) {
             return;
         }
-        String id = mime.getContentID().replaceAll("^<|>$", "");
+        boolean adjuntado = Part.ATTACHMENT.equalsIgnoreCase(mime.getDisposition());
+        if (mime.getContentID() == null && !adjuntado) {
+            return;
+        }
+        String id = mime.getContentID() == null ? null : mime.getContentID().replaceAll("^<|>$", "");
         Map<String, Object> adjunto = new LinkedHashMap<>();
         adjunto.put("filename", mime.getFileName() != null ? mime.getFileName() : id);
         adjunto.put("content", Base64.getEncoder().encodeToString(mime.getInputStream().readAllBytes()));
         adjunto.put("content_type", mime.getDataHandler().getContentType().split(";")[0].strip());
-        adjunto.put("content_id", id);
+        if (id != null) adjunto.put("content_id", id);
         salida.add(adjunto);
     }
 

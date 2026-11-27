@@ -35,6 +35,7 @@ import com.tbridge.debt.repository.RepactationRepository;
 import com.tbridge.debt.repository.UltimoContacto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -94,6 +95,7 @@ public class DebtService {
     private final EventosService eventos;
     private final ObjectMapper json;
     private final DescuentoService descuentos;
+    private final ApplicationEventPublisher avisos;
 
     public DebtService(
             DebtRepository debts,
@@ -107,7 +109,8 @@ public class DebtService {
             RepactationService repactation,
             EventosService eventos,
             ObjectMapper json,
-            DescuentoService descuentos
+            DescuentoService descuentos,
+            ApplicationEventPublisher avisos
     ) {
         this.debts = debts;
         this.debtors = debtors;
@@ -121,6 +124,7 @@ public class DebtService {
         this.eventos = eventos;
         this.json = json;
         this.descuentos = descuentos;
+        this.avisos = avisos;
     }
 
     // ------------------------------------------------------------------
@@ -728,8 +732,10 @@ public class DebtService {
                 .conReferencia(referencia)
                 .conDetalle(detalleDelPago(deuda, aviso, vigentes, pagadas));
         aplicado.setOccurredAt(pagadoEn);
-        events.save(aplicado);
+        Long pagoId = events.save(aplicado).getId();
         eventos.publicar(deuda, EventosService.PAGO_CONFIRMADO, datosDelPago(deuda, aviso, moneda, pagadoEn), pagadoEn);
+        //  El comprobante por correo sale despues del commit (#541): si esto se deshace, no sale.
+        avisos.publishEvent(new ComprobantePorCorreo.PagoAplicado(pagoId));
 
         if (saldo(deuda).compareTo(BigDecimal.ZERO) == 0) {
             deuda.setStatus(Debt.Status.paid);
