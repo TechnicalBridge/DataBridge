@@ -2,10 +2,12 @@ package com.tbridge.debt.controller;
 
 import com.tbridge.debt.config.OpenApiConfig;
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
+import com.tbridge.debt.dto.request.CorregirEmpresaRequest;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.AvisosResponse;
 import com.tbridge.debt.dto.response.BitacoraResponse;
 import com.tbridge.debt.dto.response.ComisionesResponse;
+import com.tbridge.debt.dto.response.ContactoEstadoResponse;
 import com.tbridge.debt.dto.response.CampanaAdminResponse;
 import com.tbridge.debt.dto.response.DeudaAdminResponse;
 import com.tbridge.debt.dto.response.DeudorEncontradoResponse;
@@ -26,6 +28,7 @@ import com.tbridge.debt.service.ComisionService;
 import com.tbridge.debt.service.DeudoresAdminService;
 import com.tbridge.debt.service.EmpresaService;
 import com.tbridge.debt.service.HorarioDeContacto;
+import com.tbridge.debt.service.PasadasDeContacto;
 import com.tbridge.debt.service.ReclamosAdminService;
 import com.tbridge.debt.service.ReglasService;
 import com.tbridge.debt.service.ResumenAdminService;
@@ -50,6 +53,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -89,11 +93,12 @@ public class AdminController {
     private final DeudoresAdminService deudores;
     private final ReclamosAdminService reclamos;
     private final SuscripcionesAdminService suscripciones;
+    private final PasadasDeContacto pasadas;
 
     public AdminController(EmpresaService empresas, ReglasService reglas, ComisionService comisiones,
                            AvisosService avisos, ResumenAdminService resumen, BitacoraService bitacora,
                            DeudoresAdminService deudores, ReclamosAdminService reclamos,
-                           SuscripcionesAdminService suscripciones) {
+                           SuscripcionesAdminService suscripciones, PasadasDeContacto pasadas) {
         this.deudores = deudores;
         this.reclamos = reclamos;
         this.suscripciones = suscripciones;
@@ -103,6 +108,7 @@ public class AdminController {
         this.avisos = avisos;
         this.resumen = resumen;
         this.bitacora = bitacora;
+        this.pasadas = pasadas;
     }
 
     @GetMapping("/resumen")
@@ -113,10 +119,24 @@ public class AdminController {
     }
 
     @GetMapping("/campanas")
-    @Operation(summary = "Campañas de la plataforma, con solo el número de deudas por campaña")
-    @ApiResponse(responseCode = "200", description = "Campañas sin datos de deudores")
+    @Operation(summary = "Las campanas de todas las empresas, con sus deudas y sus contactos",
+            description = "Quien la gestiona, para que acreedor cobra, su estado, sus fechas, cuantas deudas tiene y "
+                    + "cuantas siguen abiertas, y cuantos correos les llegaron a sus deudores hoy y en los ultimos "
+                    + "siete dias, en Chile (#441). Sin datos de los deudores.")
+    @ApiResponse(responseCode = "200", description = "Campanas sin datos de deudores")
     public List<CampanaAdminResponse> campanas() {
         return resumen.campanas();
+    }
+
+    @GetMapping("/contacto/estado")
+    @Operation(summary = "Como va la pasada de contacto",
+            description = "Cuando fue la ultima pasada que escribe a los deudores, cuantos toques e invitaciones "
+                    + "salieron y cuantos quedaron pendientes, o con que tipo de error se cayo; cuando toca la "
+                    + "proxima y si ya debio haber pasado otra (`atrasada`); y si el horario y el limite de la ley "
+                    + "estan activos. Se guarda en memoria desde que arranco ms-debt (`desde`) (#441).")
+    @ApiResponse(responseCode = "200", description = "El estado de la pasada de contacto")
+    public ContactoEstadoResponse estadoDelContacto() {
+        return pasadas.estado();
     }
 
     // ------------------------------------------------------------------
@@ -276,7 +296,7 @@ public class AdminController {
 
     @GetMapping("/comisiones")
     @Operation(summary = "Lo que DataBridge le cobra a cada empresa en un mes",
-            description = "El modelo de negocio (#200), por empresa usuaria: lo recuperado en el mes en pesos (G), "
+            description = "El modelo de negocio (#200), por empresa usuaria: pagos aplicados en el mes en pesos (G), "
                     + "el porcentaje de su tramo y la comision P(G) = G * p(G). La paga quien cargo la deuda: la "
                     + "agencia, o el acreedor que cobra directo; un pago nunca se cuenta dos veces.")
     @ApiResponse(responseCode = "200", description = "Cada empresa con pagos en el mes, y el total")
@@ -321,6 +341,14 @@ public class AdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public EntityModel<EmpresaResponse> empresa(@PathVariable String rut) {
         return conEnlaces(empresas.ficha(rut));
+    }
+
+    @PatchMapping("/empresas/{rut}")
+    @Operation(summary = "Corregir los nombres de una empresa sin cambiar RUT ni tipo")
+    public EntityModel<EmpresaResponse> corregirEmpresa(
+            @Parameter(hidden = true) @AuthenticationPrincipal JwtPrincipal admin,
+            @PathVariable String rut, @Valid @RequestBody CorregirEmpresaRequest pedido) {
+        return conEnlaces(empresas.corregir(rut, pedido, admin.email()));
     }
 
     @PostMapping("/empresas")

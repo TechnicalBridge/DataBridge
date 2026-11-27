@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TablaDeslizable from "../components/TablaDeslizable";
 import { Link, useNavigate } from "react-router-dom";
 import { crearEmpresa, crearPersona, listarEmpresas } from "../api/admin";
 import { TIPO_DE_EMPRESA, dinero, rutLegible } from "../utils/formato";
@@ -84,7 +85,7 @@ export default function AdminEmpresas() {
           {empresas.length === 0 ? (
             <div className="empty">Todavía no hay empresas. Da de alta la primera.</div>
           ) : (
-            <div className="tabla-scroll">
+            <TablaDeslizable nombre="Empresas registradas">
               <table className="table">
                 <thead>
                   <tr><th>Empresa</th><th>Tipo</th><th className="num">Deudas en gestión</th><th className="num">Por cobrar</th><th /></tr>
@@ -112,7 +113,7 @@ export default function AdminEmpresas() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TablaDeslizable>
           )}
         </div>
 
@@ -128,13 +129,13 @@ export default function AdminEmpresas() {
             <div className="field">
               <label htmlFor="e-razon">Razón social</label>
               <input id="e-razon" value={form.razonSocial} maxLength={160} autoComplete="off"
-                     onChange={campo("razonSocial")} placeholder="Empresa Test SpA" required />
+                      onChange={campo("razonSocial")} placeholder="Servicios del Sur SpA" required />
             </div>
             <div className="campos-2">
               <div className="field">
                 <label htmlFor="e-nombre">Nombre de fantasía</label>
                 <input id="e-nombre" value={form.nombre} maxLength={120} autoComplete="off"
-                       onChange={campo("nombre")} placeholder="Empresa Test" />
+                        onChange={campo("nombre")} placeholder="Servicios del Sur" />
               </div>
               <div className="field">
                 <label htmlFor="e-tipo">Qué es</label>
@@ -149,12 +150,12 @@ export default function AdminEmpresas() {
             <div className="field">
               <label htmlFor="e-persona">Nombre</label>
               <input id="e-persona" value={form.personaNombre} maxLength={160} autoComplete="off"
-                     onChange={campo("personaNombre")} placeholder="Ana Soto" required />
+                      onChange={campo("personaNombre")} placeholder="Nombre y apellido" required />
             </div>
             <div className="field">
               <label htmlFor="e-correo">Correo</label>
               <input id="e-correo" type="email" value={form.personaCorreo} maxLength={254} autoComplete="off"
-                     onChange={campo("personaCorreo")} placeholder="ana.soto@empresatest.cl" required />
+                      onChange={campo("personaCorreo")} placeholder="nombre@empresa.example" required />
             </div>
             <button className="btn btn-primary btn-block" disabled={busy || !listo}>
               {busy ? <><span className="girando" /> Dando de alta…</> : "Dar de alta"}

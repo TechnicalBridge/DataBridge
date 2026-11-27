@@ -86,7 +86,7 @@ class AccesoServiceTest {
         ApiException error = assertThrows(ApiException.class, () -> servicio.enviarCodigo(empresa, 3L));
 
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
-        assertTrue(error.getMessage().startsWith("Ya se le escribio lo que permite la ley"), error.getMessage());
+        assertTrue(error.getMessage().startsWith("Ya se le escribió lo que permite la ley"), error.getMessage());
         verify(auth, never()).emitirCodigo(any());
         verify(contactos, never()).save(any());
     }

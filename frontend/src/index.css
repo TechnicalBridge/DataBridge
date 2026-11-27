@@ -25,10 +25,19 @@
   --on-brand: #fffdf8;
   --accent: #c8764b;
   --accent-soft: #f7e6da;
+  /* El terracota para texto sobre --accent-soft: el --accent da 2,8:1 y este 4,9:1 (#557). */
+  --accent-ink: #9a4f2a;
   --warn: #9c6412;
   --warn-soft: #faefd6;
   --danger: #b0443a;
   --danger-soft: #f8e3df;
+  /* Un color por estado de deuda, el mismo en los tres portales y en los graficos (#557). La paleta de
+     components/Graficos.jsx repite estos valores: si cambian aca, cambian alla. */
+  --estado-open: var(--accent);
+  --estado-repacted: #d9a441;
+  --estado-paid: var(--brand);
+  --estado-withdrawn: var(--muted);
+  --estado-disputed: var(--danger);
   --ring: rgba(62, 123, 79, 0.25);
   --tile: #ffffff;
   --shadow: 0 1px 2px rgba(70, 50, 20, 0.05), 0 8px 24px -14px rgba(70, 50, 20, 0.22);
@@ -61,10 +70,12 @@
   --on-brand: #10170f;
   --accent: #e09a72;
   --accent-soft: rgba(224, 154, 114, 0.13);
+  --accent-ink: #e09a72;
   --warn: #e7bd64;
   --warn-soft: rgba(231, 189, 100, 0.13);
   --danger: #f08a84;
   --danger-soft: rgba(240, 138, 132, 0.13);
+  --estado-repacted: #e7bd64;
   --ring: rgba(125, 189, 140, 0.6);
   --tile: #ece7de;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -16px rgba(0, 0, 0, 0.7);
@@ -310,8 +321,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .brand-name { font-weight: 700; font-size: 20px; line-height: 1.15; }
 .brand-sub { color: var(--muted); font-size: 14px; }
 .hero-copy { max-width: 560px; }
-.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; }
-.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; }
+.hero-copy h1 { font-size: clamp(34px, 3.8vw, 48px); line-height: 1.1; margin: 0 0 16px; text-wrap: balance; }
+.hero-copy p { color: var(--ink-2); font-size: 18px; line-height: 1.6; margin: 0; text-wrap: pretty; }
 .muestra { margin-top: 30px; max-width: 520px; }
 .muestra .card { padding: 20px 22px; }
 .muestra-pie { margin: 10px 2px 0; color: var(--muted); font-size: 14px; }
@@ -341,135 +352,375 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .opciones-entrada { display: grid; gap: 12px; }
 .volver-link { align-self: flex-start; }
 
-/* ---- Portada (#278) ----------------------------------------------------------------------------
-   Que es DataBridge, como funciona, por que es seguro y que hace por una empresa. Todo sale de las
-   variables del tema; la franja de empresas usa --brand-2 de fondo para que el texto pase AA en los
-   dos temas, y la letra chica mezcla --muted con --ink para que, siendo chica, se lea. */
+/* La entrada continua el puente de la portada (#539): el puente abajo del panel, y en la del deudor los cuatro
+   tablones con el segundo marcado. Las piezas quedan sobre el puente, con aire para que no lo toquen. */
+.auth-hero { position: relative; overflow: hidden; padding-bottom: calc(clamp(150px, 15vw, 210px) + 28px); }
+.auth-hero > :not(.puente) { position: relative; z-index: 1; }
+.auth-hero .puente-entrada {
+  /* Sin la fila y la columna de la grilla de la portada (que viene despues en este archivo): aqui va por
+     posicion. */
+  grid-row: auto;
+  grid-column: auto;
+  margin: 0;
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  height: clamp(150px, 15vw, 210px);
+}
+.entrada-pasos { max-width: 560px; }
+.entrada-pasos .tablones { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 22px; }
+.entrada-pasos .tablon b { font-size: 17px; }
+.entrada-pasos .tablon[aria-current] b { color: var(--ink); }
+.entrada-pasos .entrada-aqui {
+  display: inline-block;
+  justify-self: start;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: var(--brand-soft);
+  color: var(--brand-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.entrada-paso-corto { display: none; margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-2); }
 
-.portada { min-height: 100vh; background: var(--bg); }
-.portada-barra, .portada-hero, .portada-seccion, .portada-empresas-dentro, .portada-pie {
-  max-width: 1180px;
+/* ---- Portada (#536): las dos orillas ---------------------------------------------------------
+   Un puente colgante visto de costado cruza la primera pantalla: el deudor en la orilla grande, la
+   empresa en la otra. El puente se dibuja al cargar (trazos con pathLength 1) y los tablones se
+   encienden al bajar; mas abajo, cada paso se arma con una pieza del portal. Todo sale de las
+   variables del tema. Las piezas solo se esconden antes de entrar en pantalla cuando hay JavaScript y
+   movimiento (.con-movimiento): sin eso se ven quietas y completas. */
+
+.portada { min-height: 100vh; background: var(--bg); overflow-x: clip; }
+/* Los enlaces del menu bajan suave hasta su seccion (solo en la portada), y la seccion llega con aire arriba.
+   Con movimiento reducido, la regla general vuelve a auto. */
+html:has(.portada) { scroll-behavior: smooth; }
+.portada [id] { scroll-margin-top: 20px; }
+.saltar {
+  position: absolute;
+  left: 16px;
+  top: -64px;
+  z-index: 20;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-2);
+  color: var(--on-brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+.saltar:focus { top: 12px; }
+
+.portada-barra, .cruce, .portada-seccion, .otra-orilla-dentro, .cierre, .portada-pie {
+  max-width: 1228px;
   margin-inline: auto;
   padding-inline: 24px;
 }
-.portada-barra { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 18px; }
+.portada-barra { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 20px; }
 .portada-marca { gap: 10px; color: var(--ink); text-decoration: none; }
-.portada-nav { display: flex; gap: 26px; }
-.portada-nav a { color: var(--ink-2); font-size: 15px; font-weight: 500; text-decoration: none; }
+.portada-nav { display: flex; gap: 28px; }
+.portada-nav a { color: var(--ink-2); font-size: 15.5px; font-weight: 500; text-decoration: none; }
 .portada-nav a:hover { color: var(--brand); }
 .portada-barra-acciones { display: flex; align-items: center; gap: 10px; }
 
-.portada-hero {
+/* La primera pantalla: una grilla con el puente a todo el ancho. En el telefono el orden es el del
+   documento: el deudor, el puente, los tablones y al final la orilla de la empresa. */
+.orillas {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 56px;
-  align-items: center;
-  padding-block: 56px 80px;
+  /* Margen, deudor, empresa, margen, por numero de linea. Las del medio con min(): con minmax(0, ...) los
+     margenes 1fr se llevan todo el espacio. */
+  grid-template-columns:
+    minmax(24px, 1fr) min(860px, calc(100% - 368px)) 320px minmax(24px, 1fr);
+  padding-top: clamp(20px, 4.5vh, 48px);
 }
-.portada-hero h1 {
-  font-size: clamp(38px, 5vw, 60px);
-  line-height: 1.04;
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  margin: 0 0 20px;
+.orilla-deudor { grid-column: 2 / 3; grid-row: 1; position: relative; z-index: 1; }
+.orilla-deudor h1 {
+  font-size: clamp(42px, 5.9vw, 86px);
+  line-height: 0.97;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 0 0 22px;
+  max-width: 13.5ch;
   text-wrap: balance;
 }
-.portada-bajada { font-size: 19px; line-height: 1.6; color: var(--ink-2); margin: 0; max-width: 54ch; }
-.portada-acciones { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-.portada-aviso { margin: 24px 0 0; max-width: 54ch; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
-.portada-ejemplo { margin: 0; padding: 28px; border-radius: 28px; background: var(--brand-soft); }
-.portada-ejemplo .card { padding: 22px 24px; box-shadow: var(--shadow-lg); }
-.portada-ejemplo-acreedor { display: block; font-size: 15px; color: var(--muted); }
-.card .portada-ejemplo-titulo { margin: 2px 0 0; font-size: 20px; }
-.portada-ejemplo figcaption { margin-top: 14px; font-size: 14px; color: var(--ink-2); }
-
-.portada-seccion { padding-block: 76px; border-top: 1px solid var(--line); }
-.portada-seccion h2, .portada-empresas h2 {
-  font-size: clamp(28px, 3vw, 38px);
-  line-height: 1.12;
-  letter-spacing: -0.015em;
-  margin: 0 0 12px;
+.portada-bajada { font-size: clamp(17px, 1.45vw, 21px); line-height: 1.5; color: var(--ink-2); margin: 0; max-width: 46ch; text-wrap: pretty; }
+.portada-cta { margin-top: 28px; padding: 15px 24px; font-size: 17.5px; gap: 10px; }
+.orilla-empresa {
+  grid-column: 3 / 4;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+  width: 100%;
+  margin-top: 34px;
+  position: relative;
+  z-index: 1;
 }
-.portada-intro { font-size: 18px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; margin: 0 0 34px; }
+.orilla-empresa h2 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+.orilla-empresa p { margin: 0 0 16px; color: var(--ink-2); font-size: 16.5px; line-height: 1.5; text-wrap: pretty; }
 
-.portada-pasos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
-.portada-pasos li { position: relative; }
-.portada-pasos li:not(:last-child)::after {
+.puente {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: clamp(8px, 2vh, 28px);
+}
+.puente-trazo {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trazo 0.9s var(--ease) both;
+}
+.puente-tablero { stroke: var(--brand-2); stroke-width: 9; animation-duration: 0.8s; animation-delay: 0.1s; }
+.puente-torre { stroke: var(--brand-2); stroke-width: 14; animation-duration: 0.7s; animation-delay: calc(0.35s + var(--d, 0s)); }
+.puente-cable { stroke: var(--brand); stroke-width: 4.5; animation-duration: 1s; animation-delay: calc(0.8s + var(--d, 0s)); }
+.puente-tirante { stroke: var(--brand); stroke-width: 2; opacity: 0.55; animation-duration: 0.45s; animation-delay: calc(1.35s + var(--d, 0s)); }
+.puente-agua { fill: var(--brand-soft); }
+.puente-sol { fill: var(--accent); transform-box: fill-box; transform-origin: center; animation: salir-sol 0.9s var(--ease) 1.7s both; }
+@keyframes salir-sol { from { opacity: 0; transform: translateY(26px) scale(0.7); } to { opacity: 1; transform: none; } }
+
+.tablones {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0 0 56px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+}
+.tablon { position: relative; padding-top: 14px; border-top: 4px solid var(--line-2); }
+.tablon::before {
   content: "";
   position: absolute;
-  top: 20px;
-  left: 56px;
-  right: -18px;
-  height: 2px;
-  background: var(--line-2);
+  inset: -4px 0 auto;
+  height: 4px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.8s var(--ease);
 }
-.portada-paso-n {
+.tablon.encendido::before { transform: scaleX(1); }
+.tablon b { display: block; font-size: 19px; line-height: 1.25; text-wrap: balance; color: var(--ink-2); transition: color 0.5s var(--ease); }
+.tablon.encendido b { color: var(--ink); }
+.tablon span { display: block; margin-top: 4px; text-wrap: pretty; font-size: 15.5px; line-height: 1.45; color: var(--muted); }
+
+/* Como funciona: cruzar el puente. Cada paso es un tablon con su pieza del portal. */
+.cruce { padding-block: 88px 40px; }
+.cruce-cab { max-width: 640px; margin-bottom: 24px; }
+.cruce h2, .portada-seccion h2, .otra-orilla h2, .cierre h2 {
+  font-size: clamp(32px, 3.6vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  font-weight: 800;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+.portada-intro { font-size: 18.5px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; margin: 0 0 34px; text-wrap: pretty; }
+.cruce-pasos { list-style: none; margin: 0; padding: 0; }
+.cruce-paso {
+  position: relative;
   display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 18px;
-  border-radius: 50%;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(28px, 6vw, 88px);
+  align-items: center;
+  padding-block: 52px;
+  border-top: 4px solid var(--line-2);
+}
+.cruce-paso::before {
+  content: "";
+  position: absolute;
+  inset: -4px 0 auto;
+  height: 4px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1s var(--ease);
+}
+.cruce-paso.visto::before { transform: scaleX(1); }
+.cruce-paso:nth-child(even) .cruce-texto { order: 2; }
+.cruce-n {
+  display: block;
+  font-size: clamp(56px, 6vw, 84px);
+  line-height: 0.9;
+  font-weight: 800;
+  color: var(--brand);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 14px;
+}
+.cruce-texto h3 { font-size: clamp(24px, 2.4vw, 32px); line-height: 1.1; letter-spacing: -0.015em; margin: 0 0 10px; }
+.cruce-texto p { margin: 0; font-size: 18px; line-height: 1.55; color: var(--ink-2); max-width: 38ch; text-wrap: pretty; }
+.cruce-pieza { margin: 0; justify-self: center; width: min(460px, 100%); }
+.cruce-pieza figcaption { margin-top: 16px; font-size: 15px; line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
+.cruce-ejemplo { color: var(--muted); }
+
+/* Las piezas: pedazos del portal, con los colores del tema. */
+.pieza {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px 26px;
+  /* Sombra corta y con caida: un borde fino con una sombra ancha es el recurso de siempre. */
+  box-shadow: 0 1px 2px rgba(70, 50, 20, 0.06), 0 14px 28px -18px rgba(70, 50, 20, 0.35);
+}
+:root[data-theme="dark"] .pieza { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 16px 30px -18px rgba(0, 0, 0, 0.8); }
+.pieza p { margin: 0; }
+.pieza-titulo { font-size: 21px; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.pieza-texto { margin-top: 8px !important; font-size: 16px; line-height: 1.5; color: var(--ink-2); }
+.pieza-correo { transform: rotate(-1.6deg); }
+.pieza-correo-cab {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--muted);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.pieza-codigo {
+  margin: 14px 0 6px !important;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand-2);
+  text-align: center;
+  font: 700 clamp(30px, 3vw, 38px)/1 var(--mono);
+  letter-spacing: 0.22em;
+}
+.pieza-codigo span { display: inline-block; transition: opacity 0.3s var(--ease), transform 0.4s var(--ease); transition-delay: calc(0.25s + var(--i) * 0.09s); }
+.pieza-etiqueta { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.pieza-campo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--borde-campo, var(--line-2));
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 18px;
+  color: var(--ink);
+}
+.pieza-campo svg { color: var(--brand); transition: opacity 0.3s var(--ease) 1.9s; }
+.pieza-escribe { display: inline-block; white-space: nowrap; transition: clip-path 0.9s steps(12, end); clip-path: inset(0 0 0 0); }
+.pieza-escribe-codigo { font-family: var(--mono); font-weight: 700; letter-spacing: 0.18em; color: var(--brand-2); transition-timing-function: steps(6, end); transition-delay: 1s; }
+.pieza-boton {
+  display: block;
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: var(--radius-sm);
   background: var(--brand);
   color: var(--on-brand);
   font-weight: 700;
-  font-size: 17px;
-  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-.portada-pasos h3, .portada-garantias h3 { font-size: 19px; margin: 0 0 6px; }
-.portada-pasos p, .portada-garantias p { margin: 0; color: var(--ink-2); line-height: 1.55; }
+.pieza-boton-sec { background: transparent; color: var(--ink); border: 1px solid var(--line-2); font-weight: 600; }
+.pieza-deuda .deuda-cab { margin-bottom: 18px; }
+.pieza-acreedor { display: block; font-size: 15px; color: var(--muted); }
+.pieza-deuda .deuda-monto b { font-size: 24px; }
+.pieza-plazo { margin-top: 14px; }
+.pieza-plazo-riel { display: block; position: relative; height: 8px; margin: 10px 0; border-radius: 99px; background: var(--line); }
+.pieza-plazo-relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct);
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 0.9s var(--ease) 0.3s;
+}
+.pieza-plazo-relleno::after {
+  content: "";
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--brand);
+  box-shadow: var(--shadow);
+}
+.pieza-pago .chip { cursor: default; transition: background-color 0.45s var(--ease) 0.3s, color 0.45s var(--ease) 0.3s, border-color 0.45s var(--ease) 0.3s; }
+.pieza-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Los cinco atajos en una fila; en el telefono se parten 3 y 2, parejos. */
+.pieza-pago .atajos { flex-wrap: nowrap; gap: 6px; }
+.pieza-pago .atajos .chip { flex: 1 1 0; text-align: center; padding-inline: 4px; white-space: nowrap; }
+/* Sin caja dentro de la pieza: una tarjeta dentro de otra sobra. */
+.pieza-cifras .cifra, .pieza-cifras .cifra.principal { border: 0; background: none; padding: 0; }
+.pieza-pasarelas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 
-.portada-seguro { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
+/* Antes de entrar en pantalla, y solo con movimiento: el codigo sin letras, los campos sin escribir y
+   la pieza un poco mas abajo. Al verla, se arma. */
+.con-movimiento .cruce-pieza { transition: opacity 0.7s var(--ease), transform 0.8s var(--ease); }
+.con-movimiento .cruce-paso:not(.visto) .cruce-pieza,
+.con-movimiento .cierre:not(.visto) .cruce-pieza { opacity: 0; transform: translateY(28px); }
+/* La orilla lejana se dibuja recien al verla. */
+.con-movimiento .otra-orilla:not(.visto) .puente-trazo { animation: none; }
+.con-movimiento .cruce-paso:not(.visto) .pieza-codigo span { opacity: 0; transform: translateY(10px); }
+.con-movimiento .cruce-paso:not(.visto) .pieza-escribe { clip-path: inset(0 100% 0 0); }
+.con-movimiento .cruce-paso:not(.visto) .pieza-campo svg { opacity: 0; transition-delay: 0s; }
+
+/* Pagas seguro */
+.portada-seccion { padding-block: 88px; border-top: 1px solid var(--line); }
+.portada-seguro { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 64px; align-items: start; }
 .portada-seguro .portada-intro { margin-bottom: 24px; }
 .portada-pasarelas { display: flex; flex-wrap: wrap; gap: 10px; }
 .portada-garantias { list-style: none; margin: 0; padding: 0; }
-.portada-garantias li {
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 14px;
-  padding: 22px 0;
-  border-bottom: 1px solid var(--line);
-}
-.portada-garantias li:first-child { padding-top: 4px; }
-.portada-garantias li:last-child { border-bottom: 0; }
-.portada-check {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--brand-soft);
-  color: var(--brand);
-}
+.portada-garantias { display: grid; gap: 26px; }
+.portada-garantias li { position: relative; padding-top: 16px; border-top: 4px solid var(--brand); }
+.portada-garantias h3 { font-size: 21px; line-height: 1.25; margin: 0 0 6px; text-wrap: balance; }
+.portada-garantias p { margin: 0; color: var(--ink-2); line-height: 1.55; font-size: 16.5px; max-width: 56ch; text-wrap: pretty; }
 
-.portada-empresas { background: var(--brand-2); color: var(--on-brand); }
-.portada-empresas-dentro {
+/* La otra orilla: la de las empresas. En oscuro es un verde profundo, no un bloque claro. */
+.otra-orilla { background: var(--brand-2); color: var(--on-brand); padding-top: 28px; }
+.orilla-lejana { display: block; width: 100%; height: clamp(72px, 8.5vw, 120px); }
+.lejana-tablero { stroke: currentColor; stroke-width: 6; animation-duration: 0.8s; animation-delay: 0.1s; }
+.lejana-torre { stroke: currentColor; stroke-width: 10; animation-duration: 0.6s; animation-delay: 0.45s; }
+.lejana-cable { stroke: currentColor; stroke-width: 3.5; opacity: 0.85; animation-duration: 0.9s; animation-delay: calc(0.75s + var(--d, 0s)); }
+.lejana-tirante { stroke: currentColor; stroke-width: 1.5; opacity: 0.5; animation-duration: 0.4s; animation-delay: calc(1.25s + var(--d, 0s)); }
+.otra-orilla-dentro {
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
-  gap: 56px;
+  gap: 64px;
   align-items: start;
-  padding-block: 80px;
+  padding-block: 40px 88px;
 }
-.portada-empresas h2, .portada-empresas .portada-intro { color: var(--on-brand); }
-.portada-empresas .portada-intro { margin-bottom: 28px; }
+.otra-orilla h2, .otra-orilla .portada-intro { color: inherit; }
+.otra-orilla .portada-intro { margin-bottom: 28px; opacity: 0.92; }
 .portada-btn-claro { background: var(--on-brand); color: var(--brand-2); }
 .portada-btn-claro:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
-.portada-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
-.portada-lista li { position: relative; padding-left: 28px; font-size: 17px; line-height: 1.55; }
+.portada-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
+.portada-lista li { position: relative; padding-left: 30px; font-size: 17.5px; line-height: 1.55; text-wrap: pretty; }
 .portada-lista li::before {
   content: "";
   position: absolute;
-  left: 2px;
-  top: 0.62em;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  left: 0;
+  top: 0.72em;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
   background: currentColor;
 }
+:root[data-theme="dark"] .otra-orilla { background: #17241b; color: var(--ink); }
+:root[data-theme="dark"] .portada-btn-claro { background: var(--brand); color: var(--on-brand); }
 
 .portada-preguntas .preguntas { max-width: 780px; }
 
-.portada-pie { padding-block: 40px 52px; border-top: 1px solid var(--line); }
+/* El cierre: del otro lado del puente, la deuda pagada. El ultimo tablon va encendido de borde a borde. */
+.cierre {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 6vw, 88px);
+  align-items: center;
+  padding-block: 72px 96px;
+  border-top: 4px solid var(--brand);
+}
+.cierre .portada-intro { margin-bottom: 0; }
+
+.portada-pie { padding-block: 44px 56px; border-top: 1px solid var(--line); }
 .portada-pie-fila {
   display: flex;
   flex-wrap: wrap;
@@ -479,33 +730,55 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   margin-bottom: 26px;
 }
 .portada-pie-enlaces { display: flex; flex-wrap: wrap; gap: 22px; }
-.portada-pie-enlaces a { color: var(--ink-2); font-size: 15px; }
+.portada-pie-enlaces a { color: var(--ink-2); font-size: 15px; text-underline-offset: 3px; }
 .letra-chica {
   margin: 0 0 8px;
-  max-width: 96ch;
+  max-width: 64ch;
   font-size: 12.5px;
   line-height: 1.55;
+  text-wrap: pretty;
   color: color-mix(in srgb, var(--muted) 70%, var(--ink));
 }
 
 @media (max-width: 980px) {
   .portada-nav { display: none; }
-  .portada-hero, .portada-seguro, .portada-empresas-dentro { grid-template-columns: 1fr; gap: 36px; }
-  .portada-hero { padding-block: 32px 56px; }
-  .portada-pasos { grid-template-columns: repeat(2, 1fr); }
-  .portada-pasos li::after { display: none; }
-  .portada-seccion { padding-block: 56px; }
-  .portada-empresas-dentro { padding-block: 56px; }
+  .portada-seguro, .otra-orilla-dentro { grid-template-columns: 1fr; gap: 36px; }
+  .tablones { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 26px; }
+  .cruce-paso { grid-template-columns: 1fr; padding-block: 40px; }
+  .cruce-paso:nth-child(even) .cruce-texto { order: 0; }
+  .cruce-pieza { justify-self: start; }
+  .portada-seccion { padding-block: 64px; }
+  .otra-orilla-dentro { padding-block: 32px 64px; }
+  .cierre { grid-template-columns: 1fr; padding-block: 56px 72px; }
+  .cierre-pieza { justify-self: start; }
+}
+
+@media (max-width: 720px) {
+  .orillas { grid-template-columns: 16px calc(100% - 32px) 16px; padding-top: 12px; }
+  .orilla-deudor { grid-column: 2 / 3; }
+  .tablones { grid-column: 2 / 3; }
+  .orilla-deudor h1 { font-size: clamp(38px, 11vw, 48px); max-width: none; }
+  .portada-cta { width: 100%; justify-content: center; }
+  .puente { height: 150px; max-height: none; }
+  .tablones { padding-bottom: 32px; gap: 16px; }
+  .tablon b { font-size: 17px; }
+  .tablon span { font-size: 14.5px; }
+  .orilla-empresa {
+    grid-column: 2 / 3;
+    grid-row: 4;
+    justify-self: stretch;
+    margin: 0 0 8px;
+    padding: 22px 0 36px;
+    border-top: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 620px) {
-  .portada-barra, .portada-hero, .portada-seccion, .portada-empresas-dentro, .portada-pie { padding-inline: 16px; }
-  .portada-solo-ancho { display: none; }
-  .portada-hero h1 { font-size: 36px; }
-  .portada-bajada { font-size: 17px; }
-  .portada-acciones .btn { flex: 1 1 100%; }
-  .portada-ejemplo { padding: 16px; border-radius: 22px; }
-  .portada-pasos { grid-template-columns: 1fr; gap: 26px; }
+  .pieza-pago .atajos { flex-wrap: wrap; }
+  .pieza-pago .atajos .chip { flex: 1 1 28%; }
+  .portada-barra, .cruce, .portada-seccion, .otra-orilla-dentro, .cierre, .portada-pie { padding-inline: 16px; }
+  .cruce { padding-top: 56px; }
+  .pieza { padding: 20px; }
 }
 
 /* ---- La cartera de la empresa (#280): la busqueda, cuantas hay en cada filtro y, en pantallas
@@ -515,6 +788,57 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .chip-cuenta { margin-left: 6px; font-variant-numeric: tabular-nums; opacity: 0.75; }
 .chip.on .chip-cuenta { opacity: 0.9; }
 .card-cab .buscador { width: min(320px, 100%); }
+
+/* Cada deuda en una linea (#548): el deudor y su RUT sin cortes, la deuda recortada (completa al pasar el
+   mouse y en el detalle), el estado con sus tablones, y el detalle en una fila que se abre. */
+.tabla-cartera td { vertical-align: middle; }
+.tabla-cartera td[data-campo="Deudor"] { white-space: nowrap; }
+.tabla-cartera .rut { margin-left: 4px; color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.tabla-cartera td[data-campo="Deudor"] .tag { margin-left: 8px; }
+/* La deuda toma el ancho que sobra y se corta ahi: asi la tabla nunca es mas ancha que su tarjeta. */
+.tabla-cartera td[data-campo="Deuda"] { width: 100%; max-width: 0; }
+.tabla-cartera .recorte {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tabla-cartera td[data-campo="Saldo"], .tabla-cartera td[data-campo="Fecha"] { white-space: nowrap; }
+.tabla-cartera td[data-campo="Fecha"] { color: var(--muted); font-size: 14px; }
+.estado-celda { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 14px; }
+.estado-celda .tablas.chico { width: 72px; margin: 0; }
+.tabla-cartera td[data-campo="Estado"] .tag { margin-top: 4px; }
+.tabla-cartera td[data-campo="Estado"] .responder { display: flex; margin-top: 6px; }
+.desplegar { padding-left: 8px; padding-right: 8px; }
+.tabla-cartera td[data-campo="Acciones"] { white-space: nowrap; text-align: right; }
+.tabla-cartera td[data-campo="Acciones"] .btn + .btn { margin-left: 6px; }
+.desplegar svg { transition: transform 0.25s var(--ease); }
+.desplegar[aria-expanded="true"] svg { transform: rotate(180deg); }
+.tabla-cartera tr.abierta td { border-bottom-color: transparent; }
+.fila-detalle td { background: var(--paper-2); }
+.detalle-deuda { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; padding: 4px 2px; }
+.detalle-deuda > div { display: grid; align-content: start; justify-items: start; gap: 4px; min-width: 0; }
+.detalle-deuda .sub { overflow-wrap: anywhere; }
+.detalle-deuda .btn { margin-top: 6px; }
+.referencias { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+/* Ordenar: el encabezado es un boton; la flecha aparece en la columna activa y apunta segun el orden. */
+.ordenar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ordenar svg { opacity: 0; transform: rotate(180deg); transition: opacity 0.2s var(--ease), transform 0.2s var(--ease); }
+.ordenar:hover svg, .ordenar.activa svg { opacity: 1; }
+.ordenar.baja svg { transform: none; }
+.ordenar.activa { color: var(--ink); }
 
 @media (max-width: 620px) {
   .stats.stats-cartera > :first-child { grid-column: auto; }
@@ -526,9 +850,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "deudor saldo"
-      "acreedor acreedor"
+      "deuda deuda"
       "estado estado"
-      "acceso acceso";
+      "fecha acciones";
     column-gap: 12px;
     margin-bottom: 10px;
     padding: 12px 14px;
@@ -537,34 +861,18 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
     background: var(--paper);
   }
   .table.tabla-cartera td, .table.tabla-cartera td.num { display: block; padding: 0; border: 0; text-align: left; }
-  .tabla-cartera td[data-campo="Deudor"] { grid-area: deudor; font-size: 16.5px; font-weight: 600; }
-  .tabla-cartera td[data-campo="Deudor"] .sub { font-weight: 400; }
+  .tabla-cartera td[data-campo="Deudor"] { grid-area: deudor; font-size: 16.5px; white-space: normal; }
+  .tabla-cartera .rut { display: block; margin: 0; }
+  .tabla-cartera td[data-campo="Deudor"] .tag { margin: 4px 0 0; }
   .table.tabla-cartera td[data-campo="Saldo"] { grid-area: saldo; text-align: right; font-weight: 600; }
-  .tabla-cartera td[data-campo="Saldo"] .sub { font-weight: 400; }
-  .tabla-cartera td[data-campo="Acreedor"] { grid-area: acreedor; margin-top: 6px; font-size: 14px; color: var(--ink-2); }
-  .tabla-cartera td[data-campo="Acreedor"] .sub { display: inline; }
-  .tabla-cartera td[data-campo="Acreedor"] .sub::before { content: " · "; }
-  /* La fecha va al lado de la barra, que no ocupa todo el ancho; un reclamo baja a su propia linea. */
-  .table.tabla-cartera td[data-campo="Estado"] {
-    grid-area: estado;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 2px 12px;
-    margin-top: 8px;
-  }
-  .tabla-cartera td[data-campo="Estado"] .sub { margin: 0; }
-  .tabla-cartera td[data-campo="Estado"] .sub + .sub { flex-basis: 100%; }
-  .table.tabla-cartera td[data-campo="Acceso"] {
-    grid-area: acceso;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 10px;
-    margin-top: 8px;
-  }
-  .tabla-cartera td[data-campo="Acceso"]:empty { display: none; }
-  .tabla-cartera td[data-campo="Acceso"] .sub { margin: 0; }
+  .tabla-cartera td[data-campo="Deuda"] { grid-area: deuda; width: auto; max-width: none; margin-top: 6px; font-size: 14px; }
+  .tabla-cartera .recorte { max-width: none; }
+  .table.tabla-cartera td[data-campo="Estado"] { grid-area: estado; margin-top: 10px; }
+  .table.tabla-cartera td[data-campo="Fecha"] { grid-area: fecha; align-self: center; margin-top: 8px; }
+  .table.tabla-cartera td[data-campo="Acciones"] { grid-area: acciones; display: flex; justify-content: flex-end; margin-top: 8px; }
+  .tabla-cartera td[data-campo="Acciones"] .btn + .btn { margin-left: 0; }
+  .tabla-cartera tr.fila-detalle, .tabla-cartera tr.fila-reclamo { display: block; margin-top: -4px; }
+  .detalle-deuda { grid-template-columns: 1fr; }
 }
 
 /* ---- Portal: marco ------------------------------------------------------------------------- */
@@ -642,7 +950,6 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   box-shadow: var(--shadow);
   transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s ease;
 }
-.card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .card h2 { margin: 0 0 14px; font-size: 19px; }
 .card-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .card-cab h2 { margin: 0; }
@@ -658,6 +965,285 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .admin-cifras-compactas > div { display: grid; }
 .admin-cifras-compactas b { font-size: 1.3rem; }
 .admin-cifras-compactas span { color: var(--muted); }
+
+/* ---- Inicio del panel administrativo ----------------------------------------------------------- */
+
+.admin-inicio { display: grid; gap: 22px; }
+.admin-inicio-cabecera {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 4px;
+}
+.admin-inicio-presentacion h1 {
+  margin: 3px 0 7px;
+  font-size: clamp(30px, 4vw, 42px);
+  letter-spacing: -0.035em;
+}
+.admin-inicio-presentacion p { margin: 0; color: var(--muted); font-size: 16.5px; }
+.admin-inicio-estado { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.admin-salud {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.admin-salud-punto { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.admin-salud.con-alerta .admin-salud-punto { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+
+.admin-resumen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.admin-resumen-tarjeta {
+  min-width: 0;
+  min-height: 164px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  transition: border-color 0.2s ease, transform 0.2s var(--ease), box-shadow 0.2s ease;
+}
+.admin-resumen-tarjeta:hover { border-color: var(--line-2); transform: translateY(-2px); box-shadow: var(--shadow); }
+.admin-resumen-tarjeta.destacado { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.admin-resumen-tarjeta.destacado:hover { border-color: var(--brand-2); }
+.admin-resumen-titulo { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.admin-resumen-icono { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: var(--paper-2); color: var(--ink-2); transition: transform 0.25s var(--ease); }
+.admin-resumen-tarjeta:hover .admin-resumen-icono { transform: translateY(-2px) scale(1.06); }
+.admin-resumen-tarjeta.destacado .admin-resumen-titulo,
+.admin-resumen-tarjeta.destacado .admin-resumen-valor span { color: color-mix(in srgb, var(--on-brand) 78%, transparent); }
+.admin-resumen-tarjeta.destacado .admin-resumen-icono { background: color-mix(in srgb, var(--on-brand) 14%, transparent); color: var(--on-brand); }
+.admin-resumen-valor { display: grid; gap: 5px; }
+.admin-resumen-valor b { font-size: clamp(25px, 3vw, 32px); line-height: 1; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.admin-resumen-valor span { color: var(--muted); font-size: 13.5px; line-height: 1.35; }
+.admin-dato-estado { margin: auto 0 0; color: var(--muted); font-size: 14px; }
+.admin-dato-estado.error-dato { color: var(--danger); }
+.admin-resumen-tarjeta.destacado .admin-dato-estado { color: var(--on-brand); }
+
+.admin-inicio-contenido { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr); gap: 12px; align-items: start; }
+.admin-panel { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); transition: border-color 0.25s ease, box-shadow 0.25s ease; }
+.admin-panel-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.admin-panel-cabecera h2 { margin: 3px 0 0; font-size: 19px; }
+.admin-enlace-discreto { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); font-size: 14px; font-weight: 600; }
+.admin-enlace-discreto:hover { text-decoration: underline; text-underline-offset: 3px; }
+.admin-panel-cartera { grid-row: span 2; }
+.admin-cartera-detalle { display: grid; gap: 15px; }
+.admin-cartera-total {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 17px;
+  border-radius: 12px;
+  background: var(--paper-2);
+  animation: admin-elemento-entrada 0.45s var(--ease) 0.38s both;
+}
+.admin-cartera-total > div { display: grid; gap: 3px; }
+.admin-cartera-total span { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+.admin-cartera-total b { color: var(--ink); font-size: 29px; line-height: 1; font-variant-numeric: tabular-nums; }
+.admin-cartera-total p { max-width: 245px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; text-align: right; }
+.admin-estados-deuda { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
+.admin-estado-deuda {
+  --estado-color: var(--estado-open);
+  grid-column: span 2;
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--paper);
+  animation: admin-elemento-entrada 0.42s var(--ease) both;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s var(--ease);
+}
+.admin-estado-deuda:nth-child(1) { animation-delay: 0.44s; }
+.admin-estado-deuda:nth-child(2) { animation-delay: 0.49s; }
+.admin-estado-deuda:nth-child(3) { animation-delay: 0.54s; }
+.admin-estado-deuda:nth-child(4) { animation-delay: 0.59s; }
+.admin-estado-deuda:nth-child(5) { animation-delay: 0.64s; }
+.admin-estado-deuda:nth-last-child(-n + 2) { grid-column: span 3; }
+.admin-estado-deuda:hover { border-color: var(--line-2); background: var(--paper-2); transform: translateY(-1px); }
+.admin-estado-deuda-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-estado-deuda-nombre { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-2); font-size: 13.5px; font-weight: 600; }
+.admin-estado-deuda-nombre i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--estado-color); }
+.admin-estado-deuda small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.admin-estado-deuda > b { color: var(--ink); font-size: 27px; line-height: 1; font-variant-numeric: tabular-nums; }
+.admin-estado-deuda-barra { height: 4px; overflow: hidden; border-radius: 999px; background: var(--paper-2); }
+.admin-estado-deuda-barra i {
+  display: block;
+  width: var(--progreso);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--estado-color);
+  animation: admin-barra-cartera 0.75s var(--ease) both;
+}
+.admin-estado-deuda:nth-child(2) .admin-estado-deuda-barra i { animation-delay: 0.08s; }
+.admin-estado-deuda:nth-child(3) .admin-estado-deuda-barra i { animation-delay: 0.16s; }
+.admin-estado-deuda:nth-child(4) .admin-estado-deuda-barra i { animation-delay: 0.24s; }
+.admin-estado-deuda:nth-child(5) .admin-estado-deuda-barra i { animation-delay: 0.32s; }
+.admin-estado-deuda.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-estado-deuda.estado-paid { --estado-color: var(--estado-paid); }
+.admin-estado-deuda.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-estado-deuda.estado-disputed { --estado-color: var(--estado-disputed); }
+
+@keyframes admin-barra-cartera {
+  from { width: 0; }
+  to { width: var(--progreso); }
+}
+
+@keyframes admin-elemento-entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+.admin-servicios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-servicio {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 105px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--paper-2);
+  animation: admin-servicio-entrada 0.4s var(--ease) both;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s var(--ease), box-shadow 0.2s ease;
+}
+.admin-servicio:nth-child(2) { animation-delay: 0.06s; }
+.admin-servicio:nth-child(3) { animation-delay: 0.12s; }
+.admin-servicio:hover { border-color: var(--line); background: var(--paper); transform: translateY(-2px); box-shadow: var(--shadow); }
+.admin-servicio-cabecera { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; min-width: 0; }
+.admin-servicio-cabecera small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 10.5px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.admin-servicio > b { font-size: 14px; line-height: 1.1; }
+.admin-servicio-punto { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+.admin-servicio-punto.ok { background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); animation: admin-punto-ok 2.4s ease-in-out infinite; }
+.admin-servicio-punto.caido { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); animation: admin-punto-alerta 1.5s ease-in-out infinite; }
+.admin-servicio-punto.consultando { animation: admin-punto-consulta 1s ease-in-out infinite alternate; }
+
+@keyframes admin-servicio-entrada {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes admin-punto-ok {
+  0%, 100% { box-shadow: 0 0 0 3px var(--brand-soft); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+@keyframes admin-punto-alerta {
+  0%, 100% { box-shadow: 0 0 0 3px var(--danger-soft); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+@keyframes admin-punto-consulta {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-inicio .aparece,
+  .admin-salud-punto,
+  .admin-cartera-total,
+  .admin-estado-deuda,
+  .admin-servicio,
+  .admin-servicio-punto,
+  .admin-atajo,
+  .admin-estado-deuda-barra i { animation: none; }
+  .admin-servicio:hover,
+  .admin-resumen-tarjeta:hover .admin-resumen-icono,
+  .admin-atajo:hover,
+  .admin-atajo:hover .admin-atajo-icono { transform: none; }
+}
+
+.admin-panel-atajos { display: block; }
+.admin-panel-atajos .admin-panel-cabecera { margin-bottom: 18px; }
+.admin-atajos-mosaico { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-atajo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 105px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  animation: admin-elemento-entrada 0.4s var(--ease) both;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, transform 0.2s var(--ease), box-shadow 0.2s ease;
+}
+.admin-atajo:nth-child(1) { animation-delay: 0.46s; }
+.admin-atajo:nth-child(2) { animation-delay: 0.52s; }
+.admin-atajo:nth-child(3) { animation-delay: 0.58s; }
+.admin-atajo:hover { border-color: var(--line); background: var(--paper); color: var(--brand); transform: translateY(-2px); box-shadow: var(--shadow); }
+.admin-atajo-icono {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--brand);
+  transition: transform 0.2s var(--ease);
+}
+.admin-atajo:hover .admin-atajo-icono { transform: scale(1.08); }
+.admin-atajo > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.admin-atajo b { font-size: 13.5px; line-height: 1.1; }
+.admin-atajo small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 10.5px; font-weight: 500; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Los graficos del inicio (#544): lo recuperado por dia, los pagos por pasarela y la dona de la cartera. */
+.admin-inicio-graficos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr); gap: 12px; }
+.admin-grafico { display: grid; gap: 10px; min-width: 0; }
+.admin-grafico-total { margin: 0; color: var(--muted); font-size: 13.5px; }
+.admin-grafico-total b { margin-right: 4px; color: var(--ink); font-size: 21px; font-variant-numeric: tabular-nums; }
+.admin-grafico-lienzo { height: 220px; min-width: 0; }
+.admin-grafico-lienzo-bajo { height: 210px; }
+.admin-cartera-total .admin-dona { align-self: center; }
+.admin-dona { flex: none; width: 72px; height: 72px; transform: rotate(-90deg); }
+.admin-dona circle { fill: none; stroke-width: 15; }
+.admin-dona-fondo { stroke: var(--line); }
+.admin-dona-tramo { --estado-color: var(--estado-open); stroke: var(--estado-color); animation: admin-dona-entrada 0.6s var(--ease) both; animation-delay: calc(0.4s + var(--i) * 0.08s); }
+.admin-dona-tramo.estado-repacted { --estado-color: var(--estado-repacted); }
+.admin-dona-tramo.estado-paid { --estado-color: var(--estado-paid); }
+.admin-dona-tramo.estado-withdrawn { --estado-color: var(--estado-withdrawn); }
+.admin-dona-tramo.estado-disputed { --estado-color: var(--estado-disputed); }
+@keyframes admin-dona-entrada { from { opacity: 0; } to { opacity: 1; } }
+.admin-nota { margin: 14px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-dona-tramo { animation: none; }
+}
+
+@media (max-width: 980px) {
+  .admin-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-inicio-contenido { grid-template-columns: 1fr; }
+  .admin-inicio-graficos { grid-template-columns: 1fr; }
+  .admin-panel-cartera { grid-row: auto; }
+}
+
+@media (max-width: 620px) {
+  .admin-inicio { gap: 16px; }
+  .admin-inicio-cabecera { align-items: flex-start; flex-direction: column; gap: 15px; }
+  .admin-inicio-estado { justify-content: flex-start; }
+  .admin-resumen { grid-template-columns: 1fr; gap: 9px; }
+  .admin-resumen-tarjeta { min-height: 132px; gap: 18px; padding: 16px; }
+  .admin-cartera-total { align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 14px; }
+  .admin-cartera-total p { flex-basis: 100%; max-width: none; text-align: left; }
+  .admin-estados-deuda { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-estado-deuda, .admin-estado-deuda:nth-last-child(-n + 2) { grid-column: span 1; }
+  .admin-estado-deuda:last-child { grid-column: 1 / -1; }
+  .admin-panel { padding: 17px; }
+  .admin-panel-cabecera { align-items: flex-start; }
+}
 /* Una columna puede ser mas angosta que lo que trae adentro: asi una tabla ancha se desplaza dentro de su
    tarjeta (.tabla-scroll) en vez de ensanchar la pagina entera en el telefono. */
 .grid-3 > *, .grid-2 > * { min-width: 0; }
@@ -670,6 +1256,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .totales span { white-space: nowrap; }
 
 .tabla-scroll { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+.tabla-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.tabla-scroll-pista { margin: 0 0 6px; color: var(--muted); font-size: 14px; text-align: right; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
 .table th { color: var(--muted); font-weight: 600; font-size: 14px; }
@@ -689,7 +1277,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   white-space: nowrap;
 }
 .badge-ok { background: var(--brand-soft); color: var(--brand-2); }
-.badge-wait { background: var(--accent-soft); color: var(--accent); }
+.badge-wait { background: var(--accent-soft); color: var(--accent-ink); }
 .badge-warn { background: var(--warn-soft); color: var(--warn); }
 .badge-peligro { background: var(--danger-soft); color: var(--danger); }
 .badge-muted { background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); }
@@ -725,6 +1313,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .tabla-suscripciones .sub { overflow-wrap: anywhere; }
 .tabla-suscripciones td:last-child { width: 40%; }
 .tabla-suscripciones .notice, .tabla-suscripciones .aviso, .tabla-suscripciones .error { margin: 10px 0 0; }
+.tabla-sesiones .sub { overflow-wrap: anywhere; }
+.tabla-sesiones td:last-child { width: 44%; }
+.tabla-sesiones td:first-child .badge { margin-left: 6px; }
+.tabla-sesiones .error { margin: 10px 0 0; }
+.tabla-campanas-admin .sub { overflow-wrap: anywhere; }
+.tabla-campanas-admin td:last-child { width: 42%; }
+.tabla-campanas-admin td:last-child .badge + .badge { margin-left: 6px; }
 .secreto-nuevo { display: grid; gap: 6px; }
 .secreto-nuevo code { overflow-wrap: anywhere; user-select: all; }
 .ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; margin: 0; }
@@ -902,7 +1497,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .ahora .btn { justify-content: center; }
 }
 .deuda { padding: 22px 24px; }
-.deuda-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 22px; }
+.deuda-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
 .deuda-cab h2 { margin: 2px 0 2px; font-size: 22px; }
 .deuda-monto { text-align: right; }
 .deuda-monto span { display: block; color: var(--muted); font-size: 14px; }
@@ -936,6 +1531,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.disputa-antes { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+.disputa fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.disputa legend { margin-bottom: 10px; padding: 0; font-weight: 700; }
+.disputa-campo { margin-bottom: -6px; font-weight: 600; font-size: 14.5px; }
+.disputa-campo .sub { display: inline; font-weight: 400; }
+/*  Una deuda en revision o retirada no tiene acciones: sin la raya de una fila vacia. */
+.deuda-acciones:empty { display: none; }
 .disputa-motivos { display: flex; flex-wrap: wrap; gap: 8px; }
 .disputa-motivos input { position: absolute; opacity: 0; pointer-events: none; }
 .disputa-motivos .chip:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -955,6 +1557,75 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .al-dia .check-animado { margin: 0 auto 12px; }
 .al-dia h2 { font-size: 22px; margin: 0 0 6px; }
 .al-dia p { color: var(--muted); margin: 0; }
+
+/* El avance de una deuda como los tablones del puente de la portada (#546): reglas de 4 px, una por cuota.
+   Verdes las pagadas (se encienden de izquierda a derecha al llegar), terracota las vencidas, apagadas las que
+   faltan. El gap se achica con muchas cuotas, para que 24 quepan en un telefono. */
+.tablas { display: grid; gap: 9px; margin-top: 18px; }
+.tablas-fila {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: clamp(2px, calc(36px / var(--n)), 8px);
+  /* El largo sale de cuantas cuotas son: un tablon solo no se confunde con una linea divisoria. */
+  max-width: max(150px, min(100%, calc(var(--n) * 64px)));
+}
+.tabla { position: relative; height: 4px; overflow: hidden; border-radius: 1px; background: var(--line-2); }
+.tabla::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.tabla.pagado::before { transform: scaleX(1); }
+.tabla.vencido { background: var(--accent); }
+.tabla.marcado { background: var(--ink-2); }
+.tablas.animada .tabla.pagado::before {
+  animation: tabla-encender 0.5s var(--ease) both;
+  animation-delay: calc(0.3s + min(var(--j) * 0.06s, 0.9s));
+}
+@keyframes tabla-encender { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tablas.detenida .tabla.pagado::before { background: var(--muted); }
+.tablas-texto { margin: 0; color: var(--ink-2); font-size: 15px; text-wrap: pretty; }
+.tablas.chico { gap: 6px; margin-top: 8px; max-width: 260px; }
+.tablas.chico .tabla { height: 3px; }
+
+/* La deuda que toca: su tarjeta lleva lo que toca y el unico Pagar, en una franja verde suave. */
+.deuda.toca { border-color: var(--line-2); }
+.toca-ahora {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px 24px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+}
+.toca-cuanto { margin: 0; color: var(--ink-2); font-size: 16px; }
+.toca-cuanto b {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: clamp(30px, 4vw, 38px);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.toca-detalle { margin: 4px 0 0; color: var(--ink-2); font-size: 15px; }
+.toca-ahora .btn { flex: none; }
+.deuda-nota { margin: 12px 0 0; color: var(--muted); font-size: 14.5px; }
+@media (max-width: 620px) {
+  .toca-ahora { flex-direction: column; align-items: stretch; }
+  .toca-ahora .btn { justify-content: center; }
+}
+
+/* Las pagadas, al final y con menos peso: una lista, sin tarjeta por deuda. */
+.ya-pagaste { margin-top: 32px; }
+.ya-pagaste h2 { margin: 0 0 6px; color: var(--ink-2); font-size: 19px; }
+.ya-pagaste .fila-que b { font-weight: 600; }
+.ya-pagaste .fila-monto b { color: var(--ink-2); }
 
 /* ---- Listas: historial, vencimientos, pagos recibidos --------------------------------------- */
 
@@ -1068,6 +1739,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .bandeja-texto b { display: block; }
 .bandeja-al-dia { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--brand-2); font-weight: 600; }
+/* En el inicio del panel (#554): lo que pone en riesgo la ley va en rojo, arriba de todo. */
+.bandeja-item.grave { border-color: var(--danger); }
+.bandeja-item.grave .bandeja-numero { background: var(--danger-soft); color: var(--danger); }
+.admin-pendientes h2 { margin-top: 0; }
 /* El panel para responder un reclamo, bajo su fila (#474). */
 .fila-reclamo > td { background: var(--paper-2); }
 .panel-reclamo { display: grid; gap: 12px; max-width: 720px; padding: 4px 0; }
@@ -1157,6 +1832,29 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .oferta span { color: var(--ink-2); font-size: 14.5px; }
 .fila-descuento td { color: var(--brand); font-weight: 600; }
 
+/* Pagar (#547): el resumen va primero en el documento (en el telefono, arriba) y en escritorio queda a la
+   derecha, como antes. Lo que se paga, en lineas compactas en vez de una tabla. */
+.pagar-grid > .pegado { grid-column: 2; grid-row: 1; }
+.pagar-grid > .pagar-detalle { grid-column: 1; grid-row: 1; }
+@media (max-width: 980px) {
+  .pagar-grid > .pegado, .pagar-grid > .pagar-detalle { grid-column: auto; grid-row: auto; }
+}
+.pagar-detalle h2 { margin-bottom: 4px; }
+.detalle-pago { list-style: none; margin: 8px 0 14px; padding: 0; }
+.detalle-pago li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.detalle-pago li:last-child { border-bottom: 0; }
+.detalle-pago span { min-width: 0; color: var(--ink); }
+.detalle-pago small { display: block; margin-top: 1px; color: var(--muted); font-size: 14px; }
+.detalle-pago b { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+.detalle-pago .descuento span, .detalle-pago .descuento b { color: var(--brand); }
+
 /* Las fichas de una lista miden lo mismo para las tres pasarelas: el ancho sale del alto del logo. */
 .pasarela-logo {
   display: inline-flex;
@@ -1171,7 +1869,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   border: 1px solid var(--line);
   flex: none;
 }
-/* Flex y no grid: si la imagen es mas ancha que la ficha, sobra lo mismo a cada lado, y lo que se recorta es el aire del archivo, no el dibujo. Sin tope de ancho: con el alto fijo, el tope aplastaria el logo. */
+/* El escalado compensa el aire de cada SVG; la ficha recorta ese aire, no el dibujo. */
 .pasarela-logo img { flex: none; width: auto; max-width: none; }
 .pasarela-logo.sin-logo { width: auto; min-width: 74px; font-size: 13px; font-weight: 600; color: #4b453c; }
 
@@ -1197,7 +1895,8 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .cuota-fila.elegida { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
 .cuota-fila.pagada { cursor: default; background: var(--paper-2); }
 .cuota-fila.pagada:hover { border-color: var(--line); }
-.cuota-fila.pagada .cuota-info, .cuota-fila.pagada .cuota-monto { opacity: 0.6; }
+/*  Las pagadas, en una fila que las resume (#556): el texto con su contraste completo, sin transparencia. */
+.cuota-fila.pagada .cuota-info span { color: var(--ink-2); }
 .casilla {
   width: 22px;
   height: 22px;
@@ -1222,6 +1921,27 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
 .tag-vencida { background: var(--warn-soft); color: var(--warn); }
 .atajos { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+/*  Cuantas cuotas pagar hoy (#556): un paso de una en una y los atajos, arriba de la lista. */
+.cuantas { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 16px; }
+.cuantas .atajos { margin: 0; }
+.cuantas-paso { display: inline-flex; align-items: center; border: 1px solid var(--borde-campo); border-radius: 999px; }
+.cuantas-boton {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cuantas-boton:hover:not(:disabled) { background: var(--paper-2); }
+.cuantas-boton:disabled { color: var(--muted); cursor: default; }
+.cuantas-boton:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cuantas-numero { min-width: 64px; text-align: center; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cuantas-numero b { color: var(--ink); font-size: 20px; }
+.cuotas-mas { margin-top: 10px; }
 
 .total-pagar {
   display: flex;
@@ -1405,9 +2125,46 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   list-style: none;
 }
 .preguntas summary::-webkit-details-marker { display: none; }
-.preguntas summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--muted); transition: transform 0.25s var(--ease); }
-.preguntas details[open] summary::after { transform: rotate(45deg); }
-.preguntas details p { margin: 0 2px 16px; color: var(--ink-2); max-width: 70ch; }
+.preguntas summary::after {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 6px 4px 16px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.25s var(--ease);
+}
+.preguntas details[open] summary::after { transform: translateY(4px) rotate(-135deg); }
+.preguntas details p {
+  margin: 0 2px 16px;
+  color: var(--ink-2);
+  max-width: 70ch;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.3s var(--ease) 0.06s, transform 0.4s var(--ease);
+}
+.preguntas details[open] p { opacity: 1; transform: none; }
+/* Abrir y cerrar con movimiento (#536): el contenido crece desde 0 hasta su alto. Edge y Chrome lo hacen con
+   ::details-content e interpolate-size; donde no existen, se abre de golpe como antes. Con movimiento reducido,
+   la regla general deja las transiciones en 0. */
+.preguntas details { interpolate-size: allow-keywords; }
+.preguntas details::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition: block-size 0.4s var(--ease), content-visibility 0.4s allow-discrete;
+}
+.preguntas details[open]::details-content { block-size: auto; }
+/* La regla general de movimiento reducido no alcanza a ::details-content: va aparte. */
+@media (prefers-reduced-motion: reduce) {
+  .preguntas details::details-content { transition: none; }
+}
+.preguntas summary { transition: color 0.2s var(--ease); }
+/* Solo con mouse: en el telefono el hover queda pegado despues de tocar. */
+@media (hover: hover) {
+  .preguntas summary:hover { color: var(--brand-2); }
+}
 .columnas-csv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .columnas-csv code { padding: 2px 8px; border-radius: 6px; background: var(--paper-2); border: 1px solid var(--line); }
 .columnas-csv code.opcional { border-style: dashed; color: var(--muted); }
@@ -1513,6 +2270,12 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .muestra { display: none; }
   .auth-panel { order: 3; padding: 24px 16px 20px; }
   .auth-hero > .brand-sub, .auth-hero > .volver-link { order: 4; justify-self: start; margin-bottom: 28px; }
+  .entrada-pasos { order: 2; margin-top: 18px; }
+  .entrada-pasos .tablones { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .entrada-pasos .tablon { padding-top: 0; }
+  .entrada-pasos .tablon b, .entrada-pasos .entrada-aqui { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .entrada-paso-corto { display: block; margin-top: 10px; }
+  .auth-hero > .puente-entrada { order: 2; position: static; margin: 14px 0 0; height: 96px; }
   .tema-flotante { position: absolute; }
   .sidebar { display: none; }
   .pegado { position: static; }
@@ -1644,6 +2407,46 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   .fila { grid-template-columns: auto 1fr; }
   .fila-monto { grid-column: 2; text-align: left; }
   .buscador { max-width: none; }
+}
+
+/* ---- El panel con el lenguaje de su inicio (#549) ---------------------------------------------
+   Las pantallas del admin usan las mismas piezas (encabezado, tarjetas, cifras y estados): aqui toman el
+   estilo del inicio nuevo (#542), sin tocar que muestra cada una. */
+[data-portal="admin"] .topbar { margin-bottom: 22px; padding-bottom: 4px; }
+[data-portal="admin"] .topbar h1 { margin: 3px 0 7px; font-size: clamp(30px, 4vw, 42px); letter-spacing: -0.035em; }
+[data-portal="admin"] .card {
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+/*  Solo reacciona al mouse lo que se puede pulsar (#557). */
+[data-portal="admin"] :is(a, button).card:hover { border-color: var(--line-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent); }
+[data-portal="admin"] .card h2 { font-size: 19px; }
+/* Las cifras, como los mosaicos del inicio: el titulo arriba y el numero grande abajo. */
+[data-portal="admin"] .card.stat {
+  min-height: 132px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+[data-portal="admin"] .stat > span { color: var(--muted); font-size: 14px; font-weight: 600; }
+[data-portal="admin"] .stat b { font-size: clamp(25px, 3vw, 32px); line-height: 1; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+[data-portal="admin"] .stat small { font-size: 13.5px; line-height: 1.35; }
+/* Los estados con el punto de color del inicio. */
+[data-portal="admin"] .badge::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+[data-portal="admin"] .badge { padding: 4px 10px 4px 9px; }
+[data-portal="admin"] .table th { font-size: 13.5px; }
+@media (max-width: 620px) {
+  [data-portal="admin"] .card { padding: 17px; }
+  [data-portal="admin"] .card.stat { min-height: 112px; }
 }
 
 /* Quien pidio menos movimiento al sistema, lo tiene. */

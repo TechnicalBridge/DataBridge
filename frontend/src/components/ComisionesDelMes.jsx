@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import TablaDeslizable from "./TablaDeslizable";
 import { comisionesDelMes } from "../api/admin";
-import { dinero, porcentaje, rutLegible } from "../utils/formato";
-import { mesDeHoy, mesEnPalabras } from "../utils/formato";
+import { dinero, porcentaje, rutLegible, mesDeHoy, mesEnPalabras } from "../utils/formato";
+import { descargarCsv, montoParaExcel } from "../utils/exportar";
+import { IconoDescargar } from "./Iconos";
 
 /**
  * El modelo de negocio, visto por el admin (#200): lo que DataBridge le cobra a cada empresa en el mes. La
@@ -26,18 +28,40 @@ export default function ComisionesDelMes() {
     return () => { vigente = false; };
   }, [mes]);
 
+  function exportar() {
+    if (!datos || !datos.empresas || datos.empresas.length === 0) return;
+    descargarCsv(
+      `comisiones-${mes}.csv`,
+      ["Empresa", "RUT", "Pagos", "Recuperado", "Tramo", "Comisión"],
+      datos.empresas.map((e) => [
+        e.nombre,
+        rutLegible(e.rut),
+        e.pagos,
+        montoParaExcel(e.recuperado),
+        `${porcentaje(e.porcentaje)}`,
+        montoParaExcel(e.comision),
+      ])
+    );
+  }
+
   return (
     <section className="card aparece comision-del-mes" aria-labelledby="titulo-comisiones">
       <div className="card-cab">
         <h2 id="titulo-comisiones">Lo que DataBridge cobra{datos ? ` en ${mesEnPalabras(datos.mes)}` : ""}</h2>
-        <label className="selector-mes">
-          Mes{" "}
-          <input type="month" value={mes} max={mesDeHoy()} onChange={(e) => e.target.value && setMes(e.target.value)} />
-        </label>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <label className="selector-mes">
+            Mes{" "}
+            <input type="month" value={mes} max={mesDeHoy()} onChange={(e) => e.target.value && setMes(e.target.value)} />
+          </label>
+          {datos && datos.empresas && datos.empresas.length > 0 ? (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} title="Exportar comisiones a CSV">
+              <IconoDescargar /> Exportar
+            </button>
+          ) : null}
+        </div>
       </div>
       <p className="hint" style={{ marginTop: -6 }}>
-        A cada empresa, un porcentaje de lo que recuperó en el mes: 6, 10, 12 o 15 % según el tramo, sobre todo lo
-        recuperado.
+        A cada empresa se le aplica un 6, 10, 12 o 15 % sobre el total ingresado por pagos en el mes, según el tramo.
       </p>
       {error ? <div className="error">{error}</div> : null}
       {cargando ? <p className="hint" role="status">Cargando comisiones…</p> : null}
@@ -45,18 +69,18 @@ export default function ComisionesDelMes() {
         <div className="empty">Ninguna empresa recuperó pagos en {mesEnPalabras(datos.mes)}.</div>
       ) : null}
       {datos && datos.empresas.length ? (
-        <div className="tabla-scroll">
+        <TablaDeslizable nombre="Comisiones por empresa">
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Empresa</th><th scope="col" className="num">Recuperado (G)</th>
-                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión (P)</th>
+                <th scope="col">Empresa</th><th scope="col" className="num">Ingresado por pagos</th>
+                <th scope="col" className="num">Tramo</th><th scope="col" className="num">Comisión</th>
               </tr>
             </thead>
             <tbody>
               {datos.empresas.map((e) => (
                 <tr key={e.rut}>
-                  <td><b>{e.nombre}</b><div className="hint mono">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
+                  <td><b>{e.nombre}</b><div className="hint">{rutLegible(e.rut)} · {e.pagos} {e.pagos === 1 ? "pago" : "pagos"}</div></td>
                   <td className="num">{dinero(e.recuperado)}</td>
                   <td className="num">{porcentaje(e.porcentaje)}</td>
                   <td className="num"><b>{dinero(e.comision)}</b></td>
@@ -67,7 +91,7 @@ export default function ComisionesDelMes() {
               <tr><th scope="row">Total</th><td className="num">{dinero(datos.recuperado)}</td><td /><td className="num"><b>{dinero(datos.comision)}</b></td></tr>
             </tfoot>
           </table>
-        </div>
+        </TablaDeslizable>
       ) : null}
     </section>
   );

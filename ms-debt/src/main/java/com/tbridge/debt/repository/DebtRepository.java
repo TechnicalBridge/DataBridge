@@ -6,6 +6,7 @@ import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Debtor;
 import com.tbridge.debt.model.Mandate;
 import com.tbridge.debt.model.Organization;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +39,14 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     @Query("select d from Debt d where d.creditor = :org or d.lastBatch.sender = :org "
             + "order by d.updatedAt desc")
     List<Debt> carteraDe(@Param("org") Organization org);
+
+    @EntityGraph(attributePaths = {"debtor", "creditor", "campaign.agency", "campaign.creditor", "mandate.agency"})
+    @Query("select d from Debt d where d.creditor = :org or d.lastBatch.sender = :org order by d.updatedAt desc")
+    List<Debt> carteraParaListado(@Param("org") Organization org);
+
+    @EntityGraph(attributePaths = {"debtor", "creditor", "campaign.agency", "campaign.creditor", "mandate.agency"})
+    @Query("select d from Debt d where d.debtor = :debtor order by d.updatedAt desc")
+    List<Debt> delDeudorParaListado(@Param("debtor") Debtor debtor);
 
     /**
      * Cuantas deudas hay, por acreedor, por quien las entrego y por estado.

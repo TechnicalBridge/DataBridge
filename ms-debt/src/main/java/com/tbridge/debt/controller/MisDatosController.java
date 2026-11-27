@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Lo que DataBridge sabe del deudor, y los recordatorios, que es lo unico que el decide. */
+/** Los datos del deudor y sus preferencias; el contacto tiene operaciones separadas. */
 @RestController
 @RequestMapping("/api/debts/mis-datos")
 @Tag(name = "Mis datos", description = "Los datos del deudor que trajo el acreedor")
@@ -48,7 +48,7 @@ public class MisDatosController {
 
     @PatchMapping
     @Operation(summary = "Encender o apagar los recordatorios",
-            description = "Lo unico que el deudor cambia aca. El correo y el telefono son del acreedor: si estan mal, se corrigen con el.")
+            description = "Actualiza exclusivamente las preferencias de recordatorios. El contacto tiene operaciones separadas.")
     @ApiResponse(responseCode = "200", description = "Sus datos, con el cambio")
     @ApiResponse(responseCode = "400", description = "Falta decir si quiere los recordatorios",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

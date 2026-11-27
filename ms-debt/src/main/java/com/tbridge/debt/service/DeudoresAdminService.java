@@ -63,7 +63,7 @@ public class DeudoresAdminService {
                     "Escribe al menos " + MINIMO_PARA_BUSCAR + " letras o numeros para buscar");
         }
         if (pagina < 0 || porPagina < 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "La pagina y su tamano deben ser positivos");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "La página y su tamaño deben ser positivos");
         }
         PageRequest orden = PageRequest.of(pagina, Math.min(porPagina, MAXIMO_POR_PAGINA),
                 Sort.by("fullName", "rut"));

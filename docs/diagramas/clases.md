@@ -316,6 +316,11 @@ classDiagram
             <<service>>
             +reglas() ReglasResponse
         }
+        class SesionesDelPersonal {
+            <<service>>
+            +abiertas(int, int, JwtPrincipal) Page~SesionAbiertaResponse~
+            +cerrar(String, JwtPrincipal) SesionCerradaResponse
+        }
         class BitacoraDeAccesos {
             <<service>>
             +buscar(LocalDate, LocalDate, Method, Outcome, int, int) Page~AccesoResponse~
@@ -463,6 +468,10 @@ classDiagram
     AdminController --> PersonalService
     AdminController --> ReglasService
     AdminController --> BitacoraDeAccesos
+    AdminController --> SesionesDelPersonal
+    SesionesDelPersonal --> SessionRepository
+    SesionesDelPersonal --> StaffUserRepository
+    SesionesDelPersonal --> AdminLogRepository
     BitacoraDeAccesos --> AccessLogRepository
     InternalController --> AuthService
     InternalController --> MailService
@@ -489,11 +498,12 @@ classDiagram
 | Clase | Paquete | Qué es |
 | --- | --- | --- |
 | `AuthController` | `controller` | Las puertas del portal: entrar con código, pedir y canjear el enlace, renovar, cerrar y «quién soy». |
-| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta y las reglas de acceso y correo. Solo para el admin. |
+| `AdminController` | `controller` | Lo que el panel de administración le pide a ms-auth: las personas con cuenta, sus sesiones abiertas y las reglas de acceso y correo. Solo para el admin. |
 | `InternalController` | `controller` | Emitir un código de acceso, para ms-debt, y mandar un correo de prueba. Con la clave interna. |
 | `SesionModelAssembler` | `assembler` | Los enlaces HATEOAS de la sesión. |
 | `AuthService` | `service` | Cómo entra cada quien: emite y valida códigos y enlaces, y arma el JWT. |
 | `PersonalService` | `service` | Las personas con cuenta: darlas de alta, y quitarles o devolverles el acceso. Anota cada cambio. |
+| `SesionesDelPersonal` | `service` | Las sesiones abiertas del personal, para el panel: verlas sin IP ni llaves y cerrarlas a distancia, revocando su familia de llaves. Anota cada cierre. Las de los deudores no salen (#439). |
 | `ReglasService` | `service` | Las reglas de acceso y de correo que rigen, para la pantalla Reglas del panel. Del correo dice por dónde y en qué modo: ninguna clave ni dirección entera. |
 | `SessionService` | `service` | Las llaves de renovación: abrir, renovar, cerrar y revocar la familia entera. |
 | `MailService` | `service` | Los correos: el código, el recordatorio de cuota, el enlace y la invitación, cada uno en HTML y en texto, por SMTP o por Brevo. El del código y el del recordatorio dicen si no salieron. También manda el correo de prueba. |
@@ -507,7 +517,7 @@ classDiagram
 | `MagicLinkRepository` | `repository` | Los enlaces. |
 | `StaffUserRepository` | `repository` | Las personas con cuenta. |
 | `AccessLogRepository` | `repository` | La bitácora de acceso. |
-| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar. |
+| `SessionRepository` | `repository` | Las llaves de renovación, con bloqueo al renovar, y las abiertas del personal para el panel. |
 | `AdminLogRepository` | `repository` | La bitácora del panel. |
 
 ### Seguridad, arranque y errores
@@ -1657,6 +1667,13 @@ classDiagram
             +pasar() void
             +contactar(LocalDateTime, String) ContactosResponse
         }
+        class PasadasDeContacto {
+            <<component>>
+            +empezo() void
+            +termino(ContactosResponse) void
+            +fallo(Throwable) void
+            +estado() ContactoEstadoResponse
+        }
         class RecordatorioService {
             <<service>>
             +programado() void
@@ -1823,6 +1840,9 @@ classDiagram
     ContactoService --> LimiteDeContacto
     ContactoService --> InvitacionService
     ContactoService --> HorarioDeContacto
+    ContactoService --> PasadasDeContacto
+    PasadasDeContacto --> HorarioDeContacto
+    PasadasDeContacto --> LimiteDeContacto
     ContactoService ..> CorreoNoSalio
     RecordatorioService --> InstallmentRepository
     RecordatorioService --> ContactRepository
@@ -1849,6 +1869,7 @@ classDiagram
 | `InvitacionService` | `service` | El primer correo al deudor, cuando su deuda entra a cobranza y es horario de la ley; y en cada pasada, el de las deudas que todavía no recibieron ninguno. |
 | `TopeDeInvitaciones` | `service` | Cuántas invitaciones salen cada 15 minutos (`INVITACIONES_POR_CUARTO_DE_HORA`): una carga grande no las manda todas juntas, y lo que pasa del tope sale en las pasadas siguientes (#236). |
 | `ContactoService` | `service` | Ejecuta las campañas: decide a quién le toca un correo y lo manda. |
+| `PasadasDeContacto` | `service` | La última pasada de contacto, en memoria: lo que hizo o con qué error se cayó, la próxima y si se detuvo, para el panel (#441). |
 | `RecordatorioService` | `service` | Recuerda las cuotas que vencen pronto, nunca un domingo ni un feriado. |
 | `HorarioDeContacto` | `service` | Cuándo se le puede escribir a un deudor: de lunes a sábado, de 8:00 a 20:00, y nunca un feriado. |
 | `LimiteDeContacto` | `service` | Cuántas veces se le puede escribir a un deudor según la ley. |
@@ -3367,3 +3388,24 @@ classDiagram
 | `RequestLogFilter` | `filter` | Anota cada petición y cuánto tardó. |
 | `RetornoDePasarela` | `filter` | Le quita el `Origin` a la vuelta desde la pasarela, para que CORS no la rechace. |
 | `ClienteReal` | `filter` | Decide cuál es la IP real del cliente detrás de los proxies de confianza. |
+
+
+## Extensión de contacto del deudor (#471)
+
+`Debtor` incorpora `emailUpdatedAt` y `phoneUpdatedAt` independientes, y versión optimista
+para detectar escrituras concurrentes de otras rutas. Timestamp nulo significa origen cartera;
+no se duplica un estado de procedencia. `ContactoPersonalService` valida y guarda el teléfono.
+`CorreoPersonalService` coordina desafíos `EmailChange`, límites MySQL, auditoría `ContactUpdate`
+y la bandeja privada `ContactNotice`, que no depende de suscripciones de acreedores.
+`ContactoHuella` calcula HMAC con clave externa independiente. `ContactoOrigen` solo acepta
+cabeceras reenviadas desde proxies configurados explícitamente.
+
+`ContactReversion` guarda la reversión pendiente, el correo anterior cifrado y la huella del código;
+`DeshacerCorreoController` recibe el RUT y el código en el endpoint público sin sesión.
+
+ms-auth mantiene `MailService` como único dueño del transporte. `ContactoInternoController`
+separa verificación y avisos de los OTP de acceso. `ContactNoticeService` reclama el identificador
+de evento en persistencia antes del envío para impedir duplicados ante aceptación ambigua.
+`AccessCode.contactChangedAt` vincula los códigos de campaña a la versión del contacto;
+`DeudasClient` comprueba el corte vigente. `SessionService.inicioDeFamilia` conserva el criterio
+sobre la emisión original aunque se hayan rotado las llaves de renovación.

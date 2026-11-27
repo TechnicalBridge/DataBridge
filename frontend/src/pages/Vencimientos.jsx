@@ -4,6 +4,7 @@ import { listarVencimientos } from "../api/deudas";
 import { cuandoVence, dinero, fechaLarga, mesYAnio } from "../utils/formato";
 import { descargarCalendario } from "../utils/calendario";
 import Cargando from "../components/Cargando";
+import Tablones from "../components/Tablones";
 import { CheckAnimado, IconoAlerta, IconoCalendario } from "../components/Iconos";
 
 /**
@@ -27,6 +28,7 @@ export default function Vencimientos() {
 
   const vencidas = cuotas.filter((c) => c.vencida);
   const proximas = cuotas.filter((c) => !c.vencida);
+  const primeraVencida = vencidas[0];
   const siguiente = proximas[0];
 
   //  Las proximas, agrupadas por mes.
@@ -45,9 +47,11 @@ export default function Vencimientos() {
         <div>
           <h1>Próximos vencimientos</h1>
           <p>
-            {siguiente
-              ? `Tu próximo pago es el ${fechaLarga(siguiente.vencimiento)}: ${dinero(siguiente.monto, siguiente.moneda)}.`
-              : vencidas.length ? "No tienes pagos por venir, pero sí pagos vencidos." : "No tienes cuotas por pagar."}
+            {primeraVencida
+              ? `${vencidas.length === 1 ? "Tienes un pago vencido" : `Tienes ${vencidas.length} pagos vencidos`}. El más antiguo venció el ${fechaLarga(primeraVencida.vencimiento)}: ${dinero(primeraVencida.monto, primeraVencida.moneda)}.`
+              : siguiente
+                ? `Tu próximo pago es el ${fechaLarga(siguiente.vencimiento)}: ${dinero(siguiente.monto, siguiente.moneda)}.`
+                : "No tienes cuotas por pagar."}
           </p>
         </div>
         {cuotas.length ? (
@@ -85,7 +89,7 @@ export default function Vencimientos() {
             {grupos.map((grupo) => (
               <Fragment key={grupo.titulo}>
                 <div className="lista-grupo">{grupo.titulo}</div>
-                {grupo.cuotas.map((c, i) => <FilaCuota key={c.id} cuota={c} i={i} />)}
+                {grupo.cuotas.map((c, i) => <FilaCuota key={c.id} cuota={c} i={i} todas={cuotas} />)}
               </Fragment>
             ))}
           </div>
@@ -98,8 +102,34 @@ export default function Vencimientos() {
   );
 }
 
-function FilaCuota({ cuota: c, i }) {
+/**
+ * Los tablones del convenio de una cuota, con ella marcada (#546). Las cuotas se pagan en orden: las de antes
+ * que no estan en la lista ya se pagaron, y las que si estan siguen pendientes (vencidas o no).
+ */
+function tablonesDeCuota(c, todas) {
+  const pendientes = new Map(todas.filter((o) => o.deudaId === c.deudaId && o.enConvenio).map((o) => [o.lugar, o]));
+  return Array.from({ length: c.deCuotas }, (_, i) => {
+    const lugar = i + 1;
+    if (lugar === c.lugar) return "marcado";
+    const pendiente = pendientes.get(lugar);
+    if (pendiente) return pendiente.vencida ? "vencido" : "";
+    return lugar < c.lugar ? "pagado" : "";
+  });
+}
+
+/**
+ * Cuantas cuotas de su deuda hay que pagar para llegar a esta, contando las anteriores que siguen pendientes:
+ * Pagar llega con esas marcadas (#556). Las cuotas se pagan en orden de vencimiento.
+ */
+function hastaEsta(c, todas) {
+  const deLaDeuda = todas.filter((o) => o.deudaId === c.deudaId)
+    .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento));
+  return deLaDeuda.indexOf(c) + 1;
+}
+
+function FilaCuota({ cuota: c, i, todas }) {
   const dia = new Date(`${c.vencimiento}T12:00:00`);
+  const cuantas = hastaEsta(c, todas);
   return (
     <div className="fila" style={{ "--i": i }}>
       <div className={`fecha-caja${c.vencida ? " vencida" : ""}`}>
@@ -110,10 +140,15 @@ function FilaCuota({ cuota: c, i }) {
         <b>{c.enConvenio ? `Cuota ${c.lugar} de ${c.deCuotas}`
           : c.fueraDelConvenio ? "Fuera del convenio" : "Pago de la deuda completa"}</b>
         <span>{c.concepto} con {c.acreedor}. {cuandoVence(c.dias)}.</span>
+        {c.enConvenio && c.deCuotas > 1 ? <Tablones estados={tablonesDeCuota(c, todas)} chico animar={false} /> : null}
       </div>
       <div className="fila-monto">
         <b>{dinero(c.monto, c.moneda)}</b>
-        <Link className="link-btn" to={`/app/pagar/${c.deudaId}`}>Pagar</Link>
+        <Link className="link-btn" to={`/app/pagar/${c.deudaId}${cuantas > 1 ? `?cuotas=${cuantas}` : ""}`}
+              aria-label={cuantas > 1 ? `Pagar hasta ${c.enConvenio ? `la cuota ${c.lugar}` : "esta"} (${cuantas} cuotas)`
+                : undefined}>
+          Pagar
+        </Link>
       </div>
     </div>
   );

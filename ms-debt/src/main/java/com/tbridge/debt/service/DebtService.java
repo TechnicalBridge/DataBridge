@@ -17,6 +17,7 @@ import com.tbridge.debt.dto.response.RepactPlan;
 import com.tbridge.debt.model.Campaign;
 import com.tbridge.debt.model.Contact;
 import com.tbridge.debt.model.Debt;
+import com.tbridge.debt.model.DebtCharge;
 import com.tbridge.debt.model.DebtEvent;
 import com.tbridge.debt.model.DetallePago;
 import com.tbridge.debt.model.Debtor;
@@ -51,6 +52,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -168,10 +171,17 @@ public class DebtService {
         return debtors.findByRut(normalizado).map(Debtor::getEmail).filter(c -> c != null && c.contains("@"));
     }
 
+    public record ContactoVigente(String correo, Instant emailUpdatedAt) {}
+    public ContactoVigente contactoVigente(String rut) {
+        Debtor d = debtors.findByRut(Rut.normalizar(rut)).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "Sin datos registrados"));
+        return new ContactoVigente(d.getEmail(), d.getEmailUpdatedAt());
+    }
+
     /** El deudor detras del token, por RUT: es lo unico que trae su sesion. */
     Debtor deudorDe(JwtPrincipal user) {
         if (user == null || user.rut() == null || user.rut().isBlank()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión no identifica al deudor");
         }
         return debtors.findByRut(user.rut())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No hay deudas a tu nombre"));
@@ -183,35 +193,73 @@ public class DebtService {
 
     /**
      * Lo que ve cada quien: la empresa, su cartera; el deudor, lo suyo. Cuando
-     * el que mira es el deudor, se anota que entro (ver {@link #anotarIngreso}).
+     * el que mira es el deudor, se anota que entro (ver {@link #anotarIngresos}).
      */
     @Transactional
     public List<DebtSummaryResponse> listFor(JwtPrincipal user) {
-        if (user != null && user.isCreditor()) {
-            List<Debt> cartera = debts.carteraDe(organizacionDe(user));
-            //  Cuando se le escribio por ultima vez a cada deudor, en una sola
-            //  consulta: la empresa ve a quien falta invitar o hay que reenviarselo.
-            Map<Long, Instant> enviado = cartera.isEmpty() ? Map.of()
-                    : contactos.ultimoPorDeuda(cartera).stream()
-                            .collect(Collectors.toMap(UltimoContacto::deuda, UltimoContacto::cuando));
-            Map<Long, Instant> porDeudor = contactosPorDeudor(cartera, enviado);
-            Map<Long, Instant> ingresos = cartera.isEmpty() ? Map.of()
-                    : events.ultimoIngresoPorDeudor(cartera, DebtEvent.Type.portal_entered).stream()
-                            .collect(Collectors.toMap(e -> e.getDeudor(), e -> e.getCuando()));
-            Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(cartera);
-            Map<Long, BigDecimal> caes = caes(cartera);
-            return cartera.stream()
-                    .map(d -> resumen(d, porDeudor.get(d.getDebtor().getId()), disputas.get(d.getId()),
-                            caes.get(d.getId()), ingresos.get(d.getDebtor().getId())))
-                    .toList();
+        boolean empresa = user != null && user.isCreditor();
+        List<Debt> visibles = empresa ? debts.carteraParaListado(organizacionDe(user))
+                : debts.delDeudorParaListado(deudorDe(user));
+        List<DebtSummaryResponse> resultado = new ArrayList<>(visibles.size());
+        LocalDate hoy = LocalDate.now(CHILE);
+
+        Map<Long, Instant> enviadoPorDeudor = Map.of();
+        Map<Long, Instant> ingresosPorDeudor = Map.of();
+        if (empresa && !visibles.isEmpty()) {
+            Map<Long, Instant> enviadoPorDeuda = new HashMap<>();
+            Map<Long, Instant> ingresos = new HashMap<>();
+            final int tamanoLote = 200;
+            for (int desde = 0; desde < visibles.size(); desde += tamanoLote) {
+                var lote = visibles.subList(desde, Math.min(desde + tamanoLote, visibles.size()));
+                for (UltimoContacto c : contactos.ultimoPorDeuda(lote)) {
+                    enviadoPorDeuda.put(c.deuda(), c.cuando());
+                }
+                for (var e : events.ultimoIngresoPorDeudor(lote, DebtEvent.Type.portal_entered)) {
+                    ingresos.merge(e.getDeudor(), e.getCuando(), (a, b) -> a.isAfter(b) ? a : b);
+                }
+            }
+            enviadoPorDeudor = contactosPorDeudor(visibles, enviadoPorDeuda);
+            ingresosPorDeudor = ingresos;
         }
-        List<Debt> filas = debts.findByDebtorOrderByUpdatedAtDesc(deudorDe(user));
-        filas.forEach(this::anotarIngreso);
-        Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(filas);
-        Map<Long, BigDecimal> caes = caes(filas);
-        return filas.stream()
-                .map(d -> resumen(d, null, disputas.get(d.getId()), caes.get(d.getId())))
-                .toList();
+
+        // Limita los parámetros y las relaciones auxiliares de cada consulta.
+        final int tamanoLote = 200;
+        for (int desde = 0; desde < visibles.size(); desde += tamanoLote) {
+            var lote = visibles.subList(desde, Math.min(desde + tamanoLote, visibles.size()));
+            if (!empresa) anotarIngresos(lote, hoy);
+            agregarResumenes(resultado, lote, empresa, hoy, enviadoPorDeudor, ingresosPorDeudor);
+        }
+        return resultado;
+    }
+
+    private void agregarResumenes(List<DebtSummaryResponse> resultado, List<Debt> lote, boolean empresa, LocalDate hoy,
+                                  Map<Long, Instant> enviadoPorDeudor, Map<Long, Instant> ingresosPorDeudor) {
+        Map<Long, DebtSummaryResponse.Disputa> disputas = disputas(lote);
+        Map<Long, BigDecimal> caes = caes(lote);
+        var cuotasPorDeuda = installments.findByDebtInOrderByNumberAsc(lote).stream()
+                .collect(Collectors.groupingBy(cuota -> cuota.getDebt().getId()));
+        var conInteres = lote.stream().filter(deuda -> deuda.getInterestRate() != null).toList();
+        Map<Long, List<DebtCharge>> cargosPorDeuda = conInteres.isEmpty() ? Map.of()
+                : charges.findByDebtInOrderByDueDateAsc(conInteres).stream()
+                        .collect(Collectors.groupingBy(cargo -> cargo.getDebt().getId()));
+        var topes = conInteres.isEmpty() ? Map.<DescuentoService.Empresas, BigDecimal>of()
+                : descuentos.topesParaListado(conInteres, hoy);
+
+        for (Debt deuda : lote) {
+            Long id = deuda.getId();
+            Long deudorId = deuda.getDebtor().getId();
+            List<Installment> cuotas = cuotasPorDeuda.getOrDefault(id, List.of());
+            List<DebtCharge> cargos = cargosPorDeuda.getOrDefault(id, List.of());
+            BigDecimal mora = deuda.getInterestRate() == null ? BigDecimal.ZERO
+                    : Intereses.total(Intereses.deMora(deuda, cargos, cuotas, hoy));
+            var oferta = oferta(deuda, cuotas, mora, hoy, () -> cargos,
+                    dias -> descuentos.porcentaje(deuda, dias, hoy,
+                            () -> descuentos.topeParaListado(deuda.getCampaign(), topes)));
+            Instant ultimoEnviado = empresa ? enviadoPorDeudor.get(deudorId) : null;
+            Instant ultimoIngreso = empresa ? ingresosPorDeudor.get(deudorId) : null;
+            resultado.add(DebtSummaryResponse.from(deuda, cuotas, ultimoEnviado, disputas.get(id),
+                    mora, oferta, caes.get(id), ultimoIngreso));
+        }
     }
 
     /**
@@ -262,14 +310,20 @@ public class DebtService {
      * convenio, sin mora o sin una campana que ofrezca descuento.
      */
     private BigDecimal descuentoDelDia(Debt deuda, List<Installment> pendientes, BigDecimal moraTotal) {
+        LocalDate hoy = LocalDate.now(CHILE);
+        return descuentoDelDia(deuda, pendientes, moraTotal, hoy, () -> charges.findByDebtOrderByDueDateAsc(deuda),
+                dias -> descuentos.porcentaje(deuda, dias, hoy));
+    }
+
+    private BigDecimal descuentoDelDia(Debt deuda, List<Installment> pendientes, BigDecimal moraTotal, LocalDate hoy,
+                                      Supplier<List<DebtCharge>> cargos, LongFunction<BigDecimal> porcentajePara) {
         if (deuda.getStatus() != Debt.Status.open || moraTotal.signum() <= 0 || deuda.getCampaign() == null
                 || deuda.getCampaign().getMoraDiscount() == null
                 || pendientes.stream().anyMatch(Installment::enConvenio)) {
             return BigDecimal.ZERO;
         }
-        LocalDate hoy = LocalDate.now(CHILE);
-        long dias = Intereses.diasDeMora(charges.findByDebtOrderByDueDateAsc(deuda), pendientes, hoy);
-        BigDecimal porcentaje = descuentos.porcentaje(deuda, dias, hoy);
+        long dias = Intereses.diasDeMora(cargos.get(), pendientes, hoy);
+        BigDecimal porcentaje = porcentajePara.apply(dias);
         if (porcentaje == null || porcentaje.signum() <= 0) {
             return BigDecimal.ZERO;
         }
@@ -278,9 +332,17 @@ public class DebtService {
 
     /** El descuento que tiene hoy la deuda, para mostrarlo antes de pagar. Null sin descuento. */
     private DebtSummaryResponse.Oferta oferta(Debt deuda, List<Installment> cuotas, BigDecimal moraTotal) {
+        LocalDate hoy = LocalDate.now(CHILE);
+        return oferta(deuda, cuotas, moraTotal, hoy, () -> charges.findByDebtOrderByDueDateAsc(deuda),
+                dias -> descuentos.porcentaje(deuda, dias, hoy));
+    }
+
+    private DebtSummaryResponse.Oferta oferta(Debt deuda, List<Installment> cuotas, BigDecimal moraTotal,
+                                              LocalDate hoy, Supplier<List<DebtCharge>> cargos,
+                                              LongFunction<BigDecimal> porcentajePara) {
         List<Installment> pendientes = cuotas.stream().filter(c -> c.getStatus() == Installment.Status.pending)
                 .toList();
-        BigDecimal descuento = descuentoDelDia(deuda, pendientes, moraTotal);
+        BigDecimal descuento = descuentoDelDia(deuda, pendientes, moraTotal, hoy, cargos, porcentajePara);
         return descuento.signum() > 0 ? new DebtSummaryResponse.Oferta(descuento, deuda.getCampaign().getEndsOn())
                 : null;
     }
@@ -359,10 +421,13 @@ public class DebtService {
      * que la agencia mide como "ingresos al portal" y, con codigo de acceso,
      * reemplaza al clic en el enlace que ya no existe.
      */
-    private void anotarIngreso(Debt deuda) {
-        Instant desdeHoy = LocalDate.now(CHILE).atStartOfDay(CHILE).toInstant();
-        if (!events.existsByDebtAndTypeAndOccurredAtAfter(deuda, DebtEvent.Type.portal_entered, desdeHoy)) {
-            events.save(DebtEvent.de(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor));
+    private void anotarIngresos(List<Debt> deudas, LocalDate hoy) {
+        var registrados = new HashSet<>(events.deudasConEventoDesde(deudas, DebtEvent.Type.portal_entered,
+                hoy.atStartOfDay(CHILE).toInstant()));
+        for (Debt deuda : deudas) {
+            if (!registrados.contains(deuda.getId())) {
+                events.save(DebtEvent.de(deuda, DebtEvent.Type.portal_entered, DebtEvent.Actor.debtor));
+            }
         }
     }
 
@@ -375,21 +440,30 @@ public class DebtService {
      * las de su cartera; el deudor, solo las propias.
      */
     public Debt requireVisible(JwtPrincipal user, Long id) {
-        Debt deuda = debts.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
         if (user == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesion invalida");
         }
+        Organization org = user.isCreditor() ? organizacionDe(user) : null;
+        if (!user.isCreditor() && (user.rut() == null || user.rut().isBlank())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesion no identifica al deudor");
+        }
+        Debtor deudor = user.isCreditor() ? null
+                : debtors.findByRut(user.rut()).orElseThrow(DebtService::deudaNoVisible);
+        Debt deuda = debts.findById(id).orElseThrow(DebtService::deudaNoVisible);
         if (user.isCreditor()) {
-            if (!opera(organizacionDe(user), deuda)) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Esa deuda no es de tu cartera");
+            if (!opera(org, deuda)) {
+                throw deudaNoVisible();
             }
             return deuda;
         }
-        if (!deuda.getDebtor().getId().equals(deudorDe(user).getId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        if (!deuda.getDebtor().getId().equals(deudor.getId())) {
+            throw deudaNoVisible();
         }
         return deuda;
+    }
+
+    private static ApiException deudaNoVisible() {
+        return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
     }
 
     /** La misma regla que {@code DebtRepository.carteraDe}, para una deuda suelta. */
@@ -438,13 +512,13 @@ public class DebtService {
         }
         Debt deuda = requireVisible(user, id);
         if (deuda.getStatus() == Debt.Status.paid) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya esta pagada");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda ya está pagada");
         }
         if (deuda.getStatus() == Debt.Status.withdrawn) {
-            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiro esta deuda de la cobranza");
+            throw new ApiException(HttpStatus.CONFLICT, "El acreedor retiró esta deuda de la cobranza");
         }
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se repacta mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se repacta mientras tanto");
         }
         if (deuda.congelada()) {
             throw new ApiException(HttpStatus.CONFLICT,
@@ -536,9 +610,23 @@ public class DebtService {
     public DebtSnapshotResponse snapshotInterno(Long debtId, List<Long> installmentIds) {
         Debt deuda = debts.findById(debtId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Deuda no encontrada"));
+        return snapshot(deuda, installmentIds, false);
+    }
+
+    /** Autoriza al dueño antes de consultar saldo, estados o cuotas. */
+    public DebtSnapshotResponse snapshotCheckout(Long debtId, List<Long> installmentIds, String debtorRut) {
+        Debt deuda = debts.findById(debtId).orElse(null);
+        if (debtorRut == null || debtorRut.isBlank() || deuda == null
+                || !debtorRut.equalsIgnoreCase(deuda.getDebtor().getRut())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        }
+        return snapshot(deuda, installmentIds, true);
+    }
+
+    private DebtSnapshotResponse snapshot(Debt deuda, List<Long> installmentIds, boolean checkout) {
         //  Mientras la empresa revisa la disputa, no se cobra.
         if (deuda.getStatus() == Debt.Status.disputed) {
-            throw new ApiException(HttpStatus.CONFLICT, "La deuda esta en revision: no se puede pagar mientras tanto");
+            throw new ApiException(HttpStatus.CONFLICT, "La deuda está en revisión: no se puede pagar mientras tanto");
         }
         //  Mientras la empresa que la cobra esta suspendida, tampoco (#152).
         if (deuda.congelada()) {
@@ -558,7 +646,7 @@ public class DebtService {
                     .collect(Collectors.toMap(Installment::getId, Function.identity()));
             for (Long id : installmentIds) {
                 if (!pendientePorId.containsKey(id)) {
-                    throw cuotaQueNoSePuedePagar(deuda, id);
+                    throw cuotaQueNoSePuedePagar(deuda, id, checkout);
                 }
             }
             aPagar = pendientes.subList(0, pedidas.size());
@@ -587,15 +675,18 @@ public class DebtService {
     }
 
     /** Por que una cuota pedida no esta entre las que se pueden pagar. */
-    private ApiException cuotaQueNoSePuedePagar(Debt deuda, Long id) {
+    private ApiException cuotaQueNoSePuedePagar(Debt deuda, Long id, boolean checkout) {
         Installment cuota = installments.findById(id).orElse(null);
+        if (checkout && (cuota == null || !cuota.getDebt().getId().equals(deuda.getId()))) {
+            return new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda");
+        }
         if (cuota == null) {
             return new ApiException(HttpStatus.NOT_FOUND, "Cuota no encontrada");
         }
         if (!cuota.getDebt().getId().equals(deuda.getId())) {
             return new ApiException(HttpStatus.BAD_REQUEST, "Esa cuota no es de esa deuda");
         }
-        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no esta pendiente");
+        return new ApiException(HttpStatus.CONFLICT, "La cuota " + cuota.getNumber() + " ya no está pendiente");
     }
 
     /**
@@ -792,7 +883,8 @@ public class DebtService {
                         caes(List.of(deuda)).get(deuda.getId())),
                 charges.findByDebtOrderByDueDateAsc(deuda).stream().map(DebtDetailResponse.Cargo::from).toList(),
                 cuotas.stream().map(c -> DebtDetailResponse.Cuota.from(c, mora.get(c.getId()))).toList(),
-                historia(deuda));
+                historia(deuda),
+                DebtDetailResponse.referencias(deuda.getRefs()));
     }
 
     /**

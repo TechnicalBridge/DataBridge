@@ -4,6 +4,7 @@ import { useAuth } from "./store/authStore";
 import Layout from "./components/Layout";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import DeshacerCorreo from "./pages/DeshacerCorreo";
 import Magic from "./pages/Magic";
 import Debts from "./pages/Debts";
 import Repact from "./pages/Repact";
@@ -29,6 +30,7 @@ import AdminPagos from "./pages/AdminPagos";
 import AdminPago from "./pages/AdminPago";
 import AdminReclamos from "./pages/AdminReclamos";
 import AdminSuscripciones from "./pages/AdminSuscripciones";
+import AdminSesiones from "./pages/AdminSesiones";
 import AdminOperacion from "./pages/AdminOperacion";
 import AdminBitacora from "./pages/AdminBitacora";
 import AdminCampanas from "./pages/AdminCampanas";
@@ -77,6 +79,14 @@ export default function App() {
         element={
           <PublicOnly>
             <Login portal="DATABRIDGE" />
+          </PublicOnly>
+        }
+      />
+      <Route
+        path="/deshacer-correo"
+        element={
+          <PublicOnly>
+            <DeshacerCorreo />
           </PublicOnly>
         }
       />
@@ -140,6 +150,7 @@ export default function App() {
         <Route path="pagos/:id" element={<AdminPago />} />
         <Route path="reclamos" element={<AdminReclamos />} />
         <Route path="suscripciones" element={<AdminSuscripciones />} />
+        <Route path="sesiones" element={<AdminSesiones />} />
         <Route path="equipo" element={<AdminEquipo />} />
         <Route path="operacion" element={<AdminOperacion />} />
         <Route path="accesos" element={<AdminAccesos />} />

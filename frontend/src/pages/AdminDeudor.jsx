@@ -4,12 +4,8 @@ import { accesosDeDeudor, fichaDeDeudor, pagosDeDeudor } from "../api/admin";
 import Cargando from "../components/Cargando";
 import Paginas, { dePagina } from "../components/Paginas";
 import { IconoVolver } from "../components/Iconos";
-import { dinero, ESTADO_DE_PAGO, ESTADO_DEUDA, fechaHora, PASARELA, rutLegible } from "../utils/formato";
+import { CLASE_DE_DEUDA, dinero, ESTADO_DE_PAGO, ESTADO_DEUDA, fechaHora, PASARELA, rutLegible } from "../utils/formato";
 import { METODOS, RESULTADOS } from "./AdminAccesos";
-
-const CLASE_DE_DEUDA = {
-  open: "badge-warn", repacted: "badge-muted", paid: "badge-ok", withdrawn: "badge-muted", disputed: "badge-peligro",
-};
 
 /** De a cuantas filas se ve cada parte: un deudor puede tener decenas de pagos e ingresos. */
 const POR_PAGINA = 10;

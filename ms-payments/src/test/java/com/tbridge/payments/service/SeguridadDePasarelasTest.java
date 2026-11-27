@@ -165,7 +165,7 @@ class SeguridadDePasarelasTest {
     void la_respuesta_del_cobro_no_muestra_el_token_de_la_pasarela() throws Exception {
         when(webpay.createTransaction(any(), any(), anyLong(), any()))
                 .thenReturn(new WebpayCreateResponse(TOKEN, "https://webpay3gint.transbank.cl/webpayserver/initTransaction"));
-        when(deudas.obtener(3L, null)).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
+        when(deudas.obtenerParaCheckout(3L, null, "16482337-7")).thenReturn(new DebtClient.DebtSnapshot(3L, "76418902-7", FELIPE, "CLP",
                 new BigDecimal("410000"), 12L, List.of(12L), new BigDecimal("410000"), BigDecimal.ZERO));
 
         PaymentResponse pago = servicio.checkout(DEUDOR, new CheckoutRequest(3L, null, "webpay"));

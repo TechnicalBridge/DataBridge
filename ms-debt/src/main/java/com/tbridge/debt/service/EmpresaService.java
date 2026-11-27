@@ -1,6 +1,9 @@
 package com.tbridge.debt.service;
 
 import com.tbridge.debt.dto.request.NuevaEmpresaRequest;
+import com.tbridge.debt.dto.request.CorregirEmpresaRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tbridge.debt.dto.response.AccionResponse;
 import com.tbridge.debt.dto.response.EmpresaResponse;
 import com.tbridge.debt.dto.response.OrganizacionResponse;
@@ -20,6 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -54,13 +58,16 @@ public class EmpresaService {
     private final MandateRepository mandates;
     private final DebtRepository debts;
     private final AdminLogRepository bitacora;
+    private final ObjectMapper json;
 
+    @Autowired
     public EmpresaService(OrganizationRepository organizations, MandateRepository mandates,
-                          DebtRepository debts, AdminLogRepository bitacora) {
+                          DebtRepository debts, AdminLogRepository bitacora, ObjectMapper json) {
         this.organizations = organizations;
         this.mandates = mandates;
         this.debts = debts;
         this.bitacora = bitacora;
+        this.json = json;
     }
 
     /** Todas las empresas, por nombre. */
@@ -89,7 +96,7 @@ public class EmpresaService {
     public EmpresaResponse crear(NuevaEmpresaRequest pedido, String admin) {
         String rut = Rut.normalizar(pedido.rut());
         if (!Rut.esValido(rut)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "El RUT no es valido: revisa el digito verificador");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El RUT no es válido: revisa el dígito verificador");
         }
         organizations.findByRut(rut).ifPresent(existente -> {
             throw new ApiException(HttpStatus.CONFLICT, "Ya hay una empresa con ese RUT: "
@@ -111,6 +118,48 @@ public class EmpresaService {
         }
         bitacora.save(AdminLog.de(admin, AdminLog.Action.empresa_creada, rut, nueva.getTradeName()));
         return armar(nueva, Totales.ninguno(), List.of());
+    }
+
+    EmpresaService(OrganizationRepository organizations, MandateRepository mandates,
+                   DebtRepository debts, AdminLogRepository bitacora) {
+        this(organizations, mandates, debts, bitacora, new ObjectMapper());
+    }
+
+    /** Solo los nombres cambian; el RUT, el tipo y el estado quedan intactos. */
+    @Transactional
+    public EmpresaResponse corregir(String rut, CorregirEmpresaRequest pedido, String admin) {
+        Organization empresa = exigir(rut);
+        String razon = pedido.razonSocial().strip();
+        String nombre = pedido.nombre().strip();
+        if (razon.isEmpty() || nombre.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Los nombres no pueden estar vacíos");
+        }
+        Map<String, String> antes = new HashMap<>();
+        Map<String, String> despues = new HashMap<>();
+        if (!razon.equals(empresa.getLegalName())) {
+            antes.put("razonSocial", empresa.getLegalName());
+            despues.put("razonSocial", razon);
+            empresa.setLegalName(razon);
+        }
+        if (!nombre.equals(empresa.getTradeName())) {
+            antes.put("nombre", empresa.getTradeName());
+            despues.put("nombre", nombre);
+            empresa.setTradeName(nombre);
+        }
+        if (!antes.isEmpty()) {
+            organizations.save(empresa);
+            bitacora.save(AdminLog.de(admin, AdminLog.Action.empresa_corregida, empresa.getRut(), empresa.getTradeName())
+                    .conCambios(comoJson(antes), comoJson(despues)));
+        }
+        return armar(empresa, totales(), mandates.todosConSusEmpresas());
+    }
+
+    private String comoJson(Map<String, String> valores) {
+        try {
+            return json.writeValueAsString(valores);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("No se pudieron registrar los cambios", e);
+        }
     }
 
     /**

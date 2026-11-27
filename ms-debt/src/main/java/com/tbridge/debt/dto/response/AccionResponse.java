@@ -13,11 +13,16 @@ public record AccionResponse(
         @Schema(example = "empresa_creada") String accion,
         @Schema(description = "A que o a quien", example = "Empresa Test", nullable = true) String sobre,
         @Schema(description = "El admin que lo hizo", example = "admin@databridge.cl") String quien,
-        Instant cuando
+        Instant cuando,
+        String anteriores,
+        String nuevos
 ) {
+    public AccionResponse(String accion, String sobre, String quien, Instant cuando) {
+        this(accion, sobre, quien, cuando, null, null);
+    }
 
     public static AccionResponse from(AdminLog registro) {
         return new AccionResponse(registro.getAction().name(), registro.getSubject(), registro.getAdminEmail(),
-                registro.getOccurredAt());
+                registro.getOccurredAt(), registro.getPreviousValues(), registro.getNewValues());
     }
 }

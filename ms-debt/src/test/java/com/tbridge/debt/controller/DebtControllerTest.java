@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,6 +50,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, com.tbridge.debt.security.JwtTestConfig.class, DebtModelAssembler.class, DebtControllerTest.Proxy.class})
 @ActiveProfiles("test")
 class DebtControllerTest {
+
+    @Test
+    void seg_dat_007_respuesta_http_neutra_para_ids_correlativos() throws Exception {
+        for (long id : new long[]{40L, 41L}) {
+            when(debts.getFor(any(), eq(id))).thenThrow(
+                    new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+            mvc.perform(get("/api/debts/" + id).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+        }
+    }
 
     @TestConfiguration
     static class Proxy {
@@ -80,7 +92,7 @@ class DebtControllerTest {
                 "Comercial Nandu SpA", "76991245-2", "Arriendo local comercial", Debt.Currency.UF,
                 new BigDecimal("115.50"), new BigDecimal("115.50"), BigDecimal.ZERO, estado,
                 Instant.parse("2026-09-24T12:00:00Z"), 0, 1, false, 0, null, null, null, BigDecimal.ZERO,
-                new BigDecimal("115.50"), null, null, false, null, null, false, null);
+                new BigDecimal("115.50"), null, null, false, null, null, false, null, null, null);
     }
 
     @Test
@@ -135,6 +147,18 @@ class DebtControllerTest {
     }
 
     @Test
+    void el_detalle_incluye_las_referencias_de_la_cartera_para_deudor_y_empresa() throws Exception {
+        when(debts.getFor(any(), eq(3L))).thenReturn(new DebtDetailResponse(deuda(Debt.Status.open),
+                List.of(), List.of(), List.of(), java.util.Map.of("contrato", "CTR-45")));
+
+        for (String sesion : List.of(deudor(), empresa())) {
+            mvc.perform(get("/api/debts/3").header("Authorization", sesion))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.referencias.contrato").value("CTR-45"));
+        }
+    }
+
+    @Test
     void sin_sesion_es_401_y_con_la_deuda_de_otro_403() throws Exception {
         mvc.perform(get("/api/debts")).andExpect(status().isUnauthorized());
 
@@ -142,6 +166,17 @@ class DebtControllerTest {
         mvc.perform(get("/api/debts/9").header("Authorization", deudor()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+    }
+
+    @Test
+    void certificado_ajeno_responde_json_con_accept_pdf_o_json() throws Exception {
+        when(certificates.generate(any(), eq(9L))).thenThrow(new ApiException(HttpStatus.FORBIDDEN, "No puedes ver esta deuda"));
+        for (MediaType aceptado : List.of(MediaType.APPLICATION_PDF, MediaType.APPLICATION_JSON)) {
+            mvc.perform(get("/api/debts/9/certificate").accept(aceptado).header("Authorization", deudor()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.error").value("No puedes ver esta deuda"));
+        }
     }
 
     @Test

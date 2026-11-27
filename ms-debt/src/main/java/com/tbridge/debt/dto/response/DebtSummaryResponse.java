@@ -80,7 +80,11 @@ public record DebtSummaryResponse(
         boolean enPausa,
         @Schema(description = "Último ingreso confirmado en alguna deuda visible para quien consulta. "
                 + "No implica entrega del correo ni expone actividad de otra cartera", nullable = true)
-        Instant accesoConfirmado
+        Instant accesoConfirmado,
+        @Schema(description = "Correo actualizado por el deudor en esta fecha; nulo si procede de cartera")
+        Instant correoActualizadoPorDeudorEn,
+        @Schema(description = "Telefono actualizado por el deudor en esta fecha; nulo si procede de cartera")
+        Instant telefonoActualizadoPorDeudorEn
 ) {
 
     /** El ultimo correo al deudor no salio. */
@@ -204,6 +208,9 @@ public record DebtSummaryResponse(
                 CorreoFallido.de(deuda.getDebtor()),
                 //  Solo en convenio: una deuda reabierta o retirada no informa la CAE de un convenio que ya no corre.
                 conConvenio ? cae : null,
-                deuda.congelada(), accesoConfirmado);
+                deuda.congelada(),
+                accesoConfirmado,
+                deuda.getDebtor().getEmailUpdatedAt(),
+                deuda.getDebtor().getPhoneUpdatedAt());
     }
 }

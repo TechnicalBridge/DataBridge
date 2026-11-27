@@ -28,8 +28,9 @@ public class SecurityConfig {
 
     @Bean @Order(1)
     public SecurityFilterChain sinSesionFilterChain(HttpSecurity http) throws Exception {
-        // El controlador conserva API key o X-Internal-Key; no son sesiones.
-        return base(http).securityMatcher("/internal/**", "/api/v1/**")
+        // El controlador conserva API key o X-Internal-Key; no son sesiones. /api/debts/publico: deshacer un
+        // cambio de correo con el codigo del aviso (#471).
+        return base(http).securityMatcher("/internal/**", "/api/v1/**", "/api/debts/publico/**")
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll()).build();
     }
 
@@ -38,6 +39,7 @@ public class SecurityConfig {
         base(http).authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/debts/cartera", "/api/debts/cartera/**").hasRole("CREDITOR")
                 .anyRequest().hasAnyRole("DEBTOR","CREDITOR"));
         http.oauth2ResourceServer(rs -> {
             rs.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(new JwtPrincipalConverter()));
