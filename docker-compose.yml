@@ -264,6 +264,8 @@ services:
       #  Cifra en la base el secreto de las suscripciones a los avisos. La
       #  anterior, solo mientras se cambia (preparar-env.ps1 -Cambiar CIFRADO_LLAVE).
       CIFRADO_LLAVE: ${CIFRADO_LLAVE:?Falta CIFRADO_LLAVE en el .env (crealo con preparar-env.ps1)}
+      CONTACT_VERIFICATION_KEY: ${CONTACT_VERIFICATION_KEY:-}
+      CONTACT_TRUSTED_PROXIES: ${CONTACT_TRUSTED_PROXIES:-}
       CIFRADO_LLAVE_ANTERIOR: ${CIFRADO_LLAVE_ANTERIOR:-}
       DEMO_DATOS: ${DEMO_DATOS:-false}
       EVENTS_RABBIT: "true"
@@ -457,7 +459,7 @@ services:
       AI_URI:       http://ms-ai:8085
       MAIL_URI:     http://mailpit:8025
       INTERNAL_KEY: ${INTERNAL_KEY:?Falta INTERNAL_KEY en el .env (crealo con preparar-env.ps1)}
-      #  Los mismos cupos que tenga el gateway, para que limite.js compruebe
+      #  Los mismos cupos que tenga el gateway, para que auth-limit.js compruebe
       #  contra el numero real y no contra uno escrito a mano.
       DEBT_INTEGRATION_ALLOWED_CIDRS: ${DEBT_INTEGRATION_ALLOWED_CIDRS:-}
       RATE_AUTH_CAPACITY:   ${RATE_AUTH_CAPACITY:-10}

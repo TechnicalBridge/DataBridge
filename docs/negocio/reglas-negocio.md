@@ -3,9 +3,18 @@
 Lo que DataBridge exige a una cartera, cómo cobra los intereses que pactó el acreedor, y cómo cumple una
 campaña dentro de lo que permite la ley.
 
+### Las cifras de cartera
+
+- **Diferencia con el monto original** resta el saldo pendiente al monto original de la cartera.
+  El porcentaje expresa esa diferencia respecto del monto original. El saldo suma las cuotas
+  pendientes, que pueden incluir intereses de convenio. Por eso la diferencia puede ser negativa
+  y no mide cuánto capital se ha pagado.
+- **Ingresado por día** suma los pagos aplicados (`payment_applied`) de los últimos 30 días en la
+  moneda de cada pago. Los montos pueden incluir intereses de mora o de convenio.
+
 ### El modelo de negocio
 
-DataBridge calcula una comisión mensual por empresa usuaria sobre lo que recupera con la plataforma.
+DataBridge calcula una comisión mensual por empresa usuaria sobre el total ingresado por pagos.
 La paga quien cargó la deuda: la agencia de cobranza o el acreedor que cobra directamente. El deudor
 no paga esta comisión y un mismo pago no se atribuye a dos empresas.
 
@@ -19,7 +28,7 @@ sin esa atribución se usan la empresa y campaña actuales: no se puede reconstr
 historial que no se guardó. El detalle real usa `monto_clp` y `valor_uf`; también se admiten los nombres
 anteriores en camelCase.
 
-| Recuperado por la empresa en el mes (G) | Porcentaje p(G) |
+| Ingresado por pagos en el mes (G) | Porcentaje p(G) |
 | --- | --- |
 | Más de $0 y hasta $1.000.000 | 6 % |
 | Más de $1.000.000 y hasta $5.000.000 | 10 % |
@@ -28,9 +37,9 @@ anteriores en camelCase.
 
 **Comisión de DataBridge:** `P(G) = G × p(G) / 100`, con `p(G)` expresado como 6, 10, 12 o 15.
 **Para la empresa:** `G − P(G)`. La comisión se redondea al peso más cercano; medio peso sube.
-Sin recuperación, ambos montos y el porcentaje son cero y no hay tramo vigente.
+Sin pagos aplicados, ambos montos y el porcentaje son cero y no hay tramo vigente.
 
-| Recuperado | Porcentaje | Comisión | Para la empresa |
+| Ingresado por pagos | Porcentaje | Comisión | Para la empresa |
 | --- | --- | --- | --- |
 | $800.000 | 6 % | $48.000 | $752.000 |
 | $1.000.001 | 10 % | $100.000 | $900.001 |
@@ -40,14 +49,14 @@ Sin recuperación, ambos montos y el porcentaje son cero y no hay tramo vigente.
 sobre el total: con $1.000.000 quedan $940.000 para la empresa y con $1.000.001 quedan $900.001.
 Es el modelo acordado por el equipo y se conserva ese salto.
 
-La empresa ve el mes en *Campañas*, puede consultar uno anterior y ve lo recuperado por cada campaña.
+La empresa ve el mes en *Campañas*, puede consultar uno anterior y ve lo ingresado por pagos en cada campaña.
 El admin ve la comisión por empresa en *Empresas*. El tramo depende del total de la empresa,
 no de cada campaña por separado. Esto calcula y muestra la comisión: no emite una factura ni
 descuenta dinero automáticamente de los pagos de las pasarelas.
 
 | Consulta | Quién la usa | Respuesta |
 | --- | --- | --- |
-| `GET /api/analytics/comision?mes=2026-10` | Empresa autenticada | Solo su recuperación, comisión, tramos y campañas |
+| `GET /api/analytics/comision?mes=2026-10` | Empresa autenticada | Sus pagos aplicados, comisión, tramos y campañas |
 | `GET /api/admin/debt/comisiones?mes=2026-10` | Admin de DataBridge | Las empresas con pagos en el mes y los totales |
 
 Sin `mes` se consulta el actual en Chile. En el JSON el mes es una fecha (su primer día), los
@@ -247,7 +256,8 @@ cuota y el código que reenvía la empresa. Un correo que cae en un momento proh
 sale en la primera oportunidad permitida.
 
 **Para una demo se pueden apagar** las dos, solo para probar: `CONTACTO_SIN_HORARIO=true` deja escribir a
-cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, y
+cualquier hora y `CONTACTO_SIN_LIMITE=true` sin el tope de dos por semana. *Reglas* lo muestra a gritos, igual
+que *Campañas* en el panel, que además dice cuándo fue la última pasada de contacto y si se cayó (#441), y
 en producción van en `false` ([§10](../despliegue/docker.md#variables-de-entorno)).
 
 - **La invitación** de una cartera que llega de noche, un domingo o un feriado sale con la primera
@@ -302,3 +312,33 @@ correo queda fechado a esa hora.
 </details>
 
 ---
+
+
+## Contacto corregido por el deudor (#471)
+
+El contacto llega inicialmente con la cartera. Un deudor con sesión válida y rol `DEBTOR`
+puede corregir su teléfono chileno (móvil o fijo, normalizado a E.164) y proponer otro correo.
+Nombre y RUT siguen sin ser editables. La identidad proviene del JWT, nunca del cuerpo.
+
+El correo vigente no cambia hasta confirmar un código distinto del código de acceso,
+enviado directamente al buzón propuesto. Dura 15 minutos, admite cinco intentos y se usa
+una sola vez. Emitir otro reemplaza el anterior. Los límites compartidos en MySQL son
+3 solicitudes por deudor y 10 por origen cada ventana de 15 minutos. Una entrega bloqueada,
+desviada o capturada en Mailpit no acredita propiedad: la operación falla sin cambiar el correo.
+Estas solicitudes del propio deudor no son contactos de cobranza y no consumen sus cupos.
+
+Cada campo corregido tiene su propia fecha: su presencia significa «actualizado por el deudor».
+Ninguna cartera posterior de ningún acreedor sobrescribe ese campo. Los demás campos mantienen
+sus reglas. La ficha común sigue siendo una fila por RUT; las vistas empresariales conservan
+su autorización y solo agregan la procedencia y fecha, sin valores de contacto completos.
+
+La auditoría conserva deudor interno, actor DEBTOR, campo, acción CONTACT_UPDATED y fecha;
+no conserva valores completos ni códigos. El cambio de correo limpia el estado vigente de
+rechazos sin borrar contactos históricos. El aviso al correo previo no incluye información
+financiera y no condiciona el cambio confirmado.
+
+No es recuperación de cuenta: quien perdió el correo y no tiene sesión válida debe utilizar
+el canal oficial de soporte. Verificar el buzón nuevo no prueba que una sesión no fue robada.
+Los JWT vigentes siguen funcionando hasta expirar; los códigos/enlaces previos y la renovación
+de familias abiertas antes del cambio se rechazan mediante consulta al estado vigente en ms-debt,
+incluso si falla o se retrasa el aviso. Sin esa comprobación disponible no se abre/renueva acceso.

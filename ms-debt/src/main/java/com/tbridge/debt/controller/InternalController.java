@@ -1,5 +1,7 @@
 package com.tbridge.debt.controller;
 
+import com.tbridge.debt.util.Hash;
+
 import com.tbridge.debt.events.PagoConfirmado;
 import com.tbridge.debt.exception.ApiError;
 import com.tbridge.debt.exception.ApiException;
@@ -96,6 +98,28 @@ public class InternalController {
     ) {
         exigirClave(clave);
         return debts.snapshotInterno(id, installmentIds);
+    }
+
+    @GetMapping("/deudores/{rut}/contacto")
+    @Operation(summary = "Contacto y fecha de corte de credenciales; solo ms-auth")
+    public com.tbridge.debt.service.DebtService.ContactoVigente contactoVigente(
+            @RequestHeader(value = "X-Internal-Key", required = false) String clave, @PathVariable String rut) {
+        exigirClave(clave);
+        return debts.contactoVigente(rut);
+    }
+
+    @GetMapping("/debts/{id}/checkout")
+    @Operation(summary = "Monto para checkout, después de autorizar al propietario",
+            description = "El RUT procede de la sesión verificada por ms-payments, nunca del cuerpo público.")
+    @ApiResponse(responseCode = "403", description = "Deuda o cuota ajena o inexistente",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Conflicto legítimo de una deuda propia")
+    public DebtSnapshotResponse checkout(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Internal-Key", required = false) String clave,
+            @PathVariable Long id, @RequestParam String debtorRut,
+            @RequestParam(required = false) List<Long> installmentIds) {
+        exigirClave(clave);
+        return debts.snapshotCheckout(id, installmentIds, debtorRut);
     }
 
     @GetMapping("/deudores/{rut}/correo")
@@ -216,7 +240,8 @@ public class InternalController {
     }
 
     private void exigirClave(String clave) {
-        if (clave == null || !clave.equals(internalKey)) {
+        if (clave == null || clave.isBlank() || internalKey == null || internalKey.isBlank()
+                || !Hash.igualesEnTiempoConstante(Hash.sha256(internalKey), Hash.sha256(clave))) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Clave interna invalida");
         }
     }

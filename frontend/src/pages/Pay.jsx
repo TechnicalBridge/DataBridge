@@ -3,9 +3,9 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { obtenerDeuda } from "../api/deudas";
 import { abrirCobro, cancelarPago, obtenerPago } from "../api/pagos";
 import { dinero, fecha, fechaLarga, hora, hoyEnChile, porcentaje } from "../utils/formato";
-import BarraEstado from "../components/BarraEstado";
 import Cargando from "../components/Cargando";
 import LogoPasarela, { PASARELAS, nombreDePasarela } from "../components/LogoPasarela";
+import Tablones, { avanceEnPalabras, tablonesDe } from "../components/Tablones";
 import { CheckAnimado, IconoCandado, IconoCheck, IconoFlecha, IconoVolver } from "../components/Iconos";
 
 
@@ -34,6 +34,8 @@ export default function Pay() {
   //  Desde Mis deudas llegan marcadas las cuotas vencidas. Solo es lo que parte marcado: el
   //  deudor lo puede cambiar, y al cobrar ms-debt revisa las cuotas y decide el monto.
   const [cuantas, setCuantas] = useState(() => Math.max(1, Number.parseInt(parametros.get("cuotas"), 10) || 1));
+  //  La lista de cuotas muestra las proximas 3; el resto, a pedido (#556).
+  const [verTodas, setVerTodas] = useState(false);
   const [pago, setPago] = useState(null);
   // La ventana de la pasarela, para traerla al frente en vez de abrirla de nuevo.
   const ventana = useRef(null);
@@ -150,8 +152,24 @@ export default function Pay() {
   const monto = capital + mora - descuento;
   const hoy = hoyEnChile();
 
+  //  Los tablones del convenio (#547): verdes las pagadas, marcadas las que se eligen ahora, terracota las
+  //  vencidas que quedan sin elegir. Un mes que el acreedor informo despues no es parte del plan.
+  const estadosDelPlan = delPlan.map((c) => (c.estado === "paid" ? "pagado" : elegidas.includes(c) ? "marcado"
+    : c.vencimiento < hoy ? "vencido" : ""));
+  const pagadasDelPlan = delPlan.filter((c) => c.estado === "paid").length;
+  const quedarian = delPlan.filter((c) => c.estado !== "paid" && !elegidas.includes(c)).length;
+  const textoDelPlan = `Pagaste ${pagadasDelPlan} de ${delPlan.length}. `
+    + (k === 0 ? "Elige desde la que vence primero."
+      : `Con ${k === 1 ? "esta cuota" : `estas ${k}`}, ${quedarian === 0 ? "quedas al día con el convenio"
+        : quedarian === 1 ? "te quedaría 1 por pagar" : `te quedarían ${quedarian} por pagar`}.`);
+
   /** Marcar la cuota i marca todas las anteriores; desmarcarla, todas las que siguen. */
   const alternar = (i) => setCuantas(i < k ? i : i + 1);
+  //  Para elegir sin recorrer la lista (#556): las vencidas son las primeras pendientes, y la lista se corta en 3.
+  const vencidas = pendientes.filter((c) => c.vencimiento < hoy).length;
+  const visibles = verTodas ? pendientes.length : Math.min(pendientes.length, 3);
+  const marcadasOcultas = Math.max(0, k - visibles);
+  const ultimaPagada = pagadas.reduce((ultima, c) => (!ultima || (c.pagadaEn || "") > (ultima.pagadaEn || "") ? c : ultima), null);
 
   async function pagar() {
     setBusy(true);
@@ -240,12 +258,16 @@ export default function Pay() {
     <div className={conBarraFija ? "con-pagar-fija" : undefined}>
       <header className="topbar aparece">
         <div>
-          <span className="eyebrow">{deuda.acreedor}</span>
           <h1>Pagar</h1>
           <p>
-            {deuda.concepto}, ref. {deuda.externalId}
+            {deuda.concepto} con {deuda.acreedor}, ref. {deuda.externalId}
             {deuda.conConvenio && deuda.cae != null ? ` · CAE ${porcentaje(deuda.cae, 2)}` : ""}
           </p>
+          {Object.entries(deuda.referencias || {}).length ? (
+            <p className="hint">
+              Referencias: {Object.entries(deuda.referencias).map(([clave, valor]) => `${clave}: ${valor}`).join(" · ")}
+            </p>
+          ) : null}
         </div>
         <Link className="btn btn-ghost btn-sm" to="/app">
           <IconoVolver size={16} />
@@ -268,7 +290,7 @@ export default function Pay() {
             {dinero(pago.amount, pago.currency)}
             {pago.currency === "UF" && pago.amountClp ? `, ${dinero(pago.amountClp)} al valor de hoy` : ""}
           </p>
-          <BarraEstado deuda={deuda} />
+          <Tablones estados={tablonesDe(deuda)} texto={avanceEnPalabras(deuda)} />
           {acreditado ? (
             <p className="hint">
               {Number(deuda.saldo) > 0
@@ -282,111 +304,8 @@ export default function Pay() {
         </div>
       ) : (
         <>
-          {/* En el telefono no ayuda a decidir nada y empuja Pagar hacia abajo (#475). */}
-          <div className="card bloque aparece solo-escritorio" style={{ "--i": 1 }}>
-            <BarraEstado deuda={deuda} />
-          </div>
-          <div className="grid-2">
-            <div className="card aparece" style={{ "--i": 2 }}>
-              {enConvenio ? (
-                <>
-                  <div className="card-cab">
-                    <h2>Elige las cuotas</h2>
-                    <span className="badge badge-ok">{deuda.cuotasPagadas} de {deuda.cuotasTotales} pagadas</span>
-                  </div>
-                  <p className="hint" style={{ margin: "0 0 14px" }}>
-                    Se pagan en orden, desde la que vence primero. Marca hasta donde quieras avanzar.
-                  </p>
-                  <div className="cuotas-lista">
-                    {pagadas.map((c, i) => (
-                      <div key={c.id} className="cuota-fila pagada" style={{ "--i": i }}>
-                        <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
-                        <span className="cuota-info">
-                          <b>{lugar(c)}</b>
-                          <span>Pagada el {fecha(c.pagadaEn)}</span>
-                        </span>
-                        <span className="cuota-monto">{dinero(c.monto, moneda)}</span>
-                      </div>
-                    ))}
-                    {pendientes.map((c, i) => (
-                      <label key={c.id} className={`cuota-fila${i < k ? " elegida" : ""}`}
-                             style={{ "--i": i + pagadas.length }}>
-                        <input type="checkbox" className="oculto" checked={i < k} disabled={!!pago}
-                               onChange={() => alternar(i)} />
-                        <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
-                        <span className="cuota-info">
-                          <b>{lugar(c)}</b>
-                          <span>
-                            Vence el {fecha(c.vencimiento)}
-                            {c.vencimiento < hoy ? <span className="tag tag-vencida">Vencida</span> : null}
-                          </span>
-                        </span>
-                        <span className="cuota-monto">
-                          {dinero(c.monto, moneda)}
-                          {Number(c.interesMora) > 0 ? <small>+ {dinero(c.interesMora, moneda)} de mora</small> : null}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {pendientes.length > 1 ? (
-                    <div className="atajos">
-                      <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={!!pago}
-                              onClick={() => setCuantas(1)}>
-                        Solo la próxima
-                      </button>
-                      <button type="button" className={`chip${k === pendientes.length ? " on" : ""}`}
-                              disabled={!!pago} onClick={() => setCuantas(pendientes.length)}>
-                        Todas ({pendientes.length})
-                      </button>
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <h2>Lo que debes</h2>
-                  <table className="table">
-                    <thead>
-                      <tr><th>Concepto</th><th>Venció</th><th className="num">Monto</th></tr>
-                    </thead>
-                    <tbody>
-                      {(deuda.cargos || []).map((c, i) => (
-                        <tr key={i}>
-                          <td>{c.concepto}</td>
-                          <td>{fecha(c.vencimiento)}</td>
-                          <td className="num">{dinero(c.monto, moneda)}</td>
-                        </tr>
-                      ))}
-                      {mora > 0 ? (
-                        <tr>
-                          <td colSpan={2}>Intereses por mora, al {porcentaje(deuda.tasaInteresMensual)} mensual</td>
-                          <td className="num">{dinero(mora, moneda)}</td>
-                        </tr>
-                      ) : null}
-                      {descuento > 0 ? (
-                        <tr className="fila-descuento">
-                          <td colSpan={2}>
-                            Descuento por pronto pago
-                            {deuda.descuentoHasta ? <span className="sub">Si pagas antes del {fechaLarga(deuda.descuentoHasta)}</span> : null}
-                          </td>
-                          <td className="num">−{dinero(descuento, moneda)}</td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                  {deuda.estado === "open" ? (
-                    <p className="hint">
-                      ¿Mucho de una vez?{" "}
-                      <Link className="link-btn" to={`/app/repactar/${deuda.id}`}>
-                        {deuda.tasaInteresMensual ? "Págalo en cuotas" : "Págalo en cuotas sin interés"}
-                      </Link>
-                      {descuento > 0 ? " En cuotas no hay descuento: es solo para quien paga todo de una vez." : null}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-
-            <div className="card pegado aparece" style={{ "--i": 3 }}>
+          <div className="grid-2 pagar-grid">
+            <div className="card pegado aparece" style={{ "--i": 1 }}>
               <h2>Resumen</h2>
               <div className="total-pagar">
                 <div>
@@ -469,6 +388,121 @@ export default function Pay() {
                 </>
               )}
             </div>
+            <div className="card pagar-detalle aparece" style={{ "--i": 2 }}>
+              {enConvenio ? (
+                <>
+                  <h2>¿Cuántas cuotas pagas hoy?</h2>
+                  {delPlan.length > 1 ? <Tablones estados={estadosDelPlan} texto={textoDelPlan} /> : null}
+                  {pendientes.length > 1 ? (
+                    <div className="cuantas">
+                      <div className="cuantas-paso" role="group" aria-label="Cuántas cuotas pagas hoy">
+                        <button type="button" className="cuantas-boton" aria-label="Una cuota menos"
+                                disabled={!!pago || k <= 1} onClick={() => setCuantas(k - 1)}>−</button>
+                        <output className="cuantas-numero" aria-live="polite">
+                          <b>{k}</b> de {pendientes.length}
+                        </output>
+                        <button type="button" className="cuantas-boton" aria-label="Una cuota más"
+                                disabled={!!pago || k >= pendientes.length} onClick={() => setCuantas(k + 1)}>+</button>
+                      </div>
+                      <div className="atajos">
+                        <button type="button" className={`chip${k === 1 ? " on" : ""}`} disabled={!!pago}
+                                onClick={() => setCuantas(1)}>
+                          La próxima
+                        </button>
+                        {vencidas > 1 && vencidas < pendientes.length ? (
+                          <button type="button" className={`chip${k === vencidas ? " on" : ""}`} disabled={!!pago}
+                                  onClick={() => setCuantas(vencidas)}>
+                            Ponerme al día ({vencidas})
+                          </button>
+                        ) : null}
+                        <button type="button" className={`chip${k === pendientes.length ? " on" : ""}`}
+                                disabled={!!pago} onClick={() => setCuantas(pendientes.length)}>
+                          Todas ({pendientes.length})
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  <p className="hint" style={{ margin: "14px 0" }}>
+                    Se pagan en orden, desde la que vence primero.
+                  </p>
+                  <div className="cuotas-lista">
+                    {ultimaPagada ? (
+                      <div className="cuota-fila pagada">
+                        <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
+                        <span className="cuota-info">
+                          <b>Ya pagaste {pagadas.length === 1 ? "1 cuota" : `${pagadas.length} cuotas`}</b>
+                          {ultimaPagada.pagadaEn ? (
+                            <span>{pagadas.length === 1 ? "El" : "La última, el"} {fecha(ultimaPagada.pagadaEn)}</span>
+                          ) : null}
+                        </span>
+                      </div>
+                    ) : null}
+                    {pendientes.slice(0, visibles).map((c, i) => (
+                      <label key={c.id} className={`cuota-fila${i < k ? " elegida" : ""}`}
+                             style={{ "--i": i + (ultimaPagada ? 1 : 0) }}>
+                        <input type="checkbox" className="oculto" checked={i < k} disabled={!!pago}
+                               onChange={() => alternar(i)} />
+                        <span className="casilla" aria-hidden="true"><IconoCheck size={14} /></span>
+                        <span className="cuota-info">
+                          <b>{lugar(c)}</b>
+                          <span>
+                            Vence el {fecha(c.vencimiento)}
+                            {c.vencimiento < hoy ? <span className="tag tag-vencida">Vencida</span> : null}
+                          </span>
+                        </span>
+                        <span className="cuota-monto">
+                          {dinero(c.monto, moneda)}
+                          {Number(c.interesMora) > 0 ? <small>+ {dinero(c.interesMora, moneda)} de mora</small> : null}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {visibles < pendientes.length ? (
+                    <button type="button" className="link-btn cuotas-mas" onClick={() => setVerTodas(true)}>
+                      Ver las demás ({pendientes.length - visibles}
+                      {marcadasOcultas ? `, ${marcadasOcultas === 1 ? "1 marcada" : `${marcadasOcultas} marcadas`}` : ""})
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <h2>Lo que debes</h2>
+                  <ul className="detalle-pago">
+                    {(deuda.cargos || []).map((c, i) => (
+                      <li key={i}>
+                        <span>{c.concepto}<small>Venció el {fecha(c.vencimiento)}</small></span>
+                        <b>{dinero(c.monto, moneda)}</b>
+                      </li>
+                    ))}
+                    {mora > 0 ? (
+                      <li>
+                        <span>Intereses por mora<small>Al {porcentaje(deuda.tasaInteresMensual)} mensual</small></span>
+                        <b>{dinero(mora, moneda)}</b>
+                      </li>
+                    ) : null}
+                    {descuento > 0 ? (
+                      <li className="descuento">
+                        <span>
+                          Descuento por pronto pago
+                          {deuda.descuentoHasta ? <small>Si pagas antes del {fechaLarga(deuda.descuentoHasta)}</small> : null}
+                        </span>
+                        <b>−{dinero(descuento, moneda)}</b>
+                      </li>
+                    ) : null}
+                  </ul>
+                  {deuda.estado === "open" ? (
+                    <p className="hint">
+                      ¿Mucho de una vez?{" "}
+                      <Link className="link-btn" to={`/app/repactar/${deuda.id}`}>
+                        {deuda.tasaInteresMensual ? "Págalo en cuotas" : "Págalo en cuotas sin interés"}
+                      </Link>
+                      {descuento > 0 ? " En cuotas no hay descuento: es solo para quien paga todo de una vez." : null}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+
           </div>
           {conBarraFija ? (
             <div className="pagar-fija" role="region" aria-label="Total y pago">

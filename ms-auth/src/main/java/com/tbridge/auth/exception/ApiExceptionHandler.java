@@ -111,7 +111,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> archivoGrande(MaxUploadSizeExceededException ex) {
-        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamano maximo permitido");
+        return responder(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo pasa del tamaño máximo permitido");
     }
 
     /**
@@ -130,7 +130,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> inesperado(Exception ex) {
-        log.error("Error no controlado", ex);
+        log.error("Error no controlado: category=UNEXPECTED_ERROR type={}", ex.getClass().getSimpleName());
         return responder(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno");
     }
 

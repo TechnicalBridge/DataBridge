@@ -138,6 +138,7 @@ class DebtServiceTest {
         when(installments.findById(any())).thenAnswer(llamada -> cuotas.stream()
                 .filter(c -> c.getId().equals(llamada.getArgument(0))).findFirst());
         when(installments.findByDebtOrderByNumberAsc(deuda)).thenReturn(cuotas);
+        when(installments.findByDebtInOrderByNumberAsc(any())).thenReturn(cuotas);
         when(installments.findByDebtAndStatus(eq(deuda), any())).thenAnswer(llamada -> cuotas.stream()
                 .filter(c -> c.getStatus() == llamada.getArgument(1)).toList());
         when(events.findByDebtOrderByOccurredAtAsc(deuda)).thenReturn(historia);
@@ -159,8 +160,43 @@ class DebtServiceTest {
     }
 
     @Test
+    void una_identidad_sin_deudas_no_revela_ids_y_sin_sesion_sigue_401() {
+        for (long id : new long[]{3L, 999999L}) {
+            ApiException sinDeudas = assertThrows(ApiException.class,
+                    () -> servicio.requireVisible(deudor("sin-registro"), id));
+            assertEquals(HttpStatus.FORBIDDEN, sinDeudas.getStatus());
+            assertEquals("No puedes ver esta deuda", sinDeudas.getMessage());
+            assertEquals(HttpStatus.UNAUTHORIZED, assertThrows(ApiException.class,
+                    () -> servicio.requireVisible(null, id)).getStatus());
+        }
+    }
+
+    @Test
+    void seg_dat_007_ids_correlativos_no_revelan_existencia() {
+        when(debts.findById(40L)).thenReturn(Optional.of(deuda));
+        when(debts.findById(41L)).thenReturn(Optional.empty());
+        Debtor otro = new Debtor();
+        otro.setId(99L);
+        when(debtors.findByRut("otro")).thenReturn(Optional.of(otro));
+        when(organizations.findByRut("otra")).thenReturn(Optional.of(organizacion(99L, "otra", "Otra")));
+        for (JwtPrincipal user : List.of(deudor("otro"), empresa("otra"))) {
+            for (java.util.function.LongConsumer consulta : List.<java.util.function.LongConsumer>of(
+                    id -> servicio.requireVisible(user, id),
+                    id -> servicio.getFor(user, id),
+                    id -> servicio.simulate(user, id, 6))) {
+                ApiException ajena = assertThrows(ApiException.class, () -> consulta.accept(40L));
+                ApiException ausente = assertThrows(ApiException.class, () -> consulta.accept(41L));
+                assertEquals(HttpStatus.FORBIDDEN, ajena.getStatus());
+                assertEquals(ajena.getStatus(), ausente.getStatus());
+                assertEquals("No puedes ver esta deuda", ajena.getMessage());
+                assertEquals(ajena.getMessage(), ausente.getMessage());
+            }
+        }
+    }
+
+    @Test
     void el_deudor_ve_su_deuda_con_el_saldo_de_las_cuotas() {
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         List<DebtSummaryResponse> suyas = servicio.listFor(deudor("18905214-6"));
 
@@ -193,7 +229,7 @@ class DebtServiceTest {
     void el_avance_cuenta_las_cuotas_vigentes_y_no_las_anuladas() {
         enConvenioDeTres();
         cuotas.get(1).setStatus(Installment.Status.paid);
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         DebtSummaryResponse resumen = servicio.listFor(deudor("18905214-6")).getFirst();
 
@@ -201,6 +237,83 @@ class DebtServiceTest {
         assertEquals(3, resumen.cuotasTotales());
         assertEquals(new BigDecimal("280000"), resumen.saldo());
         assertEquals(true, resumen.conConvenio());
+    }
+
+    @Test
+    void checkout_autoriza_antes_de_estados_saldo_y_cuotas() {
+        deuda.setStatus(Debt.Status.disputed);
+        patrimonio.setStatus(Organization.Status.suspended);
+        for (Long id : List.of(3L, 4L)) {
+            for (List<Long> ids : java.util.Arrays.<List<Long>>asList(null, List.of(99L), List.of(12L, 12L))) {
+                ApiException error = assertThrows(ApiException.class,
+                        () -> servicio.snapshotCheckout(id, ids, "16482337-7"));
+                assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+                assertEquals("No puedes ver esta deuda", error.getMessage());
+            }
+        }
+        org.mockito.Mockito.verifyNoInteractions(installments, descuentos);
+    }
+
+    @Test
+    void checkout_sin_identidad_no_consulta_cuotas() {
+        for (String rut : java.util.Arrays.asList(null, "", " ")) {
+            ApiException error = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, List.of(12L), rut));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+            assertEquals("No puedes ver esta deuda", error.getMessage());
+        }
+        org.mockito.Mockito.verifyNoInteractions(installments, descuentos);
+    }
+
+    @Test
+    void checkout_propio_sin_saldo_conserva_el_conflicto() {
+        cuotas.forEach(c -> c.setStatus(Installment.Status.paid));
+        ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+        ApiException actual = assertThrows(ApiException.class,
+                () -> servicio.snapshotCheckout(3L, null, valentina.getRut()));
+        assertEquals(HttpStatus.CONFLICT, actual.getStatus());
+        assertEquals(previo.getMessage(), actual.getMessage());
+    }
+
+    @Test
+    void checkout_cuota_ajena_e_inexistente_son_indistinguibles() {
+        Installment ajena = new Installment();
+        Debt otra = new Debt();
+        otra.setId(4L);
+        ajena.setDebt(otra);
+        when(installments.findById(98L)).thenReturn(Optional.of(ajena));
+        for (Long id : List.of(98L, 99L)) {
+            ApiException error = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, List.of(id), valentina.getRut()));
+            assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+            assertEquals("No puedes ver esta deuda", error.getMessage());
+        }
+    }
+
+    @Test
+    void checkout_propio_conserva_montos_y_conflictos() {
+        assertEquals(servicio.snapshotInterno(3L, null), servicio.snapshotCheckout(3L, null, valentina.getRut()));
+        enConvenioDeTres();
+        for (List<Long> ids : java.util.Arrays.<List<Long>>asList(null, List.of(14L), List.of(12L), List.of(13L, 13L))) {
+            if (ids == null) {
+                assertEquals(servicio.snapshotInterno(3L, ids), servicio.snapshotCheckout(3L, ids, valentina.getRut()));
+            } else {
+                ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, ids));
+                ApiException actual = assertThrows(ApiException.class,
+                        () -> servicio.snapshotCheckout(3L, ids, valentina.getRut()));
+                assertEquals(previo.getStatus(), actual.getStatus());
+                assertEquals(previo.getMessage(), actual.getMessage());
+            }
+        }
+        for (boolean suspendida : List.of(false, true)) {
+            deuda.setStatus(suspendida ? Debt.Status.open : Debt.Status.disputed);
+            patrimonio.setStatus(suspendida ? Organization.Status.suspended : Organization.Status.active);
+            ApiException previo = assertThrows(ApiException.class, () -> servicio.snapshotInterno(3L, null));
+            ApiException actual = assertThrows(ApiException.class,
+                    () -> servicio.snapshotCheckout(3L, null, valentina.getRut()));
+            assertEquals(HttpStatus.CONFLICT, actual.getStatus());
+            assertEquals(previo.getMessage(), actual.getMessage());
+        }
     }
 
     @Test
@@ -318,7 +431,7 @@ class DebtServiceTest {
         enConvenioDeTres();
         cuotas.get(1).setStatus(Installment.Status.paid);
         conUnMesAparte();
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
 
         DebtSummaryResponse resumen = servicio.listFor(deudor("18905214-6")).getFirst();
 
@@ -374,7 +487,7 @@ class DebtServiceTest {
         sinInvitar.setLastBatch(deuda.getLastBatch());
         sinInvitar.setCurrency(Debt.Currency.CLP);
         sinInvitar.setOriginalAmount(new BigDecimal("100000"));
-        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda, sinInvitar));
+        when(debts.carteraParaListado(apofyx)).thenReturn(List.of(deuda, sinInvitar));
         //  La base responde solo por las deudas a las que se les escribio alguna vez.
         when(contactos.ultimoPorDeuda(List.of(deuda, sinInvitar)))
                 .thenReturn(List.of(new UltimoContacto(3L, el("2026-10-06T10:00"))));
@@ -528,6 +641,7 @@ class DebtServiceTest {
     @Test
     void repactar_anula_las_cuotas_pendientes_en_vez_de_borrarlas() {
         when(installments.findByDebtOrderByNumberAsc(deuda)).thenReturn(cuotas);
+        when(installments.findByDebtInOrderByNumberAsc(any())).thenReturn(cuotas);
         when(installments.save(any())).thenAnswer(llamada -> llamada.getArgument(0));
 
         servicio.applyRepact(deudor("18905214-6"), 3L, 3);
@@ -796,8 +910,8 @@ class DebtServiceTest {
     @Test
     void las_listas_traen_la_cae_en_una_sola_consulta() {
         enConvenioDeTres();
-        when(debts.findByDebtorOrderByUpdatedAtDesc(valentina)).thenReturn(List.of(deuda));
-        when(debts.carteraDe(apofyx)).thenReturn(List.of(deuda));
+        when(debts.delDeudorParaListado(valentina)).thenReturn(List.of(deuda));
+        when(debts.carteraParaListado(apofyx)).thenReturn(List.of(deuda));
         when(repactations.findByDebtInAndSupersededAtIsNull(List.of(deuda)))
                 .thenReturn(List.of(convenioVigente("18.00", "2026-10-02T15:00:00Z")));
 

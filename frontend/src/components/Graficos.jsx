@@ -8,20 +8,21 @@ import { useTema } from "../store/temaStore";
 /**
  * Los colores de los graficos, por tema. Recharts pinta en SVG con colores
  * fijos y no lee las variables de CSS, asi que la paleta se repite aca: si
- * cambia index.css, cambia esto.
+ * cambia index.css, cambia esto. Los de cada estado son los de `--estado-*`
+ * (#557): el mismo color que en el panel y en las etiquetas.
  */
 const PALETA = {
   light: {
-    activas: "#c8764b", enConvenio: "#d9a441", enRevision: "#b0443a", pagadas: "#3e7b4f", retiradas: "#c9bda8",
+    activas: "#c8764b", enConvenio: "#d9a441", enRevision: "#b0443a", pagadas: "#3e7b4f", retiradas: "#6f665b",
     barra: "#3e7b4f", texto: "#6f665b", grilla: "#ebe1cf", fondo: "#fffdf8", borde: "#dccfb8", tinta: "#2e2a24",
   },
   dark: {
-    activas: "#e09a72", enConvenio: "#e7bd64", enRevision: "#f08a84", pagadas: "#7dbd8c", retiradas: "#57524a",
+    activas: "#e09a72", enConvenio: "#e7bd64", enRevision: "#f08a84", pagadas: "#7dbd8c", retiradas: "#a59d90",
     barra: "#7dbd8c", texto: "#a59d90", grilla: "#2e2b27", fondo: "#1c1a17", borde: "#3d3933", tinta: "#efebe3",
   },
 };
 
-function usePaleta() {
+export function usePaleta() {
   const tema = useTema((s) => s.tema);
   const c = PALETA[tema];
   const tooltip = {
@@ -94,7 +95,7 @@ export function RecuperadoPorDia({ resumen }) {
     <div className="card">
       <div className="card-cab">
         <div>
-          <h2>Recuperado por día</h2>
+          <h2>Ingresado por día</h2>
           {monedas.length ? <span className="sub">{dinero(total, moneda)} en los últimos 30 días</span> : null}
         </div>
         {monedas.length > 1 ? (
@@ -117,7 +118,7 @@ export function RecuperadoPorDia({ resumen }) {
               <XAxis dataKey="dia" stroke={c.texto} tick={{ fontSize: 10 }} interval={4} />
               <YAxis stroke={c.texto} tick={{ fontSize: 11 }} width={78} tickFormatter={(v) => montoCorto(v, moneda)} />
               <Tooltip {...tooltip} cursor={{ fill: c.grilla, opacity: 0.5 }}
-                       formatter={(v) => [dinero(v, moneda), "Recuperado"]} />
+                       formatter={(v) => [dinero(v, moneda), "Ingresado por pagos"]} />
               <Bar dataKey="monto" fill={c.barra} radius={[6, 6, 0, 0]} animationDuration={900} />
             </BarChart>
           </ResponsiveContainer>

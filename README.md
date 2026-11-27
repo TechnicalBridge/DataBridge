@@ -100,6 +100,7 @@ Para las **empresas que gestionan la cartera** (agencias de cobranza como APOFYX
 | **Asistente Inteligente** | SDK oficial OpenAI para Java (`openai-java`) | Consultas LLM compatibles con Groq y Gemini, con fallback automático a motor de reglas local (`MotorLocal`). |
 | **Documentación & Hipermedios** | springdoc-openapi (Swagger) · Spring HATEOAS | Documentación interactiva OpenAPI 3 y enlaces hipermedia en respuestas REST. |
 | **Plantillas y Correo** | Jakarta Mail · Thymeleaf | Renderizado de correos transaccionales en HTML responsivo y texto plano. |
+| **Pruebas** | JUnit 5 · Mockito · MockMvc · AssertJ · Testcontainers · k6 | Unitarias, de la capa web, integración con MySQL real (Testcontainers o `DB_TEST_URL`) y rendimiento; k6 mide el sistema local levantado y genera evidencias para el visor local. |
 
 ### Base de datos
 
@@ -164,6 +165,26 @@ docker compose --profile app up -d --build --wait
 | **Consola RabbitMQ** | [http://localhost:15672](http://localhost:15672) | Usuario: `guest`, contraseña: valor de `RABBIT_PASSWORD` en `.env`. |
 | **Bases de datos MySQL** | `127.0.0.1:3308` (`tb_auth`)<br>`127.0.0.1:3309` (`tb_debt`)<br>`127.0.0.1:3310` (`tb_payments`) | Usuario: `tbridge`, contraseñas configuradas en `.env`. |
 
+**Dónde llega el correo al desarrollar:** el portal no puede saber qué transporte
+usa `ms-auth`; que Vite corra con `npm run dev` no significa que el correo vaya
+a Mailpit. `MAIL_TRANSPORT`, si está definido, elige explícitamente `mailpit`,
+`smtp`, `brevo` o `resend`. Sin esa variable, se elige en este orden:
+
+| Configuración de `ms-auth` | Destino |
+| :--- | :--- |
+| `BREVO_API_KEY` | Brevo (proveedor externo) |
+| `SMTP_HOST` | Servidor SMTP configurado (puede ser externo) |
+| `CORREO_BUZON_DE_PRUEBA` (Docker Compose local) | Mailpit, normalmente [localhost:8025](http://localhost:8025) |
+| Ninguna de las anteriores (Maven fuera de Docker) | No se entrega correo; no se debe esperar un enlace en Mailpit ni en el log |
+
+Con `MAIL_TRANSPORT=resend` se usa Resend y se requiere `RESEND_API_KEY`.
+Antes de probar con un proveedor externo, configura `CORREO_SOLO_A` y
+`CORREO_DESVIAR_A` para no enviar invitaciones ni códigos a personas reales.
+Los dominios reservados como `example.com` se envían a Mailpit si está
+disponible, o se desvían al destinatario de prueba configurado; sin ninguno
+de los dos, no se entregan. Consulta también
+[la configuración del correo](docs/despliegue/resend.md).
+
 Para apagar el entorno:
 ```powershell
 docker compose --profile app down
@@ -174,7 +195,7 @@ docker compose --profile app down -v
 ### Cuentas de prueba y demostración
 
 Con `DEMO_DATOS=true`:
-- **Acceso Empresa**: Ingresar a *Soy de una empresa* con el correo `camila.reyes@example.com`. El código de acceso de un solo uso llegará al buzón Mailpit (http://localhost:8025).
+- **Acceso Empresa**: Ingresar a *Soy de una empresa* con el correo `camila.reyes@example.com`. En Docker local, el código de acceso llega a Mailpit (http://localhost:8025) si el buzón de prueba está disponible; con otro transporte, consulta la tabla anterior.
 - **Acceso Deudor**: Ingresar en *Tengo un código de acceso* o mediante solicitud de código con RUTs de ejemplo:
   - `16.482.337-7`: Deudor en convenio de 6 cuotas (3 pagadas).
   - `19.230.418-0`: Deudor con totalidad de deuda saldada.
@@ -242,7 +263,43 @@ foreach ($s in "gateway","ms-auth","ms-debt","ms-payments","ms-ai") { .\mvnw.cmd
 | **gateway** | **54** | Enrutamiento de rutas, filtros de seguridad, cortafuegos de IPs y límites de tasa (Bucket4j) | JUnit 5, Spring Boot Test, MockMvc |
 | **Total suite Java** | **1.512 pruebas** | Cobertura integral continua en cada Pull Request sin fallos | GitHub Actions CI (JDK 25) |
 
+> **ms-ai en #336:** `.\mvnw.cmd -f ms-ai\pom.xml clean test` ejecuta 227 pruebas
+> en esta rama, incluidas integración, seguridad y latencia HTTP con ms-debt y LLM
+> simulados. El cuadro conserva la medición histórica de las cinco suites sobre
+> `main`; el procedimiento y los tipos están en [docs/pruebas/README.md](docs/pruebas/README.md).
+
 > **Nota sobre el portal:** El frontend no posee suite de pruebas unitarias automatizadas (`.test.jsx`); su verificación se realiza en CI mediante compilación estricta (`npm ci` y `npm run build`), control de tipos y revisión manual en navegador. Para detalles adicionales sobre ejecución y cobertura de pruebas, consultar [docs/pruebas/README.md](docs/pruebas/README.md).
+
+### Pruebas de rendimiento y visor local
+
+Se usa **k6**, con escenarios en `performance-tests/k6/`, únicamente contra el
+entorno local y datos de demo. No requiere instalar k6: corre en Docker.
+
+```powershell
+# Preparar la pila local con datos de demo, sin alterar los cupos.
+$env:DEMO_DATOS = 'true'
+docker compose --profile app up -d --wait
+
+# Suite completa sobre la pila ya levantada: 12 escenarios y humo.
+# Indica el nombre de tu proyecto Compose (lo lista `docker compose ls`).
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge
+
+# Comprobación rápida: solo el humo.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge -Escenarios smoke
+
+# Ver los resultados existentes, sin repetir pruebas ni modificar Docker.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
+```
+
+La suite completa necesita **Python 3.9+**, sube temporalmente solo tres variables
+de cupo, recrea gateway y ms-auth y restaura sus valores al finalizar; no copia el
+entorno de los contenedores a disco. Tarda alrededor de **30 minutos** (la
+resistencia sola son 10). Después genera los HTML y abre el visor en
+<http://127.0.0.1:8766/evidencias/index.html>; `Ctrl+C` lo detiene.
+No ejecutarla contra producción ni simultáneamente con otra corrida.
+IA, repactaciones y verificación de pasarelas quedan desactivadas.
+Los HTML son una presentación propia de los resultados de k6, no su interfaz
+nativa. [Requisitos, comandos, umbrales y alcance](docs/rendimiento/suite-k6.md).
 
 ---
 
