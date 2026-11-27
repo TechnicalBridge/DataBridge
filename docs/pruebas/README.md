@@ -16,9 +16,11 @@ cambió se salta las pruebas y su check pasa en segundos. Así un PR que solo ca
 espera pruebas que nunca van a correr.
 
 Cada servicio tiene sus pruebas en `src/test/java`, con la misma estructura de paquetes que el
-código. **Salvo la integración de `ms-debt`, ninguna necesita base de datos ni internet**, así que
-corren en segundos en cualquier equipo: Transbank, Khipu, Mercado Pago, Brevo y el LLM se
-reemplazan por un servidor HTTP local.
+código. **Las unitarias y de capa web no necesitan base de datos ni internet**: Transbank,
+Khipu, Mercado Pago, Brevo y el LLM se reemplazan por un servidor HTTP local. Las pruebas de
+integración con MySQL de `ms-auth` (#416) y `ms-debt` (#413) usan Testcontainers en CI o
+`DB_TEST_URL` en local. Las de rendimiento no viven en `src/test/java`:
+están en `performance-tests/k6/` y se corren a mano contra una pila local.
 
 `ms-debt` tiene además `IntegracionControladoresTest`, que levanta el contexto completo contra un
 MySQL real: en CI con Testcontainers (`mysql:8.4`) y Flyway desde una base vacía; en local con
@@ -50,6 +52,48 @@ de fallback HTTP (`ProviderHttpTest`) y de salud sin claves. La prueba
 locales, imprime p50/p95 y exige p95 menor que cinco segundos. No mide el VPS,
 no usa proveedores reales y no es una prueba de carga. Para resultados
 comparables de producción se requiere el recorrido k6 por Caddy y gateway.
+
+### Cómo ejecutar las pruebas de rendimiento
+
+Se usa **k6** desde Docker, con la suite modular y los escenarios por servicio de
+`performance-tests/k6/`. Hace falta Docker Desktop y una pila local con datos de
+demo, JWT y Mailpit configurados. No apuntar a producción. La guía completa está en
+[`docs/rendimiento`](../rendimiento/README.md).
+
+```powershell
+# Humo: levanta la demo local y prepara los cupos.
+.\performance-tests\k6\scripts\run.ps1 smoke -Levantar -SinIa -SoloLectura
+
+# Un escenario de carga, con los cupos de la corrida anterior aún activos.
+.\performance-tests\k6\scripts\run.ps1 load -SinIa -SoloLectura
+
+# Restaurar los cupos antes de otra corrida.
+Remove-Item Env:\RATE_GLOBAL_CAPACITY, Env:\RATE_AUTH_CAPACITY, Env:\AUTH_IDENTIFIER_LIMIT_CAPACITY -ErrorAction SilentlyContinue
+docker compose --profile app up -d --no-deps --wait gateway ms-auth
+
+# Suite completa, restauración de cupos, generación HTML y visor local.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge
+
+# Solo ver los informes existentes (requiere Python 3.9+).
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
+```
+
+La suite completa sube solo tres variables de cupo en el entorno, recrea gateway
+y ms-auth y las restaura antes de abrir el visor; no guarda el entorno de los
+contenedores en disco. Indica con `-Proyecto` el nombre real del proyecto Compose
+(lo lista `docker compose ls`) y, para una comprobación rápida, usa
+`-Escenarios smoke`. No ejecutarla en paralelo con otra corrida. La suite completa
+tarda alrededor de 30 minutos (la resistencia sola son 10). Requiere Python 3.9+;
+los escenarios individuales no necesitan Python.
+El envoltorio `run.ps1 -Levantar` no restaura los cupos por sí solo: sigue la
+[guía de restauración](../rendimiento/suite-k6.md#antes-de-correrla) al terminar
+si solo ejecutas escenarios individuales.
+
+Los JSON y resúmenes quedan en `performance-tests/k6/reports/`; los HTML derivados,
+en `reports/evidencias/`. El visor escucha únicamente en
+<http://127.0.0.1:8766/evidencias/index.html>. Recargar incorpora las pruebas que
+vayan terminando; `Ctrl+C` detiene el servidor. No modifica métricas ni umbrales.
+Ver [los 13 escenarios y sus criterios](../rendimiento/suite-k6.md).
 
 En #228 se repitieron las cinco suites Java (1.305 pruebas, cero fallos, errores u
 omisiones). Los 46 casos añadidos cubrían configuración y contratos HTTP de Groq,
@@ -120,7 +164,7 @@ vive fuera de este repositorio, en la carpeta que reúne a los tres
 | **De la capa web** (`@WebMvcTest` + MockMvc) | Cada controlador con su seguridad, su validación y su JSON: `401` sin sesión, `403` con la deuda de otro, `400` con datos malos, los `_links` según quién mira, la cookie de la sesión y los nombres del contrato v1 intactos. El aviso de Khipu llega con el cuerpo tal como vino, porque sobre ese texto va la firma. En el gateway, que el retorno de Webpay pase sin `Origin` y nada más |
 | **Del contrato del aviso de pago** | ms-payments manda exactamente el ejemplo del contrato ([`docs/eventos`](../eventos/README.md); cada uno guarda una copia en sus pruebas, y la CI revisa que sean iguales), por el exchange y la clave que dice; ms-debt escucha en esa cola y entiende cada campo; un mensaje no puede elegir qué clase se crea al leerlo |
 | **De seguridad** | **CodeQL** (Java y JavaScript) en cada pull request y cada semana; la auditoría de dependencias del portal, que rompe su workflow ante una vulnerabilidad alta; Dependabot por módulo, también para las acciones de GitHub; y el escaneo de secretos de GitHub con protección de push, que rechaza un push que traiga un token conocido |
-| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta abrir cobros (`pagos.js`, solo con las pasarelas simuladas). Se corren a mano, con el sistema arriba ([`docs/rendimiento`](../rendimiento/README.md)) |
+| **De rendimiento** (k6) | Cómo lo siente una persona, dónde está el techo y cuánto aguanta la aplicación. La suite modular y los escenarios por servicio viven en `performance-tests/k6/` (solo con las pasarelas simuladas cuando corresponde). Se ejecutan con la pila local levantada y permiten generar informes HTML y visualizarlos localmente ([`docs/rendimiento`](../rendimiento/README.md)) |
 
 </details>
 

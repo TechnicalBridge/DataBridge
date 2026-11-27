@@ -5,9 +5,27 @@
 > Las secciones de abajo son la suite anterior por servicio, con sus corridas
 > históricas.
 
+## Por qué k6 y no Gatling
+
+La simulación Gatling de ms-payments medía un solo servicio y duplicaba lo que ya
+cubría k6. En cambio, k6 ejecuta los 13 escenarios de la suite —portal, gateway,
+auth, deuda, pagos, asistente y base de datos— en la misma red de Compose, con
+umbrales por escenario y un JSON por corrida. Eso permite correr todo con un
+comando, restaurar los cupos y reunir los resultados en un solo visor local. Por
+eso #326 se cierra como no planificado: su cobertura queda en la suite k6 y no se
+mantiene una segunda herramienta que no se puede integrar con el resto. Las
+pruebas Java de ms-payments siguen cubriendo la lógica y los contratos; el
+rendimiento se mide con k6.
+
+Si se suman los 13 escenarios de la suite modular, los 9 de la suite anterior por
+servicio y la simulación Gatling, el inventario de rendimiento de la Fase 2 era
+de 23 escenarios. Al retirar Gatling queda en **22**: el informe de la Fase 2 debe
+usar esa cifra.
+
 La suite anterior tiene nueve escenarios agrupados por servicio, con **k6** corriendo en un contenedor. No hay que instalar nada, y
 como entra a la red de Docker Compose puede medir el camino completo —nginx → gateway → servicio →
-MySQL— o pegarle directo a un servicio para aislarlo.
+MySQL— o pegarle directo a un servicio para aislarlo. Las pruebas de rendimiento
+se ejecutan con **k6**; Maven queda para las pruebas Java del proyecto.
 
 | Servicio | Escenario | Qué mide |
 | --- | --- | --- |
@@ -23,6 +41,42 @@ MySQL— o pegarle directo a un servicio para aislarlo.
 
 La configuración compartida —rutas, sesiones y escalones— vive en
 [`config/options.js`](../../performance-tests/k6/config/options.js).
+
+## Cómo correr las pruebas y visualizar resultados
+
+```powershell
+# Preparar la pila local con datos de demo.
+$env:DEMO_DATOS = 'true'
+docker compose --profile app up -d --wait
+
+# Suite completa sobre el proyecto Compose activo (Python 3.9+).
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -Proyecto databridge
+
+# Abrir únicamente los informes existentes.
+.\performance-tests\k6\scripts\ejecutar-suite-completa.ps1 -SoloVisualizar
+```
+
+La suite completa sube temporalmente `RATE_GLOBAL_CAPACITY`, `RATE_AUTH_CAPACITY`
+y `AUTH_IDENTIFIER_LIMIT_CAPACITY`, recrea solo gateway y ms-auth, ejecuta los
+escenarios en serie, restaura los valores originales y después llama a
+`scripts/generar-evidencias.py` para abrir los HTML en
+<http://127.0.0.1:8766/evidencias/index.html>. No copia el entorno de los
+contenedores a disco ni conserva secretos. Los HTML son una presentación propia
+de los JSON reales de k6. Los resultados fallidos se conservan como fallidos.
+Indica el nombre real de Compose en `-Proyecto` (lo lista `docker compose ls`) y
+no ejecutes corridas simultáneas. La suite tarda alrededor de **30 minutos**; la
+resistencia sola son 10. Para una comprobación rápida, `-Escenarios smoke` corre
+solo el humo. La suite requiere datos de demo existentes y no modifica deudas
+mediante repactaciones.
+
+Los escenarios individuales con `run.ps1 -Levantar` no restauran los cupos
+automáticamente. Consulta [la suite modular](suite-k6.md) para requisitos,
+duraciones, restauración y opciones del visor.
+
+**No medir `/actuator/health` a través del portal:** puede devolver el HTML de nginx
+con HTTP 200, no la salud de ms-payments. Los escenarios k6 por servicio usan la
+red interna de Compose; los puertos internos, como `8084`, no están publicados
+en el host.
 
 ## Antes de correrlas
 
