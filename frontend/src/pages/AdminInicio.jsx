@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { SERVICIOS, estadoDe, resumenDeDeudas, resumenDePagos } from "../api/admin";
+import {
+  SERVICIOS, avisosAEmpresas, estadoDe, estadoDelContacto, operacionDePagos, reclamosAbiertos, resumenDeDeudas,
+  resumenDePagos,
+} from "../api/admin";
 import { useAuth } from "../store/authStore";
 import {
   IconoAlerta,
+  IconoCheck,
   IconoCartera,
   IconoEquipo,
   IconoEmpresa,
@@ -17,6 +21,58 @@ import { CarteraDona, PagosPorPasarela, RecuperadoDiario } from "../components/G
 const numero = (n) => Number(n).toLocaleString("es-CL");
 const sumar = (valores = {}) => Object.values(valores).reduce((total, valor) => total + Number(valor), 0);
 
+/** Desde cuantos dias un reclamo sin respuesta se avisa en el inicio (#554). */
+const DIAS_DE_RECLAMO = 7;
+
+/**
+ * Lo que necesita atencion hoy (#554), con lo que ya entregan Operacion, Reclamos y Campanas: primero la ley
+ * apagada, que nunca puede pasar inadvertida, y despues lo que hay que arreglar. Cada uno, con su numero y a donde ir.
+ */
+function pendientesDe(revision) {
+  const { contacto, avisos, pagos, reclamos } = revision;
+  const lista = [];
+  if (contacto && contacto !== "error") {
+    if (!contacto.horarioLegal) {
+      lista.push({ clave: "horario", grave: true, enlace: "/admin/campanas",
+        titulo: "El horario de cobranza de la ley está apagado",
+        detalle: "Se les puede escribir a los deudores a cualquier hora (CONTACTO_SIN_HORARIO). Es solo para probar: nunca con deudores reales." });
+    }
+    if (!contacto.limiteSemanal) {
+      lista.push({ clave: "limite", grave: true, enlace: "/admin/campanas",
+        titulo: "El límite de 2 correos por semana está apagado",
+        detalle: "Se les puede escribir sin tope (CONTACTO_SIN_LIMITE). Es solo para probar: nunca con deudores reales." });
+    }
+  }
+  const fallidos = avisos && avisos !== "error" ? Number(avisos.fallidos || 0) : 0;
+  if (fallidos) {
+    lista.push({ clave: "avisos", numero: fallidos, enlace: "/admin/operacion",
+      titulo: fallidos === 1 ? "Un aviso a una empresa no llegó" : `${numero(fallidos)} avisos a las empresas no llegaron`,
+      detalle: "Revisa en Operación a quién no le llegan y vuelve a ponerlos en cola." });
+  }
+  const p = pagos && pagos !== "error" ? pagos.pagos || {} : {};
+  if (p.duplicados) {
+    lista.push({ clave: "duplicados", numero: p.duplicados, enlace: "/admin/operacion",
+      titulo: p.duplicados === 1 ? "Un pago cobrado dos veces por devolver" : `${numero(p.duplicados)} pagos cobrados dos veces por devolver`,
+      detalle: "La empresa que cargó la deuda debe devolverle el dinero al deudor." });
+  }
+  if (p.abiertosHaceMasDeUnaHora) {
+    lista.push({ clave: "abiertos", numero: p.abiertosHaceMasDeUnaHora, enlace: "/admin/operacion",
+      titulo: p.abiertosHaceMasDeUnaHora === 1 ? "Un cobro abierto hace más de una hora" : `${numero(p.abiertosHaceMasDeUnaHora)} cobros abiertos hace más de una hora`,
+      detalle: "Pregúntale a la pasarela cómo quedó, desde Operación." });
+  }
+  //  Vienen del mas antiguo al mas nuevo: si todos los de la pagina pasan el plazo y hay mas, son por lo menos esos.
+  const filas = reclamos && reclamos !== "error" ? reclamos.filas : [];
+  const viejos = filas.filter((r) => Number(r.dias) >= DIAS_DE_RECLAMO).length;
+  const hayMas = viejos === filas.length && Number(reclamos?.pagina?.totalElements || 0) > filas.length;
+  if (viejos) {
+    lista.push({ clave: "reclamos", numero: viejos, enlace: "/admin/reclamos",
+      titulo: viejos === 1 ? `Un reclamo sin respuesta hace ${DIAS_DE_RECLAMO} días o más`
+        : `${numero(viejos)}${hayMas ? " o más" : ""} reclamos sin respuesta hace ${DIAS_DE_RECLAMO} días o más`,
+      detalle: "Mientras tanto esas deudas no se cobran: la empresa tiene que responderlos." });
+  }
+  return lista;
+}
+
 /**
  * La portada del panel de administracion: quien entro y si cada servicio le
  * responde. Es lo primero que ve el admin de DataBridge, y la prueba de que su
@@ -27,10 +83,18 @@ export default function AdminInicio() {
   //  Por servicio: sin valor mientras se consulta, y despues "ok" o "caido".
   const [estados, setEstados] = useState({});
   const [cifras, setCifras] = useState({});
+  //  Lo que puede necesitar atencion (#554): sin valor mientras se consulta, "error" si no respondio.
+  const [revision, setRevision] = useState({});
 
   function consultar() {
     setEstados({});
     setCifras({});
+    setRevision({});
+    const anotar = (clave) => (valor) => setRevision((r) => ({ ...r, [clave]: valor }));
+    estadoDelContacto().then(anotar("contacto")).catch(() => anotar("contacto")("error"));
+    avisosAEmpresas().then(anotar("avisos")).catch(() => anotar("avisos")("error"));
+    operacionDePagos().then(anotar("pagos")).catch(() => anotar("pagos")("error"));
+    reclamosAbiertos({ porPagina: 50 }).then(anotar("reclamos")).catch(() => anotar("reclamos")("error"));
     SERVICIOS.forEach(({ tramo }) => {
       estadoDe(tramo)
         .then((r) => setEstados((e) => ({ ...e, [tramo]: r.ok ? "ok" : "caido" })))
@@ -49,6 +113,11 @@ export default function AdminInicio() {
   const consultando = SERVICIOS.some(({ tramo }) => !estados[tramo]);
   const caidos = SERVICIOS.filter(({ tramo }) => estados[tramo] === "caido").length;
   const nombre = user?.nombre?.trim().split(/\s+/)[0] || "Administrador";
+  const revisando = ["contacto", "avisos", "pagos", "reclamos"].some((clave) => revision[clave] === undefined);
+  const pendientes = revisando ? [] : pendientesDe(revision);
+  const sinRevisar = [["contacto", "la ley"], ["avisos", "los avisos"], ["pagos", "los pagos"], ["reclamos", "los reclamos"]]
+    .filter(([clave]) => revision[clave] === "error").map(([, que]) => que);
+  const totalPendiente = pendientes.reduce((s, p) => s + (p.numero || 1), 0);
 
   return (
     <div className="admin-inicio">
@@ -61,13 +130,36 @@ export default function AdminInicio() {
         <div className="admin-inicio-estado">
           <span className={`admin-salud ${caidos ? "con-alerta" : ""}`} aria-live="polite">
             <span className="admin-salud-punto" />
-            {consultando ? "Comprobando servicios" : caidos ? `${caidos} sin responder` : "Todo operativo"}
+            {consultando ? "Comprobando servicios" : caidos ? `${caidos} sin responder` : "Servicios operativos"}
           </span>
           <button type="button" className="btn btn-ghost btn-sm" onClick={consultar} disabled={consultando}>
             Actualizar
           </button>
         </div>
       </header>
+
+      <section className="admin-panel bandeja admin-pendientes aparece" aria-labelledby="pendientes-titulo"
+               aria-busy={revisando}>
+        <h2 id="pendientes-titulo">Lo que necesita atención</h2>
+        {revisando ? (
+          <p className="hint">Revisando…</p>
+        ) : pendientes.length === 0 ? (
+          sinRevisar.length ? null : <p className="bandeja-al-dia"><IconoCheck size={18} /> Nada espera tu atención.</p>
+        ) : (
+          <ul className="bandeja-lista">
+            {pendientes.map((p) => (
+              <li key={p.clave}>
+                <Link to={p.enlace} className={`bandeja-item${p.grave ? " grave" : ""}`}>
+                  <b className="bandeja-numero">{p.grave ? <IconoAlerta size={18} /> : numero(p.numero)}</b>
+                  <span className="bandeja-texto"><b>{p.titulo}</b><span className="sub">{p.detalle}</span></span>
+                  <IconoFlecha size={16} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!revisando && sinRevisar.length ? <p className="hint">No se pudo revisar {sinRevisar.join(" ni ")}: inténtalo en un rato.</p> : null}
+      </section>
 
       <section className="admin-resumen" aria-label="Cifras de la plataforma">
         <Resumen
@@ -109,10 +201,10 @@ export default function AdminInicio() {
           titulo="Requieren atención"
           icono={<IconoAlerta size={20} />}
           enlace="/admin/operacion"
-          dato={cifras.payments}
+          dato={revisando ? null : sinRevisar.length === 4 ? "error" : { total: totalPendiente }}
           render={(r) => ({
-            principal: numero(r.abiertosMasDeUnaHora),
-            detalle: "Cobros abiertos hace más de una hora",
+            principal: numero(r.total),
+            detalle: r.total ? "El detalle, arriba" : "Nada pendiente",
           })}
         />
       </section>
