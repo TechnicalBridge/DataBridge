@@ -181,9 +181,9 @@ export default function DataBridge() {
     try {
       const r = await pedirCodigo(deuda.id);
       setAvisos((a) => ({ ...a, [deuda.id]: { ok: `Enviado a ${r.destino}` } }));
-        await listarDeudas().then(setDeudas).catch(() => {
-          setError("El correo salió, pero no se pudo actualizar la cartera. Actualiza la página para ver el estado.");
-        });
+      await listarDeudas().then(setDeudas).catch(() => {
+        setError("El correo salió, pero no se pudo actualizar la cartera. Actualiza la página para ver el estado.");
+      });
     } catch (err) {
       setAvisos((a) => ({ ...a, [deuda.id]: { error: err.message } }));
     }
